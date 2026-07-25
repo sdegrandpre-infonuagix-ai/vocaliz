@@ -1,0 +1,9 @@
+{
+  "name": "salon",
+  "description": "Salon project",
+  "createdAt": "2026-07-25T14:01:22.701Z",
+  "platform": "claude-code",
+  "upstreamVersions": {
+    "bmadCommit": "d1163f85"
+  }
+}
