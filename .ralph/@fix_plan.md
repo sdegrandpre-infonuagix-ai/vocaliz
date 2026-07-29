@@ -28,12 +28,7 @@
 
 - [x] Story 3.1: Jonction Web Anonyme via Lien à Usage Unique
 - [x] Story 3.2: Sortie de Session par Fermeture
-  > As a invité anonyme
-  > I want pouvoir simplement fermer mon navigateur pour quitter
-  > So that je n'aie pas besoin de connaître une commande vocale spécifique.
-  > AC: Given un invité anonyme dans une session active, When il ferme l'application ou l'onglet du navigateur, Then il quitte la session proprement
-  > Spec: specs/planning-artifacts/epics.md#story-3-2
-- [ ] Story 3.3: Question de Satisfaction pour Invité Anonyme
+- [x] Story 3.3: Question de Satisfaction pour Invité Anonyme
   > As a invité anonyme
   > I want répondre à la question de satisfaction sans avoir de compte
   > So that mon ressenti compte même sans inscription.

@@ -1,4 +1,4 @@
-"""Tests for Story 2.11 + 2.12 — Vocal Session Exit and Satisfaction Question."""
+"""Tests for Story 2.11 + 2.12 + 3.3 — Vocal Session Exit, Satisfaction Question, Anonymous Guest."""
 import os
 import sys
 
@@ -81,3 +81,53 @@ def test_end_session_returns_no_session_context_without_config():
     agent = salon.SalonAgent()
     result = asyncio.run(agent.end_session())
     assert result == "no_session_context"
+
+
+# ─── Story 3.3: satisfaction question for anonymous guests ────────────────────
+
+def test_base_instructions_contain_anonymous_guest_section():
+    """Instructions must have an ANONYMOUS GUESTS section."""
+    assert "ANONYMOUS GUESTS" in salon._BASE_INSTRUCTIONS
+
+
+def test_base_instructions_anonymous_guest_receives_satisfaction_question():
+    """Instructions must direct agent to ask the satisfaction question to anonymous guests."""
+    instructions = salon._BASE_INSTRUCTIONS
+    anon_section_start = instructions.find("ANONYMOUS GUESTS")
+    assert anon_section_start != -1
+    anon_section = instructions[anon_section_start:]
+    assert "satisfaction question" in anon_section.lower() or "satisfaction" in anon_section
+
+
+def test_base_instructions_no_profile_save_for_anonymous_guests():
+    """Instructions must prohibit calling report_detected_language for anonymous guests."""
+    instructions = salon._BASE_INSTRUCTIONS
+    anon_section_start = instructions.find("ANONYMOUS GUESTS")
+    assert anon_section_start != -1
+    anon_section = instructions[anon_section_start:]
+    assert "report_detected_language" in anon_section
+    assert "Do NOT call report_detected_language" in anon_section
+
+
+def test_base_instructions_anonymous_response_not_saved():
+    """Instructions must clarify that anonymous guest responses are not persisted."""
+    instructions = salon._BASE_INSTRUCTIONS
+    anon_section_start = instructions.find("ANONYMOUS GUESTS")
+    assert anon_section_start != -1
+    anon_section = instructions[anon_section_start:]
+    assert "NOT saved" in anon_section or "not saved" in anon_section.lower()
+
+
+def test_base_instructions_anonymous_guest_treated_as_full_participant():
+    """Instructions must state anonymous guests are full participants for exit purposes."""
+    instructions = salon._BASE_INSTRUCTIONS
+    anon_section_start = instructions.find("ANONYMOUS GUESTS")
+    assert anon_section_start != -1
+    anon_section = instructions[anon_section_start:]
+    assert "full participant" in anon_section
+
+
+def test_base_instructions_anonymous_guest_identity_described():
+    """Instructions identify anonymous guests by their 'Invité' display name."""
+    instructions = salon._BASE_INSTRUCTIONS
+    assert "Invité" in instructions

@@ -92,6 +92,17 @@ _BASE_INSTRUCTIONS = (
     "   thank them briefly and call end_session to close the session.\n"
     "IMPORTANT: You MUST ask the satisfaction question before calling end_session.\n"
     "Do NOT skip directly to end_session — the question is mandatory.\n"
+    "\n\n"
+    "ANONYMOUS GUESTS (display name 'Invité'):\n"
+    "Anonymous browser guests have no Salon account. Apply these rules for them:\n"
+    "- Ask the satisfaction question exactly as you would for a registered user.\n"
+    "  Their verbal response is valuable even without a profile.\n"
+    "- Do NOT call report_detected_language for anonymous guests — they have no\n"
+    "  profile to update. Language detection tools are for the host only.\n"
+    "- Satisfaction responses from anonymous guests are purely conversational:\n"
+    "  they are NOT saved to any database. Thank them warmly regardless.\n"
+    "- An anonymous guest joining via browser will appear with identity 'Invité'.\n"
+    "  Treat them as a full participant for facilitation and exit purposes.\n"
 )
 
 _CONTENT_PREVIEW_CHARS = 2500
