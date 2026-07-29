@@ -12,6 +12,8 @@ from src.models.user import User
 from src.models.invitation import Invitation
 from src.schemas.session import (
     EndSessionResponse,
+    HeartbeatBody,
+    HeartbeatResponse,
     JoinSessionResponse,
     SessionDetailResponse,
     SessionResponse,
@@ -269,6 +271,49 @@ def join_session(
     )
 
 
+@router.post("/{session_id}/heartbeat", response_model=HeartbeatResponse)
+def session_heartbeat(
+    session_id: str,
+    body: HeartbeatBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Record a metering heartbeat from the agent worker.
+
+    Called every 30 seconds by the agent to commit elapsed trial time in real time.
+    Ensures metered time is not lost if the session ends unexpectedly.
+    Only the session host may call this endpoint.
+    """
+    import uuid as _uuid
+    from datetime import datetime, timezone
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session introuvable.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+    if session.status != "active":
+        raise HTTPException(status_code=409, detail="La session est terminée.")
+
+    seconds = max(0, body.seconds)
+    host = db.query(User).filter(User.id == session.host_user_id).first()
+    if host is not None and seconds > 0:
+        host.trial_seconds_used = host.trial_seconds_used + seconds
+
+    session.last_heartbeat_at = datetime.now(tz=timezone.utc)
+    db.commit()
+
+    used = host.trial_seconds_used if host is not None else 0
+    return HeartbeatResponse(sessionId=str(session.id), trialSecondsUsed=used)
+
+
 @router.post("/{session_id}/end", response_model=EndSessionResponse)
 def end_session(
     session_id: str,
@@ -302,19 +347,22 @@ def end_session(
     db.commit()
     db.refresh(session)
 
-    # Accumulate host free-trial time. Only the HOST role is tracked (never guests).
-    # Normalise both timestamps to UTC-aware — SQLite returns naive datetimes.
-    created = session.created_at
-    if created.tzinfo is None:
-        created = created.replace(tzinfo=timezone.utc)
+    # Accumulate remaining host trial time since the last heartbeat (or since session
+    # start if no heartbeats were received — fallback for unexpected disconnects).
+    # Only the HOST role is tracked (never guests).
+    # Normalise timestamps to UTC-aware — SQLite returns naive datetimes.
+    reference = session.last_heartbeat_at or session.created_at
+    ref = reference
+    if ref.tzinfo is None:
+        ref = ref.replace(tzinfo=timezone.utc)
     ended = session.ended_at
     if ended.tzinfo is None:
         ended = ended.replace(tzinfo=timezone.utc)
-    duration_seconds = max(0, int((ended - created).total_seconds()))
-    if duration_seconds > 0:
+    remaining_seconds = max(0, int((ended - ref).total_seconds()))
+    if remaining_seconds > 0:
         host = db.query(User).filter(User.id == session.host_user_id).first()
         if host is not None:
-            host.trial_seconds_used = host.trial_seconds_used + duration_seconds
+            host.trial_seconds_used = host.trial_seconds_used + remaining_seconds
             db.commit()
 
     # Fire-and-forget: send install-link SMS to anonymous guests who participated.

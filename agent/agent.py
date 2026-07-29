@@ -3,6 +3,7 @@ Salon – LiveKit Agent Worker
 Entry point for the xAI-powered voice discussion agent.
 """
 
+import asyncio
 import json
 import logging
 from typing import Annotated
@@ -193,6 +194,8 @@ class SalonAgent(Agent):
         self._host_token = host_token
         self._frequency_preference: str = "normal"
         self._room = room
+        self._heartbeat_task: asyncio.Task | None = None
+        self._heartbeat_interval: int = 30
 
     @function_tool
     async def set_intervention_frequency(
@@ -314,6 +317,45 @@ class SalonAgent(Agent):
             logger.exception("end_session exception: %s", exc)
             return "error:network"
 
+    def start_heartbeat(self) -> None:
+        """Start the 30-second metering heartbeat background task."""
+        if self._heartbeat_task is None or self._heartbeat_task.done():
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+            logger.info("Heartbeat task started for session %s", self._session_id)
+
+    def stop_heartbeat(self) -> None:
+        """Cancel the metering heartbeat task."""
+        if self._heartbeat_task and not self._heartbeat_task.done():
+            self._heartbeat_task.cancel()
+            logger.info("Heartbeat task stopped for session %s", self._session_id)
+        self._heartbeat_task = None
+
+    async def _heartbeat_loop(self) -> None:
+        """Send a heartbeat every `_heartbeat_interval` seconds until cancelled."""
+        try:
+            while True:
+                await asyncio.sleep(self._heartbeat_interval)
+                await self._send_heartbeat()
+        except asyncio.CancelledError:
+            pass
+
+    async def _send_heartbeat(self) -> None:
+        """POST elapsed seconds to the API heartbeat endpoint."""
+        if not self._session_id or not self._api_url or not self._host_token:
+            return
+        url = f"{self._api_url}/sessions/{self._session_id}/heartbeat"
+        headers = {"Authorization": f"Bearer {self._host_token}"}
+        payload = {"seconds": self._heartbeat_interval}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code != 200:
+                logger.warning("Heartbeat returned %s for session %s", resp.status_code, self._session_id)
+            else:
+                logger.debug("Heartbeat sent for session %s", self._session_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Heartbeat failed for session %s: %s", self._session_id, exc)
+
     @function_tool
     async def invite_contact(
         self,
@@ -400,20 +442,31 @@ async def entrypoint(ctx: agents.JobContext):
         allow_interruptions=True,   # participants can interrupt the agent naturally
     )
 
+    salon_agent = SalonAgent(
+        session_id=session_id,
+        api_url=api_url,
+        host_token=host_token,
+        source_content=source_content,
+        source_type=source_type,
+        source_url=source_url,
+        additional_sources=additional_sources,
+        room=ctx.room,
+    )
+
     await agent_session.start(
         room=ctx.room,
-        agent=SalonAgent(
-            session_id=session_id,
-            api_url=api_url,
-            host_token=host_token,
-            source_content=source_content,
-            source_type=source_type,
-            source_url=source_url,
-            additional_sources=additional_sources,
-            room=ctx.room,
-        ),
+        agent=salon_agent,
         room_input_options=RoomInputOptions(),
     )
+
+    # Start metering heartbeat — sends elapsed seconds every 30 s so trial time
+    # is committed incrementally and survives unexpected disconnects.
+    if session_id and api_url and host_token:
+        salon_agent.start_heartbeat()
+
+        @ctx.room.on("disconnected")
+        def _on_room_disconnected(*_args):
+            salon_agent.stop_heartbeat()
 
 
 if __name__ == "__main__":

@@ -35,12 +35,7 @@
 > Goal: Un hôte bénéficie d'une heure d'essai gratuite à vie, mesurée précisément, puis est facturé à l'heure via Stripe une fois cet essai épuisé — l'invité, lui, ne paie jamais.
 
 - [x] Story 4.1: Heure d'Essai Gratuite à Vie par Hôte
-  > As a hôte
-  > I want bénéficier d'une heure d'essai gratuite cumulée sur toutes mes sessions
-  > So that je peux essayer Salon avant de payer.
-  > AC: Given un hôte utilise Salon pour la première fois, When il démarre des sessions, Then son temps cumulé en tant qu'hôte est suivi contre un plafond d'une heure à vie, And Given un invité participe à une session, When le temps est comptabilisé, Then son temps à lui n'est jamais compté contre l'essai gratuit de qui que ce soit (FR23)
-  > Spec: specs/planning-artifacts/epics.md#story-4-1
-- [ ] Story 4.2: Métrage Précis du Temps de Conversation
+- [x] Story 4.2: Métrage Précis du Temps de Conversation
   > As a système
   > I want comptabiliser le temps de conversation à la minute et à la seconde près
   > So that l'essai gratuit et la facturation soient exacts.

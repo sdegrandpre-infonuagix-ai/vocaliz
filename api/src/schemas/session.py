@@ -62,3 +62,12 @@ class EndSessionResponse(BaseModel):
     sessionId: str
     status: str
     endedAt: str
+
+
+class HeartbeatBody(BaseModel):
+    seconds: int
+
+
+class HeartbeatResponse(BaseModel):
+    sessionId: str
+    trialSecondsUsed: int
