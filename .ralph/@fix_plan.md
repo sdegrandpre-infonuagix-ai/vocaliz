@@ -19,12 +19,7 @@
 - [x] Story 2.6: Conversation Naturelle Sans Mot-Clé de Réveil
 - [x] Story 2.7: Ajustement Vocal de la Fréquence d'Intervention
 - [x] Story 2.8: Détection de Langue et Expression Multilingue
-  > As a participant
-  > I want m'exprimer dans ma propre langue sans configuration
-  > So that la barrière linguistique ne limite jamais la conversation.
-  > AC: Given un participant rejoint une session, When il commence à parler, Then le système détecte automatiquement sa langue sans sélection manuelle, And Given la langue est détectée, When le participant continue de parler, Then il peut s'exprimer entièrement dans cette langue tout au long de la session
-  > Spec: specs/planning-artifacts/epics.md#story-2-8
-- [ ] Story 2.9: Affichage Visuel dans la Langue Détectée
+- [x] Story 2.9: Affichage Visuel dans la Langue Détectée
   > As a utilisateur
   > I want que les écrans de l'application s'affichent dans ma langue vocale détectée
   > So that je n'aie jamais besoin de configurer manuellement une langue d'interface.

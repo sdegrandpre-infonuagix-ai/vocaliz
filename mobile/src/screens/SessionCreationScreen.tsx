@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { createSessionFromUrl } from '../services/sessionsApi';
 
 interface Props {
@@ -30,6 +31,7 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { token } = useAuth();
+  const { t } = useLanguage();
 
   const isValidUrl = /^https?:\/\/.+/.test(sourceUrl.trim());
 
@@ -41,7 +43,7 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
       const session = await createSessionFromUrl(token, sourceUrl.trim());
       onSessionCreated?.(session.sessionId, session.livekitRoomName, session.hostToken);
     } catch (e: any) {
-      setError(e.message ?? 'Impossible de créer la session.');
+      setError(e.message ?? t.session.errorGeneric);
     } finally {
       setIsLoading(false);
     }
@@ -59,15 +61,15 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
       >
         {/* ── Header ── */}
         <Text style={styles.title} accessibilityRole="header">
-          Nouvelle session
+          {t.session.title}
         </Text>
         <Text style={styles.subtitle}>
-          Partagez une URL d'article pour démarrer une discussion guidée par l'agent.
+          {t.session.subtitle}
         </Text>
 
         {/* ── URL input ── */}
         <Text style={styles.label} accessibilityElementsHidden>
-          URL de l'article
+          {t.session.urlLabel}
         </Text>
         <TextInput
           style={[styles.input, error ? styles.inputError : null]}
@@ -79,8 +81,8 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
           autoCapitalize="none"
           autoCorrect={false}
           textContentType="URL"
-          accessibilityLabel="URL de l'article source"
-          accessibilityHint="Entrez l'adresse web de l'article à discuter"
+          accessibilityLabel={t.session.urlInputLabel}
+          accessibilityHint={t.session.urlInputHint}
         />
 
         {/* ── Error ── */}
@@ -100,32 +102,32 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
           onPress={handleCreate}
           disabled={!isValidUrl || isLoading}
           accessibilityRole="button"
-          accessibilityLabel="Démarrer la session"
+          accessibilityLabel={t.session.startButton}
           accessibilityState={{ disabled: !isValidUrl || isLoading, busy: isLoading }}
         >
           {isLoading ? (
             <ActivityIndicator color={colors.ivory} />
           ) : (
-            <Text style={styles.buttonText}>Démarrer la session</Text>
+            <Text style={styles.buttonText}>{t.session.startButton}</Text>
           )}
         </Pressable>
 
         {/* ── Divider ── */}
         <View style={styles.dividerRow} accessibilityElementsHidden>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou</Text>
+          <Text style={styles.dividerText}>{t.session.or}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         {/* ── Document upload placeholder (file picker added with expo-document-picker in Story 2.3) ── */}
         <Pressable
           style={styles.uploadButton}
-          onPress={() => Alert.alert('Prochainement', 'Le téléversement de documents sera disponible dans la prochaine mise à jour.')}
+          onPress={() => Alert.alert(t.session.uploadComingSoonTitle, t.session.uploadComingSoonMsg)}
           accessibilityRole="button"
-          accessibilityLabel="Téléverser un document"
-          accessibilityHint="Sélectionnez un fichier PDF ou texte"
+          accessibilityLabel={t.session.uploadButtonLabel}
+          accessibilityHint={t.session.uploadButtonHint}
         >
-          <Text style={styles.uploadButtonText}>📄  Téléverser un document</Text>
+          <Text style={styles.uploadButtonText}>{t.session.uploadButton}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -8,6 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from src.rate_limit import limiter
 from src.routers import auth, sessions
 from src.routers.invitations import me_router, router as invitations_router
+from src.routers.users import router as users_router
 
 app = FastAPI(title="Salon API", version="0.1.0")
 app.state.limiter = limiter
@@ -17,6 +18,7 @@ app.include_router(auth.router)
 app.include_router(sessions.router)
 app.include_router(invitations_router)
 app.include_router(me_router)
+app.include_router(users_router)
 
 
 @app.get("/health")

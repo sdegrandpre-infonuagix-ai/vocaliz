@@ -21,6 +21,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import TelegraphIcon from '../components/TelegraphIcon';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { AuthStackParamList } from '../navigation/AuthNavigator';
 
 type Props = {
@@ -45,6 +46,7 @@ function toE164(display: string): string {
 export default function PhoneScreen({ navigation }: Props) {
   const [phoneDisplay, setPhoneDisplay] = useState('');
   const { sendOtp, isLoading, error } = useAuth();
+  const { t } = useLanguage();
 
   const e164 = toE164(phoneDisplay);
   const isValid = /^\+[1-9]\d{7,14}$/.test(e164);
@@ -87,7 +89,7 @@ export default function PhoneScreen({ navigation }: Props) {
           Salon
         </Text>
         <Text style={styles.subtitle}>
-          Entrez votre numéro de téléphone pour commencer.
+          {t.phone.subtitle}
         </Text>
 
         {/* ── Phone input ── */}
@@ -100,8 +102,8 @@ export default function PhoneScreen({ navigation }: Props) {
           keyboardType="phone-pad"
           textContentType="telephoneNumber"
           autoComplete="tel"
-          accessibilityLabel="Numéro de téléphone"
-          accessibilityHint="Entrez votre numéro au format international, par exemple +15141234567"
+          accessibilityLabel={t.phone.inputLabel}
+          accessibilityHint={t.phone.inputHint}
           autoFocus
           maxLength={17}
         />
@@ -123,18 +125,18 @@ export default function PhoneScreen({ navigation }: Props) {
           onPress={handleSend}
           disabled={!isValid || isLoading}
           accessibilityRole="button"
-          accessibilityLabel="Recevoir mon code"
+          accessibilityLabel={t.phone.button}
           accessibilityState={{ disabled: !isValid || isLoading, busy: isLoading }}
         >
           {isLoading ? (
             <ActivityIndicator color={colors.ivory} />
           ) : (
-            <Text style={styles.buttonText}>Recevoir mon code</Text>
+            <Text style={styles.buttonText}>{t.phone.button}</Text>
           )}
         </Pressable>
 
         <Text style={styles.legal}>
-          En continuant, vous acceptez nos conditions d'utilisation.
+          {t.phone.legal}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

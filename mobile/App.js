@@ -8,15 +8,42 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { registerGlobals } from '@livekit/react-native';
 
-import { AuthProvider } from './src/contexts/AuthContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import { colors } from './src/theme/tokens';
+import { getMyProfile } from './src/services/userApi';
 
 // Register WebRTC globals before any LiveKit usage
 registerGlobals();
 
 // Keep splash screen visible while fonts load
 SplashScreen.preventAutoHideAsync();
+
+/**
+ * Fetches the user's detected language from the API and applies it to
+ * the LanguageContext whenever the auth token becomes available.
+ * Renders nothing — side-effect only.
+ */
+function LanguageBootstrap() {
+  const { token } = useAuth();
+  const { setLanguage } = useLanguage();
+
+  useEffect(() => {
+    if (!token) return;
+    getMyProfile(token)
+      .then(profile => {
+        if (profile.detectedLanguage) {
+          setLanguage(profile.detectedLanguage);
+        }
+      })
+      .catch(() => {
+        // Profile fetch is best-effort; fall back to default language silently
+      });
+  }, [token, setLanguage]);
+
+  return null;
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({ PlayfairDisplay_700Bold });
@@ -34,10 +61,13 @@ export default function App() {
   }
 
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <AuthNavigator />
-      </NavigationContainer>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <LanguageBootstrap />
+        <NavigationContainer>
+          <AuthNavigator />
+        </NavigationContainer>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

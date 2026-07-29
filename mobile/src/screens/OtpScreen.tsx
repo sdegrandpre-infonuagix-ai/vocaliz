@@ -19,6 +19,7 @@ import type { RouteProp } from '@react-navigation/native';
 
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { AuthStackParamList } from '../navigation/AuthNavigator';
 
 const OTP_LENGTH = 6;
@@ -34,6 +35,7 @@ export default function OtpScreen({ navigation, route }: Props) {
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN);
   const { confirmOtp, resendOtpCode, isLoading, error } = useAuth();
+  const { t } = useLanguage();
   const inputRef = useRef<TextInput>(null);
 
   // Countdown timer for resend button
@@ -99,18 +101,18 @@ export default function OtpScreen({ navigation, route }: Props) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           accessibilityRole="button"
-          accessibilityLabel="Retour"
+          accessibilityLabel={t.otp.back}
           hitSlop={8}
         >
-          <Text style={styles.backText}>← Retour</Text>
+          <Text style={styles.backText}>{t.otp.back}</Text>
         </Pressable>
 
         {/* ── Heading ── */}
         <Text style={styles.title} accessibilityRole="header">
-          Code de vérification
+          {t.otp.title}
         </Text>
         <Text style={styles.subtitle}>
-          Entrez le code à {OTP_LENGTH} chiffres envoyé au{'\n'}
+          {t.otp.subtitle.replace('{n}', String(OTP_LENGTH))}{'\n'}
           <Text style={styles.phone}>{maskedPhone}</Text>
         </Text>
 
@@ -134,9 +136,9 @@ export default function OtpScreen({ navigation, route }: Props) {
           autoComplete="one-time-code"
           autoFocus
           style={styles.hiddenInput}
-          accessibilityLabel={`Code OTP à ${OTP_LENGTH} chiffres`}
-          accessibilityHint="Entrez les 6 chiffres reçus par SMS"
-          accessibilityValue={{ text: `${code.length} chiffres saisis` }}
+          accessibilityLabel={t.otp.inputLabel.replace('{n}', String(OTP_LENGTH))}
+          accessibilityHint={t.otp.inputHint}
+          accessibilityValue={{ text: t.otp.inputValue.replace('{n}', String(code.length)) }}
         />
 
         {/* ── Error message ── */}
@@ -156,13 +158,13 @@ export default function OtpScreen({ navigation, route }: Props) {
           onPress={() => handleVerify(code)}
           disabled={code.length < OTP_LENGTH || isLoading}
           accessibilityRole="button"
-          accessibilityLabel="Valider le code"
+          accessibilityLabel={t.otp.verifyButtonLabel}
           accessibilityState={{ disabled: code.length < OTP_LENGTH || isLoading, busy: isLoading }}
         >
           {isLoading ? (
             <ActivityIndicator color={colors.ivory} />
           ) : (
-            <Text style={styles.buttonText}>Valider</Text>
+            <Text style={styles.buttonText}>{t.otp.verifyButton}</Text>
           )}
         </Pressable>
 
@@ -174,14 +176,16 @@ export default function OtpScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel={
             cooldown > 0
-              ? `Renvoyer le code dans ${cooldown} secondes`
-              : 'Renvoyer le code'
+              ? t.otp.resendWaitingLabel.replace('{n}', String(cooldown))
+              : t.otp.resend
           }
           accessibilityState={{ disabled: cooldown > 0 }}
           hitSlop={8}
         >
           <Text style={[styles.resendText, cooldown > 0 && styles.resendDisabled]}>
-            {cooldown > 0 ? `Renvoyer dans ${cooldown}s` : 'Renvoyer le code'}
+            {cooldown > 0
+              ? t.otp.resendWaiting.replace('{n}', String(cooldown))
+              : t.otp.resend}
           </Text>
         </Pressable>
       </View>

@@ -50,6 +50,9 @@ _BASE_INSTRUCTIONS = (
     "Once a participant's language is detected, maintain it for the entire session "
     "unless they explicitly switch to a different language themselves. "
     "This applies to all facilitation, questions, source introductions, and confirmations. "
+    "When you detect the HOST's language for the first time, call report_detected_language "
+    "with the BCP-47 code (e.g. 'fr' for French, 'en' for English, 'es' for Spanish). "
+    "Call this tool only once per session — on first detection, not on every utterance. "
     "\n\n"
     "INVITATION COMMANDS: When the host says 'invite [name or phone number]' or "
     "'invite [name] at [phone number]', call invite_contact with the phone number "
@@ -179,6 +182,39 @@ class SalonAgent(Agent):
         }
         logger.info("Frequency preference set to: %s", direction)
         return confirmations[direction]
+
+    @function_tool
+    async def report_detected_language(
+        self,
+        language_code: Annotated[
+            str,
+            "BCP-47 language code detected from the host's speech, e.g. 'fr', 'en', 'es', 'pt'",
+        ],
+    ) -> str:
+        """Persist the host's detected spoken language to the API.
+
+        Call this once when you first identify the language the host is speaking.
+        The mobile app reads this to display its interface in the detected language.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            logger.warning("report_detected_language called but agent has no session context")
+            return "no_session_context"
+
+        url = f"{self._api_url}/me/language"
+        headers = {"Authorization": f"Bearer {self._host_token}"}
+        payload = {"language": language_code}
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.patch(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                logger.info("Detected language '%s' persisted for host", language_code)
+                return f"language_reported:{language_code}"
+            logger.warning("report_detected_language returned %s", resp.status_code)
+            return f"error:{resp.status_code}"
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("report_detected_language exception: %s", exc)
+            return "error:network"
 
     @function_tool
     async def invite_contact(

@@ -27,6 +27,9 @@ class User(Base):
     # Trial tracking (seconds used as host)
     trial_seconds_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    # Detected spoken language (BCP-47 code, e.g. "fr", "en") — set by agent on first detection
+    detected_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
     # Stripe billing
     stripe_customer_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     stripe_payment_method_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
