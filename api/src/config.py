@@ -31,5 +31,8 @@ class Settings(BaseSettings):
     # Free trial cap: 1 hour (3 600 s) of cumulative host-role time per account
     free_trial_limit_seconds: int = 3600
 
+    # Stripe billing — set STRIPE_SECRET_KEY in production
+    stripe_secret_key: str = "sk_test_placeholder"
+
 
 settings = Settings()

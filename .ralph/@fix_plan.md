@@ -36,12 +36,7 @@
 
 - [x] Story 4.1: Heure d'Essai Gratuite à Vie par Hôte
 - [x] Story 4.2: Métrage Précis du Temps de Conversation
-  > As a système
-  > I want comptabiliser le temps de conversation à la minute et à la seconde près
-  > So that l'essai gratuit et la facturation soient exacts.
-  > AC: Given une session active avec un hôte, When la conversation se déroule, Then le worker d'agent envoie un heartbeat de métrage toutes les 30 secondes à l'API, And Given une déconnexion brutale survient, When la session se termine de façon inattendue, Then le métrage déjà transmis via heartbeat n'est pas perdu
-  > Spec: specs/planning-artifacts/epics.md#story-4-2
-- [ ] Story 4.3: Ajout de Méthode de Paiement Stripe
+- [x] Story 4.3: Ajout de Méthode de Paiement Stripe
   > As a hôte dont l'heure gratuite est épuisée
   > I want ajouter une méthode de paiement
   > So that je peux continuer à utiliser Salon en tant qu'hôte.

@@ -1,12 +1,20 @@
-"""User profile router — /me/profile and /me/language."""
-from fastapi import APIRouter, Depends
+"""User profile router — /me/profile, /me/language, /me/payment-method."""
+import stripe
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DbSession
 
 from src.config import settings
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.user import User
-from src.schemas.user import TrialStatusResponse, UpdateLanguageBody, UserProfileResponse
+from src.schemas.user import (
+    AddPaymentMethodBody,
+    PaymentMethodResponse,
+    TrialStatusResponse,
+    UpdateLanguageBody,
+    UserProfileResponse,
+)
+from src.services import stripe_service
 
 router = APIRouter(prefix="/me", tags=["users"])
 
@@ -35,6 +43,30 @@ def get_trial_status(current_user: User = Depends(get_current_user)) -> TrialSta
         trialSecondsLimit=limit,
         trialSecondsRemaining=remaining,
         trialExhausted=(used >= limit),
+    )
+
+
+@router.post("/payment-method", response_model=PaymentMethodResponse)
+def add_payment_method(
+    body: AddPaymentMethodBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PaymentMethodResponse:
+    """Attach a Stripe PaymentMethod to the host's account.
+
+    The mobile app collects the card via Stripe Elements and passes the
+    resulting PaymentMethod ID here. A Stripe Customer is created on first call.
+    Required before creating a new session once the free trial is exhausted.
+    """
+    try:
+        stripe_service.attach_payment_method(current_user, body.paymentMethodId, db)
+    except stripe.StripeError as exc:
+        message = getattr(exc, "user_message", None) or str(exc)
+        raise HTTPException(status_code=402, detail=message)
+
+    return PaymentMethodResponse(
+        stripeCustomerId=current_user.stripe_customer_id or "",
+        paymentMethodAdded=True,
     )
 
 

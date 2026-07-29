@@ -43,6 +43,19 @@ async def create_session(
             detail="sourceUrl ou file est requis pour créer une session.",
         )
 
+    # Trial gate: trial exhausted + no payment method → require Stripe setup before continuing
+    if (
+        current_user.trial_seconds_used >= settings.free_trial_limit_seconds
+        and not current_user.stripe_payment_method_id
+    ):
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "Votre heure d'essai gratuite est épuisée. "
+                "Veuillez ajouter une méthode de paiement pour continuer."
+            ),
+        )
+
     # 1. Extract source content
     if source_url:
         content = await content_service.fetch_url_content(source_url)

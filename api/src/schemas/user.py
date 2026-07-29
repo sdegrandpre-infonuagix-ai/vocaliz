@@ -24,3 +24,12 @@ class TrialStatusResponse(BaseModel):
     trialSecondsLimit: int
     trialSecondsRemaining: int
     trialExhausted: bool
+
+
+class AddPaymentMethodBody(BaseModel):
+    paymentMethodId: str
+
+
+class PaymentMethodResponse(BaseModel):
+    stripeCustomerId: str
+    paymentMethodAdded: bool
