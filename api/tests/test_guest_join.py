@@ -176,3 +176,24 @@ def test_guest_web_page_is_responsive(client):
     resp = client.get(f"/join/{secrets.token_urlsafe(32)}")
     assert "viewport" in resp.text
     assert "width=device-width" in resp.text
+
+
+# ─── Story 3.2: clean disconnect on browser close ─────────────────────────────
+
+def test_guest_web_page_handles_beforeunload(client):
+    """HTML registers a beforeunload listener to disconnect cleanly on tab close."""
+    resp = client.get(f"/join/{secrets.token_urlsafe(32)}")
+    assert "beforeunload" in resp.text
+
+
+def test_guest_web_page_handles_pagehide(client):
+    """HTML registers a pagehide listener (reliable mobile fallback for tab close)."""
+    resp = client.get(f"/join/{secrets.token_urlsafe(32)}")
+    assert "pagehide" in resp.text
+
+
+def test_guest_web_page_disconnect_nulls_room(client):
+    """Unload handler sets room to null after disconnect to prevent double-disconnect."""
+    resp = client.get(f"/join/{secrets.token_urlsafe(32)}")
+    # The onPageUnload function should null out the room reference
+    assert "room = null" in resp.text

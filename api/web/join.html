@@ -322,6 +322,17 @@
     if (room) { room.disconnect(); }
   }
 
+  // ── Clean disconnect on browser close / tab close ─────────────────────────
+  // beforeunload covers desktop; pagehide is more reliable on mobile Safari.
+  function onPageUnload() {
+    if (room) {
+      room.disconnect();
+      room = null;
+    }
+  }
+  window.addEventListener('beforeunload', onPageUnload);
+  window.addEventListener('pagehide', onPageUnload);
+
   // ── Boot ──────────────────────────────────────────────────────────────────
   if (!joinToken || joinToken === 'join') {
     showError('Lien invalide', 'Ce lien de jointure est incomplet.');

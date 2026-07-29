@@ -27,12 +27,7 @@
 > Goal: Un contact téléphone sans l'application peut rejoindre une session Salon anonymement depuis son navigateur, vivre l'expérience complète, et être invité à installer l'application après coup.
 
 - [x] Story 3.1: Jonction Web Anonyme via Lien à Usage Unique
-  > As a contact téléphone invité sans l'application
-  > I want rejoindre une session directement depuis mon navigateur
-  > So that je peux participer sans créer de compte ni installer quoi que ce soit.
-  > AC: Given un hôte invite un contact téléphone sans l'application Salon, When le contact reçoit le SMS et clique le lien, Then il rejoint la session anonymement depuis son navigateur, sans créer de compte, And Given un lien de session a déjà été utilisé une fois, When quelqu'un tente de le réutiliser, Then l'accès est refusé, And Given la page de jonction s'affiche, When elle se charge sur mobile ou desktop, Then elle affiche le badge "Sans Installation" et s'adapte correctement aux deux formats
-  > Spec: specs/planning-artifacts/epics.md#story-3-1
-- [ ] Story 3.2: Sortie de Session par Fermeture
+- [x] Story 3.2: Sortie de Session par Fermeture
   > As a invité anonyme
   > I want pouvoir simplement fermer mon navigateur pour quitter
   > So that je n'aie pas besoin de connaître une commande vocale spécifique.
