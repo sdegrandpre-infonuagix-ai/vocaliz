@@ -132,6 +132,28 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
     return result
 
 
+def link_prior_invitations(user: User, db: Session) -> int:
+    """Link anonymous invitations for this phone number to the newly registered user.
+
+    Called when an anonymous guest completes phone verification. Updates guest_user_id
+    on all prior sms_contact invitations so the app can recognise their participation.
+    Returns the count of invitations linked.
+    """
+    prior = (
+        db.query(Invitation)
+        .filter(
+            Invitation.guest_phone == user.phone_number,
+            Invitation.guest_user_id.is_(None),
+        )
+        .all()
+    )
+    for inv in prior:
+        inv.guest_user_id = user.id
+    if prior:
+        db.commit()
+    return len(prior)
+
+
 def send_followup_sms_to_guests(session_id_str: str, db: Session) -> int:
     """Send an app-install link SMS to anonymous guests who completed this session.
 

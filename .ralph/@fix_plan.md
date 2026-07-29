@@ -30,12 +30,7 @@
 - [x] Story 3.2: Sortie de Session par Fermeture
 - [x] Story 3.3: Question de Satisfaction pour Invité Anonyme
 - [x] Story 3.4: SMS de Suivi avec Lien d'Installation
-  > As a invité anonyme
-  > I want recevoir un SMS avec un lien d'installation après ma session
-  > So that je puisse facilement installer l'application si l'expérience m'a plu.
-  > AC: Given un invité anonyme termine sa première session, When la session se termine, Then il reçoit automatiquement un SMS avec un lien d'installation de l'application
-  > Spec: specs/planning-artifacts/epics.md#story-3-4
-- [ ] Story 3.5: Conversion en Utilisateur Inscrit
+- [x] Story 3.5: Conversion en Utilisateur Inscrit
   > As a invité anonyme ayant reçu le lien d'installation
   > I want installer l'application et continuer à utiliser Salon en tant qu'utilisateur inscrit
   > So that je conserve mon historique pour mes futures sessions.

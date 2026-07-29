@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.rate_limit import limiter
 from src.schemas.auth import AuthTokenResponse, OtpRequestBody, OtpRequestResponse, OtpVerifyBody
-from src.services import jwt_service, otp as otp_service
+from src.services import invitation_service, jwt_service, otp as otp_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -28,7 +28,12 @@ def resend_otp(request: Request, body: OtpRequestBody, db: Session = Depends(get
 
 @router.post("/otp/verify", response_model=AuthTokenResponse)
 def verify_otp(body: OtpVerifyBody, db: Session = Depends(get_db)):
-    """Verify OTP and issue a JWT on success."""
+    """Verify OTP and issue a JWT on success.
+
+    Also converts anonymous guest participation: links any prior anonymous
+    invitations for this phone number to the newly registered user account.
+    """
     user = otp_service.verify_otp(body.phoneNumber, body.code, db)
+    invitation_service.link_prior_invitations(user, db)
     token = jwt_service.issue_token(str(user.id))
     return AuthTokenResponse(token=token, userId=str(user.id))
