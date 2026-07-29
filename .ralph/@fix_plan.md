@@ -17,12 +17,7 @@
 - [x] Story 2.4: Lecture à Voix Haute et Facilitation Sans Lecture Préalable
 - [x] Story 2.5: Contraste avec d'Autres Sources
 - [x] Story 2.6: Conversation Naturelle Sans Mot-Clé de Réveil
-  > As a participant
-  > I want parler naturellement sans mot-clé de réveil ni mécanisme formel de demande de parole
-  > So that la conversation reste fluide comme entre humains.
-  > AC: Given une session active, When un participant commence à parler, Then l'agent le comprend sans qu'un mot-clé de réveil soit prononcé, And Given deux participants parlent en alternance, When une pause naturelle survient, Then l'agent ou l'autre participant peut prendre la parole sans mécanisme explicite de demande
-  > Spec: specs/planning-artifacts/epics.md#story-2-6
-- [ ] Story 2.7: Ajustement Vocal de la Fréquence d'Intervention
+- [x] Story 2.7: Ajustement Vocal de la Fréquence d'Intervention
   > As a participant
   > I want ajuster à voix haute la fréquence d'intervention de l'agent
   > So that je garde le contrôle du rythme de la conversation.

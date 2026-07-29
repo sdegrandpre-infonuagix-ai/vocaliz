@@ -26,8 +26,18 @@ _BASE_INSTRUCTIONS = (
     "after their utterance. Never require a special invocation phrase. "
     "In multi-participant sessions, wait for a genuine conversational pause before "
     "speaking; do not interrupt a breath or a momentary hesitation. "
-    "Intervene at most once per minute when participants share the same language, "
-    "more frequently when actively translating or facilitating. "
+    "\n\n"
+    "INTERVENTION FREQUENCY (default — same-language sessions): "
+    "Intervene at most once per minute. Keep each intervention brief and focused: "
+    "one question or observation, then yield the floor. "
+    "When a participant explicitly asks you to change your frequency, call "
+    "set_intervention_frequency immediately and honor the new mode for the rest of the session:\n"
+    "  • 'parle moins souvent', 'interviens moins', 'tais-toi un peu', "
+    "'laisse-nous parler', 'moins souvent' → direction='less' (once every 3 minutes)\n"
+    "  • 'parle plus souvent', 'interviens plus', 'anime plus', "
+    "'tu peux participer davantage' → direction='more' (every 30 seconds)\n"
+    "  • 'c'est bien comme ça', 'rythme normal', 'reviens à la normale' → direction='normal'\n"
+    "Translate the spoken request mentally — the participant may say it in any language.\n"
     "\n\n"
     "INVITATION COMMANDS: When the host says 'invite [name or phone number]' or "
     "'invite [name] at [phone number]', call invite_contact with the phone number "
@@ -129,6 +139,34 @@ class SalonAgent(Agent):
         self._session_id = session_id
         self._api_url = api_url
         self._host_token = host_token
+        self._frequency_preference: str = "normal"
+
+    @function_tool
+    async def set_intervention_frequency(
+        self,
+        direction: Annotated[
+            str,
+            "Desired frequency adjustment: 'less' to speak less often (once every 3 min), "
+            "'more' to speak more often (every 30 s), 'normal' to reset to default (once/min)",
+        ],
+    ) -> str:
+        """Adjust how often the agent intervenes in the conversation.
+
+        Call this immediately when a participant requests a frequency change,
+        then honor the new mode for the remainder of the session.
+        Speak the returned confirmation message aloud so participants know their
+        preference was registered.
+        """
+        if direction not in ("less", "normal", "more"):
+            direction = "normal"
+        self._frequency_preference = direction
+        confirmations = {
+            "less": "Bien sûr, je vais intervenir moins souvent et vous laisser plus d'espace.",
+            "normal": "Je reviens à un rythme d'intervention normal, une fois par minute environ.",
+            "more": "D'accord, je vais participer plus activement à la conversation.",
+        }
+        logger.info("Frequency preference set to: %s", direction)
+        return confirmations[direction]
 
     @function_tool
     async def invite_contact(
