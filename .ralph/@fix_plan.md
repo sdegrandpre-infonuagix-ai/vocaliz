@@ -18,12 +18,7 @@
 - [x] Story 2.5: Contraste avec d'Autres Sources
 - [x] Story 2.6: Conversation Naturelle Sans Mot-Clé de Réveil
 - [x] Story 2.7: Ajustement Vocal de la Fréquence d'Intervention
-  > As a participant
-  > I want ajuster à voix haute la fréquence d'intervention de l'agent
-  > So that je garde le contrôle du rythme de la conversation.
-  > AC: Given une session avec des participants de même langue, When aucun ajustement n'est demandé, Then l'agent intervient au maximum une fois par minute, de façon succincte, And Given un participant dit "parle moins souvent" ou "interviens plus", When la demande est reçue, Then l'agent ajuste sa fréquence d'intervention en conséquence pour le reste de la session
-  > Spec: specs/planning-artifacts/epics.md#story-2-7
-- [ ] Story 2.8: Détection de Langue et Expression Multilingue
+- [x] Story 2.8: Détection de Langue et Expression Multilingue
   > As a participant
   > I want m'exprimer dans ma propre langue sans configuration
   > So that la barrière linguistique ne limite jamais la conversation.
