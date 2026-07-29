@@ -1,14 +1,25 @@
 """Invitations router — voice-triggered guest invitations."""
+import uuid as _uuid
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session as DbSession
 
 from src.database import get_db
-from sqlalchemy.orm import Session as DbSession
 from src.dependencies.auth import get_current_user
+from src.models.invitation import Invitation
+from src.models.session import SessionModel
 from src.models.user import User
-from src.schemas.invitation import InvitationResponse, InviteGuestBody, PendingInvitationResponse
-from src.services import invitation_service
+from src.schemas.invitation import (
+    GuestJoinResponse,
+    InvitationResponse,
+    InviteGuestBody,
+    PendingInvitationResponse,
+)
+from src.services import invitation_service, livekit_service
 
 router = APIRouter(prefix="/sessions", tags=["invitations"])
+guest_router = APIRouter(prefix="/invitations", tags=["guest"])
 
 
 @router.post("/{session_id}/invitations", response_model=InvitationResponse, status_code=201)
@@ -32,7 +43,61 @@ def create_invitation(
     return result
 
 
-# Separate router for /me prefix — registered below in main.py
+@guest_router.get("/guest-join/{join_token}", response_model=GuestJoinResponse)
+def guest_join_session(
+    join_token: str,
+    db: DbSession = Depends(get_db),
+):
+    """Redeem a one-time join token for anonymous browser access.
+
+    No authentication required. Marks the token as used so it cannot be reused.
+    Returns LiveKit credentials to connect directly from the browser.
+    """
+    now = datetime.now(tz=timezone.utc)
+
+    invitation = db.query(Invitation).filter(
+        Invitation.join_token == join_token,
+    ).first()
+
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Lien invalide ou introuvable.")
+
+    if invitation.status != "pending":
+        raise HTTPException(status_code=410, detail="Ce lien a déjà été utilisé.")
+
+    expires = invitation.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < now:
+        raise HTTPException(status_code=410, detail="Ce lien a expiré.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == invitation.session_id,
+    ).first()
+    if not session or session.status != "active":
+        raise HTTPException(status_code=410, detail="Cette session n'est plus disponible.")
+
+    # One-time use: mark token consumed before issuing LiveKit credentials
+    invitation.status = "accepted"
+    db.commit()
+
+    anonymous_id = f"guest-{_uuid.uuid4().hex[:8]}"
+    token = livekit_service.generate_participant_token(
+        room_name=session.livekit_room_name,
+        user_id=anonymous_id,
+        display_name="Invité",
+        can_publish=True,
+    )
+
+    return GuestJoinResponse(
+        participantToken=token,
+        livekitRoomName=session.livekit_room_name,
+        livekitUrl=livekit_service._http_url(),
+        sessionId=str(session.id),
+    )
+
+
+# Separate router for /me prefix — registered in main.py
 me_router = APIRouter(prefix="/me", tags=["invitations"])
 
 

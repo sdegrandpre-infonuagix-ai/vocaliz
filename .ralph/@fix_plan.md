@@ -23,15 +23,10 @@
 - [x] Story 2.10: Traduction Simultanée en Direct Sans Écho
 - [x] Story 2.11: Sortie Vocale de Session
 - [x] Story 2.12: Question de Satisfaction de Fin de Session
-  > As a participant
-  > I want qu'on me demande vocalement si la conversation a été agréable
-  > So that mon ressenti soit capturé sans effort.
-  > AC: Given un participant vient de prononcer la commande de sortie, When la session se termine pour lui, Then l'agent lui pose immédiatement, à voix haute, la question "Est-ce que votre conversation dans Salon a été une belle expérience ?"
-  > Spec: specs/planning-artifacts/epics.md#story-2-12
 ### Accès Invité Sans Installation
 > Goal: Un contact téléphone sans l'application peut rejoindre une session Salon anonymement depuis son navigateur, vivre l'expérience complète, et être invité à installer l'application après coup.
 
-- [ ] Story 3.1: Jonction Web Anonyme via Lien à Usage Unique
+- [x] Story 3.1: Jonction Web Anonyme via Lien à Usage Unique
   > As a contact téléphone invité sans l'application
   > I want rejoindre une session directement depuis mon navigateur
   > So that je peux participer sans créer de compte ni installer quoi que ce soit.

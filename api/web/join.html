@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Salon — Rejoindre la conversation</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #F8F3E8;
+      color: #2C2C2C;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #7B1528;
+      color: #F8F3E8;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .badge-no-install {
+      background: #C9A84C;
+      color: #2C2C2C;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 9px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 20px;
+      gap: 20px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: #fff;
+      border: 1px solid #e2d9cc;
+      border-radius: 14px;
+      padding: 28px 24px;
+      text-align: center;
+      box-shadow: 0 2px 12px rgba(44,44,44,.06);
+    }
+
+    .card-icon { font-size: 2.6rem; margin-bottom: 14px; }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #2C2C2C;
+      margin-bottom: 8px;
+    }
+
+    .card-sub {
+      font-size: 0.875rem;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .mic-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: #555;
+    }
+
+    .mic-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #ccc;
+      flex-shrink: 0;
+    }
+
+    .mic-dot.live {
+      background: #27ae60;
+      animation: blink 1.6s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 440px;
+      padding: 15px 28px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn:hover:not(:disabled) { opacity: 0.88; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-primary {
+      background: #7B1528;
+      color: #F8F3E8;
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: #7B1528;
+      border: 2px solid #7B1528;
+    }
+
+    .info-list {
+      width: 100%;
+      max-width: 440px;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 4px;
+    }
+
+    .info-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: #666;
+      line-height: 1.4;
+    }
+
+    .info-list .ico { flex-shrink: 0; font-size: 1rem; }
+
+    /* Desktop */
+    @media (min-width: 600px) {
+      header { padding: 22px 40px; }
+      header h1 { font-size: 1.6rem; }
+      main { padding: 48px 32px; gap: 24px; }
+      .card { padding: 36px 32px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Salon</h1>
+  <span class="badge-no-install">Sans Installation</span>
+</header>
+
+<main>
+
+  <!-- State: loading -->
+  <div id="v-loading" class="card">
+    <div class="card-icon">⏳</div>
+    <div class="card-title">Connexion en cours…</div>
+    <div class="card-sub">Merci de patienter un instant.</div>
+  </div>
+
+  <!-- State: ready to join -->
+  <div id="v-ready" class="card" style="display:none">
+    <div class="card-icon">🎙️</div>
+    <div class="card-title" id="ready-title">Prêt à rejoindre</div>
+    <div class="card-sub" id="ready-sub">
+      Salon a besoin d'accéder à votre microphone pour participer à la conversation.
+    </div>
+  </div>
+
+  <!-- State: connected -->
+  <div id="v-connected" class="card" style="display:none">
+    <div class="card-icon">🟢</div>
+    <div class="card-title">Vous êtes dans le Salon</div>
+    <div class="card-sub">La conversation est en cours. Parlez librement.</div>
+    <div class="mic-row">
+      <div id="mic-dot" class="mic-dot live"></div>
+      <span id="mic-label">Microphone actif</span>
+    </div>
+  </div>
+
+  <!-- State: error -->
+  <div id="v-error" class="card" style="display:none">
+    <div class="card-icon">⚠️</div>
+    <div class="card-title" id="err-title">Impossible de rejoindre</div>
+    <div class="card-sub" id="err-detail">Ce lien a peut-être déjà été utilisé ou a expiré.</div>
+  </div>
+
+  <!-- Action buttons (conditionally shown) -->
+  <button id="btn-join" class="btn btn-primary" style="display:none" onclick="joinNow()">
+    Rejoindre la conversation
+  </button>
+
+  <button id="btn-leave" class="btn btn-outline" style="display:none" onclick="leaveNow()">
+    Quitter la conversation
+  </button>
+
+  <!-- Static info footer (always visible) -->
+  <ul class="info-list">
+    <li><span class="ico">🔒</span> Accès invité sécurisé — aucun compte requis</li>
+    <li><span class="ico">📱</span> Aucune installation — tout dans votre navigateur</li>
+    <li><span class="ico">🎵</span> Conversation audio animée par l'IA Salon</li>
+  </ul>
+
+</main>
+
+<!-- LiveKit JavaScript SDK (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script>
+  var room = null;
+  var creds = null;
+
+  // Extract join token from URL: /join/{token}
+  var parts = window.location.pathname.split('/');
+  var joinToken = parts[parts.length - 1];
+
+  // ── View helpers ──────────────────────────────────────────────────────────
+  function showCard(id) {
+    ['v-loading', 'v-ready', 'v-connected', 'v-error'].forEach(function(v) {
+      document.getElementById(v).style.display = 'none';
+    });
+    document.getElementById(id).style.display = '';
+  }
+
+  function showBtn(id) {
+    ['btn-join', 'btn-leave'].forEach(function(b) {
+      document.getElementById(b).style.display = 'none';
+    });
+    if (id) document.getElementById(id).style.display = '';
+  }
+
+  function showError(title, detail) {
+    document.getElementById('err-title').textContent = title || 'Erreur';
+    document.getElementById('err-detail').textContent = detail || '';
+    showCard('v-error');
+    showBtn(null);
+  }
+
+  // ── Fetch LiveKit credentials (consumes the one-time token) ────────────────
+  async function fetchCredentials() {
+    try {
+      var resp = await fetch('/invitations/guest-join/' + joinToken);
+      var data = await resp.json();
+      if (resp.status === 404 || resp.status === 410) {
+        showError('Lien non disponible', data.detail || 'Ce lien est invalide, a déjà été utilisé, ou a expiré.');
+        return;
+      }
+      if (!resp.ok) {
+        showError('Erreur de connexion', data.detail || 'Une erreur inattendue est survenue.');
+        return;
+      }
+      creds = data;
+      showCard('v-ready');
+      showBtn('btn-join');
+    } catch (e) {
+      showError('Erreur réseau', 'Impossible de contacter le serveur. Vérifiez votre connexion.');
+    }
+  }
+
+  // ── Join the LiveKit room ──────────────────────────────────────────────────
+  async function joinNow() {
+    document.getElementById('btn-join').disabled = true;
+    try {
+      room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, function(track) {
+        if (track.kind === LivekitClient.Track.Kind.Audio) {
+          var el = track.attach();
+          el.style.display = 'none';
+          document.body.appendChild(el);
+        }
+      });
+
+      room.on(LivekitClient.RoomEvent.Disconnected, function() {
+        room = null;
+        document.getElementById('ready-title').textContent = 'Vous avez quitté le Salon';
+        document.getElementById('ready-sub').textContent = 'Merci pour votre participation !';
+        document.getElementById('v-ready').querySelector('.card-icon').textContent = '👋';
+        showCard('v-ready');
+        showBtn(null);
+      });
+
+      await room.connect(creds.livekitUrl, creds.participantToken);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+      showCard('v-connected');
+      showBtn('btn-leave');
+    } catch (e) {
+      document.getElementById('btn-join').disabled = false;
+      showError(
+        'Microphone inaccessible',
+        "Autorisez l'accès au microphone dans votre navigateur pour rejoindre."
+      );
+    }
+  }
+
+  // ── Leave ─────────────────────────────────────────────────────────────────
+  function leaveNow() {
+    if (room) { room.disconnect(); }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  if (!joinToken || joinToken === 'join') {
+    showError('Lien invalide', 'Ce lien de jointure est incomplet.');
+  } else {
+    fetchCredentials();
+  }
+</script>
+
+</body>
+</html>

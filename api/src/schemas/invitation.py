@@ -30,3 +30,10 @@ class PendingInvitationResponse(BaseModel):
     joinToken: str
     createdAt: str
     expiresAt: str
+
+
+class GuestJoinResponse(BaseModel):
+    participantToken: str
+    livekitRoomName: str
+    livekitUrl: str
+    sessionId: str
