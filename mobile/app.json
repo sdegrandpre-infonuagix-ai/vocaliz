@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Salon",
+    "slug": "salon",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "salon",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ai.infonuagix.salon",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Salon needs microphone access for voice conversations.",
+        "NSCameraUsageDescription": "Salon may use the camera for future features."
+      }
+    },
+    "android": {
+      "package": "ai.infonuagix.salon",
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#F8F3E8",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "addGeneratedScheme": false
+        }
+      ]
+    ]
+  }
+}

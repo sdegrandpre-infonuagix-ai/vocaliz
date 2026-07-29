@@ -1,43 +1,43 @@
 # Agent Build Instructions
 
-## Project Setup
+## Project Structure
+
+- `agent/` — Python LiveKit agent worker (xAI Grok, silero VAD, turn-detector)
+- `mobile/` — Expo React Native app (iOS + Android)
+
+## Agent Worker (Python)
+
 ```bash
-# Install dependencies (example for Node.js project)
+# Setup (one-time)
+cd agent
+uv sync
+
+# Run locally (needs .env with LIVEKIT_URL, XAI_API_KEY)
+cp .env.example .env
+uv run python agent.py dev
+
+# Run tests
+uv run pytest
+
+# Build Docker image
+docker build -t salon-agent .
+```
+
+## Mobile App (React Native / Expo)
+
+```bash
+# Setup (one-time)
+cd mobile
 npm install
 
-# Or for Python project
-pip install -r requirements.txt
+# Start Expo development server (requires Development Build on device, NOT Expo Go)
+npm start
 
-# Or for Rust project  
-cargo build
-```
+# Build Development Client for iOS
+npx eas build --platform ios --profile development
 
-## Running Tests
-```bash
-# Node.js
-npm test
-
-# Python
-pytest
-
-# Rust
-cargo test
-```
-
-## Build Commands
-```bash
-# Production build
-npm run build
-# or
-cargo build --release
-```
-
-## Development Server
-```bash
-# Start development server
-npm run dev
-# or
-cargo run
+# Build Development Client for Android
+npx eas build --platform android --profile development
 ```
 
 ## Key Learnings

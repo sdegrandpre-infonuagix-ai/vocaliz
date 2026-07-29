@@ -1,0 +1,8 @@
+[project]
+name = "salon-agent"
+
+[build]
+dockerfile = "Dockerfile"
+
+[run]
+entrypoint = "python agent.py start"
