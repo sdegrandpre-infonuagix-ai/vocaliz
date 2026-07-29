@@ -17,3 +17,10 @@ class UpdateLanguageBody(BaseModel):
         if not v or len(v) > 10 or not v.replace("-", "").isalpha():
             raise ValueError("language must be a valid BCP-47 code (e.g. 'fr', 'en', 'en-CA')")
         return v
+
+
+class TrialStatusResponse(BaseModel):
+    trialSecondsUsed: int
+    trialSecondsLimit: int
+    trialSecondsRemaining: int
+    trialExhausted: bool

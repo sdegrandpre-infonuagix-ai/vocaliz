@@ -28,5 +28,8 @@ class Settings(BaseSettings):
     # App installation link sent to anonymous guests after their first session
     salon_install_url: str = "https://salon.app/install"
 
+    # Free trial cap: 1 hour (3 600 s) of cumulative host-role time per account
+    free_trial_limit_seconds: int = 3600
+
 
 settings = Settings()

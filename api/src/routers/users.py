@@ -2,10 +2,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session as DbSession
 
+from src.config import settings
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.user import User
-from src.schemas.user import UpdateLanguageBody, UserProfileResponse
+from src.schemas.user import TrialStatusResponse, UpdateLanguageBody, UserProfileResponse
 
 router = APIRouter(prefix="/me", tags=["users"])
 
@@ -17,6 +18,23 @@ def get_my_profile(current_user: User = Depends(get_current_user)) -> UserProfil
         userId=str(current_user.id),
         phoneNumber=current_user.phone_number,
         detectedLanguage=current_user.detected_language,
+    )
+
+
+@router.get("/trial-status", response_model=TrialStatusResponse)
+def get_trial_status(current_user: User = Depends(get_current_user)) -> TrialStatusResponse:
+    """Return the authenticated host's free trial usage and remaining time.
+
+    Guests never accumulate trial time — only host-role session seconds count.
+    """
+    limit = settings.free_trial_limit_seconds
+    used = current_user.trial_seconds_used
+    remaining = max(0, limit - used)
+    return TrialStatusResponse(
+        trialSecondsUsed=used,
+        trialSecondsLimit=limit,
+        trialSecondsRemaining=remaining,
+        trialExhausted=(used >= limit),
     )
 
 

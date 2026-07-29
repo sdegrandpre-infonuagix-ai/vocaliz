@@ -18,6 +18,7 @@ from src.schemas.session import (
     SessionSourceResponse,
     SessionSourceSummary,
 )
+from src.config import settings
 from src.services import content_service, invitation_service, livekit_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -300,6 +301,21 @@ def end_session(
     session.ended_at = datetime.now(tz=timezone.utc)
     db.commit()
     db.refresh(session)
+
+    # Accumulate host free-trial time. Only the HOST role is tracked (never guests).
+    # Normalise both timestamps to UTC-aware — SQLite returns naive datetimes.
+    created = session.created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    ended = session.ended_at
+    if ended.tzinfo is None:
+        ended = ended.replace(tzinfo=timezone.utc)
+    duration_seconds = max(0, int((ended - created).total_seconds()))
+    if duration_seconds > 0:
+        host = db.query(User).filter(User.id == session.host_user_id).first()
+        if host is not None:
+            host.trial_seconds_used = host.trial_seconds_used + duration_seconds
+            db.commit()
 
     # Fire-and-forget: send install-link SMS to anonymous guests who participated.
     # Errors are swallowed inside the service so session end is never blocked.

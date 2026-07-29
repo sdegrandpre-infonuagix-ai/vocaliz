@@ -31,15 +31,10 @@
 - [x] Story 3.3: Question de Satisfaction pour Invité Anonyme
 - [x] Story 3.4: SMS de Suivi avec Lien d'Installation
 - [x] Story 3.5: Conversion en Utilisateur Inscrit
-  > As a invité anonyme ayant reçu le lien d'installation
-  > I want installer l'application et continuer à utiliser Salon en tant qu'utilisateur inscrit
-  > So that je conserve mon historique pour mes futures sessions.
-  > AC: Given un invité anonyme a reçu le SMS d'installation, When il installe l'application et complète la vérification téléphone, Then il devient un utilisateur inscrit à part entière
-  > Spec: specs/planning-artifacts/epics.md#story-3-5
 ### Essai Gratuit & Facturation
 > Goal: Un hôte bénéficie d'une heure d'essai gratuite à vie, mesurée précisément, puis est facturé à l'heure via Stripe une fois cet essai épuisé — l'invité, lui, ne paie jamais.
 
-- [ ] Story 4.1: Heure d'Essai Gratuite à Vie par Hôte
+- [x] Story 4.1: Heure d'Essai Gratuite à Vie par Hôte
   > As a hôte
   > I want bénéficier d'une heure d'essai gratuite cumulée sur toutes mes sessions
   > So that je peux essayer Salon avant de payer.
