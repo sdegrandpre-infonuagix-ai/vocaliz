@@ -20,12 +20,7 @@
 - [x] Story 2.7: Ajustement Vocal de la Fréquence d'Intervention
 - [x] Story 2.8: Détection de Langue et Expression Multilingue
 - [x] Story 2.9: Affichage Visuel dans la Langue Détectée
-  > As a utilisateur
-  > I want que les écrans de l'application s'affichent dans ma langue vocale détectée
-  > So that je n'aie jamais besoin de configurer manuellement une langue d'interface.
-  > AC: Given la langue vocale d'un utilisateur est détectée, When un écran de l'application s'affiche, Then le texte visuel est présenté dans cette langue
-  > Spec: specs/planning-artifacts/epics.md#story-2-9
-- [ ] Story 2.10: Traduction Simultanée en Direct Sans Écho
+- [x] Story 2.10: Traduction Simultanée en Direct Sans Écho
   > As a participant
   > I want entendre une traduction en direct dans ma langue pendant que l'autre continue de parler
   > So that la conversation reste fluide malgré la barrière linguistique.

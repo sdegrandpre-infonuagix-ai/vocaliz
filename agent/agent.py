@@ -54,6 +54,16 @@ _BASE_INSTRUCTIONS = (
     "with the BCP-47 code (e.g. 'fr' for French, 'en' for English, 'es' for Spanish). "
     "Call this tool only once per session — on first detection, not on every utterance. "
     "\n\n"
+    "SIMULTANEOUS TRANSLATION (multilingual sessions):\n"
+    "When participants speak different languages, translate each utterance for the listener(s):\n"
+    "1. Wait for the speaker to finish (natural pause) — NEVER interrupt mid-sentence.\n"
+    "2. Call mute_translation_recipient to prevent echo before you speak.\n"
+    "3. Speak the translation in the listener's language — convey meaning naturally, "
+    "not word-for-word. Keep it concise.\n"
+    "4. After finishing the translation, call unmute_translation_recipient.\n"
+    "Do NOT translate your own facilitator speech — only translate between human participants.\n"
+    "In a 3-way session with mixed languages, translate for each non-native listener in turn.\n"
+    "\n\n"
     "INVITATION COMMANDS: When the host says 'invite [name or phone number]' or "
     "'invite [name] at [phone number]', call invite_contact with the phone number "
     "in E.164 format (e.g. +15141234567). "
@@ -143,6 +153,7 @@ class SalonAgent(Agent):
         source_type: str | None = None,
         source_url: str | None = None,
         additional_sources: list[dict] | None = None,
+        room=None,
     ) -> None:
         instructions = _build_instructions(
             source_content=source_content,
@@ -155,6 +166,7 @@ class SalonAgent(Agent):
         self._api_url = api_url
         self._host_token = host_token
         self._frequency_preference: str = "normal"
+        self._room = room
 
     @function_tool
     async def set_intervention_frequency(
@@ -182,6 +194,38 @@ class SalonAgent(Agent):
         }
         logger.info("Frequency preference set to: %s", direction)
         return confirmations[direction]
+
+    async def _broadcast_translation_control(self, action: str) -> None:
+        """Publish a translation control data message to all room participants."""
+        if not self._room:
+            return
+        payload = json.dumps({"action": action}).encode()
+        try:
+            await self._room.local_participant.publish_data(payload, reliable=True)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to publish translation control '%s': %s", action, exc)
+
+    @function_tool
+    async def mute_translation_recipient(self) -> str:
+        """Mute all remote participants' microphones before reading a translation.
+
+        Call this immediately before speaking a translated utterance to prevent
+        the recipient from echoing the translation audio back into the shared stream.
+        After finishing the translation, call unmute_translation_recipient.
+        """
+        await self._broadcast_translation_control("translation_mute_start")
+        logger.info("Translation mute signal sent")
+        return "muted"
+
+    @function_tool
+    async def unmute_translation_recipient(self) -> str:
+        """Unmute all remote participants' microphones after finishing a translation.
+
+        Call this immediately after you have finished speaking the translated text.
+        """
+        await self._broadcast_translation_control("translation_mute_end")
+        logger.info("Translation unmute signal sent")
+        return "unmuted"
 
     @function_tool
     async def report_detected_language(
@@ -312,6 +356,7 @@ async def entrypoint(ctx: agents.JobContext):
             source_type=source_type,
             source_url=source_url,
             additional_sources=additional_sources,
+            room=ctx.room,
         ),
         room_input_options=RoomInputOptions(),
     )
