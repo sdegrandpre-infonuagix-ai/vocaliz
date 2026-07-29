@@ -47,3 +47,41 @@ export async function createSessionFromFile(
   });
   return handleResponse<SessionResponse>(res);
 }
+
+export interface SessionSourceResponse {
+  sourceId: string;
+  sessionId: string;
+  sourceType: string;
+  contentLength: number;
+  createdAt: string;
+}
+
+export async function addSourceFromUrl(
+  token: string,
+  sessionId: string,
+  sourceUrl: string,
+): Promise<SessionSourceResponse> {
+  const form = new FormData();
+  form.append('source_url', sourceUrl);
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/sources`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  return handleResponse<SessionSourceResponse>(res);
+}
+
+export async function addSourceFromFile(
+  token: string,
+  sessionId: string,
+  file: { uri: string; name: string; type: string },
+): Promise<SessionSourceResponse> {
+  const form = new FormData();
+  form.append('file', file as unknown as Blob);
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/sources`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  return handleResponse<SessionSourceResponse>(res);
+}

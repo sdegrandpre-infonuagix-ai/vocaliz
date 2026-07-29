@@ -13,12 +13,7 @@
 
 - [x] Story 2.1: Création de Session avec Document/URL
 - [x] Story 2.2: Invitation Vocale d'un Ami ou Contact
-  > As a hôte
-  > I want inviter un ami Salon ou un contact téléphone par simple commande vocale
-  > So that je n'ai jamais à manipuler de lien ou de menu.
-  > AC: Given une session active et un hôte qui dit "invite [nom]", When le nom correspond à un ami Salon déjà enregistré, Then une notification in-app est envoyée à cet ami, And Given le nom correspond à un contact du téléphone non-inscrit, When l'hôte prononce l'invitation, Then un SMS est envoyé à ce contact avec un lien de session, And Given l'agent ne comprend pas le nom mentionné, When la résolution échoue, Then l'agent redemande poliment à voix haute
-  > Spec: specs/planning-artifacts/epics.md#story-2-2
-- [ ] Story 2.3: Ajout de Source en Cours de Session
+- [x] Story 2.3: Ajout de Source en Cours de Session
   > As a hôte
   > I want ajouter un document ou une URL supplémentaire pendant une session active
   > So that la discussion peut évoluer sans devoir en créer une nouvelle.

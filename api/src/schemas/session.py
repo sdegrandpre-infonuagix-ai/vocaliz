@@ -22,3 +22,11 @@ class AddSourceBody(BaseModel):
         if not re.match(r"^https?://", v):
             raise ValueError("sourceUrl must start with http:// or https://")
         return v
+
+
+class SessionSourceResponse(BaseModel):
+    sourceId: str
+    sessionId: str
+    sourceType: str       # 'url' | 'document'
+    contentLength: int    # characters of extracted plain text
+    createdAt: str

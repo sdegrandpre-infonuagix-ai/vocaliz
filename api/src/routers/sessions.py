@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session as DbSession
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.session import SessionModel
+from src.models.session_source import SessionSource
 from src.models.user import User
-from src.schemas.session import SessionResponse
+from src.schemas.session import SessionResponse, SessionSourceResponse
 from src.services import content_service, livekit_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -72,4 +73,70 @@ async def create_session(
         hostToken=host_token,
         sourceType=source_type,
         createdAt=session.created_at.isoformat(),
+    )
+
+
+@router.post("/{session_id}/sources", response_model=SessionSourceResponse, status_code=201)
+async def add_session_source(
+    session_id: str,
+    source_url: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Add an additional source (URL or document) to an active session.
+    Only the session host may call this endpoint.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session introuvable.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+
+    if session.status != "active":
+        raise HTTPException(status_code=409, detail="Impossible d'ajouter une source à une session terminée.")
+
+    if not source_url and (file is None or not file.filename):
+        raise HTTPException(
+            status_code=400,
+            detail="sourceUrl ou file est requis pour ajouter une source.",
+        )
+
+    # Extract content
+    if source_url:
+        content = await content_service.fetch_url_content(source_url)
+        src_type = "url"
+        src_filename = None
+    else:
+        content = await content_service.extract_file_content(file)  # type: ignore[arg-type]
+        src_type = "document"
+        src_filename = file.filename  # type: ignore[union-attr]
+
+    source = SessionSource(
+        session_id=session_uuid,
+        host_user_id=current_user.id,
+        source_type=src_type,
+        source_url=source_url,
+        source_filename=src_filename,
+        source_content=content,
+    )
+    db.add(source)
+    db.commit()
+    db.refresh(source)
+
+    return SessionSourceResponse(
+        sourceId=str(source.id),
+        sessionId=str(session.id),
+        sourceType=src_type,
+        contentLength=len(content or ""),
+        createdAt=source.created_at.isoformat(),
     )
