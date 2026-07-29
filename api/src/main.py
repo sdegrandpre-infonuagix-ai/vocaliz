@@ -7,6 +7,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.routers import auth, sessions
+from src.routers.invitations import me_router, router as invitations_router
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -16,6 +17,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth.router)
 app.include_router(sessions.router)
+app.include_router(invitations_router)
+app.include_router(me_router)
 
 
 @app.get("/health")

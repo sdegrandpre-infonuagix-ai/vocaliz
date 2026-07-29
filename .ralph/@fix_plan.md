@@ -12,12 +12,7 @@
 > Goal: Un hôte inscrit peut créer une session à partir d'un document ou d'une actualité, inviter un ami ou contact par simple commande vocale, et vivre une conversation complète animée et traduite par l'agent xAI, jusqu'à la question de satisfaction de fin de session.
 
 - [x] Story 2.1: Création de Session avec Document/URL
-  > As a hôte inscrit
-  > I want créer une session à partir d'un document téléversé ou d'une URL de nouvelle
-  > So that je peux démarrer une discussion sur ce contenu.
-  > AC: Given un hôte inscrit et authentifié, When il téléverse un document ou fournit une URL, Then une session est créée avec ce contenu comme source, et une salle LiveKit est provisionnée
-  > Spec: specs/planning-artifacts/epics.md#story-2-1
-- [ ] Story 2.2: Invitation Vocale d'un Ami ou Contact
+- [x] Story 2.2: Invitation Vocale d'un Ami ou Contact
   > As a hôte
   > I want inviter un ami Salon ou un contact téléphone par simple commande vocale
   > So that je n'ai jamais à manipuler de lien ou de menu.

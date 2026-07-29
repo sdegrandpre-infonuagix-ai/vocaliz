@@ -22,5 +22,8 @@ class Settings(BaseSettings):
     livekit_room_max_participants: int = 3  # host + guest + agent
     livekit_room_empty_timeout: int = 300   # 5 min (auto-close if no one joins)
 
+    # Invitation join links sent via SMS to non-registered contacts
+    salon_web_base_url: str = "https://salon.app"
+
 
 settings = Settings()
