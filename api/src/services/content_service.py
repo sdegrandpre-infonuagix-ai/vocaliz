@@ -1,5 +1,9 @@
 """Extract plain-text content from a URL or uploaded document."""
+import asyncio
+import ipaddress
 import re
+import socket
+from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -18,6 +22,9 @@ async def fetch_url_content(url: str) -> str:
     """Fetch a URL and return extracted plain text. Raises HTTPException on failure."""
     if not re.match(r"^https?://", url):
         raise HTTPException(status_code=400, detail="sourceUrl doit commencer par http:// ou https://")
+
+    await _assert_host_is_public(url)
+
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
             response = await client.get(url, headers={"User-Agent": "Salon/0.1"})
@@ -37,6 +44,26 @@ async def fetch_url_content(url: str) -> str:
         return response.text[:_MAX_TEXT_CHARS]
     # Default: try HTML parsing
     return _extract_html_text(response.text)
+
+
+async def _assert_host_is_public(url: str) -> None:
+    """Prevent SSRF by rejecting URLs that resolve to private/loopback/link-local IPs.
+
+    Uses a non-blocking DNS lookup via asyncio.to_thread. Note: DNS rebinding is a
+    residual risk; use a network-level egress firewall as an additional control.
+    """
+    host = urlparse(url).hostname
+    if not host:
+        raise HTTPException(status_code=400, detail="URL invalide.")
+    try:
+        ip_str = await asyncio.to_thread(socket.gethostbyname, host)
+        ip = ipaddress.ip_address(ip_str)
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail="Impossible de résoudre l'hôte de l'URL.")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="URL invalide.")
+    if not ip.is_global:
+        raise HTTPException(status_code=400, detail="URL non autorisée.")
 
 
 async def extract_file_content(file: UploadFile) -> str:

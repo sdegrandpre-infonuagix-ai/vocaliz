@@ -3,7 +3,9 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import boto3
-from sqlalchemy.orm import Session
+from botocore.exceptions import ClientError
+from fastapi import HTTPException
+from sqlalchemy.orm import Session, aliased
 
 from src.config import settings
 from src.models.invitation import Invitation
@@ -14,7 +16,7 @@ from src.models.user import User
 def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session) -> dict:
     """
     Invite guest_phone to session_id.
-    Returns a dict with invitation details; raises ValueError for bad input.
+    Raises ValueError for session not found; HTTPException(503) if SMS fails.
     """
     import uuid as _uuid
 
@@ -65,13 +67,18 @@ def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session
         expires_at=expires_at,
     )
     db.add(invitation)
-    db.commit()
-    db.refresh(invitation)
+    db.flush()  # assigns PK without committing; rolled back if SMS fails
 
     if invitation_type == "sms_contact":
         join_link = f"{settings.salon_web_base_url}/join/{join_token}"
-        _send_invitation_sms(guest_phone, join_link)
+        try:
+            _send_invitation_sms(guest_phone, join_link)
+        except HTTPException:
+            db.rollback()
+            raise
 
+    db.commit()
+    db.refresh(invitation)
     return _build_response(invitation, session)
 
 
@@ -91,10 +98,11 @@ def _build_response(invitation: Invitation, session: SessionModel) -> dict:
 def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
     """Return pending in-app invitations addressed to this user (salon_friend type)."""
     now = datetime.now(tz=timezone.utc)
+    HostUser = aliased(User)
     rows = (
-        db.query(Invitation, SessionModel)
+        db.query(Invitation, SessionModel, HostUser)
         .join(SessionModel, Invitation.session_id == SessionModel.id)
-        .join(User, SessionModel.host_user_id == User.id)
+        .join(HostUser, SessionModel.host_user_id == HostUser.id)
         .filter(
             Invitation.guest_user_id == user.id,
             Invitation.invitation_type == "salon_friend",
@@ -105,21 +113,18 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
     )
 
     result = []
-    for inv, sess in rows:
+    for inv, sess, host in rows:
         expires = inv.expires_at
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=timezone.utc)
         created = inv.created_at
         if created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
-
-        # Fetch host's phone for display
-        host = db.query(User).filter(User.id == sess.host_user_id).first()
         result.append({
             "invitationId": str(inv.id),
             "sessionId": str(sess.id),
             "livekitRoomName": sess.livekit_room_name,
-            "hostPhone": host.phone_number if host else "",
+            "hostPhone": host.phone_number,
             "joinToken": inv.join_token,
             "createdAt": created.isoformat(),
             "expiresAt": expires.isoformat(),
@@ -130,11 +135,16 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
 def _send_invitation_sms(phone_number: str, join_link: str) -> None:
     client = boto3.client("sns", region_name=settings.aws_region)
     message = f"Vous avez été invité à rejoindre une conversation Salon. Rejoignez ici : {join_link}"
-    client.publish(
-        PhoneNumber=phone_number,
-        Message=message,
-        MessageAttributes={
-            "AWS.SNS.SMS.SenderID": {"DataType": "String", "StringValue": settings.sns_sender_id},
-            "AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"},
-        },
-    )
+    try:
+        client.publish(
+            PhoneNumber=phone_number,
+            Message=message,
+            MessageAttributes={
+                "AWS.SNS.SMS.SenderID": {"DataType": "String", "StringValue": settings.sns_sender_id},
+                "AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"},
+            },
+        )
+    except ClientError as exc:
+        raise HTTPException(
+            status_code=503, detail="Service d'envoi SMS indisponible."
+        ) from exc

@@ -66,7 +66,7 @@ def test_verify_otp_expired_returns_400(mock_sms, client, db):
     client.post("/auth/otp/request", json={"phoneNumber": "+15141234567"})
 
     user = db.query(User).filter_by(phone_number="+15141234567").first()
-    user.otp_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    user.otp_expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
     db.commit()
 
     response = client.post("/auth/otp/verify", json={"phoneNumber": "+15141234567", "code": user.otp_code or "123456"})

@@ -114,3 +114,21 @@ def test_content_url_rejects_non_http():
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(fetch_url_content("ftp://bad"))
     assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_fetch_url_rejects_ssrf_loopback():
+    from fastapi import HTTPException
+    from src.services.content_service import fetch_url_content
+    with pytest.raises(HTTPException) as exc_info:
+        await fetch_url_content("http://127.0.0.1/admin")
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_fetch_url_rejects_ssrf_link_local():
+    from fastapi import HTTPException
+    from src.services.content_service import fetch_url_content
+    with pytest.raises(HTTPException) as exc_info:
+        await fetch_url_content("http://169.254.169.254/latest/meta-data/")
+    assert exc_info.value.status_code == 400

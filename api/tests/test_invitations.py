@@ -140,6 +140,22 @@ def test_invite_idempotent_within_5_min(mock_sms, client, host, active_session):
     assert mock_sms.call_count == 1
 
 
+# ─── SMS failure returns 503 without orphaning invitation ────────────────────
+
+@patch("src.services.invitation_service._send_invitation_sms", side_effect=__import__('fastapi').HTTPException(503, "SMS unavailable"))
+def test_invite_sms_failure_returns_503_no_orphan(mock_sms, client, host, active_session, db):
+    from src.models.invitation import Invitation
+    _, token = host
+    resp = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestPhoneNumber": "+15149999999"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 503
+    # No orphaned invitation row should remain
+    assert db.query(Invitation).count() == 0
+
+
 # ─── GET /me/invitations ─────────────────────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_sms")
