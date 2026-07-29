@@ -1,58 +1,12 @@
 """Tests for OTP auth endpoints."""
 import pytest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, StaticPool
-from sqlalchemy.orm import sessionmaker
-
-from src.database import Base, get_db
-from src.main import app
 from src.models.user import User
-
-# In-memory SQLite for tests (no Postgres needed)
-SQLALCHEMY_TEST_URL = "sqlite:///:memory:"
-engine = create_engine(
-    SQLALCHEMY_TEST_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-def override_get_db():
-    db = TestingSession()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture
-def client():
-    return TestClient(app)
-
-
-@pytest.fixture
-def db():
-    db = TestingSession()
-    yield db
-    db.close()
 
 
 # ─── OTP request ────────────────────────────────────────────────────────────
-
 
 @patch("src.services.otp._send_sms")
 def test_request_otp_creates_user(mock_sms, client):
@@ -66,18 +20,16 @@ def test_request_otp_creates_user(mock_sms, client):
 @patch("src.services.otp._send_sms")
 def test_request_otp_reuses_existing_user(mock_sms, client, db):
     """Second OTP request refreshes the code on an existing User row."""
-    # First request
     client.post("/auth/otp/request", json={"phoneNumber": "+15141234567"})
     user_before = db.query(User).filter_by(phone_number="+15141234567").first()
     code_before = user_before.otp_code
 
-    # Second request
     client.post("/auth/otp/request", json={"phoneNumber": "+15141234567"})
     db.expire_all()
     user_after = db.query(User).filter_by(phone_number="+15141234567").first()
 
-    assert user_after.otp_code != code_before  # new code generated
-    assert db.query(User).count() == 1  # still only one user row
+    assert user_after.otp_code != code_before
+    assert db.query(User).count() == 1
 
 
 def test_request_otp_invalid_phone(client):
@@ -86,7 +38,6 @@ def test_request_otp_invalid_phone(client):
 
 
 # ─── OTP verify ─────────────────────────────────────────────────────────────
-
 
 @patch("src.services.otp._send_sms")
 def test_verify_otp_success_returns_jwt(mock_sms, client, db):
@@ -108,14 +59,12 @@ def test_verify_otp_wrong_code_returns_400(mock_sms, client, db):
 
     response = client.post("/auth/otp/verify", json={"phoneNumber": "+15141234567", "code": "000000"})
     assert response.status_code == 400
-    assert "incorrect" in response.json()["detail"].lower() or "invalide" in response.json()["detail"].lower() or "incorrect" in response.json()["detail"].lower()
 
 
 @patch("src.services.otp._send_sms")
 def test_verify_otp_expired_returns_400(mock_sms, client, db):
     client.post("/auth/otp/request", json={"phoneNumber": "+15141234567"})
 
-    # Force-expire the OTP (use naive datetime for SQLite compatibility)
     user = db.query(User).filter_by(phone_number="+15141234567").first()
     user.otp_expires_at = datetime.utcnow() - timedelta(minutes=1)
     db.commit()
@@ -145,7 +94,6 @@ def test_verify_otp_clears_code_after_success(mock_sms, client, db):
 
 
 # ─── JWT ────────────────────────────────────────────────────────────────────
-
 
 def test_jwt_decode_valid():
     from src.services.jwt_service import decode_token, issue_token

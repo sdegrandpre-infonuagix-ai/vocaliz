@@ -8,15 +8,10 @@
 - [x] Story 1.1: Initialisation des Projets
 - [x] Story 1.2: Vérification Téléphone par OTP
 - [x] Story 1.3: Écran d'Inscription
-  > As a nouvel utilisateur
-  > I want un écran d'inscription clair et rapide
-  > So that la friction avant ma première session soit minimale.
-  > AC: Given l'écran d'inscription est affiché, When il se charge, Then il utilise la palette "Salon Parisien" (bourgogne, or, ivoire) et l'icône télégraphique custom plutôt qu'une icône téléphone générique, And Given un utilisateur avec un lecteur d'écran actif, When il navigue l'écran, Then tous les champs et boutons respectent le contraste WCAG AA et les cibles tactiles 44×44px minimum
-  > Spec: specs/planning-artifacts/epics.md#story-1-3
 ### Session de Discussion Vocale
 > Goal: Un hôte inscrit peut créer une session à partir d'un document ou d'une actualité, inviter un ami ou contact par simple commande vocale, et vivre une conversation complète animée et traduite par l'agent xAI, jusqu'à la question de satisfaction de fin de session.
 
-- [ ] Story 2.1: Création de Session avec Document/URL
+- [x] Story 2.1: Création de Session avec Document/URL
   > As a hôte inscrit
   > I want créer une session à partir d'un document téléversé ou d'une URL de nouvelle
   > So that je peux démarrer une discussion sur ce contenu.

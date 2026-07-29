@@ -13,5 +13,14 @@ class Settings(BaseSettings):
     otp_expiry_minutes: int = 10
     otp_max_attempts: int = 5
 
+    # LiveKit Cloud
+    livekit_url: str = "wss://your-project.livekit.cloud"
+    livekit_api_key: str = "devkey"
+    livekit_api_secret: str = "devsecret"
+
+    # Session settings
+    livekit_room_max_participants: int = 3  # host + guest + agent
+    livekit_room_empty_timeout: int = 300   # 5 min (auto-close if no one joins)
+
 
 settings = Settings()
