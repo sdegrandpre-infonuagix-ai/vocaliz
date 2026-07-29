@@ -14,12 +14,7 @@
 - [x] Story 2.1: Création de Session avec Document/URL
 - [x] Story 2.2: Invitation Vocale d'un Ami ou Contact
 - [x] Story 2.3: Ajout de Source en Cours de Session
-  > As a hôte
-  > I want ajouter un document ou une URL supplémentaire pendant une session active
-  > So that la discussion peut évoluer sans devoir en créer une nouvelle.
-  > AC: Given une session active dont l'hôte est participant, When l'hôte ajoute un nouveau document ou une URL, Then la nouvelle source est associée à la session et disponible pour l'agent
-  > Spec: specs/planning-artifacts/epics.md#story-2-3
-- [ ] Story 2.4: Lecture à Voix Haute et Facilitation Sans Lecture Préalable
+- [x] Story 2.4: Lecture à Voix Haute et Facilitation Sans Lecture Préalable
   > As a participant
   > I want que l'agent lise et anime le contenu à voix haute
   > So that je peux discuter d'un document sans l'avoir lu au préalable.

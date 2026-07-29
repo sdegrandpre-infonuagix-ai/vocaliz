@@ -30,3 +30,21 @@ class SessionSourceResponse(BaseModel):
     sourceType: str       # 'url' | 'document'
     contentLength: int    # characters of extracted plain text
     createdAt: str
+
+
+class SessionSourceSummary(BaseModel):
+    sourceId: str
+    sourceType: str
+    contentLength: int
+    createdAt: str
+
+
+class SessionDetailResponse(BaseModel):
+    sessionId: str
+    livekitRoomName: str
+    sourceType: str
+    sourceUrl: str | None
+    sourceContent: str | None
+    additionalSources: list[SessionSourceSummary]
+    status: str
+    createdAt: str

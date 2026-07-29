@@ -16,14 +16,11 @@ from livekit.plugins import xai, silero, turn_detector
 load_dotenv()
 logger = logging.getLogger("salon-agent")
 
-_INSTRUCTIONS = (
+_BASE_INSTRUCTIONS = (
     "You are Salon, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
     "between participants about documents, articles, or current events. "
     "Speak naturally without requiring a wake word. "
-    "Read source content aloud, ask engaging questions, introduce "
-    "contrasting perspectives from other sources, and translate between "
-    "languages when participants speak different languages. "
     "Intervene at most once per minute when participants share the same "
     "language, more frequently when actively translating. "
     "\n\n"
@@ -42,6 +39,50 @@ _INSTRUCTIONS = (
     "participant says they want to leave."
 )
 
+_CONTENT_PREVIEW_CHARS = 2500
+
+
+def _build_instructions(
+    source_content: str | None = None,
+    source_type: str | None = None,
+    source_url: str | None = None,
+    additional_sources_count: int = 0,
+) -> str:
+    """Build agent instructions, injecting session content for facilitation context."""
+    instructions = _BASE_INSTRUCTIONS
+
+    if source_content:
+        preview = source_content[:_CONTENT_PREVIEW_CHARS]
+        ellipsis = "…" if len(source_content) > _CONTENT_PREVIEW_CHARS else ""
+        source_label = source_url or f"uploaded {source_type or 'document'}"
+
+        instructions += (
+            "\n\n"
+            "SESSION CONTENT:\n"
+            f"Source: {source_label}\n\n"
+            f"{preview}{ellipsis}\n\n"
+            "OPENING BEHAVIOR — do this IMMEDIATELY when the first participant joins:\n"
+            "1. Greet them warmly in 1-2 sentences.\n"
+            "2. Introduce the topic: what it is about and why it is worth discussing (2-3 sentences).\n"
+            "3. Read the 2-3 most important passages or ideas from the content above, verbatim or paraphrased.\n"
+            "4. Ask one open, thought-provoking question to start the discussion.\n\n"
+            "This ensures every participant can engage fully, even without prior reading.\n"
+        )
+        if additional_sources_count > 0:
+            instructions += (
+                f"NOTE: {additional_sources_count} additional source(s) were added during this session. "
+                "Weave their content into the discussion as relevant.\n"
+            )
+    else:
+        instructions += (
+            "\n\n"
+            "No source content was attached to this session. "
+            "Greet participants and invite them to share what they would like to discuss. "
+            "Facilitate naturally from there.\n"
+        )
+
+    return instructions
+
 
 class SalonAgent(Agent):
     """Voice discussion agent powered by xAI Grok."""
@@ -51,8 +92,18 @@ class SalonAgent(Agent):
         session_id: str | None = None,
         api_url: str | None = None,
         host_token: str | None = None,
+        source_content: str | None = None,
+        source_type: str | None = None,
+        source_url: str | None = None,
+        additional_sources_count: int = 0,
     ) -> None:
-        super().__init__(instructions=_INSTRUCTIONS)
+        instructions = _build_instructions(
+            source_content=source_content,
+            source_type=source_type,
+            source_url=source_url,
+            additional_sources_count=additional_sources_count,
+        )
+        super().__init__(instructions=instructions)
         self._session_id = session_id
         self._api_url = api_url
         self._host_token = host_token
@@ -89,6 +140,21 @@ class SalonAgent(Agent):
             return "error:network"
 
 
+async def _fetch_session_detail(api_url: str, session_id: str, host_token: str) -> dict | None:
+    """Fetch session content from the API so the agent can read it aloud."""
+    url = f"{api_url}/sessions/{session_id}"
+    headers = {"Authorization": f"Bearer {host_token}"}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code == 200:
+            return resp.json()
+        logger.warning("_fetch_session_detail returned %s", resp.status_code)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("_fetch_session_detail failed: %s", exc)
+    return None
+
+
 async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
@@ -107,6 +173,20 @@ async def entrypoint(ctx: agents.JobContext):
         except (json.JSONDecodeError, AttributeError):
             logger.warning("Could not parse job metadata: %r", raw_metadata)
 
+    # Fetch session content so the agent can read it aloud at session start
+    source_content: str | None = None
+    source_type: str | None = None
+    source_url: str | None = None
+    additional_sources_count: int = 0
+
+    if session_id and api_url and host_token:
+        detail = await _fetch_session_detail(api_url, session_id, host_token)
+        if detail:
+            source_content = detail.get("sourceContent")
+            source_type = detail.get("sourceType")
+            source_url = detail.get("sourceUrl")
+            additional_sources_count = len(detail.get("additionalSources") or [])
+
     agent_session = AgentSession(
         llm=xai.realtime.RealtimeModel(voice="Ara"),
         vad=silero.VAD.load(),
@@ -119,6 +199,10 @@ async def entrypoint(ctx: agents.JobContext):
             session_id=session_id,
             api_url=api_url,
             host_token=host_token,
+            source_content=source_content,
+            source_type=source_type,
+            source_url=source_url,
+            additional_sources_count=additional_sources_count,
         ),
         room_input_options=RoomInputOptions(),
     )

@@ -9,7 +9,7 @@ from src.dependencies.auth import get_current_user
 from src.models.session import SessionModel
 from src.models.session_source import SessionSource
 from src.models.user import User
-from src.schemas.session import SessionResponse, SessionSourceResponse
+from src.schemas.session import SessionDetailResponse, SessionResponse, SessionSourceResponse, SessionSourceSummary
 from src.services import content_service, livekit_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -139,4 +139,56 @@ async def add_session_source(
         sourceType=src_type,
         contentLength=len(content or ""),
         createdAt=source.created_at.isoformat(),
+    )
+
+
+@router.get("/{session_id}", response_model=SessionDetailResponse)
+def get_session(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return full session details including source content.
+    Used by the agent worker at job start to build facilitation context.
+    Only accessible by the session host.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session introuvable.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+
+    extra_sources = (
+        db.query(SessionSource)
+        .filter(SessionSource.session_id == session_uuid)
+        .order_by(SessionSource.created_at)
+        .all()
+    )
+
+    return SessionDetailResponse(
+        sessionId=str(session.id),
+        livekitRoomName=session.livekit_room_name,
+        sourceType=session.source_type,
+        sourceUrl=session.source_url,
+        sourceContent=session.source_content,
+        additionalSources=[
+            SessionSourceSummary(
+                sourceId=str(s.id),
+                sourceType=s.source_type,
+                contentLength=len(s.source_content or ""),
+                createdAt=s.created_at.isoformat(),
+            )
+            for s in extra_sources
+        ],
+        status=session.status,
+        createdAt=session.created_at.isoformat(),
     )
