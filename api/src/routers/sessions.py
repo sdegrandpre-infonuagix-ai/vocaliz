@@ -11,6 +11,7 @@ from src.models.session_source import SessionSource
 from src.models.user import User
 from src.models.invitation import Invitation
 from src.schemas.session import (
+    EndSessionResponse,
     JoinSessionResponse,
     SessionDetailResponse,
     SessionResponse,
@@ -264,4 +265,44 @@ def join_session(
         participantToken=token,
         livekitRoomName=session.livekit_room_name,
         livekitUrl=livekit_service._http_url(),
+    )
+
+
+@router.post("/{session_id}/end", response_model=EndSessionResponse)
+def end_session(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Mark an active session as ended.
+    Only the session host (or the agent acting on behalf of the host) may call this.
+    Idempotent: calling on an already-ended session returns 409.
+    """
+    import uuid as _uuid
+    from datetime import datetime, timezone
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session introuvable.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+    if session.status == "ended":
+        raise HTTPException(status_code=409, detail="Cette session est déjà terminée.")
+
+    session.status = "ended"
+    session.ended_at = datetime.now(tz=timezone.utc)
+    db.commit()
+    db.refresh(session)
+
+    return EndSessionResponse(
+        sessionId=str(session.id),
+        status=session.status,
+        endedAt=session.ended_at.isoformat(),
     )

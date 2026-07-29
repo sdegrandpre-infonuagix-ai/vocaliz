@@ -75,8 +75,17 @@ _BASE_INSTRUCTIONS = (
     "If the call fails, say: 'Je n\\'ai pas pu inviter ce contact. Pouvez-vous vérifier "
     "le numéro de téléphone ?' "
     "\n\n"
-    "End sessions gracefully and ask a satisfaction question when a "
-    "participant says they want to leave."
+    "SESSION EXIT (vocal command — any language):\n"
+    "When any participant says a phrase indicating they want to leave, such as:\n"
+    "  FR: 'Je quitte le Salon', 'je m'en vais', 'je dois partir', 'au revoir'\n"
+    "  EN: 'I'm leaving the Salon', 'I have to go', 'goodbye', 'I'm done'\n"
+    "  ES: 'Me voy del Salón', 'tengo que irme', 'adiós'\n"
+    "  (or an equivalent farewell in any language)\n"
+    "then:\n"
+    "1. Acknowledge their departure warmly in their language (one sentence).\n"
+    "2. Ask the satisfaction question (see Story 2.12 — handled separately).\n"
+    "3. After a brief pause or after they reply, call end_session to close the session.\n"
+    "Do NOT end the session without first acknowledging the departure.\n"
 )
 
 _CONTENT_PREVIEW_CHARS = 2500
@@ -258,6 +267,34 @@ class SalonAgent(Agent):
             return f"error:{resp.status_code}"
         except Exception as exc:  # noqa: BLE001
             logger.exception("report_detected_language exception: %s", exc)
+            return "error:network"
+
+    @function_tool
+    async def end_session(self) -> str:
+        """Mark the current session as ended in the API.
+
+        Call this as the final step of the session exit flow — AFTER acknowledging
+        the participant's departure and asking the satisfaction question.
+        This closes the session and signals all clients to disconnect.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            logger.warning("end_session called but agent has no session context")
+            return "no_session_context"
+
+        url = f"{self._api_url}/sessions/{self._session_id}/end"
+        headers = {"Authorization": f"Bearer {self._host_token}"}
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, headers=headers)
+            if resp.status_code == 200:
+                logger.info("Session %s marked as ended", self._session_id)
+                return "session_ended"
+            detail = resp.json().get("detail", "unknown error")
+            logger.error("end_session failed %s: %s", resp.status_code, detail)
+            return f"error:{detail}"
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("end_session exception: %s", exc)
             return "error:network"
 
     @function_tool

@@ -56,3 +56,9 @@ class JoinSessionResponse(BaseModel):
     participantToken: str
     livekitRoomName: str
     livekitUrl: str
+
+
+class EndSessionResponse(BaseModel):
+    sessionId: str
+    status: str
+    endedAt: str

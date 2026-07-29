@@ -26,7 +26,7 @@
   > So that la conversation reste fluide malgré la barrière linguistique.
   > AC: Given deux participants parlant des langues différentes, When l'un d'eux parle, Then son discours est traduit et lu à voix haute au destinataire dans sa propre langue, And Given la traduction est en cours de lecture pour un destinataire, When l'interlocuteur d'origine continue de parler, Then la traduction ne l'interrompt pas et le microphone du destinataire est temporairement coupé pour éviter tout écho sur le flux partagé
   > Spec: specs/planning-artifacts/epics.md#story-2-10
-- [ ] Story 2.11: Sortie Vocale de Session
+- [x] Story 2.11: Sortie Vocale de Session
   > As a participant
   > I want quitter une session en disant "Je quitte le Salon" dans ma propre langue
   > So that je peux terminer proprement sans manipuler l'écran.
