@@ -132,9 +132,47 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
     return result
 
 
-def _send_invitation_sms(phone_number: str, join_link: str) -> None:
+def send_followup_sms_to_guests(session_id_str: str, db: Session) -> int:
+    """Send an app-install link SMS to anonymous guests who completed this session.
+
+    Called after a session is marked ended. Returns the count of SMS sent.
+    Errors on individual sends are swallowed so session end is never blocked.
+    Only targets invitations of type 'sms_contact' that were actually accepted.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(str(session_id_str))
+    except ValueError:
+        return 0
+
+    accepted_guest_invitations = (
+        db.query(Invitation)
+        .filter(
+            Invitation.session_id == session_uuid,
+            Invitation.invitation_type == "sms_contact",
+            Invitation.status == "accepted",
+        )
+        .all()
+    )
+
+    sent = 0
+    for inv in accepted_guest_invitations:
+        try:
+            _send_sms(
+                inv.guest_phone,
+                f"Merci d'avoir participé à une conversation Salon ! "
+                f"Installez l'application pour une expérience complète : {settings.salon_install_url}",
+            )
+            sent += 1
+        except Exception:  # noqa: BLE001
+            pass
+    return sent
+
+
+def _send_sms(phone_number: str, message: str) -> None:
+    """Low-level SNS SMS send. Raises HTTPException(503) on ClientError."""
     client = boto3.client("sns", region_name=settings.aws_region)
-    message = f"Vous avez été invité à rejoindre une conversation Salon. Rejoignez ici : {join_link}"
     try:
         client.publish(
             PhoneNumber=phone_number,
@@ -148,3 +186,10 @@ def _send_invitation_sms(phone_number: str, join_link: str) -> None:
         raise HTTPException(
             status_code=503, detail="Service d'envoi SMS indisponible."
         ) from exc
+
+
+def _send_invitation_sms(phone_number: str, join_link: str) -> None:
+    _send_sms(
+        phone_number,
+        f"Vous avez été invité à rejoindre une conversation Salon. Rejoignez ici : {join_link}",
+    )

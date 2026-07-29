@@ -18,7 +18,7 @@ from src.schemas.session import (
     SessionSourceResponse,
     SessionSourceSummary,
 )
-from src.services import content_service, livekit_service
+from src.services import content_service, invitation_service, livekit_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -300,6 +300,10 @@ def end_session(
     session.ended_at = datetime.now(tz=timezone.utc)
     db.commit()
     db.refresh(session)
+
+    # Fire-and-forget: send install-link SMS to anonymous guests who participated.
+    # Errors are swallowed inside the service so session end is never blocked.
+    invitation_service.send_followup_sms_to_guests(str(session.id), db)
 
     return EndSessionResponse(
         sessionId=str(session.id),

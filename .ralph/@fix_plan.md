@@ -29,12 +29,7 @@
 - [x] Story 3.1: Jonction Web Anonyme via Lien à Usage Unique
 - [x] Story 3.2: Sortie de Session par Fermeture
 - [x] Story 3.3: Question de Satisfaction pour Invité Anonyme
-  > As a invité anonyme
-  > I want répondre à la question de satisfaction sans avoir de compte
-  > So that mon ressenti compte même sans inscription.
-  > AC: Given un invité anonyme quitte une session, When l'agent pose la question de satisfaction, Then l'invité peut y répondre vocalement sans que la réponse soit liée à un profil persistant
-  > Spec: specs/planning-artifacts/epics.md#story-3-3
-- [ ] Story 3.4: SMS de Suivi avec Lien d'Installation
+- [x] Story 3.4: SMS de Suivi avec Lien d'Installation
   > As a invité anonyme
   > I want recevoir un SMS avec un lien d'installation après ma session
   > So that je puisse facilement installer l'application si l'expérience m'a plu.

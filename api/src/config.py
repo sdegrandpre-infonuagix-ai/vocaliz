@@ -25,5 +25,8 @@ class Settings(BaseSettings):
     # Invitation join links sent via SMS to non-registered contacts
     salon_web_base_url: str = "https://salon.app"
 
+    # App installation link sent to anonymous guests after their first session
+    salon_install_url: str = "https://salon.app/install"
+
 
 settings = Settings()
