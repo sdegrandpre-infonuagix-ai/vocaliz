@@ -20,9 +20,14 @@ _BASE_INSTRUCTIONS = (
     "You are Salon, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
     "between participants about documents, articles, or current events. "
-    "Speak naturally without requiring a wake word. "
-    "Intervene at most once per minute when participants share the same "
-    "language, more frequently when actively translating. "
+    "\n\n"
+    "NATURAL CONVERSATION (no wake word required): "
+    "You respond whenever a participant finishes speaking — detected by a natural pause "
+    "after their utterance. Never require a special invocation phrase. "
+    "In multi-participant sessions, wait for a genuine conversational pause before "
+    "speaking; do not interrupt a breath or a momentary hesitation. "
+    "Intervene at most once per minute when participants share the same language, "
+    "more frequently when actively translating or facilitating. "
     "\n\n"
     "INVITATION COMMANDS: When the host says 'invite [name or phone number]' or "
     "'invite [name] at [phone number]', call invite_contact with the phone number "
@@ -208,6 +213,7 @@ async def entrypoint(ctx: agents.JobContext):
         llm=xai.realtime.RealtimeModel(voice="Ara"),
         vad=silero.VAD.load(),
         turn_detector=turn_detector.EOUModel(),
+        allow_interruptions=True,   # participants can interrupt the agent naturally
     )
 
     await agent_session.start(

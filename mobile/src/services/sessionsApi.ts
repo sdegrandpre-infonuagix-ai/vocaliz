@@ -85,3 +85,20 @@ export async function addSourceFromFile(
   });
   return handleResponse<SessionSourceResponse>(res);
 }
+
+export interface JoinSessionResponse {
+  participantToken: string;
+  livekitRoomName: string;
+  livekitUrl: string;
+}
+
+export async function joinSession(
+  token: string,
+  sessionId: string,
+): Promise<JoinSessionResponse> {
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/join`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<JoinSessionResponse>(res);
+}

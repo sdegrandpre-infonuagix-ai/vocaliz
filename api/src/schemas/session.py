@@ -50,3 +50,9 @@ class SessionDetailResponse(BaseModel):
     additionalSources: list[SessionSourceSummary]
     status: str
     createdAt: str
+
+
+class JoinSessionResponse(BaseModel):
+    participantToken: str
+    livekitRoomName: str
+    livekitUrl: str

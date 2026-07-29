@@ -16,12 +16,7 @@
 - [x] Story 2.3: Ajout de Source en Cours de Session
 - [x] Story 2.4: Lecture à Voix Haute et Facilitation Sans Lecture Préalable
 - [x] Story 2.5: Contraste avec d'Autres Sources
-  > As a participant
-  > I want que l'agent introduise des informations contrastantes d'autres sources
-  > So that la discussion gagne en profondeur.
-  > AC: Given une discussion en cours sur un sujet donné, When l'agent identifie une occasion de contraste pertinent, Then il introduit l'information contrastante à voix haute, en citant sa source
-  > Spec: specs/planning-artifacts/epics.md#story-2-5
-- [ ] Story 2.6: Conversation Naturelle Sans Mot-Clé de Réveil
+- [x] Story 2.6: Conversation Naturelle Sans Mot-Clé de Réveil
   > As a participant
   > I want parler naturellement sans mot-clé de réveil ni mécanisme formel de demande de parole
   > So that la conversation reste fluide comme entre humains.

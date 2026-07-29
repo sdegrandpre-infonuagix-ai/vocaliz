@@ -9,7 +9,14 @@ from src.dependencies.auth import get_current_user
 from src.models.session import SessionModel
 from src.models.session_source import SessionSource
 from src.models.user import User
-from src.schemas.session import SessionDetailResponse, SessionResponse, SessionSourceResponse, SessionSourceSummary
+from src.models.invitation import Invitation
+from src.schemas.session import (
+    JoinSessionResponse,
+    SessionDetailResponse,
+    SessionResponse,
+    SessionSourceResponse,
+    SessionSourceSummary,
+)
 from src.services import content_service, livekit_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -193,4 +200,68 @@ def get_session(
         ],
         status=session.status,
         createdAt=session.created_at.isoformat(),
+    )
+
+
+@router.post("/{session_id}/join", response_model=JoinSessionResponse)
+def join_session(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate a LiveKit participant token for joining an active session.
+    Accessible by: the session host, or any user with a pending invitation.
+    Marks the invitation as accepted when a guest joins.
+    """
+    import uuid as _uuid
+    from datetime import datetime, timezone
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session introuvable.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session introuvable.")
+    if session.status != "active":
+        raise HTTPException(status_code=409, detail="Cette session est terminée.")
+
+    # Authorise host OR invited guest
+    is_host = session.host_user_id == current_user.id
+    invitation = None
+    if not is_host:
+        now = datetime.now(tz=timezone.utc)
+        invitation = (
+            db.query(Invitation)
+            .filter(
+                Invitation.session_id == session_uuid,
+                Invitation.guest_user_id == current_user.id,
+                Invitation.status == "pending",
+                Invitation.expires_at > now,
+            )
+            .first()
+        )
+        if not invitation:
+            raise HTTPException(status_code=403, detail="Accès refusé à cette session.")
+
+    # Mark invitation accepted
+    if invitation:
+        invitation.status = "accepted"
+        db.commit()
+
+    token = livekit_service.generate_participant_token(
+        room_name=session.livekit_room_name,
+        user_id=str(current_user.id),
+        display_name=current_user.phone_number,
+        can_publish=True,
+    )
+
+    return JoinSessionResponse(
+        participantToken=token,
+        livekitRoomName=session.livekit_room_name,
+        livekitUrl=livekit_service._http_url(),
     )
