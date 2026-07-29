@@ -21,18 +21,8 @@
 - [x] Story 2.8: Détection de Langue et Expression Multilingue
 - [x] Story 2.9: Affichage Visuel dans la Langue Détectée
 - [x] Story 2.10: Traduction Simultanée en Direct Sans Écho
-  > As a participant
-  > I want entendre une traduction en direct dans ma langue pendant que l'autre continue de parler
-  > So that la conversation reste fluide malgré la barrière linguistique.
-  > AC: Given deux participants parlant des langues différentes, When l'un d'eux parle, Then son discours est traduit et lu à voix haute au destinataire dans sa propre langue, And Given la traduction est en cours de lecture pour un destinataire, When l'interlocuteur d'origine continue de parler, Then la traduction ne l'interrompt pas et le microphone du destinataire est temporairement coupé pour éviter tout écho sur le flux partagé
-  > Spec: specs/planning-artifacts/epics.md#story-2-10
 - [x] Story 2.11: Sortie Vocale de Session
-  > As a participant
-  > I want quitter une session en disant "Je quitte le Salon" dans ma propre langue
-  > So that je peux terminer proprement sans manipuler l'écran.
-  > AC: Given une session active, When un participant prononce la commande de sortie dans sa langue, Then la session se termine pour ce participant
-  > Spec: specs/planning-artifacts/epics.md#story-2-11
-- [ ] Story 2.12: Question de Satisfaction de Fin de Session
+- [x] Story 2.12: Question de Satisfaction de Fin de Session
   > As a participant
   > I want qu'on me demande vocalement si la conversation a été agréable
   > So that mon ressenti soit capturé sans effort.

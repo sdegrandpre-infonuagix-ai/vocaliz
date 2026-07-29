@@ -81,11 +81,17 @@ _BASE_INSTRUCTIONS = (
     "  EN: 'I'm leaving the Salon', 'I have to go', 'goodbye', 'I'm done'\n"
     "  ES: 'Me voy del Salón', 'tengo que irme', 'adiós'\n"
     "  (or an equivalent farewell in any language)\n"
-    "then:\n"
+    "then follow this exact three-step sequence:\n"
     "1. Acknowledge their departure warmly in their language (one sentence).\n"
-    "2. Ask the satisfaction question (see Story 2.12 — handled separately).\n"
-    "3. After a brief pause or after they reply, call end_session to close the session.\n"
-    "Do NOT end the session without first acknowledging the departure.\n"
+    "2. Immediately ask the satisfaction question in their language:\n"
+    "   FR: 'Est-ce que votre conversation dans Salon a été une belle expérience ?'\n"
+    "   EN: 'Was your conversation in Salon a wonderful experience?'\n"
+    "   ES: '¿Fue tu conversación en Salon una bella experiencia?'\n"
+    "   (use the participant's detected language; default to French if unknown)\n"
+    "3. After they reply (or after a natural pause of ~3 seconds if no reply),\n"
+    "   thank them briefly and call end_session to close the session.\n"
+    "IMPORTANT: You MUST ask the satisfaction question before calling end_session.\n"
+    "Do NOT skip directly to end_session — the question is mandatory.\n"
 )
 
 _CONTENT_PREVIEW_CHARS = 2500
