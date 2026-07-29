@@ -15,12 +15,7 @@
 - [x] Story 2.2: Invitation Vocale d'un Ami ou Contact
 - [x] Story 2.3: Ajout de Source en Cours de Session
 - [x] Story 2.4: Lecture à Voix Haute et Facilitation Sans Lecture Préalable
-  > As a participant
-  > I want que l'agent lise et anime le contenu à voix haute
-  > So that je peux discuter d'un document sans l'avoir lu au préalable.
-  > AC: Given une session démarrée avec une source de contenu, When les participants rejoignent, Then l'agent lit le contenu à voix haute et pose des questions pour engager la discussion, And Given un participant n'a pas consulté le document au préalable, When il participe à la discussion, Then il peut suivre et contribuer normalement grâce à la lecture de l'agent
-  > Spec: specs/planning-artifacts/epics.md#story-2-4
-- [ ] Story 2.5: Contraste avec d'Autres Sources
+- [x] Story 2.5: Contraste avec d'Autres Sources
   > As a participant
   > I want que l'agent introduise des informations contrastantes d'autres sources
   > So that la discussion gagne en profondeur.

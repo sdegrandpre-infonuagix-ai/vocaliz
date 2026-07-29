@@ -40,16 +40,18 @@ _BASE_INSTRUCTIONS = (
 )
 
 _CONTENT_PREVIEW_CHARS = 2500
+_EXTRA_SOURCE_PREVIEW_CHARS = 1000
 
 
 def _build_instructions(
     source_content: str | None = None,
     source_type: str | None = None,
     source_url: str | None = None,
-    additional_sources_count: int = 0,
+    additional_sources: list[dict] | None = None,
 ) -> str:
-    """Build agent instructions, injecting session content for facilitation context."""
+    """Build agent instructions, injecting session content for facilitation and contrast."""
     instructions = _BASE_INSTRUCTIONS
+    additional_sources = additional_sources or []
 
     if source_content:
         preview = source_content[:_CONTENT_PREVIEW_CHARS]
@@ -68,17 +70,32 @@ def _build_instructions(
             "4. Ask one open, thought-provoking question to start the discussion.\n\n"
             "This ensures every participant can engage fully, even without prior reading.\n"
         )
-        if additional_sources_count > 0:
-            instructions += (
-                f"NOTE: {additional_sources_count} additional source(s) were added during this session. "
-                "Weave their content into the discussion as relevant.\n"
-            )
     else:
         instructions += (
             "\n\n"
             "No source content was attached to this session. "
             "Greet participants and invite them to share what they would like to discuss. "
             "Facilitate naturally from there.\n"
+        )
+
+    if additional_sources:
+        instructions += "\n\nADDITIONAL SOURCES (added during session):\n"
+        for i, src in enumerate(additional_sources, 1):
+            content = src.get("sourceContent") or ""
+            label = src.get("sourceUrl") or f"document {i}"
+            preview = content[:_EXTRA_SOURCE_PREVIEW_CHARS]
+            ellipsis = "…" if len(content) > _EXTRA_SOURCE_PREVIEW_CHARS else ""
+            instructions += f"\n[Source {i}] {label}\n{preview}{ellipsis}\n"
+
+        instructions += (
+            "\n"
+            "CONTRAST FACILITATION:\n"
+            "Monitor the discussion for moments when one of the additional sources above "
+            "provides a contrasting or complementary perspective to what is being said. "
+            "When such a moment arises (at most once every 2–3 minutes), introduce the "
+            "contrasting information by explicitly citing its source, e.g. "
+            "'According to [source label], ...' or 'In contrast, [source] argues that ...' "
+            "This enriches the discussion without overwhelming participants.\n"
         )
 
     return instructions
@@ -95,13 +112,13 @@ class SalonAgent(Agent):
         source_content: str | None = None,
         source_type: str | None = None,
         source_url: str | None = None,
-        additional_sources_count: int = 0,
+        additional_sources: list[dict] | None = None,
     ) -> None:
         instructions = _build_instructions(
             source_content=source_content,
             source_type=source_type,
             source_url=source_url,
-            additional_sources_count=additional_sources_count,
+            additional_sources=additional_sources,
         )
         super().__init__(instructions=instructions)
         self._session_id = session_id
@@ -173,11 +190,11 @@ async def entrypoint(ctx: agents.JobContext):
         except (json.JSONDecodeError, AttributeError):
             logger.warning("Could not parse job metadata: %r", raw_metadata)
 
-    # Fetch session content so the agent can read it aloud at session start
+    # Fetch session content so the agent can read it aloud and introduce contrast
     source_content: str | None = None
     source_type: str | None = None
     source_url: str | None = None
-    additional_sources_count: int = 0
+    additional_sources: list[dict] = []
 
     if session_id and api_url and host_token:
         detail = await _fetch_session_detail(api_url, session_id, host_token)
@@ -185,7 +202,7 @@ async def entrypoint(ctx: agents.JobContext):
             source_content = detail.get("sourceContent")
             source_type = detail.get("sourceType")
             source_url = detail.get("sourceUrl")
-            additional_sources_count = len(detail.get("additionalSources") or [])
+            additional_sources = detail.get("additionalSources") or []
 
     agent_session = AgentSession(
         llm=xai.realtime.RealtimeModel(voice="Ara"),
@@ -202,7 +219,7 @@ async def entrypoint(ctx: agents.JobContext):
             source_content=source_content,
             source_type=source_type,
             source_url=source_url,
-            additional_sources_count=additional_sources_count,
+            additional_sources=additional_sources,
         ),
         room_input_options=RoomInputOptions(),
     )

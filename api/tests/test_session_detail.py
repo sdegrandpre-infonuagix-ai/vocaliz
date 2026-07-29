@@ -99,4 +99,28 @@ def test_get_session_includes_additional_sources(client, host, session_with_cont
     assert len(sources) == 1
     assert sources[0]["sourceType"] == "document"
     assert sources[0]["contentLength"] == len("Extra document content.")
+    # Content is returned so the agent can introduce contrasting perspectives (Story 2.5)
+    assert sources[0]["sourceContent"] == "Extra document content."
+
+
+def test_get_session_additional_sources_include_url(client, host, session_with_content, db):
+    _, token = host
+    extra = SessionSource(
+        session_id=session_with_content.id,
+        host_user_id=session_with_content.host_user_id,
+        source_type="url",
+        source_url="https://example.com/contrast",
+        source_content="A contrasting perspective.",
+    )
+    db.add(extra)
+    db.commit()
+
+    resp = client.get(
+        f"/sessions/{session_with_content.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    src = resp.json()["additionalSources"][0]
+    assert src["sourceUrl"] == "https://example.com/contrast"
+    assert src["sourceContent"] == "A contrasting perspective."
 

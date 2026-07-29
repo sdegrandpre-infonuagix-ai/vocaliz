@@ -184,6 +184,8 @@ def get_session(
             SessionSourceSummary(
                 sourceId=str(s.id),
                 sourceType=s.source_type,
+                sourceUrl=s.source_url,
+                sourceContent=s.source_content,
                 contentLength=len(s.source_content or ""),
                 createdAt=s.created_at.isoformat(),
             )

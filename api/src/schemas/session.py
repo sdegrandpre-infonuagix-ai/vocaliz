@@ -35,6 +35,8 @@ class SessionSourceResponse(BaseModel):
 class SessionSourceSummary(BaseModel):
     sourceId: str
     sourceType: str
+    sourceUrl: str | None = None
+    sourceContent: str | None = None   # full extracted text — used by agent for contrast facilitation
     contentLength: int
     createdAt: str
 
