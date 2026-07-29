@@ -6,12 +6,7 @@
 > Goal: Un nouvel utilisateur peut créer un compte Salon en vérifiant son numéro de téléphone — condition préalable à toute utilisation du produit en tant qu'hôte.
 
 - [x] Story 1.1: Initialisation des Projets
-  > As a développeur
-  > I want les projets agent et mobile initialisés depuis les starters officiels
-  > So that je peux commencer à construire des fonctionnalités sur une fondation cohérente.
-  > AC: Given aucun projet n'existe encore, When j'exécute `lk app create --template agent-starter-python` et `uv add "livekit-agents[xai,silero,turn-detector]"`, Then le worker d'agent est scaffoldé avec Dockerfile, config `livekit.toml`, et `.env.example`, And Given aucun projet mobile n'existe encore, When j'exécute `npx create-expo-app` et configure un Expo Development Build, Then le projet mobile React Native est prêt à être développé et testé sur un appareil réel
-  > Spec: specs/planning-artifacts/epics.md#story-1-1
-- [ ] Story 1.2: Vérification Téléphone par OTP
+- [x] Story 1.2: Vérification Téléphone par OTP
   > As a nouvel utilisateur
   > I want créer un compte en vérifiant mon numéro de téléphone
   > So that je peux utiliser Salon pour la première fois.

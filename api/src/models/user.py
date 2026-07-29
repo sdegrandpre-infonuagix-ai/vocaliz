@@ -1,0 +1,32 @@
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from src.database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    phone_number: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # OTP verification (cleared once verified)
+    otp_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    otp_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    otp_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Trial tracking (seconds used as host)
+    trial_seconds_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Stripe billing
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    stripe_payment_method_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
