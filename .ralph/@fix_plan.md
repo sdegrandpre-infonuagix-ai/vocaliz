@@ -7,12 +7,7 @@
 
 - [x] Story 1.1: Initialisation des Projets
 - [x] Story 1.2: Vérification Téléphone par OTP
-  > As a nouvel utilisateur
-  > I want créer un compte en vérifiant mon numéro de téléphone
-  > So that je peux utiliser Salon pour la première fois.
-  > AC: Given un nouvel utilisateur ouvre l'application pour la première fois, When il entre son numéro de téléphone, Then un code OTP est envoyé via AWS SNS et une entrée `users` est préparée, And Given l'utilisateur entre le code OTP reçu, When le code est valide et non expiré, Then le compte est créé, un JWT est émis, et l'utilisateur peut utiliser Salon, And Given l'utilisateur entre un code invalide ou expiré, When la vérification échoue, Then l'agent l'informe vocalement de l'erreur et propose de renvoyer un nouveau code
-  > Spec: specs/planning-artifacts/epics.md#story-1-2
-- [ ] Story 1.3: Écran d'Inscription
+- [x] Story 1.3: Écran d'Inscription
   > As a nouvel utilisateur
   > I want un écran d'inscription clair et rapide
   > So that la friction avant ma première session soit minimale.

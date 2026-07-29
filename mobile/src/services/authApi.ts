@@ -1,6 +1,8 @@
 import Constants from 'expo-constants';
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl ?? process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+// EXPO_PUBLIC_ vars are replaced at build time by Expo; Constants.expoConfig is the runtime alternative
+const API_URL: string =
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? 'http://localhost:8000';
 
 export interface AuthTokenResponse {
   token: string;
