@@ -58,6 +58,29 @@ class JoinSessionResponse(BaseModel):
     livekitUrl: str
 
 
+class SessionPartner(BaseModel):
+    """A discussion partner in a past session (host sees guests, guest sees host)."""
+    userId: str | None = None       # null for SMS-only contacts never registered
+    phoneNumber: str
+    displayName: str | None = None
+
+
+class SessionHistoryItem(BaseModel):
+    """One entry in a user's session history — a light summary, no message thread."""
+    sessionId: str
+    role: str                       # 'host' | 'guest'
+    sourceType: str
+    sourceUrl: str | None = None
+    status: str
+    createdAt: str
+    endedAt: str | None = None
+    partners: list[SessionPartner]
+
+
+class SessionHistoryResponse(BaseModel):
+    sessions: list[SessionHistoryItem]
+
+
 class BillingChargeSummary(BaseModel):
     """Details of a post-trial charge made when a session ends (Story 4.4)."""
     billedSeconds: int

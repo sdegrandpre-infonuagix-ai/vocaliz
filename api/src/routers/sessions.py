@@ -17,6 +17,9 @@ from src.schemas.session import (
     HeartbeatResponse,
     JoinSessionResponse,
     SessionDetailResponse,
+    SessionHistoryItem,
+    SessionHistoryResponse,
+    SessionPartner,
     SessionResponse,
     SessionSourceResponse,
     SessionSourceSummary,
@@ -165,6 +168,106 @@ async def add_session_source(
         contentLength=len(content or ""),
         createdAt=source.created_at.isoformat(),
     )
+
+
+@router.get("", response_model=SessionHistoryResponse)
+def list_session_history(
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return the authenticated user's session history (Story 5.1).
+
+    Lists every session the user took part in — as host or as an accepted guest —
+    with the discussion partner(s), most recent first. A light summary only: source
+    topic, date and partners. No message thread is returned (Salon keeps no transcript).
+    """
+    # Sessions where the user was the host.
+    host_sessions = (
+        db.query(SessionModel)
+        .filter(SessionModel.host_user_id == current_user.id)
+        .all()
+    )
+
+    # Sessions where the user joined as an invited guest (invitation accepted).
+    guest_invitations = (
+        db.query(Invitation)
+        .filter(
+            Invitation.guest_user_id == current_user.id,
+            Invitation.status == "accepted",
+        )
+        .all()
+    )
+    guest_session_ids = {inv.session_id for inv in guest_invitations}
+    # Exclude any session the user also hosts (can't be both) to avoid duplicates.
+    host_session_ids = {s.id for s in host_sessions}
+    guest_session_ids -= host_session_ids
+    guest_sessions = (
+        db.query(SessionModel).filter(SessionModel.id.in_(guest_session_ids)).all()
+        if guest_session_ids
+        else []
+    )
+
+    items: list[SessionHistoryItem] = []
+
+    # Host-role entries: partners are the invited guests.
+    for s in host_sessions:
+        invitations = (
+            db.query(Invitation).filter(Invitation.session_id == s.id).all()
+        )
+        partners: list[SessionPartner] = []
+        seen: set = set()
+        for inv in invitations:
+            key = inv.guest_user_id or inv.guest_phone
+            if key in seen:
+                continue
+            seen.add(key)
+            phone = inv.guest_phone
+            user_id = None
+            if inv.guest_user_id:
+                guest_user = db.query(User).filter(User.id == inv.guest_user_id).first()
+                if guest_user:
+                    phone = guest_user.phone_number
+                    user_id = str(guest_user.id)
+            partners.append(SessionPartner(userId=user_id, phoneNumber=phone))
+        items.append(
+            SessionHistoryItem(
+                sessionId=str(s.id),
+                role="host",
+                sourceType=s.source_type,
+                sourceUrl=s.source_url,
+                status=s.status,
+                createdAt=s.created_at.isoformat(),
+                endedAt=s.ended_at.isoformat() if s.ended_at else None,
+                partners=partners,
+            )
+        )
+
+    # Guest-role entries: the partner is the session host.
+    for s in guest_sessions:
+        host_user = db.query(User).filter(User.id == s.host_user_id).first()
+        partners = (
+            [SessionPartner(userId=str(host_user.id), phoneNumber=host_user.phone_number)]
+            if host_user
+            else []
+        )
+        items.append(
+            SessionHistoryItem(
+                sessionId=str(s.id),
+                role="guest",
+                sourceType=s.source_type,
+                sourceUrl=s.source_url,
+                status=s.status,
+                createdAt=s.created_at.isoformat(),
+                endedAt=s.ended_at.isoformat() if s.ended_at else None,
+                partners=partners,
+            )
+        )
+
+    # Most recent first (ISO-8601 timestamps sort lexicographically).
+    items.sort(key=lambda i: i.createdAt, reverse=True)
+
+    return SessionHistoryResponse(sessions=items)
 
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)

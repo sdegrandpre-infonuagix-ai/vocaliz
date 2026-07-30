@@ -38,15 +38,10 @@
 - [x] Story 4.2: Métrage Précis du Temps de Conversation
 - [x] Story 4.3: Ajout de Méthode de Paiement Stripe
 - [x] Story 4.4: Facturation à l'Heure Après l'Essai Gratuit
-  > As a hôte avec une méthode de paiement enregistrée
-  > I want être facturé au prorata de mon temps d'utilisation au-delà de l'essai gratuit
-  > So that je paie seulement ce que j'utilise.
-  > AC: Given un hôte a dépassé son heure gratuite et a une méthode de paiement, When il utilise Salon en tant qu'hôte, Then il est facturé 5 USD par heure, au prorata de la seconde, And Given un invité participe à une session facturée, When la facturation est calculée, Then l'invité n'est jamais facturé, peu importe la durée
-  > Spec: specs/planning-artifacts/epics.md#story-4-4
 ### Historique & Reconnexion
 > Goal: Un utilisateur inscrit peut consulter ses sessions passées et démarrer rapidement une nouvelle session avec un partenaire déjà connu.
 
-- [ ] Story 5.1: Consultation de l'Historique de Sessions
+- [x] Story 5.1: Consultation de l'Historique de Sessions
   > As a utilisateur inscrit
   > I want consulter mes sessions passées et mes partenaires de discussion
   > So that je peux me souvenir de mes conversations précédentes.
