@@ -37,12 +37,7 @@
 - [x] Story 4.1: Heure d'Essai Gratuite à Vie par Hôte
 - [x] Story 4.2: Métrage Précis du Temps de Conversation
 - [x] Story 4.3: Ajout de Méthode de Paiement Stripe
-  > As a hôte dont l'heure gratuite est épuisée
-  > I want ajouter une méthode de paiement
-  > So that je peux continuer à utiliser Salon en tant qu'hôte.
-  > AC: Given un hôte a épuisé son heure d'essai gratuite, When il tente de démarrer une nouvelle session en tant qu'hôte, Then il doit ajouter une méthode de paiement via Stripe avant de continuer
-  > Spec: specs/planning-artifacts/epics.md#story-4-3
-- [ ] Story 4.4: Facturation à l'Heure Après l'Essai Gratuit
+- [x] Story 4.4: Facturation à l'Heure Après l'Essai Gratuit
   > As a hôte avec une méthode de paiement enregistrée
   > I want être facturé au prorata de mon temps d'utilisation au-delà de l'essai gratuit
   > So that je paie seulement ce que j'utilise.

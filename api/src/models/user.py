@@ -27,6 +27,11 @@ class User(Base):
     # Trial tracking (seconds used as host)
     trial_seconds_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    # Post-trial billing: cumulative host seconds already charged to Stripe.
+    # billable-so-far = max(0, trial_seconds_used - free_trial_limit); the delta
+    # between that and billed_seconds is what remains to be charged.
+    billed_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     # Detected spoken language (BCP-47 code, e.g. "fr", "en") — set by agent on first detection
     detected_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
 

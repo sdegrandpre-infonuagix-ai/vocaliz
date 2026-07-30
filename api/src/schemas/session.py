@@ -58,10 +58,21 @@ class JoinSessionResponse(BaseModel):
     livekitUrl: str
 
 
+class BillingChargeSummary(BaseModel):
+    """Details of a post-trial charge made when a session ends (Story 4.4)."""
+    billedSeconds: int
+    amountCents: int
+    currency: str
+    paymentIntentId: str | None = None
+    status: str
+
+
 class EndSessionResponse(BaseModel):
     sessionId: str
     status: str
     endedAt: str
+    # Present only when the host was charged for usage beyond the free trial.
+    billing: BillingChargeSummary | None = None
 
 
 class HeartbeatBody(BaseModel):

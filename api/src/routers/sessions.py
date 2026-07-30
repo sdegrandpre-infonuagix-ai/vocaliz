@@ -11,6 +11,7 @@ from src.models.session_source import SessionSource
 from src.models.user import User
 from src.models.invitation import Invitation
 from src.schemas.session import (
+    BillingChargeSummary,
     EndSessionResponse,
     HeartbeatBody,
     HeartbeatResponse,
@@ -21,7 +22,7 @@ from src.schemas.session import (
     SessionSourceSummary,
 )
 from src.config import settings
-from src.services import content_service, invitation_service, livekit_service
+from src.services import content_service, invitation_service, livekit_service, stripe_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -372,11 +373,24 @@ def end_session(
     if ended.tzinfo is None:
         ended = ended.replace(tzinfo=timezone.utc)
     remaining_seconds = max(0, int((ended - ref).total_seconds()))
-    if remaining_seconds > 0:
-        host = db.query(User).filter(User.id == session.host_user_id).first()
-        if host is not None:
-            host.trial_seconds_used = host.trial_seconds_used + remaining_seconds
-            db.commit()
+    host = db.query(User).filter(User.id == session.host_user_id).first()
+    if remaining_seconds > 0 and host is not None:
+        host.trial_seconds_used = host.trial_seconds_used + remaining_seconds
+        db.commit()
+
+    # Bill the host for any metered time beyond their free trial hour (Story 4.4).
+    # Prorated to the second at $5/hr, charged to the saved Stripe method.
+    # Guests are never billed — only the host role is charged.
+    # Errors are swallowed here so a payment failure never blocks session end;
+    # the unbilled span is retried automatically on the host's next session.
+    billing_summary = None
+    if host is not None:
+        try:
+            charge = stripe_service.bill_host_for_usage(host, session, db)
+            if charge is not None:
+                billing_summary = BillingChargeSummary(**charge)
+        except Exception:  # noqa: BLE001 — never let billing break session teardown
+            billing_summary = None
 
     # Fire-and-forget: send install-link SMS to anonymous guests who participated.
     # Errors are swallowed inside the service so session end is never blocked.
@@ -386,4 +400,5 @@ def end_session(
         sessionId=str(session.id),
         status=session.status,
         endedAt=session.ended_at.isoformat(),
+        billing=billing_summary,
     )
