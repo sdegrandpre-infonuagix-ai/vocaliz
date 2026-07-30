@@ -26,6 +26,18 @@ class TrialStatusResponse(BaseModel):
     trialExhausted: bool
 
 
+class PreviousPartner(BaseModel):
+    """A known discussion partner surfaced for quick-start (Story 5.2)."""
+    userId: str | None = None       # null for SMS-only contacts never registered
+    phoneNumber: str
+    lastSessionAt: str | None = None
+    sessionCount: int
+
+
+class PreviousPartnersResponse(BaseModel):
+    partners: list[PreviousPartner]
+
+
 class AddPaymentMethodBody(BaseModel):
     paymentMethodId: str
 

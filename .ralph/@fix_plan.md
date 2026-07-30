@@ -42,12 +42,7 @@
 > Goal: Un utilisateur inscrit peut consulter ses sessions passées et démarrer rapidement une nouvelle session avec un partenaire déjà connu.
 
 - [x] Story 5.1: Consultation de l'Historique de Sessions
-  > As a utilisateur inscrit
-  > I want consulter mes sessions passées et mes partenaires de discussion
-  > So that je peux me souvenir de mes conversations précédentes.
-  > AC: Given un utilisateur inscrit avec au moins une session passée, When il consulte son historique, Then il voit une liste simple de ses sessions passées et partenaires, sans fil de messages détaillé
-  > Spec: specs/planning-artifacts/epics.md#story-5-1
-- [ ] Story 5.2: Nouvelle Session avec un Partenaire Précédent
+- [x] Story 5.2: Nouvelle Session avec un Partenaire Précédent
   > As a utilisateur inscrit
   > I want démarrer rapidement une nouvelle session avec un partenaire déjà connu
   > So that je n'aie pas à répéter le processus d'invitation complet.

@@ -10,11 +10,13 @@ from src.models.user import User
 from src.schemas.user import (
     AddPaymentMethodBody,
     PaymentMethodResponse,
+    PreviousPartner,
+    PreviousPartnersResponse,
     TrialStatusResponse,
     UpdateLanguageBody,
     UserProfileResponse,
 )
-from src.services import stripe_service
+from src.services import partner_service, stripe_service
 
 router = APIRouter(prefix="/me", tags=["users"])
 
@@ -43,6 +45,23 @@ def get_trial_status(current_user: User = Depends(get_current_user)) -> TrialSta
         trialSecondsLimit=limit,
         trialSecondsRemaining=remaining,
         trialExhausted=(used >= limit),
+    )
+
+
+@router.get("/partners", response_model=PreviousPartnersResponse)
+def get_previous_partners(
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PreviousPartnersResponse:
+    """List the authenticated user's previous discussion partners (Story 5.2).
+
+    Powers quick-start: the app shows this list so the user can begin a new session
+    with a known partner without repeating the full voice-invitation flow. Pass the
+    chosen partner's phone number as `partner_phone` to POST /sessions to auto-invite.
+    """
+    partners = partner_service.get_previous_partners(current_user, db)
+    return PreviousPartnersResponse(
+        partners=[PreviousPartner(**p) for p in partners]
     )
 
 

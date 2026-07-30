@@ -19,12 +19,14 @@ from src.schemas.session import (
     SessionDetailResponse,
     SessionHistoryItem,
     SessionHistoryResponse,
+    SessionInvitationSummary,
     SessionPartner,
     SessionResponse,
     SessionSourceResponse,
     SessionSourceSummary,
 )
 from src.config import settings
+from src.schemas.invitation import InviteGuestBody
 from src.services import content_service, invitation_service, livekit_service, stripe_service
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -34,12 +36,17 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 async def create_session(
     source_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+    partner_phone: Optional[str] = Form(None),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Create a discussion session from a document upload or a URL.
     Provisions a LiveKit room and returns a host participant token.
+
+    Quick-start (Story 5.2): pass `partner_phone` (a previous partner selected from
+    GET /me/partners) to auto-invite that partner in the same call, so the new session
+    starts with the partner already identified — no separate invitation step needed.
     """
     if not source_url and (file is None or not file.filename):
         raise HTTPException(
@@ -95,12 +102,39 @@ async def create_session(
     db.commit()
     db.refresh(session)
 
+    # Quick-start with a previous partner: auto-invite so the session starts with
+    # the partner already identified (Story 5.2). The session is already persisted,
+    # so an invitation failure surfaces to the client without losing the session.
+    invitation_summary = None
+    if partner_phone:
+        try:
+            normalized_phone = InviteGuestBody(guestPhoneNumber=partner_phone).guestPhoneNumber
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="partner_phone doit être au format E.164 (ex. +15145550123).",
+            )
+        invite = invitation_service.invite_guest(
+            session_id=str(session.id),
+            host_user=current_user,
+            guest_phone=normalized_phone,
+            db=db,
+        )
+        invitation_summary = SessionInvitationSummary(
+            invitationId=invite["invitationId"],
+            invitationType=invite["invitationType"],
+            guestPhone=invite["guestPhone"],
+            status=invite["status"],
+            joinLink=invite.get("joinLink"),
+        )
+
     return SessionResponse(
         sessionId=str(session.id),
         livekitRoomName=room_name,
         hostToken=host_token,
         sourceType=source_type,
         createdAt=session.created_at.isoformat(),
+        invitation=invitation_summary,
     )
 
 

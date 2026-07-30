@@ -2,12 +2,23 @@ from pydantic import BaseModel, field_validator
 import re
 
 
+class SessionInvitationSummary(BaseModel):
+    """Summary of the partner auto-invited when a session is quick-started (Story 5.2)."""
+    invitationId: str
+    invitationType: str   # 'salon_friend' | 'sms_contact'
+    guestPhone: str
+    status: str
+    joinLink: str | None = None
+
+
 class SessionResponse(BaseModel):
     sessionId: str
     livekitRoomName: str
     hostToken: str
     sourceType: str
     createdAt: str
+    # Present only when a previous partner was auto-invited at creation (quick-start).
+    invitation: SessionInvitationSummary | None = None
 
 
 class AddSourceBody(BaseModel):
