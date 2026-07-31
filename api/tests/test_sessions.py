@@ -9,7 +9,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def user(db):
-    u = User(phone_number="+15141234567")
+    u = User(email="15141234567@example.com", phone_number="+15141234567")
     db.add(u)
     db.commit()
     db.refresh(u)

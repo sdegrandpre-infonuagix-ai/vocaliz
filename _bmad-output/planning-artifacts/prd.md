@@ -68,7 +68,7 @@ MVP de validation de problème (problem-solving MVP) : la question centrale à v
 
 - Application mobile native (iOS/Android), 1-à-1, un seul Voice Agent partagé par session (flux audio unique, synchrone)
 - Modèle d'affaires : 1 heure d'essai gratuit à vie par hôte (cumulative sur toutes ses sessions), puis 5 USD/heure facturés à l'hôte uniquement — l'invité ne paie jamais
-- Création de compte avec numéro de téléphone vérifié dès le premier lancement ; méthode de paiement (Stripe) demandée seulement une fois l'heure d'essai gratuite épuisée
+- Création de compte avec adresse courriel vérifiée dès le premier lancement ; méthode de paiement (Stripe) demandée seulement une fois l'heure d'essai gratuite épuisée
 - Sources de contenu : documents téléversés ET URLs de nouvelles
 - Upload réservé à l'hôte, possible avant et pendant la session
 - Backend séparé, orchestrateur mince sur la stack xAI native (Voice Realtime, Files, Collections API)
@@ -230,7 +230,7 @@ Le backend gère le provisionnement des salles LiveKit et l'intégration xAI (Vo
 
 ### Compte & Facturation
 
-- FR18: Un nouvel utilisateur doit créer un compte avec un numéro de téléphone vérifié avant de pouvoir utiliser Salon pour la première fois
+- FR18: Un nouvel utilisateur doit créer un compte avec une adresse courriel vérifiée par code à usage unique avant de pouvoir utiliser Salon pour la première fois ; le numéro de téléphone devient facultatif et n'est requis que pour être invité par SMS ou pour rattacher une participation antérieure en tant qu'invité anonyme
 - FR19: Un hôte dispose d'une heure d'essai gratuite à vie, cumulée sur l'ensemble de ses sessions
 - FR20: Le système comptabilise précisément, à la minute et à la seconde près, le temps de conversation cumulé de chaque hôte, pour déterminer le moment exact où l'heure d'essai gratuite est épuisée
 - FR21: Un hôte doit ajouter une méthode de paiement (Stripe) une fois son heure d'essai gratuite épuisée, pour continuer à utiliser Salon en tant qu'hôte

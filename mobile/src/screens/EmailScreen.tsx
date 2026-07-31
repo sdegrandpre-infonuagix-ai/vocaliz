@@ -1,6 +1,6 @@
 /**
- * Phone number entry screen — first step of OTP registration flow (UX-DR10).
- * Palette: Salon Parisien (UX-DR1). Telegraph icon instead of phone icon (UX-DR6).
+ * Email entry screen — first step of OTP registration flow (UX-DR10).
+ * Palette: Salon Parisien (UX-DR1). Telegraph icon as the brand mark (UX-DR6).
  * WCAG AA: contrast ≥ 4.5:1, touch targets ≥ 44×44px (UX-DR7).
  */
 import React, { useState } from 'react';
@@ -25,47 +25,25 @@ import { useLanguage } from '../contexts/LanguageContext';
 import type { AuthStackParamList } from '../navigation/AuthNavigator';
 
 type Props = {
-  navigation: NativeStackNavigationProp<AuthStackParamList, 'Phone'>;
+  navigation: NativeStackNavigationProp<AuthStackParamList, 'Email'>;
 };
 
-function formatPhoneDisplay(raw: string): string {
-  // Strip everything except digits and leading +
-  const digits = raw.replace(/[^\d]/g, '');
-  if (digits.length === 0) return '';
-  // Format as +X XXX XXX XXXX for North American style
-  if (digits.length <= 1) return `+${digits}`;
-  if (digits.length <= 4) return `+${digits.slice(0, 1)} ${digits.slice(1)}`;
-  if (digits.length <= 7) return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4)}`;
-  return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 11)}`;
-}
 
-function toE164(display: string): string {
-  return '+' + display.replace(/[^\d]/g, '');
-}
-
-export default function PhoneScreen({ navigation }: Props) {
-  const [phoneDisplay, setPhoneDisplay] = useState('');
+export default function EmailScreen({ navigation }: Props) {
+  const [email, setEmail] = useState('');
   const { sendOtp, isLoading, error } = useAuth();
   const { t } = useLanguage();
 
-  const e164 = toE164(phoneDisplay);
-  const isValid = /^\+[1-9]\d{7,14}$/.test(e164);
+  // Deliberately loose: the API validates properly, this only gates the button.
+  const normalized = email.trim().toLowerCase();
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalized);
 
   async function handleSend() {
     if (!isValid) return;
-    await sendOtp(e164);
+    await sendOtp(normalized);
     // Navigate on success (error state handled by AuthContext)
     if (!error) {
-      navigation.navigate('Otp', { phoneNumber: e164 });
-    }
-  }
-
-  function handleChangeText(text: string) {
-    // Keep raw input but auto-prefix + if user starts with a digit
-    if (text.length === 1 && /\d/.test(text)) {
-      setPhoneDisplay(formatPhoneDisplay(text));
-    } else {
-      setPhoneDisplay(text);
+      navigation.navigate('Otp', { email: normalized });
     }
   }
 
@@ -89,23 +67,25 @@ export default function PhoneScreen({ navigation }: Props) {
           Salon
         </Text>
         <Text style={styles.subtitle}>
-          {t.phone.subtitle}
+          {t.email.subtitle}
         </Text>
 
-        {/* ── Phone input ── */}
+        {/* ── Email input ── */}
         <TextInput
           style={[styles.input, error ? styles.inputError : null]}
-          value={phoneDisplay}
-          onChangeText={handleChangeText}
-          placeholder="+1 514 123 4567"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="vous@exemple.com"
           placeholderTextColor={colors.muted}
-          keyboardType="phone-pad"
-          textContentType="telephoneNumber"
-          autoComplete="tel"
-          accessibilityLabel={t.phone.inputLabel}
-          accessibilityHint={t.phone.inputHint}
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel={t.email.inputLabel}
+          accessibilityHint={t.email.inputHint}
           autoFocus
-          maxLength={17}
+          maxLength={254}
         />
 
         {/* ── Error message ── */}
@@ -125,18 +105,18 @@ export default function PhoneScreen({ navigation }: Props) {
           onPress={handleSend}
           disabled={!isValid || isLoading}
           accessibilityRole="button"
-          accessibilityLabel={t.phone.button}
+          accessibilityLabel={t.email.button}
           accessibilityState={{ disabled: !isValid || isLoading, busy: isLoading }}
         >
           {isLoading ? (
             <ActivityIndicator color={colors.ivory} />
           ) : (
-            <Text style={styles.buttonText}>{t.phone.button}</Text>
+            <Text style={styles.buttonText}>{t.email.button}</Text>
           )}
         </Pressable>
 
         <Text style={styles.legal}>
-          {t.phone.legal}
+          {t.email.legal}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -14,7 +14,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15141111111")
+    u = User(email="15141111111@example.com", phone_number="+15141111111")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -23,7 +23,7 @@ def host(db):
 
 @pytest.fixture
 def guest(db):
-    u = User(phone_number="+15142222222")
+    u = User(email="15142222222@example.com", phone_number="+15142222222")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -142,7 +142,7 @@ def test_invited_guest_can_join(client, guest, active_session, pending_invitatio
 
 
 def test_uninvited_user_cannot_join(client, db, active_session):
-    stranger = User(phone_number="+15149999999")
+    stranger = User(email="15149999999@example.com", phone_number="+15149999999")
     db.add(stranger)
     db.commit()
     db.refresh(stranger)

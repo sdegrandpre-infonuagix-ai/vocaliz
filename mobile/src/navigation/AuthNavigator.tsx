@@ -1,12 +1,12 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import PhoneScreen from '../screens/PhoneScreen';
+import EmailScreen from '../screens/EmailScreen';
 import OtpScreen from '../screens/OtpScreen';
 import { colors } from '../theme/tokens';
 
 export type AuthStackParamList = {
-  Phone: undefined;
-  Otp: { phoneNumber: string };
+  Email: undefined;
+  Otp: { email: string };
 };
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
@@ -20,7 +20,7 @@ export default function AuthNavigator() {
         animation: 'slide_from_right',
       }}
     >
-      <Stack.Screen name="Phone" component={PhoneScreen} />
+      <Stack.Screen name="Email" component={EmailScreen} />
       <Stack.Screen name="Otp" component={OtpScreen} />
     </Stack.Navigator>
   );

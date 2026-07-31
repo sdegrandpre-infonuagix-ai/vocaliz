@@ -14,7 +14,15 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    phone_number: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    # Account identifier: registered users (i.e. hosts) sign in with an email OTP.
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+
+    # Optional now that sign-in is email-based. Still the only key that correlates an
+    # anonymous guest's SMS invitation to the account they later register
+    # (see invitation_service.link_prior_invitations), so it is kept, not dropped.
+    phone_number: Mapped[str | None] = mapped_column(
+        String(20), unique=True, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

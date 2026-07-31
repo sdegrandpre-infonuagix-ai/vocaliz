@@ -13,7 +13,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15141111111")
+    u = User(email="15141111111@example.com", phone_number="+15141111111")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -23,7 +23,7 @@ def host(db):
 @pytest.fixture
 def guest_user(db):
     """A registered Salon user who can receive in-app invitations."""
-    u = User(phone_number="+15142222222")
+    u = User(email="15142222222@example.com", phone_number="+15142222222")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -191,7 +191,7 @@ def test_list_invitations_empty_for_unrelated_user(mock_sms, client, db, host, a
         headers={"Authorization": f"Bearer {host_token}"},
     )
     # A third user sees nothing
-    other = User(phone_number="+15148888888")
+    other = User(email="15148888888@example.com", phone_number="+15148888888")
     db.add(other)
     db.commit()
     db.refresh(other)

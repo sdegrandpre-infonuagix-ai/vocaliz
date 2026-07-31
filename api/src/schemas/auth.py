@@ -1,31 +1,30 @@
-from pydantic import BaseModel, field_validator
 import re
+
+from pydantic import BaseModel, EmailStr, field_validator
+
+
+def _normalize_email(v: str) -> str:
+    """Lowercase and trim so the same address never yields two accounts."""
+    return v.strip().lower()
 
 
 class OtpRequestBody(BaseModel):
-    phoneNumber: str
+    email: EmailStr
 
-    @field_validator("phoneNumber")
+    @field_validator("email")
     @classmethod
-    def validate_phone(cls, v: str) -> str:
-        # Accept E.164 format: +1XXXXXXXXXX
-        cleaned = re.sub(r"\s", "", v)
-        if not re.match(r"^\+[1-9]\d{7,14}$", cleaned):
-            raise ValueError("phoneNumber must be in E.164 format (e.g. +15141234567)")
-        return cleaned
+    def normalize(cls, v: str) -> str:
+        return _normalize_email(v)
 
 
 class OtpVerifyBody(BaseModel):
-    phoneNumber: str
+    email: EmailStr
     code: str
 
-    @field_validator("phoneNumber")
+    @field_validator("email")
     @classmethod
-    def validate_phone(cls, v: str) -> str:
-        cleaned = re.sub(r"\s", "", v)
-        if not re.match(r"^\+[1-9]\d{7,14}$", cleaned):
-            raise ValueError("phoneNumber must be in E.164 format")
-        return cleaned
+    def normalize(cls, v: str) -> str:
+        return _normalize_email(v)
 
     @field_validator("code")
     @classmethod

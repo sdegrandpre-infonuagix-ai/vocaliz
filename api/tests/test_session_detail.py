@@ -11,7 +11,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15141111111")
+    u = User(email="15141111111@example.com", phone_number="+15141111111")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -45,7 +45,7 @@ def test_get_session_requires_auth(client, session_with_content):
 # ─── Ownership check ─────────────────────────────────────────────────────────
 
 def test_get_session_non_host_returns_404(client, db, session_with_content):
-    other = User(phone_number="+15148888888")
+    other = User(email="15148888888@example.com", phone_number="+15148888888")
     db.add(other)
     db.commit()
     db.refresh(other)

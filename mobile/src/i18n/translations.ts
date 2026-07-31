@@ -1,7 +1,7 @@
 export type SupportedLanguage = 'fr' | 'en';
 
 export interface Translations {
-  phone: {
+  email: {
     subtitle: string;
     inputLabel: string;
     inputHint: string;
@@ -42,19 +42,19 @@ export interface Translations {
 }
 
 const fr: Translations = {
-  phone: {
-    subtitle: 'Entrez votre numéro de téléphone pour commencer.',
-    inputLabel: 'Numéro de téléphone',
-    inputHint: 'Entrez votre numéro au format international, par exemple +15141234567',
+  email: {
+    subtitle: 'Entrez votre adresse courriel pour commencer.',
+    inputLabel: 'Adresse courriel',
+    inputHint: 'Entrez votre adresse courriel, par exemple vous@exemple.com',
     button: 'Recevoir mon code',
     legal: "En continuant, vous acceptez nos conditions d'utilisation.",
   },
   otp: {
     back: '← Retour',
     title: 'Code de vérification',
-    subtitle: 'Entrez le code à {n} chiffres envoyé au',
+    subtitle: 'Entrez le code à {n} chiffres envoyé à',
     inputLabel: 'Code OTP à {n} chiffres',
-    inputHint: 'Entrez les 6 chiffres reçus par SMS',
+    inputHint: 'Entrez les 6 chiffres reçus par courriel',
     inputValue: '{n} chiffres saisis',
     verifyButton: 'Valider',
     verifyButtonLabel: 'Valider le code',
@@ -85,10 +85,10 @@ const fr: Translations = {
 };
 
 const en: Translations = {
-  phone: {
-    subtitle: 'Enter your phone number to get started.',
-    inputLabel: 'Phone number',
-    inputHint: 'Enter your number in international format, e.g. +15141234567',
+  email: {
+    subtitle: 'Enter your email address to get started.',
+    inputLabel: 'Email address',
+    inputHint: 'Enter your email address, e.g. you@example.com',
     button: 'Receive my code',
     legal: 'By continuing, you accept our terms of use.',
   },
@@ -97,7 +97,7 @@ const en: Translations = {
     title: 'Verification Code',
     subtitle: 'Enter the {n}-digit code sent to',
     inputLabel: '{n}-digit OTP code',
-    inputHint: 'Enter the 6 digits received by SMS',
+    inputHint: 'Enter the 6 digits received by email',
     inputValue: '{n} digits entered',
     verifyButton: 'Confirm',
     verifyButtonLabel: 'Confirm code',

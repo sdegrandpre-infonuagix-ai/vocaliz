@@ -26,7 +26,8 @@ class PendingInvitationResponse(BaseModel):
     invitationId: str
     sessionId: str
     livekitRoomName: str
-    hostPhone: str
+    hostEmail: str
+    hostPhone: str | None = None
     joinToken: str
     createdAt: str
     expiresAt: str

@@ -100,7 +100,7 @@ uv add "livekit-agents[xai,silero,turn-detector]"
 
 ### Authentication & Security
 
-- **Authentification :** OTP par SMS uniquement (AWS SNS), pas de mot de passe/courriel — plus simple que Cognito pour ce flux "téléphone seul"
+- **Authentification :** OTP par courriel (AWS SES), pas de mot de passe — plus simple que Cognito ; le SMS (AWS SNS) reste réservé aux invitations d'invités
 - **Autorisation :** JWT à courte durée de vie pour utilisateurs inscrits ; token à usage unique pour la jonction anonyme LiveKit (FR5)
 - **Sécurité API :** limitation de débit sur OTP et invitations
 - **Chiffrement :** TLS partout, chiffrement au repos Aurora, tokenisation Stripe (aucune donnée de carte stockée)

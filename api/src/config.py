@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 24
     aws_region: str = "ca-central-1"
+
+    # SES sender for OTP emails — must be a verified identity in this region.
+    ses_from_address: str = "no-reply@salon.app"
+
+    # SNS sender ID, still used for the guest invitation / install-link SMS.
     sns_sender_id: str = "Salon"
     otp_expiry_minutes: int = 10
     otp_max_attempts: int = 5

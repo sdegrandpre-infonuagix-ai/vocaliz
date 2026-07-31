@@ -17,7 +17,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def user(db):
-    u = User(phone_number="+15145550001")
+    u = User(email="15145550001@example.com", phone_number="+15145550001")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -95,7 +95,7 @@ def test_history_lists_host_session_with_guest_partner(client, db, user):
 def test_history_uses_registered_guest_phone_over_invite_phone(client, db, user):
     """When the guest is a registered user, their account phone is shown."""
     host, token = user
-    guest = User(phone_number="+15145558888")
+    guest = User(email="15145558888@example.com", phone_number="+15145558888")
     db.add(guest)
     db.commit()
     db.refresh(guest)
@@ -113,7 +113,7 @@ def test_history_uses_registered_guest_phone_over_invite_phone(client, db, user)
 def test_history_includes_sessions_where_user_was_guest(client, db, user):
     """A user who joined someone else's session as an accepted guest sees it."""
     me, token = user
-    other_host = User(phone_number="+15145557777")
+    other_host = User(email="15145557777@example.com", phone_number="+15145557777")
     db.add(other_host)
     db.commit()
     db.refresh(other_host)
@@ -131,7 +131,7 @@ def test_history_includes_sessions_where_user_was_guest(client, db, user):
 def test_history_excludes_pending_guest_invitations(client, db, user):
     """A pending (never accepted) invitation does not appear in the guest's history."""
     me, token = user
-    other_host = User(phone_number="+15145556666")
+    other_host = User(email="15145556666@example.com", phone_number="+15145556666")
     db.add(other_host)
     db.commit()
     db.refresh(other_host)

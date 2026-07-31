@@ -17,29 +17,29 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function requestOtp(phoneNumber: string): Promise<void> {
+export async function requestOtp(email: string): Promise<void> {
   const res = await fetch(`${API_URL}/auth/otp/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber }),
+    body: JSON.stringify({ email }),
   });
   await handleResponse<{ message: string }>(res);
 }
 
-export async function resendOtp(phoneNumber: string): Promise<void> {
+export async function resendOtp(email: string): Promise<void> {
   const res = await fetch(`${API_URL}/auth/otp/resend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber }),
+    body: JSON.stringify({ email }),
   });
   await handleResponse<{ message: string }>(res);
 }
 
-export async function verifyOtp(phoneNumber: string, code: string): Promise<AuthTokenResponse> {
+export async function verifyOtp(email: string, code: string): Promise<AuthTokenResponse> {
   const res = await fetch(`${API_URL}/auth/otp/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber, code }),
+    body: JSON.stringify({ email, code }),
   });
   return handleResponse<AuthTokenResponse>(res);
 }

@@ -124,6 +124,7 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
             "invitationId": str(inv.id),
             "sessionId": str(sess.id),
             "livekitRoomName": sess.livekit_room_name,
+            "hostEmail": host.email,
             "hostPhone": host.phone_number,
             "joinToken": inv.join_token,
             "createdAt": created.isoformat(),
@@ -135,10 +136,17 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
 def link_prior_invitations(user: User, db: Session) -> int:
     """Link anonymous invitations for this phone number to the newly registered user.
 
-    Called when an anonymous guest completes phone verification. Updates guest_user_id
-    on all prior sms_contact invitations so the app can recognise their participation.
+    Called after OTP verification. Updates guest_user_id on all prior sms_contact
+    invitations so the app can recognise their participation.
     Returns the count of invitations linked.
+
+    Sign-in is email-based, so phone_number may be unset — there is then no key to
+    correlate the anonymous participation with, and nothing to link. The account has
+    to carry a phone number for a past guest session to be recognised.
     """
+    if not user.phone_number:
+        return 0
+
     prior = (
         db.query(Invitation)
         .filter(

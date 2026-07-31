@@ -15,7 +15,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15145550001")
+    u = User(email="15145550001@example.com", phone_number="+15145550001")
     db.add(u)
     db.commit()
     db.refresh(u)

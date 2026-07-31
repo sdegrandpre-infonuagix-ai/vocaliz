@@ -31,7 +31,7 @@ type Props = {
 };
 
 export default function OtpScreen({ navigation, route }: Props) {
-  const { phoneNumber } = route.params;
+  const { email } = route.params;
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN);
   const { confirmOtp, resendOtpCode, isLoading, error } = useAuth();
@@ -47,7 +47,7 @@ export default function OtpScreen({ navigation, route }: Props) {
 
   async function handleVerify(finalCode: string) {
     if (finalCode.length !== OTP_LENGTH) return;
-    await confirmOtp(phoneNumber, finalCode);
+    await confirmOtp(email, finalCode);
     // Navigation to home is handled by the root navigator watching auth state
   }
 
@@ -62,7 +62,7 @@ export default function OtpScreen({ navigation, route }: Props) {
   async function handleResend() {
     if (cooldown > 0) return;
     setCode('');
-    await resendOtpCode(phoneNumber);
+    await resendOtpCode(email);
     setCooldown(RESEND_COOLDOWN);
     inputRef.current?.focus();
   }
@@ -87,7 +87,6 @@ export default function OtpScreen({ navigation, route }: Props) {
     );
   }
 
-  const maskedPhone = phoneNumber.replace(/(\+\d{1,3})\d+(\d{4})/, '$1 ••••• $2');
 
   return (
     <KeyboardAvoidingView
@@ -113,7 +112,7 @@ export default function OtpScreen({ navigation, route }: Props) {
         </Text>
         <Text style={styles.subtitle}>
           {t.otp.subtitle.replace('{n}', String(OTP_LENGTH))}{'\n'}
-          <Text style={styles.phone}>{maskedPhone}</Text>
+          <Text style={styles.recipient}>{email}</Text>
         </Text>
 
         {/* ── Digit boxes (visual only) + hidden real input ── */}
@@ -225,7 +224,7 @@ const styles = StyleSheet.create({
     lineHeight: typography.bodySize * 1.6,
     marginBottom: spacing.xl,
   },
-  phone: {
+  recipient: {
     fontWeight: '700',
     color: colors.burgundy,
   },

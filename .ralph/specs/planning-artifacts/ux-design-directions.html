@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Salon — Directions de Design</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bordeaux: #6b1f34;
+    --bordeaux-deep: #3f1220;
+    --gold: #c9a15a;
+    --ivory: #f2e8d3;
+    --ivory-dim: #e8d9ba;
+    --charcoal: #2a211d;
+    --success: #2f4a3c;
+    --error: #8a2f1f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #1a1310;
+    color: var(--charcoal);
+    font-family: 'Inter', sans-serif;
+    padding: 2rem;
+  }
+  h1.page-title {
+    font-family: 'Playfair Display', serif;
+    color: var(--ivory);
+    text-align: center;
+    margin-bottom: 0.25rem;
+  }
+  p.page-sub {
+    text-align: center;
+    color: #cbb99a;
+    margin-top: 0;
+    margin-bottom: 2.5rem;
+  }
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .phone {
+    background: var(--ivory);
+    border-radius: 28px;
+    border: 8px solid var(--bordeaux-deep);
+    aspect-ratio: 9 / 18;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  }
+  .phone .label {
+    position: absolute;
+    top: -1.8rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: var(--gold);
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+  }
+  .icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--bordeaux);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    color: var(--gold);
+    font-size: 1.8rem;
+  }
+  .phone h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    margin: 0 0 0.5rem;
+    color: var(--bordeaux-deep);
+  }
+  .phone p {
+    font-size: 0.9rem;
+    color: #5a4c42;
+    line-height: 1.5;
+    margin: 0 0 1.5rem;
+  }
+  .btn {
+    background: var(--bordeaux);
+    color: var(--ivory);
+    border: none;
+    padding: 0.85rem 1.75rem;
+    border-radius: 999px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    width: 100%;
+    cursor: default;
+  }
+  .btn.gold-border {
+    background: transparent;
+    color: var(--bordeaux);
+    border: 1.5px solid var(--gold);
+  }
+  .field {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    border: 1px solid #d8c9ac;
+    background: white;
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 1rem;
+    color: var(--charcoal);
+    font-size: 0.95rem;
+  }
+  .waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 40px;
+    margin-bottom: 1.5rem;
+  }
+  .waveform span {
+    width: 4px;
+    background: var(--gold);
+    border-radius: 2px;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .waveform span:nth-child(1) { height: 12px; animation-delay: 0s; }
+  .waveform span:nth-child(2) { height: 24px; animation-delay: 0.1s; }
+  .waveform span:nth-child(3) { height: 36px; animation-delay: 0.2s; }
+  .waveform span:nth-child(4) { height: 20px; animation-delay: 0.3s; }
+  .waveform span:nth-child(5) { height: 30px; animation-delay: 0.4s; }
+  .waveform span:nth-child(6) { height: 14px; animation-delay: 0.5s; }
+  @keyframes pulse {
+    0%, 100% { transform: scaleY(0.6); opacity: 0.6; }
+    50% { transform: scaleY(1); opacity: 1; }
+  }
+  .satisfaction-row {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+  }
+  .satisfaction-row .btn { width: auto; flex: 1; padding: 0.85rem 0.5rem; }
+  .logo {
+    width: 168px;
+    height: 168px;
+    border-radius: 50%;
+    background: var(--bordeaux-deep);
+    border: 3px solid var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    flex-shrink: 0;
+  }
+  .logo svg { width: 102px; height: 102px; }
+  .badge {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--bordeaux-deep);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    margin-bottom: 1rem;
+    letter-spacing: 0.03em;
+  }
+</style>
+</head>
+<body>
+  <h1 class="page-title">Salon</h1>
+  <p class="page-sub">Directions de design — palette "Salon Parisien" (bourgogne, or, beige ivoire)</p>
+
+  <div class="gallery">
+
+    <div class="phone">
+      <div class="logo" title="Salon — causeuse classique à 3 places">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#c9a15a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="20" cy="27" r="9" />
+          <circle cx="32" cy="24" r="10" />
+          <circle cx="44" cy="27" r="9" />
+          <rect x="10" y="38" width="44" height="13" rx="4" />
+          <rect x="4" y="30" width="9" height="21" rx="3" />
+          <rect x="51" y="30" width="9" height="21" rx="3" />
+          <line x1="14" y1="51" x2="14" y2="56" />
+          <line x1="50" y1="51" x2="50" y2="56" />
+        </svg>
+      </div>
+      <span class="label">1 · Vérification téléphone</span>
+      <div class="icon">
+        <svg viewBox="0 0 64 64" width="34" height="34" fill="none" stroke="#c9a15a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <!-- manipulateur télégraphique (clé Morse) -->
+          <rect x="6" y="40" width="52" height="8" rx="2" />
+          <circle cx="15" cy="36" r="3" />
+          <circle cx="49" cy="36" r="3" />
+          <rect x="27" y="29" width="10" height="11" rx="1.5" />
+          <line x1="32" y1="31" x2="52" y2="22" />
+          <circle cx="54" cy="21" r="5" />
+          <circle cx="17" cy="34" r="2" />
+        </svg>
+      </div>
+      <h2>Bienvenue au Salon</h2>
+      <p>Entrez votre numéro de téléphone pour commencer — aucune carte requise pour l'instant.</p>
+      <input class="field" placeholder="+1 514 555 0123" disabled />
+      <button class="btn">Recevoir le code</button>
+    </div>
+
+    <div class="phone">
+      <div class="logo" title="Salon — causeuse classique à 3 places">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#c9a15a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="20" cy="27" r="9" />
+          <circle cx="32" cy="24" r="10" />
+          <circle cx="44" cy="27" r="9" />
+          <rect x="10" y="38" width="44" height="13" rx="4" />
+          <rect x="4" y="30" width="9" height="21" rx="3" />
+          <rect x="51" y="30" width="9" height="21" rx="3" />
+          <line x1="14" y1="51" x2="14" y2="56" />
+          <line x1="50" y1="51" x2="50" y2="56" />
+        </svg>
+      </div>
+      <span class="label">2 · Invitation confirmée</span>
+      <div class="icon">✓</div>
+      <h2>Invitation envoyée</h2>
+      <p>Jean-Samuel recevra une notification pour rejoindre votre session sur « L'architecture des LLM ».</p>
+      <button class="btn gold-border">En attente de Jean-Samuel…</button>
+    </div>
+
+    <div class="phone">
+      <div class="logo" title="Salon — causeuse classique à 3 places">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#c9a15a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="20" cy="27" r="9" />
+          <circle cx="32" cy="24" r="10" />
+          <circle cx="44" cy="27" r="9" />
+          <rect x="10" y="38" width="44" height="13" rx="4" />
+          <rect x="4" y="30" width="9" height="21" rx="3" />
+          <rect x="51" y="30" width="9" height="21" rx="3" />
+          <line x1="14" y1="51" x2="14" y2="56" />
+          <line x1="50" y1="51" x2="50" y2="56" />
+        </svg>
+      </div>
+      <span class="label">3 · Session en cours (mains-libres)</span>
+      <div class="waveform">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <h2>À l'écoute</h2>
+      <p>Seb &amp; Jean-Samuel discutent — l'agent intervient avec parcimonie.</p>
+      <button class="btn gold-border">"Je quitte le Salon" pour terminer</button>
+    </div>
+
+    <div class="phone">
+      <div class="logo" title="Salon — causeuse classique à 3 places">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#c9a15a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="20" cy="27" r="9" />
+          <circle cx="32" cy="24" r="10" />
+          <circle cx="44" cy="27" r="9" />
+          <rect x="10" y="38" width="44" height="13" rx="4" />
+          <rect x="4" y="30" width="9" height="21" rx="3" />
+          <rect x="51" y="30" width="9" height="21" rx="3" />
+          <line x1="14" y1="51" x2="14" y2="56" />
+          <line x1="50" y1="51" x2="50" y2="56" />
+        </svg>
+      </div>
+      <span class="label">4 · Question de satisfaction (100% vocale)</span>
+      <div class="waveform">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <h2>Belle conversation ?</h2>
+      <p>L'agent demande à voix haute : « Est-ce que votre conversation dans Salon a été une belle expérience ? » — aucun bouton, la réponse se donne aussi à voix haute.</p>
+    </div>
+
+    <div class="phone">
+      <div class="logo" title="Salon — causeuse classique à 3 places">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#c9a15a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="20" cy="27" r="9" />
+          <circle cx="32" cy="24" r="10" />
+          <circle cx="44" cy="27" r="9" />
+          <rect x="10" y="38" width="44" height="13" rx="4" />
+          <rect x="4" y="30" width="9" height="21" rx="3" />
+          <rect x="51" y="30" width="9" height="21" rx="3" />
+          <line x1="14" y1="51" x2="14" y2="56" />
+          <line x1="50" y1="51" x2="50" y2="56" />
+        </svg>
+      </div>
+      <span class="label">5 · Invité anonyme (navigateur)</span>
+      <span class="badge">SANS INSTALLATION</span>
+      <div class="icon">🔗</div>
+      <h2>Vous êtes invité(e)</h2>
+      <p>Rejoignez la conversation directement — aucun compte requis.</p>
+      <button class="btn">Rejoindre le Salon</button>
+    </div>
+
+  </div>
+</body>
+</html>

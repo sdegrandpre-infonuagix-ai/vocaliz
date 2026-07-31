@@ -23,8 +23,7 @@ from src.services.jwt_service import issue_token
 @pytest.fixture
 def paid_host(db):
     """A host who has exhausted the free hour and has a saved payment method."""
-    u = User(
-        phone_number="+15148880030",
+    u = User(email="15148880030@example.com", phone_number="+15148880030",
         trial_seconds_used=settings.free_trial_limit_seconds,  # exactly at the cap
         billed_seconds=0,
         stripe_customer_id="cus_paid1",
@@ -81,8 +80,7 @@ def test_amount_cents_prorated_to_the_second():
 
 def test_billable_seconds_only_counts_beyond_trial():
     """Only host seconds past the free-trial cap are billable."""
-    host = User(
-        phone_number="+1",
+    host = User(email="1@example.com", phone_number="+1",
         trial_seconds_used=settings.free_trial_limit_seconds + 900,
         billed_seconds=0,
     )
@@ -91,8 +89,7 @@ def test_billable_seconds_only_counts_beyond_trial():
 
 def test_billable_seconds_subtracts_already_billed():
     """Seconds already charged are not billed twice."""
-    host = User(
-        phone_number="+1",
+    host = User(email="1@example.com", phone_number="+1",
         trial_seconds_used=settings.free_trial_limit_seconds + 900,
         billed_seconds=600,
     )
@@ -156,8 +153,7 @@ def test_billed_seconds_advances_and_prevents_double_billing(client, db, paid_ho
 
 def test_no_charge_when_within_free_trial(client, db):
     """A host still within the free hour is not charged."""
-    u = User(
-        phone_number="+15148880031",
+    u = User(email="15148880031@example.com", phone_number="+15148880031",
         trial_seconds_used=100,
         stripe_customer_id="cus_x",
         stripe_payment_method_id="pm_x",
@@ -179,8 +175,7 @@ def test_no_charge_when_within_free_trial(client, db):
 def test_no_charge_without_payment_method_carries_forward(client, db):
     """A host who crossed into paid usage but has no card is not charged;
     billed_seconds stays at 0 so the span is captured on a later session."""
-    u = User(
-        phone_number="+15148880032",
+    u = User(email="15148880032@example.com", phone_number="+15148880032",
         trial_seconds_used=settings.free_trial_limit_seconds + 600,
         billed_seconds=0,
     )
@@ -235,7 +230,7 @@ def test_guest_is_never_billed(client, db, paid_host):
     host.trial_seconds_used = settings.free_trial_limit_seconds + 720
     db.commit()
 
-    guest = User(phone_number="+15148880099", trial_seconds_used=0, billed_seconds=0)
+    guest = User(email="15148880099@example.com", phone_number="+15148880099", trial_seconds_used=0, billed_seconds=0)
     db.add(guest)
     db.commit()
     db.refresh(guest)

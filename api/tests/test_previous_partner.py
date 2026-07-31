@@ -18,7 +18,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def user(db):
-    u = User(phone_number="+15145550001")
+    u = User(email="15145550001@example.com", phone_number="+15145550001")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -88,7 +88,7 @@ def test_partners_lists_hosted_guest(client, db, user):
 def test_partners_dedupes_across_sessions_and_counts(client, db, user):
     """The same partner across two sessions appears once with sessionCount 2."""
     host, token = user
-    guest = User(phone_number="+15145558888")
+    guest = User(email="15145558888@example.com", phone_number="+15145558888")
     db.add(guest)
     db.commit()
     db.refresh(guest)
@@ -106,7 +106,7 @@ def test_partners_dedupes_across_sessions_and_counts(client, db, user):
 
 def test_partners_includes_host_when_user_was_guest(client, db, user):
     me, token = user
-    other_host = User(phone_number="+15145557777")
+    other_host = User(email="15145557777@example.com", phone_number="+15145557777")
     db.add(other_host)
     db.commit()
     db.refresh(other_host)
@@ -136,7 +136,7 @@ def test_partners_sorted_most_recent_first(client, db, user):
 def test_quick_start_auto_invites_registered_partner(client, db, user):
     """Creating a session with partner_phone auto-invites that partner (salon_friend)."""
     host, token = user
-    partner = User(phone_number="+15145556666")
+    partner = User(email="15145556666@example.com", phone_number="+15145556666")
     db.add(partner)
     db.commit()
 

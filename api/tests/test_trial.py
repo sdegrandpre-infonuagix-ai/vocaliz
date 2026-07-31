@@ -13,7 +13,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15148880001")
+    u = User(email="15148880001@example.com", phone_number="+15148880001")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -118,7 +118,7 @@ def test_end_session_increments_host_trial_time(client, db, host):
 def test_end_session_guest_time_never_counted(client, db, host):
     """Guest role never accumulates trial time — only the host's counter grows."""
     host_user, token = host
-    other_guest = User(phone_number="+15148889999")
+    other_guest = User(email="15148889999@example.com", phone_number="+15148889999")
     db.add(other_guest)
     db.commit()
     db.refresh(other_guest)

@@ -13,7 +13,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15148880020")
+    u = User(email="15148880020@example.com", phone_number="+15148880020")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -123,7 +123,7 @@ def test_add_payment_method_requires_auth(client):
 
 @pytest.fixture
 def exhausted_host(db):
-    u = User(phone_number="+15148880021", trial_seconds_used=3600)
+    u = User(email="15148880021@example.com", phone_number="+15148880021", trial_seconds_used=3600)
     db.add(u)
     db.commit()
     db.refresh(u)

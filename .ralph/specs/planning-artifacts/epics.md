@@ -31,7 +31,7 @@ FR14: Les participants peuvent s'exprimer dans leur propre langue pendant une se
 FR15: Le contenu parlé est traduit et lu à voix haute à chaque participant dans sa propre langue, lorsque les participants parlent des langues différentes
 FR16: Le contenu traduit est lu à voix haute pendant que l'interlocuteur d'origine continue de parler, sans interrompre la conversation
 FR17: L'audio traduit destiné à un participant ne crée pas d'écho dans l'audio partagé de la session
-FR18: Un nouvel utilisateur doit créer un compte avec un numéro de téléphone vérifié avant de pouvoir utiliser Salon pour la première fois
+FR18: Un nouvel utilisateur doit créer un compte avec une adresse courriel vérifiée par code à usage unique avant de pouvoir utiliser Salon pour la première fois ; le numéro de téléphone devient facultatif et n'est requis que pour être invité par SMS ou pour rattacher une participation antérieure en tant qu'invité anonyme
 FR19: Un hôte dispose d'une heure d'essai gratuite à vie, cumulée sur l'ensemble de ses sessions
 FR20: Le système comptabilise précisément, à la minute et à la seconde près, le temps de conversation cumulé de chaque hôte, pour déterminer le moment exact où l'heure d'essai gratuite est épuisée
 FR21: Un hôte doit ajouter une méthode de paiement (Stripe) une fois son heure d'essai gratuite épuisée, pour continuer à utiliser Salon en tant qu'hôte
@@ -57,11 +57,11 @@ NFR3: Integration — En cas d'indisponibilité de xAI, LiveKit, ou Stripe, le s
 - Starter template worker d'agent : `lk app create --template agent-starter-python` + `uv add "livekit-agents[xai,silero,turn-detector]"` (Story 1.1)
 - Starter template mobile : `npx create-expo-app` avec Expo Development Build (pas Expo Go) requis dès le départ pour supporter `@livekit/react-native` (Story 1.2)
 - Infrastructure AWS : Lambda + API Gateway (API REST), ECS Fargate (worker d'agent xAI), Aurora Serverless v2 PostgreSQL, S3+CloudFront (page de jonction web), Secrets Manager (clés API), CloudWatch Logs (monitoring), GitHub Actions (CI/CD)
-- Intégrations tierces : xAI (plugin `livekit-agents[xai]`), LiveKit Cloud (managé, pas d'auto-hébergement), Stripe (paiement), AWS SNS (OTP SMS)
+- Intégrations tierces : xAI (plugin `livekit-agents[xai]`), LiveKit Cloud (managé, pas d'auto-hébergement), Stripe (paiement), AWS SES (OTP courriel), AWS SNS (SMS d'invitation)
 - Base de données : schéma relationnel (`users`, `sessions`, `friends`, `billing_events`), migrations Alembic
-- Authentification : OTP par SMS uniquement, JWT à courte durée pour utilisateurs inscrits, token à usage unique pour jonction anonyme
+- Authentification : OTP par courriel (AWS SES), JWT à courte durée pour utilisateurs inscrits, token à usage unique pour jonction anonyme
 - Métrage de facturation : heartbeat périodique (30s) du worker vers l'API + callback final, pour fiabilité en cas de déconnexion
-- Règle métier "ami Salon" : un contact ne devient un ami Salon (livraison in-app) que s'il s'est lui-même inscrit avec un numéro vérifié ; sinon, joignable uniquement par SMS
+- Règle métier "ami Salon" : un contact ne devient un ami Salon (livraison in-app) que s'il s'est lui-même inscrit avec une adresse courriel vérifiée ; sinon, joignable uniquement par SMS
 - Conventions : JSON camelCase (alias Pydantic) / Python snake_case interne, erreurs API au format `{detail: string}`, dates ISO 8601 UTC
 
 ### UX Design Requirements
@@ -100,7 +100,7 @@ FR14: Epic 2 - Expression dans sa propre langue
 FR15: Epic 2 - Traduction et lecture dans la langue du destinataire
 FR16: Epic 2 - Interprétation simultanée sans interrompre
 FR17: Epic 2 - Pas d'écho audio
-FR18: Epic 1 - Compte + vérification téléphone
+FR18: Epic 1 - Compte + vérification courriel
 FR19: Epic 4 - Heure d'essai gratuite à vie
 FR20: Epic 4 - Métrage précis minute/seconde
 FR21: Epic 4 - Ajout de méthode de paiement Stripe

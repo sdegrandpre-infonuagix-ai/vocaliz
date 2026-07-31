@@ -18,7 +18,7 @@ GUEST_PHONE = "+15147770001"
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15147770002")
+    u = User(email="15147770002@example.com", phone_number="+15147770002")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -64,7 +64,7 @@ def test_link_prior_invitations_sets_guest_user_id(db, host, session_for_host):
     inv = _make_anonymous_invitation(db, host, session_for_host)
     assert inv.guest_user_id is None
 
-    new_user = User(phone_number=GUEST_PHONE)
+    new_user = User(email=GUEST_PHONE + "@example.com", phone_number=GUEST_PHONE)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -93,7 +93,7 @@ def test_link_prior_invitations_returns_count(db, host, session_for_host):
     _make_anonymous_invitation(db, host, session_for_host)
     _make_anonymous_invitation(db, host, sess2)
 
-    new_user = User(phone_number=GUEST_PHONE)
+    new_user = User(email=GUEST_PHONE + "@example.com", phone_number=GUEST_PHONE)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -104,7 +104,7 @@ def test_link_prior_invitations_returns_count(db, host, session_for_host):
 
 def test_link_prior_invitations_ignores_already_linked(db, host, session_for_host):
     """Invitations already linked to a user are not double-linked."""
-    new_user = User(phone_number=GUEST_PHONE)
+    new_user = User(email=GUEST_PHONE + "@example.com", phone_number=GUEST_PHONE)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -131,7 +131,7 @@ def test_link_prior_invitations_different_phone_not_affected(db, host, session_f
     """Invitations for a different phone number are not linked."""
     _make_anonymous_invitation(db, host, session_for_host, phone="+15147779999")
 
-    new_user = User(phone_number=GUEST_PHONE)
+    new_user = User(email=GUEST_PHONE + "@example.com", phone_number=GUEST_PHONE)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -142,7 +142,7 @@ def test_link_prior_invitations_different_phone_not_affected(db, host, session_f
 
 def test_link_prior_invitations_no_prior_sessions_returns_zero(db):
     """User with no prior anonymous invitations: returns 0, no error."""
-    new_user = User(phone_number=GUEST_PHONE)
+    new_user = User(email=GUEST_PHONE + "@example.com", phone_number=GUEST_PHONE)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -153,29 +153,48 @@ def test_link_prior_invitations_no_prior_sessions_returns_zero(db):
 
 # ─── Integration: OTP verify triggers conversion ──────────────────────────────
 
-def test_verify_otp_links_anonymous_invitations(client, db, host, session_for_host):
-    """POST /auth/otp/verify links prior anonymous invitations for the new user."""
+GUEST_EMAIL = "guest@example.com"
+
+
+def test_email_signup_alone_cannot_link_anonymous_participation(
+    client, db, host, session_for_host
+):
+    """Sign-up is email-only, so a fresh account has no phone to correlate on.
+
+    The anonymous invitation was addressed to a phone number; nothing on the new
+    account points back to it, so Story 3.5 conversion cannot fire on sign-up alone.
+    """
     inv = _make_anonymous_invitation(db, host, session_for_host)
 
-    with patch("src.services.otp.boto3") as mock_boto3:
-        mock_client = MagicMock()
-        mock_boto3.client.return_value = mock_client
-        # Request OTP to create the user record
-        client.post("/auth/otp/request", json={"phoneNumber": GUEST_PHONE})
+    with patch("src.services.otp._send_email"):
+        client.post("/auth/otp/request", json={"email": GUEST_EMAIL})
 
-    # Get the OTP code from the DB
-    user = db.query(User).filter(User.phone_number == GUEST_PHONE).first()
+    user = db.query(User).filter(User.email == GUEST_EMAIL).first()
     assert user is not None
-    code = user.otp_code
+    assert user.phone_number is None
 
-    # Verify OTP — this triggers conversion
-    resp = client.post("/auth/otp/verify", json={"phoneNumber": GUEST_PHONE, "code": code})
+    resp = client.post("/auth/otp/verify", json={"email": GUEST_EMAIL, "code": user.otp_code})
     assert resp.status_code == 200
-    body = resp.json()
-    assert "token" in body
+    assert "token" in resp.json()
 
-    # Anonymous invitation should now be linked to the registered user
     db.expire(inv)
     db.refresh(inv)
-    registered_user = db.query(User).filter(User.phone_number == GUEST_PHONE).first()
-    assert inv.guest_user_id == registered_user.id
+    assert inv.guest_user_id is None
+
+
+def test_linking_works_once_the_account_carries_the_phone(db, host, session_for_host):
+    """Adding the phone number to the account restores the correlation key."""
+    inv = _make_anonymous_invitation(db, host, session_for_host)
+
+    user = User(email=GUEST_EMAIL)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    assert invitation_service.link_prior_invitations(user, db) == 0
+
+    user.phone_number = GUEST_PHONE
+    db.commit()
+
+    assert invitation_service.link_prior_invitations(user, db) == 1
+    db.refresh(inv)
+    assert inv.guest_user_id == user.id

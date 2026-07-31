@@ -12,7 +12,7 @@ from src.services.jwt_service import issue_token
 
 @pytest.fixture
 def host(db):
-    u = User(phone_number="+15148880010")
+    u = User(email="15148880010@example.com", phone_number="+15148880010")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -130,7 +130,7 @@ def test_heartbeat_wrong_user_returns_404(client, db, host):
     host_user, _ = host
     sess = _active_session(db, host_user)
 
-    other = User(phone_number="+15148880099")
+    other = User(email="15148880099@example.com", phone_number="+15148880099")
     db.add(other)
     db.commit()
     db.refresh(other)

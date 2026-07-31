@@ -84,7 +84,7 @@ async def create_session(
     host_token = livekit_service.generate_participant_token(
         room_name=room_name,
         user_id=str(current_user.id),
-        display_name=current_user.phone_number,
+        display_name=current_user.email,
         can_publish=True,
     )
 
@@ -410,7 +410,7 @@ def join_session(
     token = livekit_service.generate_participant_token(
         room_name=session.livekit_room_name,
         user_id=str(current_user.id),
-        display_name=current_user.phone_number,
+        display_name=current_user.email,
         can_publish=True,
     )
 

@@ -26,6 +26,7 @@ def get_my_profile(current_user: User = Depends(get_current_user)) -> UserProfil
     """Return the authenticated user's profile including their detected language."""
     return UserProfileResponse(
         userId=str(current_user.id),
+        email=current_user.email,
         phoneNumber=current_user.phone_number,
         detectedLanguage=current_user.detected_language,
     )
@@ -105,6 +106,7 @@ def update_language(
     db.refresh(current_user)
     return UserProfileResponse(
         userId=str(current_user.id),
+        email=current_user.email,
         phoneNumber=current_user.phone_number,
         detectedLanguage=current_user.detected_language,
     )

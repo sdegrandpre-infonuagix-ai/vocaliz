@@ -3,7 +3,9 @@ from pydantic import BaseModel, field_validator
 
 class UserProfileResponse(BaseModel):
     userId: str
-    phoneNumber: str
+    email: str
+    # Optional since sign-in moved to email; only set if the user supplied one.
+    phoneNumber: str | None = None
     detectedLanguage: str | None = None
 
 
@@ -28,8 +30,9 @@ class TrialStatusResponse(BaseModel):
 
 class PreviousPartner(BaseModel):
     """A known discussion partner surfaced for quick-start (Story 5.2)."""
-    userId: str | None = None       # null for SMS-only contacts never registered
-    phoneNumber: str
+    userId: str | None = None       # null for contacts never registered
+    phoneNumber: str | None = None  # null for partners known only by email
+    email: str | None = None        # null for invited contacts never registered
     lastSessionAt: str | None = None
     sessionCount: int
 

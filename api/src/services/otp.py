@@ -1,4 +1,4 @@
-"""OTP generation, storage, and delivery via AWS SNS."""
+"""OTP generation, storage, and delivery by email via AWS SES."""
 import logging
 import random
 import string
@@ -19,11 +19,11 @@ def _generate_otp() -> str:
     return "".join(random.choices(string.digits, k=6))
 
 
-def send_otp(phone_number: str, db: Session) -> None:
-    """Generate OTP, persist it, and send via AWS SNS SMS."""
-    user = db.query(User).filter(User.phone_number == phone_number).first()
+def send_otp(email: str, db: Session) -> None:
+    """Generate OTP, persist it, and email it via AWS SES."""
+    user = db.query(User).filter(User.email == email).first()
     if user is None:
-        user = User(phone_number=phone_number)
+        user = User(email=email)
         db.add(user)
 
     code = _generate_otp()
@@ -32,15 +32,15 @@ def send_otp(phone_number: str, db: Session) -> None:
     user.otp_attempts = 0
     db.commit()
 
-    _send_sms(phone_number, code)
+    _send_email(email, code)
 
 
-def verify_otp(phone_number: str, code: str, db: Session) -> User:
+def verify_otp(email: str, code: str, db: Session) -> User:
     """Verify OTP code. Returns the user on success, raises HTTPException on failure."""
-    user = db.query(User).filter(User.phone_number == phone_number).first()
+    user = db.query(User).filter(User.email == email).first()
 
     if user is None or user.otp_code is None:
-        raise HTTPException(status_code=400, detail="Aucun code en attente pour ce numéro.")
+        raise HTTPException(status_code=400, detail="Aucun code en attente pour cette adresse.")
 
     if user.otp_attempts >= settings.otp_max_attempts:
         raise HTTPException(
@@ -77,30 +77,43 @@ def _clear_otp(user: User, db: Session) -> None:
     db.commit()
 
 
-def _send_sms(phone_number: str, code: str) -> None:
-    """Send OTP via AWS SNS transactional SMS.
+def _send_email(email: str, code: str) -> None:
+    """Send the OTP by email through AWS SES.
 
-    In DEV_MODE the code is logged instead of texted, so a device on the LAN can
-    sign in without provisioned SNS credentials.
+    In DEV_MODE the code is logged instead of sent, so testing needs no verified SES
+    identity — read it from the API console locally, or CloudWatch on Lambda.
     """
     if settings.dev_mode:
-        logger.warning("DEV_MODE: OTP for %s is %s (SMS not sent)", phone_number, code)
+        logger.warning("DEV_MODE: OTP for %s is %s (email not sent)", email, code)
         return
 
-    client = boto3.client("sns", region_name=settings.aws_region)
-    message = f"Votre code Salon est : {code}\nValable {settings.otp_expiry_minutes} minutes."
+    minutes = settings.otp_expiry_minutes
+    client = boto3.client("sesv2", region_name=settings.aws_region)
     try:
-        client.publish(
-            PhoneNumber=phone_number,
-            Message=message,
-            MessageAttributes={
-                "AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"},
-                "AWS.SNS.SMS.SenderID": {"DataType": "String", "StringValue": settings.sns_sender_id},
+        client.send_email(
+            FromEmailAddress=settings.ses_from_address,
+            Destination={"ToAddresses": [email]},
+            Content={
+                "Simple": {
+                    "Subject": {"Data": f"Votre code Salon : {code}", "Charset": "UTF-8"},
+                    "Body": {
+                        "Text": {
+                            "Data": (
+                                f"Votre code Salon est : {code}\n"
+                                f"Valable {minutes} minutes.\n\n"
+                                "Si vous n'avez pas demandé ce code, ignorez ce message."
+                            ),
+                            "Charset": "UTF-8",
+                        }
+                    },
+                }
             },
         )
     except ClientError as exc:
-        # Log the error but don't expose SNS internals to the caller
+        # A rejected sender identity and a service outage both land here; log the cause
+        # rather than leaving only the opaque 503 the caller sees.
+        logger.error("SES send_email failed for %s: %s", email, exc, exc_info=True)
         raise HTTPException(
             status_code=503,
-            detail="Impossible d'envoyer le SMS. Veuillez réessayer.",
+            detail="Impossible d'envoyer le courriel. Veuillez réessayer.",
         ) from exc

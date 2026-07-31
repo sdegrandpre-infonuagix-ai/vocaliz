@@ -21,7 +21,7 @@ def attach_payment_method(user, payment_method_id: str, db) -> None:
     customer_id = user.stripe_customer_id
     if not customer_id:
         customer = stripe.Customer.create(
-            phone=user.phone_number,
+            email=user.email,
             metadata={"salon_user_id": str(user.id)},
         )
         customer_id = customer.id

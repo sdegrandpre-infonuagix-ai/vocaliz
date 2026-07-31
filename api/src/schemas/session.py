@@ -71,8 +71,9 @@ class JoinSessionResponse(BaseModel):
 
 class SessionPartner(BaseModel):
     """A discussion partner in a past session (host sees guests, guest sees host)."""
-    userId: str | None = None       # null for SMS-only contacts never registered
-    phoneNumber: str
+    userId: str | None = None       # null for contacts never registered
+    phoneNumber: str | None = None  # null for partners known only by email
+    email: str | None = None        # null for invited contacts never registered
     displayName: str | None = None
 
 

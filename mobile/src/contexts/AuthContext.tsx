@@ -13,9 +13,9 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  sendOtp: (phoneNumber: string) => Promise<void>;
-  resendOtpCode: (phoneNumber: string) => Promise<void>;
-  confirmOtp: (phoneNumber: string, code: string) => Promise<void>;
+  sendOtp: (email: string) => Promise<void>;
+  resendOtpCode: (email: string) => Promise<void>;
+  confirmOtp: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -32,30 +32,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setLoading = () => setState(s => ({ ...s, isLoading: true, error: null }));
   const setError = (error: string) => setState(s => ({ ...s, isLoading: false, error }));
 
-  const sendOtp = useCallback(async (phoneNumber: string) => {
+  const sendOtp = useCallback(async (email: string) => {
     setLoading();
     try {
-      await requestOtp(phoneNumber);
+      await requestOtp(email);
       setState(s => ({ ...s, isLoading: false }));
     } catch (e: any) {
       setError(e.message ?? 'Impossible d\'envoyer le code.');
     }
   }, []);
 
-  const resendOtpCode = useCallback(async (phoneNumber: string) => {
+  const resendOtpCode = useCallback(async (email: string) => {
     setLoading();
     try {
-      await resendOtp(phoneNumber);
+      await resendOtp(email);
       setState(s => ({ ...s, isLoading: false }));
     } catch (e: any) {
       setError(e.message ?? 'Impossible de renvoyer le code.');
     }
   }, []);
 
-  const confirmOtp = useCallback(async (phoneNumber: string, code: string) => {
+  const confirmOtp = useCallback(async (email: string, code: string) => {
     setLoading();
     try {
-      const { token, userId } = await verifyOtp(phoneNumber, code);
+      const { token, userId } = await verifyOtp(email, code);
       await SecureStore.setItemAsync(TOKEN_KEY, token);
       await SecureStore.setItemAsync(USER_ID_KEY, userId);
       setState({ token, userId, isLoading: false, error: null });

@@ -54,9 +54,15 @@ export class SalonApiStack extends cdk.Stack {
     });
 
     // ── Application secrets ───────────────────────────────────────────────────
-    // JWT_SECRET is generated here so it never exists in the repo. The LiveKit and
-    // Stripe values start empty and are filled in after deploy; config.py skips
-    // empty entries, so a half-filled secret fails loudly rather than silently.
+    // JWT_SECRET is generated here so it never exists in the repo. The other values
+    // start empty and are filled in after deploy; config.py skips empty entries, so a
+    // half-filled secret fails loudly rather than silently.
+    //
+    // DO NOT edit generateSecretString to add or rename keys: any change to it makes
+    // CloudFormation regenerate the whole secret, silently wiping every hand-filled
+    // value (this cost us the LiveKit credentials once already). config.py merges
+    // whatever keys the secret happens to hold, so new keys can simply be added with
+    // `aws secretsmanager put-secret-value` — they do not belong in this template.
     const appSecret = new secretsmanager.Secret(this, 'AppConfig', {
       secretName: 'salon/app-config',
       description: 'LiveKit, Stripe and JWT credentials read by the Salon API Lambda',
@@ -81,11 +87,10 @@ export class SalonApiStack extends cdk.Stack {
       DB_SECRET_ARN: db.secret!.secretArn,
       DB_HOST: db.clusterEndpoint.hostname,
       DB_NAME: 'salon',
-      // OTP codes are read from CloudWatch instead of being texted, so no SNS
-      // origination number is needed to start testing. Flip to 'false' once an
-      // origination identity is approved — nobody but a CloudWatch reader can log in
-      // while this is 'true', which is fine for a private two-device test.
-      DEV_MODE: 'true',
+      // Real OTP delivery through SES. Set back to 'true' to log the code to
+      // CloudWatch instead — useful when the recipient address is not a verified SES
+      // identity, which the SES sandbox still requires.
+      DEV_MODE: 'false',
     };
 
     const apiFn = new lambda.DockerImageFunction(this, 'ApiFn', {
@@ -131,11 +136,21 @@ export class SalonApiStack extends cdk.Stack {
     }
 
     // SNS SMS to arbitrary phone numbers cannot be scoped to a resource ARN.
+    // Still needed for guest invitation and install-link texts, not for sign-in.
     apiFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['sns:Publish'],
         resources: ['*'],
         conditions: { Null: { 'sns:TopicArn': 'true' } },
+      }),
+    );
+
+    // OTP emails go out through SES. Scoped to identities in this account/region;
+    // the sender itself must be verified in the SES console before DEV_MODE is off.
+    apiFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['ses:SendEmail'],
+        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
       }),
     );
 
