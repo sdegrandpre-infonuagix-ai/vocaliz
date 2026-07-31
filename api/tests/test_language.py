@@ -27,7 +27,7 @@ def test_get_profile_returns_user_fields(client, user):
     assert resp.status_code == 200
     data = resp.json()
     assert data["userId"] == str(u.id)
-    assert data["phoneNumber"] == u.phone_number
+    assert data["email"] == u.email
     assert data["detectedLanguage"] is None
 
 

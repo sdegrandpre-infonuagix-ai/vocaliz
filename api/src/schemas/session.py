@@ -5,8 +5,8 @@ import re
 class SessionInvitationSummary(BaseModel):
     """Summary of the partner auto-invited when a session is quick-started (Story 5.2)."""
     invitationId: str
-    invitationType: str   # 'salon_friend' | 'sms_contact'
-    guestPhone: str
+    invitationType: str   # 'salon_friend' | 'email_contact'
+    guestEmail: str
     status: str
     joinLink: str | None = None
 

@@ -69,7 +69,7 @@ def pending_invitation(db, active_session, guest):
     inv = Invitation(
         session_id=active_session.id,
         host_user_id=active_session.host_user_id,
-        guest_phone=guest_user.phone_number,
+        guest_email=guest_user.phone_number.lstrip("+") + "@example.com",
         guest_user_id=guest_user.id,
         invitation_type="salon_friend",
         join_token="tok123",
@@ -160,7 +160,7 @@ def test_expired_invitation_cannot_join(client, db, guest, active_session):
     inv = Invitation(
         session_id=active_session.id,
         host_user_id=active_session.host_user_id,
-        guest_phone=guest_user.phone_number,
+        guest_email=guest_user.phone_number.lstrip("+") + "@example.com",
         guest_user_id=guest_user.id,
         invitation_type="salon_friend",
         join_token="expired-tok",

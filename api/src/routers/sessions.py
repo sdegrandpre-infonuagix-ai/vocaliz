@@ -42,7 +42,7 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 async def create_session(
     source_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
-    partner_phone: Optional[str] = Form(None),
+    partner_email: Optional[str] = Form(None),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -50,7 +50,7 @@ async def create_session(
     Create a discussion session from a document upload or a URL.
     Provisions a LiveKit room and returns a host participant token.
 
-    Quick-start (Story 5.2): pass `partner_phone` (a previous partner selected from
+    Quick-start (Story 5.2): pass `partner_email` (a previous partner selected from
     GET /me/partners) to auto-invite that partner in the same call, so the new session
     starts with the partner already identified — no separate invitation step needed.
     """
@@ -122,24 +122,24 @@ async def create_session(
     # the partner already identified (Story 5.2). The session is already persisted,
     # so an invitation failure surfaces to the client without losing the session.
     invitation_summary = None
-    if partner_phone:
+    if partner_email:
         try:
-            normalized_phone = InviteGuestBody(guestPhoneNumber=partner_phone).guestPhoneNumber
+            normalized_email = InviteGuestBody(guestEmail=partner_email).guestEmail
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail="partner_phone doit être au format E.164 (ex. +15145550123).",
+                detail="partner_email doit être une adresse courriel valide.",
             )
         invite = invitation_service.invite_guest(
             session_id=str(session.id),
             host_user=current_user,
-            guest_phone=normalized_phone,
+            guest_email=normalized_email,
             db=db,
         )
         invitation_summary = SessionInvitationSummary(
             invitationId=invite["invitationId"],
             invitationType=invite["invitationType"],
-            guestPhone=invite["guestPhone"],
+            guestEmail=invite["guestEmail"],
             status=invite["status"],
             joinLink=invite.get("joinLink"),
         )
@@ -274,18 +274,18 @@ def list_session_history(
         partners: list[SessionPartner] = []
         seen: set = set()
         for inv in invitations:
-            key = inv.guest_user_id or inv.guest_phone
+            key = inv.guest_user_id or inv.guest_email
             if key in seen:
                 continue
             seen.add(key)
-            phone = inv.guest_phone
+            email = inv.guest_email
             user_id = None
             if inv.guest_user_id:
                 guest_user = db.query(User).filter(User.id == inv.guest_user_id).first()
                 if guest_user:
-                    phone = guest_user.phone_number
+                    email = guest_user.email
                     user_id = str(guest_user.id)
-            partners.append(SessionPartner(userId=user_id, phoneNumber=phone))
+            partners.append(SessionPartner(userId=user_id, email=email))
         items.append(
             SessionHistoryItem(
                 sessionId=str(s.id),
@@ -303,7 +303,7 @@ def list_session_history(
     for s in guest_sessions:
         host_user = db.query(User).filter(User.id == s.host_user_id).first()
         partners = (
-            [SessionPartner(userId=str(host_user.id), phoneNumber=host_user.phone_number)]
+            [SessionPartner(userId=str(host_user.id), email=host_user.email)]
             if host_user
             else []
         )
@@ -553,7 +553,7 @@ def end_session(
 
     # Fire-and-forget: send install-link SMS to anonymous guests who participated.
     # Errors are swallowed inside the service so session end is never blocked.
-    invitation_service.send_followup_sms_to_guests(str(session.id), db)
+    invitation_service.send_followup_email_to_guests(str(session.id), db)
 
     return EndSessionResponse(
         sessionId=str(session.id),

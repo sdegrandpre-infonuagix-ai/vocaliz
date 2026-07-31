@@ -19,7 +19,11 @@ class Invitation(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     # Who is invited
-    guest_phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Guests are invited by email; the join link is emailed via SES.
+    guest_email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+
+    # Kept nullable for invitations created before the switch to email.
+    guest_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     guest_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

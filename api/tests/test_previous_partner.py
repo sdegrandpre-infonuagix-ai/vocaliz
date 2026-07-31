@@ -47,9 +47,9 @@ def _invite(db, session, host, guest_phone, *, guest_user=None, status="accepted
     inv = Invitation(
         session_id=session.id,
         host_user_id=host.id,
-        guest_phone=guest_phone,
+        guest_email=guest_phone.lstrip("+") + "@example.com",
         guest_user_id=guest_user.id if guest_user else None,
-        invitation_type="salon_friend" if guest_user else "sms_contact",
+        invitation_type="salon_friend" if guest_user else "email_contact",
         join_token=f"tok-{session.livekit_room_name}-{guest_phone}",
         status=status,
         expires_at=datetime.now(tz=timezone.utc) + timedelta(days=1),
@@ -81,7 +81,7 @@ def test_partners_lists_hosted_guest(client, db, user):
     resp = client.get("/me/partners", headers={"Authorization": f"Bearer {token}"})
     partners = resp.json()["partners"]
     assert len(partners) == 1
-    assert partners[0]["phoneNumber"] == "+15145559999"
+    assert partners[0]["email"] == "15145559999@example.com"
     assert partners[0]["sessionCount"] == 1
 
 
@@ -116,7 +116,7 @@ def test_partners_includes_host_when_user_was_guest(client, db, user):
 
     partners = client.get("/me/partners", headers={"Authorization": f"Bearer {token}"}).json()["partners"]
     assert len(partners) == 1
-    assert partners[0]["phoneNumber"] == "+15145557777"
+    assert partners[0]["email"] == "15145557777@example.com"
 
 
 def test_partners_sorted_most_recent_first(client, db, user):
@@ -127,14 +127,14 @@ def test_partners_sorted_most_recent_first(client, db, user):
     _invite(db, new, host, "+15140000002")
 
     partners = client.get("/me/partners", headers={"Authorization": f"Bearer {token}"}).json()["partners"]
-    phones = [p["phoneNumber"] for p in partners]
-    assert phones == ["+15140000002", "+15140000001"]
+    emails = [p["email"] for p in partners]
+    assert emails == ["15140000002@example.com", "15140000001@example.com"]
 
 
-# ─── POST /sessions quick-start with partner_phone ───────────────────────────
+# ─── POST /sessions quick-start with partner_email ───────────────────────────
 
 def test_quick_start_auto_invites_registered_partner(client, db, user):
-    """Creating a session with partner_phone auto-invites that partner (salon_friend)."""
+    """Creating a session with partner_email auto-invites that partner (salon_friend)."""
     host, token = user
     partner = User(email="15145556666@example.com", phone_number="+15145556666")
     db.add(partner)
@@ -148,14 +148,14 @@ def test_quick_start_auto_invites_registered_partner(client, db, user):
     ):
         resp = client.post(
             "/sessions",
-            data={"source_url": "https://example.com/x", "partner_phone": "+15145556666"},
+            data={"source_url": "https://example.com/x", "partner_email": "15145556666@example.com"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
     assert resp.status_code == 201
     body = resp.json()
     assert body["invitation"] is not None
-    assert body["invitation"]["guestPhone"] == "+15145556666"
+    assert body["invitation"]["guestEmail"] == "15145556666@example.com"
     assert body["invitation"]["invitationType"] == "salon_friend"
     assert body["invitation"]["status"] == "pending"
 
@@ -168,7 +168,7 @@ def test_quick_start_auto_invites_registered_partner(client, db, user):
     assert inv.guest_user_id == partner.id
 
 
-def test_quick_start_sms_contact_sends_link(client, db, user):
+def test_quick_start_email_contact_sends_link(client, db, user):
     """A previous SMS contact (unregistered) is invited via SMS with a join link."""
     host, token = user
 
@@ -177,23 +177,23 @@ def test_quick_start_sms_contact_sends_link(client, db, user):
         patch("src.services.livekit_service.new_room_name", return_value="salon-room-qs2"),
         patch("src.services.livekit_service.create_room"),
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
-        patch("src.services.invitation_service._send_invitation_sms") as mock_sms,
+        patch("src.services.invitation_service._send_invitation_email") as mock_email,
     ):
         resp = client.post(
             "/sessions",
-            data={"source_url": "https://example.com/x", "partner_phone": "+15147778888"},
+            data={"source_url": "https://example.com/x", "partner_email": "15147778888@example.com"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
     assert resp.status_code == 201
     body = resp.json()
-    assert body["invitation"]["invitationType"] == "sms_contact"
+    assert body["invitation"]["invitationType"] == "email_contact"
     assert body["invitation"]["joinLink"] is not None
-    mock_sms.assert_called_once()
+    mock_email.assert_called_once()
 
 
 def test_create_session_without_partner_has_no_invitation(client, user):
-    """Omitting partner_phone keeps the original behaviour (no auto-invite)."""
+    """Omitting partner_email keeps the original behaviour (no auto-invite)."""
     _, token = user
     with (
         patch("src.services.content_service.fetch_url_content", return_value="content"),
@@ -210,8 +210,8 @@ def test_create_session_without_partner_has_no_invitation(client, user):
     assert resp.json()["invitation"] is None
 
 
-def test_quick_start_rejects_invalid_partner_phone(client, user):
-    """A malformed partner_phone yields 400, not a 500."""
+def test_quick_start_rejects_invalid_partner_email(client, user):
+    """A malformed partner_email yields 400, not a 500."""
     _, token = user
     with (
         patch("src.services.content_service.fetch_url_content", return_value="content"),
@@ -221,7 +221,7 @@ def test_quick_start_rejects_invalid_partner_phone(client, user):
     ):
         resp = client.post(
             "/sessions",
-            data={"source_url": "https://example.com/x", "partner_phone": "not-a-phone"},
+            data={"source_url": "https://example.com/x", "partner_email": "not-a-phone"},
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code == 400

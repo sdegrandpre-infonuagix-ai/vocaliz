@@ -21,21 +21,21 @@ def get_previous_partners(user: User, db: Session) -> list[dict]:
 
     A partner is anyone the user has hosted (their invited guests) or been hosted by
     (the host of sessions they joined as an accepted guest). Deduplicated by the
-    partner's account when known, otherwise by phone number. Most recently seen first.
+    partner's account when known, otherwise by email. Most recently seen first.
 
     Enables Story 5.2: the app shows this list so a user can start a new session with
     a known partner without repeating the full voice-invitation flow.
     """
-    # Aggregate by a stable key: the partner's user id when registered, else phone.
+    # Aggregate by a stable key: the partner's user id when registered, else email.
     partners: dict[str, dict] = {}
 
-    def _record(*, user_id, phone, seen_at):
-        key = f"u:{user_id}" if user_id else f"p:{phone}"
+    def _record(*, user_id, email, seen_at):
+        key = f"u:{user_id}" if user_id else f"e:{email}"
         entry = partners.get(key)
         if entry is None:
             partners[key] = {
                 "userId": str(user_id) if user_id else None,
-                "phoneNumber": phone,
+                "email": email,
                 "lastSessionAt": seen_at,
                 "sessionCount": 1,
             }
@@ -58,15 +58,15 @@ def get_previous_partners(user: User, db: Session) -> list[dict]:
         )
         for inv in invitations:
             sess = host_session_map.get(inv.session_id)
-            phone = inv.guest_phone
+            email = inv.guest_email
             partner_user_id = inv.guest_user_id
             if partner_user_id:
                 guest_user = db.query(User).filter(User.id == partner_user_id).first()
                 if guest_user:
-                    phone = guest_user.phone_number
+                    email = guest_user.email
             _record(
                 user_id=partner_user_id,
-                phone=phone,
+                email=email,
                 seen_at=_iso(sess.created_at) if sess else None,
             )
 
@@ -91,7 +91,7 @@ def get_previous_partners(user: User, db: Session) -> list[dict]:
             if host_user:
                 _record(
                     user_id=host_user.id,
-                    phone=host_user.phone_number,
+                    email=host_user.email,
                     seen_at=_iso(sess.created_at),
                 )
 

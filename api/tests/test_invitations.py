@@ -52,7 +52,7 @@ def active_session(db, host):
 def test_invite_requires_auth(client, active_session):
     resp = client.post(
         f"/sessions/{active_session.id}/invitations",
-        json={"guestPhoneNumber": "+15143333333"},
+        json={"guestEmail": "15143333333@example.com"},
     )
     assert resp.status_code == 401
 
@@ -68,7 +68,7 @@ def test_invite_rejects_invalid_phone(client, host, active_session):
     _, token = host
     resp = client.post(
         f"/sessions/{active_session.id}/invitations",
-        json={"guestPhoneNumber": "not-a-phone"},
+        json={"guestEmail": "not-an-email"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
@@ -80,7 +80,7 @@ def test_invite_wrong_session_returns_404(client, db, host):
     _, token = host
     resp = client.post(
         f"/sessions/{uuid.uuid4()}/invitations",
-        json={"guestPhoneNumber": "+15143333333"},
+        json={"guestEmail": "15143333333@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 404
@@ -88,17 +88,17 @@ def test_invite_wrong_session_returns_404(client, db, host):
 
 # ─── SMS contact (unregistered phone) ────────────────────────────────────────
 
-@patch("src.services.invitation_service._send_invitation_sms")
+@patch("src.services.invitation_service._send_invitation_email")
 def test_invite_sms_contact(mock_sms, client, host, active_session):
     _, token = host
     resp = client.post(
         f"/sessions/{active_session.id}/invitations",
-        json={"guestPhoneNumber": "+15149999999"},
+        json={"guestEmail": "15149999999@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201
     data = resp.json()
-    assert data["invitationType"] == "sms_contact"
+    assert data["invitationType"] == "email_contact"
     assert data["status"] == "pending"
     assert data["joinLink"] is not None
     assert "/join/" in data["joinLink"]
@@ -107,12 +107,12 @@ def test_invite_sms_contact(mock_sms, client, host, active_session):
 
 # ─── Salon friend (registered user) ──────────────────────────────────────────
 
-@patch("src.services.invitation_service._send_invitation_sms")
+@patch("src.services.invitation_service._send_invitation_email")
 def test_invite_salon_friend(mock_sms, client, host, active_session, guest_user):
     _, token = host
     resp = client.post(
         f"/sessions/{active_session.id}/invitations",
-        json={"guestPhoneNumber": guest_user.phone_number},
+        json={"guestEmail": guest_user.email},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201
@@ -124,10 +124,10 @@ def test_invite_salon_friend(mock_sms, client, host, active_session, guest_user)
 
 # ─── Idempotency ─────────────────────────────────────────────────────────────
 
-@patch("src.services.invitation_service._send_invitation_sms")
+@patch("src.services.invitation_service._send_invitation_email")
 def test_invite_idempotent_within_5_min(mock_sms, client, host, active_session):
     _, token = host
-    payload = {"guestPhoneNumber": "+15149999999"}
+    payload = {"guestEmail": "15149999999@example.com"}
     headers = {"Authorization": f"Bearer {token}"}
 
     r1 = client.post(f"/sessions/{active_session.id}/invitations", json=payload, headers=headers)
@@ -142,13 +142,13 @@ def test_invite_idempotent_within_5_min(mock_sms, client, host, active_session):
 
 # ─── SMS failure returns 503 without orphaning invitation ────────────────────
 
-@patch("src.services.invitation_service._send_invitation_sms", side_effect=__import__('fastapi').HTTPException(503, "SMS unavailable"))
+@patch("src.services.invitation_service._send_invitation_email", side_effect=__import__('fastapi').HTTPException(503, "SMS unavailable"))
 def test_invite_sms_failure_returns_503_no_orphan(mock_sms, client, host, active_session, db):
     from src.models.invitation import Invitation
     _, token = host
     resp = client.post(
         f"/sessions/{active_session.id}/invitations",
-        json={"guestPhoneNumber": "+15149999999"},
+        json={"guestEmail": "15149999999@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 503
@@ -158,7 +158,7 @@ def test_invite_sms_failure_returns_503_no_orphan(mock_sms, client, host, active
 
 # ─── GET /me/invitations ─────────────────────────────────────────────────────
 
-@patch("src.services.invitation_service._send_invitation_sms")
+@patch("src.services.invitation_service._send_invitation_email")
 def test_list_invitations_returns_salon_friend_invites(mock_sms, client, host, active_session, guest_user, db):
     host_user, host_token = host
     guest_token = issue_token(str(guest_user.id))
@@ -166,7 +166,7 @@ def test_list_invitations_returns_salon_friend_invites(mock_sms, client, host, a
     # Host invites the registered Salon user
     resp = client.post(
         f"/sessions/{active_session.id}/invitations",
-        json={"guestPhoneNumber": guest_user.phone_number},
+        json={"guestEmail": guest_user.email},
         headers={"Authorization": f"Bearer {host_token}"},
     )
     assert resp.status_code == 201
@@ -181,13 +181,13 @@ def test_list_invitations_returns_salon_friend_invites(mock_sms, client, host, a
     assert inv["hostPhone"] == host_user.phone_number
 
 
-@patch("src.services.invitation_service._send_invitation_sms")
+@patch("src.services.invitation_service._send_invitation_email")
 def test_list_invitations_empty_for_unrelated_user(mock_sms, client, db, host, active_session, guest_user):
     _, host_token = host
     # Invite the guest
     client.post(
         f"/sessions/{active_session.id}/invitations",
-        json={"guestPhoneNumber": guest_user.phone_number},
+        json={"guestEmail": guest_user.email},
         headers={"Authorization": f"Bearer {host_token}"},
     )
     # A third user sees nothing

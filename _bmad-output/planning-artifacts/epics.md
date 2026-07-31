@@ -15,7 +15,7 @@ This document provides the complete epic and story breakdown for salon, decompos
 ### Functional Requirements
 
 FR1: Un hôte peut créer une session en téléversant un document, en fournissant une URL de nouvelle comme source, ou sans aucune source — dans ce dernier cas, l'agent ouvre la session en demandant aux participants de quoi ils souhaitent discuter
-FR2: Un hôte peut inviter exactement un invité à une session par commande vocale, en nommant un ami enregistré dans Salon (livraison par notification in-app) ou un contact de son téléphone (livraison par SMS)
+FR2: Un hôte peut inviter exactement un invité à une session par commande vocale, en nommant un ami enregistré dans Salon (livraison par notification in-app) ou un contact par son adresse courriel (livraison du lien de jonction par courriel)
 FR3: Un hôte peut ajouter un document ou une URL supplémentaire à une session active, avant ou pendant celle-ci
 FR4: Un invité sans l'application mobile installée peut rejoindre une session directement depuis un navigateur web, sans créer de compte
 FR5: Un lien d'invitation ne peut être utilisé qu'une seule fois pour rejoindre une session
@@ -43,7 +43,7 @@ FR26: L'agent vocal pose une question simple de satisfaction immédiatement apr�
 FR27: Un invité non-authentifié peut répondre à la question de satisfaction de fin de session sans posséder de compte persistant
 FR28: Un utilisateur inscrit peut consulter son historique de sessions passées et de partenaires de discussion
 FR29: Un utilisateur inscrit peut démarrer une nouvelle session avec n'importe quel partenaire de discussion précédent
-FR30: Un invité anonyme reçoit automatiquement un SMS avec un lien d'installation de l'application native une fois sa session terminée
+FR30: Un invité anonyme reçoit automatiquement un courriel avec un lien d'installation de l'application native une fois sa session terminée
 FR31: Un invité anonyme peut installer l'application native via ce lien et continuer à utiliser Salon en tant qu'utilisateur inscrit
 
 ### NonFunctional Requirements
@@ -57,7 +57,7 @@ NFR3: Integration — En cas d'indisponibilité de xAI, LiveKit, ou Stripe, le s
 - Starter template worker d'agent : `lk app create --template agent-starter-python` + `uv add "livekit-agents[xai,silero,turn-detector]"` (Story 1.1)
 - Starter template mobile : `npx create-expo-app` avec Expo Development Build (pas Expo Go) requis dès le départ pour supporter `@livekit/react-native` (Story 1.2)
 - Infrastructure AWS : Lambda + API Gateway (API REST), ECS Fargate (worker d'agent xAI), Aurora Serverless v2 PostgreSQL, S3+CloudFront (page de jonction web), Secrets Manager (clés API), CloudWatch Logs (monitoring), GitHub Actions (CI/CD)
-- Intégrations tierces : xAI (plugin `livekit-agents[xai]`), LiveKit Cloud (managé, pas d'auto-hébergement), Stripe (paiement), AWS SES (OTP courriel), AWS SNS (SMS d'invitation)
+- Intégrations tierces : xAI (plugin `livekit-agents[xai]`), LiveKit Cloud (managé, pas d'auto-hébergement), Stripe (paiement), AWS SES (OTP et invitations par courriel)
 - Base de données : schéma relationnel (`users`, `sessions`, `friends`, `billing_events`), migrations Alembic
 - Authentification : OTP par courriel (AWS SES), JWT à courte durée pour utilisateurs inscrits, token à usage unique pour jonction anonyme
 - Métrage de facturation : heartbeat périodique (30s) du worker vers l'API + callback final, pour fiabilité en cas de déconnexion

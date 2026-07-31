@@ -1,4 +1,5 @@
-"""Voice invitation service — resolves phone to Salon user or SMS contact."""
+"""Voice invitation service — resolves an email to a Salon user or an email contact."""
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -12,11 +13,13 @@ from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
 
+logger = logging.getLogger(__name__)
 
-def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session) -> dict:
+
+def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session) -> dict:
     """
-    Invite guest_phone to session_id.
-    Raises ValueError for session not found; HTTPException(503) if SMS fails.
+    Invite guest_email to session_id.
+    Raises ValueError for session not found; HTTPException(503) if the email fails.
     """
     import uuid as _uuid
 
@@ -36,7 +39,7 @@ def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session
         db.query(Invitation)
         .filter(
             Invitation.session_id == session_id_uuid,
-            Invitation.guest_phone == guest_phone,
+            Invitation.guest_email == guest_email,
             Invitation.status == "pending",
         )
         .order_by(Invitation.created_at.desc())
@@ -49,9 +52,9 @@ def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session
         if created > cutoff:
             return _build_response(recent, session)
 
-    # Determine type: registered Salon user or phone-only contact
-    guest_user = db.query(User).filter(User.phone_number == guest_phone).first()
-    invitation_type = "salon_friend" if guest_user else "sms_contact"
+    # Determine type: registered Salon user or an email-only contact
+    guest_user = db.query(User).filter(User.email == guest_email).first()
+    invitation_type = "salon_friend" if guest_user else "email_contact"
 
     join_token = secrets.token_urlsafe(32)
     expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=24)
@@ -59,7 +62,7 @@ def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session
     invitation = Invitation(
         session_id=session_id_uuid,
         host_user_id=host_user.id,
-        guest_phone=guest_phone,
+        guest_email=guest_email,
         guest_user_id=guest_user.id if guest_user else None,
         invitation_type=invitation_type,
         join_token=join_token,
@@ -67,12 +70,12 @@ def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session
         expires_at=expires_at,
     )
     db.add(invitation)
-    db.flush()  # assigns PK without committing; rolled back if SMS fails
+    db.flush()  # assigns PK without committing; rolled back if the email fails
 
-    if invitation_type == "sms_contact":
+    if invitation_type == "email_contact":
         join_link = f"{settings.salon_web_base_url}/join/{join_token}"
         try:
-            _send_invitation_sms(guest_phone, join_link)
+            _send_invitation_email(guest_email, join_link)
         except HTTPException:
             db.rollback()
             raise
@@ -84,12 +87,12 @@ def invite_guest(session_id: str, host_user: User, guest_phone: str, db: Session
 
 def _build_response(invitation: Invitation, session: SessionModel) -> dict:
     join_link = None
-    if invitation.invitation_type == "sms_contact":
+    if invitation.invitation_type == "email_contact":
         join_link = f"{settings.salon_web_base_url}/join/{invitation.join_token}"
     return {
         "invitationId": str(invitation.id),
         "invitationType": invitation.invitation_type,
-        "guestPhone": invitation.guest_phone,
+        "guestEmail": invitation.guest_email,
         "status": invitation.status,
         "joinLink": join_link,
     }
@@ -134,23 +137,20 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
 
 
 def link_prior_invitations(user: User, db: Session) -> int:
-    """Link anonymous invitations for this phone number to the newly registered user.
+    """Link this user's prior anonymous invitations to their newly registered account.
 
-    Called after OTP verification. Updates guest_user_id on all prior sms_contact
-    invitations so the app can recognise their participation.
+    Called after OTP verification. Updates guest_user_id on all prior email_contact
+    invitations so the app can recognise their participation (Story 3.5).
     Returns the count of invitations linked.
 
-    Sign-in is email-based, so phone_number may be unset — there is then no key to
-    correlate the anonymous participation with, and nothing to link. The account has
-    to carry a phone number for a past guest session to be recognised.
+    Correlating on email is what makes this reliable: an account always has one, whereas
+    the phone number this used to match on became optional when sign-in moved to email,
+    leaving anonymous participation impossible to reattach.
     """
-    if not user.phone_number:
-        return 0
-
     prior = (
         db.query(Invitation)
         .filter(
-            Invitation.guest_phone == user.phone_number,
+            Invitation.guest_email == user.email,
             Invitation.guest_user_id.is_(None),
         )
         .all()
@@ -162,12 +162,12 @@ def link_prior_invitations(user: User, db: Session) -> int:
     return len(prior)
 
 
-def send_followup_sms_to_guests(session_id_str: str, db: Session) -> int:
-    """Send an app-install link SMS to anonymous guests who completed this session.
+def send_followup_email_to_guests(session_id_str: str, db: Session) -> int:
+    """Email an app-install link to anonymous guests who completed this session (FR30).
 
-    Called after a session is marked ended. Returns the count of SMS sent.
+    Called after a session is marked ended. Returns the count of emails sent.
     Errors on individual sends are swallowed so session end is never blocked.
-    Only targets invitations of type 'sms_contact' that were actually accepted.
+    Only targets invitations of type 'email_contact' that were actually accepted.
     """
     import uuid as _uuid
 
@@ -180,7 +180,7 @@ def send_followup_sms_to_guests(session_id_str: str, db: Session) -> int:
         db.query(Invitation)
         .filter(
             Invitation.session_id == session_uuid,
-            Invitation.invitation_type == "sms_contact",
+            Invitation.invitation_type == "email_contact",
             Invitation.status == "accepted",
         )
         .all()
@@ -189,10 +189,12 @@ def send_followup_sms_to_guests(session_id_str: str, db: Session) -> int:
     sent = 0
     for inv in accepted_guest_invitations:
         try:
-            _send_sms(
-                inv.guest_phone,
-                f"Merci d'avoir participé à une conversation Salon ! "
-                f"Installez l'application pour une expérience complète : {settings.salon_install_url}",
+            _send_email(
+                inv.guest_email,
+                "Merci d'avoir participé à Salon",
+                "Merci d'avoir participé à une conversation Salon !\n\n"
+                "Installez l'application pour une expérience complète :\n"
+                f"{settings.salon_install_url}",
             )
             sent += 1
         except Exception:  # noqa: BLE001
@@ -200,26 +202,33 @@ def send_followup_sms_to_guests(session_id_str: str, db: Session) -> int:
     return sent
 
 
-def _send_sms(phone_number: str, message: str) -> None:
-    """Low-level SNS SMS send. Raises HTTPException(503) on ClientError."""
-    client = boto3.client("sns", region_name=settings.aws_region)
+def _send_email(to_address: str, subject: str, body: str) -> None:
+    """Low-level SES send. Raises HTTPException(503) on ClientError."""
+    client = boto3.client("sesv2", region_name=settings.aws_region)
     try:
-        client.publish(
-            PhoneNumber=phone_number,
-            Message=message,
-            MessageAttributes={
-                "AWS.SNS.SMS.SenderID": {"DataType": "String", "StringValue": settings.sns_sender_id},
-                "AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"},
+        client.send_email(
+            FromEmailAddress=settings.ses_from_address,
+            Destination={"ToAddresses": [to_address]},
+            Content={
+                "Simple": {
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
+                }
             },
         )
     except ClientError as exc:
+        logger.error("SES invitation send failed for %s: %s", to_address, exc, exc_info=True)
         raise HTTPException(
-            status_code=503, detail="Service d'envoi SMS indisponible."
+            status_code=503, detail="Service d'envoi de courriel indisponible."
         ) from exc
 
 
-def _send_invitation_sms(phone_number: str, join_link: str) -> None:
-    _send_sms(
-        phone_number,
-        f"Vous avez été invité à rejoindre une conversation Salon. Rejoignez ici : {join_link}",
+def _send_invitation_email(to_address: str, join_link: str) -> None:
+    _send_email(
+        to_address,
+        "Vous êtes invité à une conversation Salon",
+        "Vous avez été invité à rejoindre une conversation Salon.\n\n"
+        f"Rejoignez ici : {join_link}\n\n"
+        "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures. "
+        "Ouvrez-le directement dans votre navigateur.",
     )

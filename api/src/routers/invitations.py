@@ -33,7 +33,7 @@ def create_invitation(
         result = invitation_service.invite_guest(
             session_id=session_id,
             host_user=current_user,
-            guest_phone=body.guestPhoneNumber,
+            guest_email=body.guestEmail,
             db=db,
         )
     except ValueError as exc:

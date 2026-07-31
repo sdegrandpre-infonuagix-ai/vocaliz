@@ -1,25 +1,22 @@
-import re
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 class InviteGuestBody(BaseModel):
-    guestPhoneNumber: str
+    guestEmail: EmailStr
 
-    @field_validator("guestPhoneNumber")
+    @field_validator("guestEmail")
     @classmethod
-    def validate_phone(cls, v: str) -> str:
-        cleaned = re.sub(r"\s", "", v)
-        if not re.match(r"^\+[1-9]\d{7,14}$", cleaned):
-            raise ValueError("guestPhoneNumber must be in E.164 format")
-        return cleaned
+    def normalize(cls, v: str) -> str:
+        """Lowercase and trim so a guest is matched to their account regardless of casing."""
+        return v.strip().lower()
 
 
 class InvitationResponse(BaseModel):
     invitationId: str
-    invitationType: str   # 'salon_friend' | 'sms_contact'
-    guestPhone: str
+    invitationType: str   # 'salon_friend' | 'email_contact'
+    guestEmail: str
     status: str
-    joinLink: str | None  # only for sms_contact type
+    joinLink: str | None  # only for email_contact; Salon friends get an in-app notification
 
 
 class PendingInvitationResponse(BaseModel):

@@ -5,7 +5,8 @@ const API_URL: string =
 
 export interface UserProfile {
   userId: string;
-  phoneNumber: string;
+  email: string;
+  phoneNumber?: string | null;
   detectedLanguage: string | null;
 }
 

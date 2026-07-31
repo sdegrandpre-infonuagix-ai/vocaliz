@@ -74,11 +74,10 @@ _BASE_INSTRUCTIONS = (
     "Do NOT translate your own facilitator speech — only translate between human participants.\n"
     "In a 3-way session with mixed languages, translate for each non-native listener in turn.\n"
     "\n\n"
-    "INVITATION COMMANDS: When the host says 'invite [name or phone number]' or "
-    "'invite [name] at [phone number]', call invite_contact with the phone number "
-    "in E.164 format (e.g. +15141234567). "
-    "If the host gives only a name with no phone number, politely ask: "
-    "'Quel est le numéro de téléphone de [name] ?' before calling the tool. "
+    "INVITATION COMMANDS: When the host says 'invite [name]' or 'invite [name] at "
+    "[email address]', call invite_contact with the guest's email address. "
+    "If the host gives only a name with no address, politely ask: "
+    "'Quelle est l'adresse courriel de [name] ?' before calling the tool. "
     "If the invitation succeeds for a Salon user, say: "
     "'J\\'ai envoyé une notification à [name] pour rejoindre le salon.' "
     "If via SMS, say: 'J\\'ai envoyé un lien SMS à [phone] pour rejoindre le salon.' "
@@ -368,12 +367,12 @@ class SalonAgent(Agent):
     @function_tool
     async def invite_contact(
         self,
-        phone_number: Annotated[str, "Guest phone number in E.164 format, e.g. +15141234567"],
+        email: Annotated[str, "Guest email address, e.g. ami@exemple.com"],
     ) -> str:
-        """Invite a contact to the current session by phone number.
+        """Invite a contact to the current session by email address.
 
         Returns a short status message describing the outcome.
-        Call this when the host says 'invite [name/phone]'.
+        Call this when the host says 'invite [name]'.
         """
         if not self._session_id or not self._api_url or not self._host_token:
             logger.warning("invite_contact called but agent has no session context")
@@ -381,7 +380,7 @@ class SalonAgent(Agent):
 
         url = f"{self._api_url}/sessions/{self._session_id}/invitations"
         headers = {"Authorization": f"Bearer {self._host_token}"}
-        payload = {"guestPhoneNumber": phone_number}
+        payload = {"guestEmail": email}
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:

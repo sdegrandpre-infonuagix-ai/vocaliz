@@ -46,9 +46,9 @@ def _invite(db, session, host, guest_phone, *, guest_user=None, status="accepted
     inv = Invitation(
         session_id=session.id,
         host_user_id=host.id,
-        guest_phone=guest_phone,
+        guest_email=guest_phone.lstrip("+") + "@example.com",
         guest_user_id=guest_user.id if guest_user else None,
-        invitation_type="salon_friend" if guest_user else "sms_contact",
+        invitation_type="salon_friend" if guest_user else "email_contact",
         join_token=f"tok-{session.livekit_room_name}-{guest_phone}",
         status=status,
         expires_at=datetime.now(tz=timezone.utc) + timedelta(days=1),
@@ -89,7 +89,7 @@ def test_history_lists_host_session_with_guest_partner(client, db, user):
     assert item["status"] == "ended"
     assert item["endedAt"] is not None
     assert len(item["partners"]) == 1
-    assert item["partners"][0]["phoneNumber"] == "+15145559999"
+    assert item["partners"][0]["email"] == "15145559999@example.com"
 
 
 def test_history_uses_registered_guest_phone_over_invite_phone(client, db, user):
@@ -107,7 +107,7 @@ def test_history_uses_registered_guest_phone_over_invite_phone(client, db, user)
     resp = client.get("/sessions", headers={"Authorization": f"Bearer {token}"})
     partner = resp.json()["sessions"][0]["partners"][0]
     assert partner["userId"] == str(guest.id)
-    assert partner["phoneNumber"] == "+15145558888"
+    assert partner["email"] == "15145558888@example.com"
 
 
 def test_history_includes_sessions_where_user_was_guest(client, db, user):
@@ -125,7 +125,7 @@ def test_history_includes_sessions_where_user_was_guest(client, db, user):
     sessions = resp.json()["sessions"]
     assert len(sessions) == 1
     assert sessions[0]["role"] == "guest"
-    assert sessions[0]["partners"][0]["phoneNumber"] == "+15145557777"
+    assert sessions[0]["partners"][0]["email"] == "15145557777@example.com"
 
 
 def test_history_excludes_pending_guest_invitations(client, db, user):
