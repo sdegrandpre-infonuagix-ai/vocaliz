@@ -2,6 +2,7 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 config = context.config
@@ -9,10 +10,15 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# The app reads .env through pydantic-settings; Alembic runs outside the app, so
+# load it here too or DATABASE_URL is unset and alembic.ini's empty url is used.
+load_dotenv()
+
 # Override sqlalchemy.url from environment
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    # '%' must be doubled: set_main_option goes through configparser interpolation.
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 # Import all models so Alembic can detect them
 from src.database import Base  # noqa: E402

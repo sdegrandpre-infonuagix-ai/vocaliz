@@ -23,9 +23,8 @@ def upgrade() -> None:
         sa.Column("otp_code", sa.String(10), nullable=True),
         sa.Column("otp_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("otp_attempts", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("trial_seconds_used", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("stripe_customer_id", sa.String(50), nullable=True),
-        sa.Column("stripe_payment_method_id", sa.String(50), nullable=True),
+        # trial_seconds_used / stripe_* are added by migration 006, detected_language
+        # by 005 — do not duplicate them here or upgrade head breaks on a fresh DB.
     )
     op.create_index("ix_users_phone_number", "users", ["phone_number"])
 

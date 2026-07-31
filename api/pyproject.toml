@@ -36,4 +36,6 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "httpx>=0.28.0",
     "moto[sns]>=5.0.0",
+    # Production serves through Mangum on Lambda; uvicorn is for running locally.
+    "uvicorn>=0.35.0",
 ]

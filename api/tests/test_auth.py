@@ -1,8 +1,10 @@
 """Tests for OTP auth endpoints."""
+import logging
 import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+from src.config import settings
 from src.models.user import User
 
 
@@ -91,6 +93,45 @@ def test_verify_otp_clears_code_after_success(mock_sms, client, db):
     db.expire_all()
     user = db.query(User).filter_by(phone_number="+15141234567").first()
     assert user.otp_code is None
+
+
+# ─── DEV_MODE SMS bypass ────────────────────────────────────────────────────
+
+@patch("src.services.otp.boto3.client")
+def test_dev_mode_logs_code_instead_of_sending_sms(mock_boto, client, db, caplog):
+    """With DEV_MODE on, no SNS client is built and the code reaches the log."""
+    with patch.object(settings, "dev_mode", True), caplog.at_level(logging.WARNING):
+        response = client.post("/auth/otp/request", json={"phoneNumber": "+15141234567"})
+
+    assert response.status_code == 202
+    mock_boto.assert_not_called()
+
+    code = db.query(User).filter_by(phone_number="+15141234567").first().otp_code
+    assert code in caplog.text
+
+
+@patch("src.services.otp.boto3.client")
+def test_dev_mode_off_still_publishes_to_sns(mock_boto, client):
+    """The bypass is opt-in: with DEV_MODE off the SNS path is unchanged."""
+    with patch.object(settings, "dev_mode", False):
+        response = client.post("/auth/otp/request", json={"phoneNumber": "+15141234567"})
+
+    assert response.status_code == 202
+    mock_boto.return_value.publish.assert_called_once()
+
+
+@patch("src.services.otp.boto3.client")
+def test_dev_mode_code_still_verifies_normally(mock_boto, client, db):
+    """A DEV_MODE-issued code goes through the same verification path."""
+    with patch.object(settings, "dev_mode", True):
+        client.post("/auth/otp/request", json={"phoneNumber": "+15141234567"})
+        code = db.query(User).filter_by(phone_number="+15141234567").first().otp_code
+        response = client.post(
+            "/auth/otp/verify", json={"phoneNumber": "+15141234567", "code": code}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["token"]
 
 
 # ─── JWT ────────────────────────────────────────────────────────────────────

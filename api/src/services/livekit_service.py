@@ -1,10 +1,13 @@
 """LiveKit room provisioning and participant token generation."""
+import logging
 import uuid
 
 from fastapi import HTTPException
 from livekit import api as lk_api
 
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _http_url() -> str:
@@ -26,6 +29,15 @@ async def create_room(room_name: str) -> None:
                 )
             )
     except Exception as exc:
+        # A rejected key/secret surfaces here as a 401 and is indistinguishable from an
+        # outage in the client-facing 503, so log the cause rather than swallowing it.
+        logger.error(
+            "LiveKit create_room failed for room %s at %s: %s",
+            room_name,
+            _http_url(),
+            exc,
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=503,
             detail="Impossible de créer la salle LiveKit. Veuillez réessayer.",

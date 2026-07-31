@@ -1,4 +1,5 @@
 """OTP generation, storage, and delivery via AWS SNS."""
+import logging
 import random
 import string
 from datetime import datetime, timedelta, timezone
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 def _generate_otp() -> str:
@@ -75,7 +78,15 @@ def _clear_otp(user: User, db: Session) -> None:
 
 
 def _send_sms(phone_number: str, code: str) -> None:
-    """Send OTP via AWS SNS transactional SMS."""
+    """Send OTP via AWS SNS transactional SMS.
+
+    In DEV_MODE the code is logged instead of texted, so a device on the LAN can
+    sign in without provisioned SNS credentials.
+    """
+    if settings.dev_mode:
+        logger.warning("DEV_MODE: OTP for %s is %s (SMS not sent)", phone_number, code)
+        return
+
     client = boto3.client("sns", region_name=settings.aws_region)
     message = f"Votre code Salon est : {code}\nValable {settings.otp_expiry_minutes} minutes."
     try:
