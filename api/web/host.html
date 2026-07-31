@@ -404,25 +404,23 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ guestEmail: email })
         });
-        if (data.joinLink) {
-          lastInvitation = data;
-          var box = document.getElementById('invite-link');
-          box.textContent = data.joinLink;
-          box.classList.remove('hidden');
-          show('btn-copy', true);
-          show('btn-send', true);
+        // A link is always returned now, whatever the invitation type.
+        lastInvitation = data;
+        var box = document.getElementById('invite-link');
+        box.textContent = data.joinLink;
+        box.classList.remove('hidden');
+        show('btn-copy', true);
+        show('btn-send', data.invitationType === 'email_contact');
+
+        if (data.invitationType === 'salon_friend') {
+          setStatus('invite-status',
+            "Ce contact a un compte Salon : il reçoit une notification dans l'application. " +
+            "Le lien ci-dessous fonctionne aussi, partagez-le si c'est plus simple.", true);
+        } else {
           setStatus('invite-status', data.emailSent
-            ? 'Lien généré, et courriel déjà envoyé à ' + data.guestEmail + '.'
+            ? 'Lien généré, et courriel envoyé à ' + data.guestEmail + '.'
             : "Lien généré. Le courriel n'a pas pu partir — envoyez-le vous-même, ou réessayez.",
             data.emailSent);
-        } else {
-          lastInvitation = null;
-          show('btn-copy', false);
-          show('btn-send', false);
-          document.getElementById('invite-link').classList.add('hidden');
-          setStatus('invite-status',
-            'Ce contact est déjà inscrit dans Salon : il reçoit une notification in-app, ' +
-            'sans courriel ni lien web.', true);
         }
       } catch (e) {
         setStatus('invite-status', e.message, false);

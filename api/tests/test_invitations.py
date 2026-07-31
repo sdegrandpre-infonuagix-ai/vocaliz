@@ -118,8 +118,13 @@ def test_invite_salon_friend(mock_sms, client, host, active_session, guest_user)
     assert resp.status_code == 201
     data = resp.json()
     assert data["invitationType"] == "salon_friend"
-    assert data["joinLink"] is None
+    # A registered friend still gets a link: the token works for browser join whatever the
+    # type, and the host may well need to share it — the in-app notification is an extra
+    # channel, not a reason to withhold the link.
+    assert "/join/" in data["joinLink"]
+    # No email: a Salon friend is notified in-app.
     mock_sms.assert_not_called()
+    assert data["emailSent"] is False
 
 
 # ─── Idempotency ─────────────────────────────────────────────────────────────

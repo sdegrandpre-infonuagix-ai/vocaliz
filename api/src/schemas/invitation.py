@@ -16,7 +16,9 @@ class InvitationResponse(BaseModel):
     invitationType: str   # 'salon_friend' | 'email_contact'
     guestEmail: str
     status: str
-    joinLink: str | None  # only for email_contact; Salon friends get an in-app notification
+    # Always present: a join token exists for every invitation, and the browser join
+    # endpoint accepts it whatever the type. Salon friends also get an in-app notification.
+    joinLink: str
     # False when delivery failed — the link is still returned so the host can share it.
     emailSent: bool = False
 

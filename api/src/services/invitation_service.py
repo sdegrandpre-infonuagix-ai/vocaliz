@@ -95,15 +95,16 @@ def _join_link(join_token: str) -> str:
 def _build_response(
     invitation: Invitation, session: SessionModel, *, email_sent: bool = False
 ) -> dict:
-    join_link = None
-    if invitation.invitation_type == "email_contact":
-        join_link = _join_link(invitation.join_token)
+    # The link is returned for every invitation type, including salon_friend. A join token
+    # is minted for all of them and guest_join_session validates it without looking at the
+    # type, so withholding it from registered friends served no purpose — it just left the
+    # host with nothing to share when the in-app notification was not a practical channel.
     return {
         "invitationId": str(invitation.id),
         "invitationType": invitation.invitation_type,
         "guestEmail": invitation.guest_email,
         "status": invitation.status,
-        "joinLink": join_link,
+        "joinLink": _join_link(invitation.join_token),
         "emailSent": email_sent,
     }
 
