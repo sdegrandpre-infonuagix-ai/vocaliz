@@ -48,12 +48,6 @@ async def create_session(
     GET /me/partners) to auto-invite that partner in the same call, so the new session
     starts with the partner already identified — no separate invitation step needed.
     """
-    if not source_url and (file is None or not file.filename):
-        raise HTTPException(
-            status_code=400,
-            detail="sourceUrl ou file est requis pour créer une session.",
-        )
-
     # Trial gate: trial exhausted + no payment method → require Stripe setup before continuing
     if (
         current_user.trial_seconds_used >= settings.free_trial_limit_seconds
@@ -67,15 +61,20 @@ async def create_session(
             ),
         )
 
-    # 1. Extract source content
+    # 1. Extract source content. A session may start with no source at all: the agent
+    # then opens by asking participants what they want to discuss (see _build_instructions).
     if source_url:
         content = await content_service.fetch_url_content(source_url)
         source_type = "url"
         source_filename = None
-    else:
-        content = await content_service.extract_file_content(file)  # type: ignore[arg-type]
+    elif file is not None and file.filename:
+        content = await content_service.extract_file_content(file)
         source_type = "document"
-        source_filename = file.filename  # type: ignore[union-attr]
+        source_filename = file.filename
+    else:
+        content = None
+        source_type = "none"
+        source_filename = None
 
     # 2. Provision LiveKit room
     room_name = livekit_service.new_room_name()

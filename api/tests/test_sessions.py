@@ -23,16 +23,38 @@ def test_create_session_requires_auth(client):
     assert response.status_code == 401
 
 
-# ─── Missing source validation ───────────────────────────────────────────────
+# ─── Source-less session ─────────────────────────────────────────────────────
 
 @patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
 @patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
 @patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-test")
 def test_create_session_no_source(mock_name, mock_token, mock_room, client, user):
+    """A session may start with no document and no URL — the agent then asks the
+    participants what they want to discuss."""
     _, token = user
     response = client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 400
-    assert "requis" in response.json()["detail"]
+    assert response.status_code == 201
+    body = response.json()
+    assert body["sourceType"] == "none"
+    assert body["livekitRoomName"] == "salon-test"
+    assert body["hostToken"] == "tok"
+
+
+@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-test")
+def test_create_session_no_source_persists_empty_content(
+    mock_name, mock_token, mock_room, client, db, user
+):
+    """No source means no extracted content to inject into the agent prompt."""
+    from src.models.session import SessionModel
+    _, token = user
+    client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
+    session = db.query(SessionModel).first()
+    assert session.source_type == "none"
+    assert session.source_content is None
+    assert session.source_url is None
+    assert session.source_filename is None
 
 
 # ─── URL source ──────────────────────────────────────────────────────────────

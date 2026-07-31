@@ -202,7 +202,7 @@ Le backend gère le provisionnement des salles LiveKit et l'intégration xAI (Vo
 
 ### Création de Session & Invitation
 
-- FR1: Un hôte peut créer une session en téléversant un document ou en fournissant une URL de nouvelle comme source
+- FR1: Un hôte peut créer une session en téléversant un document, en fournissant une URL de nouvelle comme source, ou sans aucune source — dans ce dernier cas, l'agent ouvre la session en demandant aux participants de quoi ils souhaitent discuter
 - FR2: Un hôte peut inviter exactement un invité à une session par commande vocale, en nommant un ami enregistré dans Salon (livraison par notification in-app) ou un contact de son téléphone (livraison par SMS)
 - FR3: Un hôte peut ajouter un document ou une URL supplémentaire à une session active, avant ou pendant celle-ci
 - FR4: Un invité sans l'application mobile installée peut rejoindre une session directement depuis un navigateur web, sans créer de compte

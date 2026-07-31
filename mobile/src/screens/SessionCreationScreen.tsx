@@ -20,7 +20,7 @@ import { StatusBar } from 'expo-status-bar';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { createSessionFromUrl } from '../services/sessionsApi';
+import { createSessionFromUrl, createSessionWithoutSource } from '../services/sessionsApi';
 
 interface Props {
   onSessionCreated?: (sessionId: string, roomName: string, hostToken: string) => void;
@@ -35,18 +35,29 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
 
   const isValidUrl = /^https?:\/\/.+/.test(sourceUrl.trim());
 
-  async function handleCreate() {
-    if (!token || !isValidUrl) return;
+  /** Creates the session, then hands it to the caller. `create` chooses the source mode. */
+  async function runCreate(create: () => Promise<Awaited<ReturnType<typeof createSessionFromUrl>>>) {
+    if (!token) return;
     setIsLoading(true);
     setError(null);
     try {
-      const session = await createSessionFromUrl(token, sourceUrl.trim());
+      const session = await create();
       onSessionCreated?.(session.sessionId, session.livekitRoomName, session.hostToken);
     } catch (e: any) {
       setError(e.message ?? t.session.errorGeneric);
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleCreate() {
+    if (!isValidUrl) return;
+    return runCreate(() => createSessionFromUrl(token!, sourceUrl.trim()));
+  }
+
+  // No document, no URL — the agent opens by asking what to discuss.
+  function handleCreateWithoutSource() {
+    return runCreate(() => createSessionWithoutSource(token!));
   }
 
   return (
@@ -128,6 +139,23 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
           accessibilityHint={t.session.uploadButtonHint}
         >
           <Text style={styles.uploadButtonText}>{t.session.uploadButton}</Text>
+        </Pressable>
+
+        {/* ── Source-less session: the agent asks what to discuss ── */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.noSourceButton,
+            isLoading && styles.noSourceButtonDisabled,
+            pressed && !isLoading && styles.noSourceButtonPressed,
+          ]}
+          onPress={handleCreateWithoutSource}
+          disabled={isLoading}
+          accessibilityRole="button"
+          accessibilityLabel={t.session.noSourceButtonLabel}
+          accessibilityHint={t.session.noSourceButtonHint}
+          accessibilityState={{ disabled: isLoading, busy: isLoading }}
+        >
+          <Text style={styles.noSourceButtonText}>{t.session.noSourceButton}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -221,5 +249,20 @@ const styles = StyleSheet.create({
     fontSize: typography.bodySize,
     color: colors.gold,
     fontWeight: '600',
+  },
+  noSourceButton: {
+    minHeight: MIN_TOUCH,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  noSourceButtonDisabled: { opacity: 0.5 },
+  noSourceButtonPressed: { opacity: 0.7 },
+  noSourceButtonText: {
+    fontSize: typography.bodySize,
+    color: colors.burgundy,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

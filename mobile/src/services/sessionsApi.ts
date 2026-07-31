@@ -33,6 +33,19 @@ export async function createSessionFromUrl(
   return handleResponse<SessionResponse>(res);
 }
 
+/**
+ * Start a session with no document and no URL. The agent opens by asking the
+ * participants what they would like to discuss.
+ */
+export async function createSessionWithoutSource(token: string): Promise<SessionResponse> {
+  const res = await fetch(`${API_URL}/sessions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: new FormData(),
+  });
+  return handleResponse<SessionResponse>(res);
+}
+
 export async function createSessionFromFile(
   token: string,
   file: { uri: string; name: string; type: string },

@@ -34,6 +34,9 @@ export interface Translations {
     uploadButtonHint: string;
     uploadComingSoonTitle: string;
     uploadComingSoonMsg: string;
+    noSourceButton: string;
+    noSourceButtonLabel: string;
+    noSourceButtonHint: string;
     errorGeneric: string;
   };
 }
@@ -73,6 +76,10 @@ const fr: Translations = {
     uploadComingSoonTitle: 'Prochainement',
     uploadComingSoonMsg:
       'Le téléversement de documents sera disponible dans la prochaine mise à jour.',
+    noSourceButton: 'Démarrer sans source',
+    noSourceButtonLabel: 'Démarrer une session sans document ni URL',
+    noSourceButtonHint:
+      "L'agent vous demandera de quoi vous souhaitez discuter",
     errorGeneric: 'Impossible de créer la session.',
   },
 };
@@ -111,6 +118,9 @@ const en: Translations = {
     uploadButtonHint: 'Select a PDF or text file',
     uploadComingSoonTitle: 'Coming soon',
     uploadComingSoonMsg: 'Document upload will be available in the next update.',
+    noSourceButton: 'Start without a source',
+    noSourceButtonLabel: 'Start a session with no document or URL',
+    noSourceButtonHint: 'The agent will ask what you would like to discuss',
     errorGeneric: 'Unable to create the session.',
   },
 };

@@ -18,7 +18,7 @@ class SessionModel(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     livekit_room_name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    source_type: Mapped[str] = mapped_column(String(20), nullable=False)      # 'url' | 'document'
+    source_type: Mapped[str] = mapped_column(String(20), nullable=False)      # 'url' | 'document' | 'none'
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_content: Mapped[str | None] = mapped_column(Text, nullable=True)   # extracted plain text
