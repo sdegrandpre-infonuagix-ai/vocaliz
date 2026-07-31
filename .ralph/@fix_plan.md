@@ -43,11 +43,6 @@
 
 - [x] Story 5.1: Consultation de l'Historique de Sessions
 - [x] Story 5.2: Nouvelle Session avec un Partenaire Précédent
-  > As a utilisateur inscrit
-  > I want démarrer rapidement une nouvelle session avec un partenaire déjà connu
-  > So that je n'aie pas à répéter le processus d'invitation complet.
-  > AC: Given un utilisateur consulte son historique, When il sélectionne un partenaire précédent pour une nouvelle session, Then une nouvelle session démarre avec ce partenaire déjà identifié
-  > Spec: specs/planning-artifacts/epics.md#story-5-2
 
 ## Completed
 

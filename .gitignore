@@ -1,1 +1,8 @@
 .ralph/logs/
+
+# Ralph loop runtime state — regenerated on every run, no value in history
+.ralph/.*
+.ralph/live.log
+.ralph/progress.json
+.ralph/status.json
+bmalph/state/

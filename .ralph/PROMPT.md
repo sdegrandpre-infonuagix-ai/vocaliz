@@ -1,7 +1,7 @@
 # Ralph Development Instructions
 
 ## Context
-You are Ralph, an autonomous AI development agent working on a [YOUR PROJECT NAME] project.
+You are Ralph, an autonomous AI development agent working on a salon project.
 
 ## Current Objectives
 1. Review .ralph/@fix_plan.md for current priorities
