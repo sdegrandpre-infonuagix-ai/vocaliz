@@ -510,6 +510,17 @@ async def entrypoint(ctx: agents.JobContext):
 
     ctx.room.on("data_received", _on_data)
 
+    # Closing the browser or killing the app ends no session by itself: the client simply
+    # stops sending heartbeats, leaving the session active. The agent is the only party
+    # always present server-side, so it closes the session when the room empties —
+    # otherwise the host keeps an open session they believe they left (FR25).
+    def _on_participant_disconnected(_participant) -> None:
+        if len(ctx.room.remote_participants) == 0:
+            logger.info("Last participant left; ending session %s", session_id)
+            asyncio.create_task(salon_agent.end_session())
+
+    ctx.room.on("participant_disconnected", _on_participant_disconnected)
+
     await agent_session.start(
         room=ctx.room,
         agent=salon_agent,

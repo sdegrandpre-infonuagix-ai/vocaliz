@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -106,6 +107,20 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     }, HEARTBEAT_SECONDS * 1000);
     return () => clearInterval(id);
   }, [room, token, sessionId]);
+
+  // Backgrounding the app is how a phone session really ends — the host swipes away or
+  // locks the screen rather than tapping Leave. Disconnecting stops the heartbeats and
+  // empties the room, which the agent watches to close the session server-side.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'background' && roomRef.current) {
+        roomRef.current.disconnect().catch(() => {});
+        roomRef.current = null;
+        setRoom(null);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleAddSource = useCallback(async () => {
     if (!token || !sourceUrl.trim()) return;

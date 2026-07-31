@@ -531,7 +531,10 @@ def end_session(
     ended = session.ended_at
     if ended.tzinfo is None:
         ended = ended.replace(tzinfo=timezone.utc)
-    remaining_seconds = max(0, int((ended - ref).total_seconds()))
+    # Clamped: an unbounded gap means nobody was there to send heartbeats, so billing it
+    # would charge the host for a session they had already abandoned.
+    elapsed_since_reference = max(0, int((ended - ref).total_seconds()))
+    remaining_seconds = min(elapsed_since_reference, settings.metering_grace_seconds)
     host = db.query(User).filter(User.id == session.host_user_id).first()
     if remaining_seconds > 0 and host is not None:
         host.trial_seconds_used = host.trial_seconds_used + remaining_seconds

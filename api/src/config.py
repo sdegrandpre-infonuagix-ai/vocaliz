@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     # Free trial cap: 1 hour (3 600 s) of cumulative host-role time per account
     free_trial_limit_seconds: int = 3600
 
+    # Upper bound on the span billed after the last heartbeat when a session ends.
+    # Heartbeats arrive every 30 s, so a gap beyond this means the session was already
+    # dead — a closed laptop, a killed app, a crashed worker. Without this clamp the
+    # whole abandoned period would be billed the moment the session is finally ended.
+    metering_grace_seconds: int = 90
+
     # Stripe billing — set STRIPE_SECRET_KEY in production
     stripe_secret_key: str = "sk_test_placeholder"
 

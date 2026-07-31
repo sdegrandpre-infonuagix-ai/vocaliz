@@ -375,6 +375,20 @@
       }
     }
 
+    // ── Clean exit on browser or tab close ────────────────────────────────────
+    // Disconnecting is enough and is deliberately all we do: the agent watches for the
+    // room emptying and closes the session server-side. Calling /end from here would
+    // need the JWT in a sendBeacon query string — beacons carry no headers — which would
+    // then sit in API Gateway and CloudWatch logs.
+    function onPageUnload() {
+      if (room) {
+        room.disconnect();
+        room = null;
+      }
+    }
+    window.addEventListener('beforeunload', onPageUnload);
+    window.addEventListener('pagehide', onPageUnload);
+
     if (token) signedIn();
   </script>
 </body>
