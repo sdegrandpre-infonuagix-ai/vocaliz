@@ -1,0 +1,8 @@
+{
+  "SalonApi": {
+    "ApiUrl": "https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com",
+    "DbEndpoint": "salonapi-db5d02a0a9-m6s1bpgavjvj.cluster-cn4siqg8a4oz.ca-central-1.rds.amazonaws.com",
+    "MigrateFunctionName": "salon-api-migrate",
+    "AppSecretName": "salon/app-config"
+  }
+}
