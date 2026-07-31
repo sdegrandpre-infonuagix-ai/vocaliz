@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx eas *)",
+      "Bash(uv add *)",
+      "Bash(aws sesv2 *)",
+      "Bash(aws lambda *)",
+      "Bash(MSYS_NO_PATHCONV=1 aws logs tail /aws/lambda/salon-api --profile salon --region ca-central-1 *)",
+      "Bash(git mv *)",
+      "Bash(env)",
+      "Bash(LK_OPENAI_DEBUG=1 uv run python agent.py dev)",
+      "Read(//tmp/**)",
+      "Bash(python -c ' *)",
+      "Bash(node -e ' *)",
+      "Bash(node --check *)",
+      "Bash(grep -viE \"^\\\\s*$|deprecat\")",
+      "Bash(grep -n -A12 \"try {\\\\s*$\" web/host.html)",
+      "Bash(xargs -I{} echo *)",
+      "Bash(curl -s -m 30 https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com/sessions/__TRACKED_VAR__ -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -m 30 \"https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com/host\" -o /dev/null -w \"  HTTP %{http_code}\\\\n\")",
+      "Bash(python -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\('joinLink'\\)\\)\")"
+    ]
+  }
+}
