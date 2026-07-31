@@ -197,8 +197,8 @@
     <div class="card-title">Vous êtes dans le Salon</div>
     <div class="card-sub">La conversation est en cours. Parlez librement.</div>
     <div class="mic-row">
-      <div id="mic-dot" class="mic-dot live"></div>
-      <span id="mic-label">Microphone actif</span>
+      <div id="mic-dot" class="mic-dot"></div>
+      <span id="mic-label">Microphone en cours d'activation…</span>
     </div>
   </div>
 
@@ -330,7 +330,16 @@
       });
 
       await room.connect(creds.livekitUrl, creds.participantToken);
-      await room.localParticipant.setMicrophoneEnabled(true);
+
+      // Reported separately from the connection: a refused microphone still leaves a
+      // usable session (you can hear), and lumping it into the connection error told
+      // the participant the wrong thing.
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        setMicState(true);
+      } catch (micErr) {
+        setMicState(false, micErr);
+      }
 
       // Still inside the click handler, so the gesture is fresh and this usually
       // succeeds outright; the AudioPlaybackStatusChanged listener is the fallback.
@@ -354,6 +363,20 @@
   // ── Leave ─────────────────────────────────────────────────────────────────
   function leaveNow() {
     if (room) { room.disconnect(); }
+  }
+
+  // ── Microphone state, reflected instead of asserted ───────────────────────
+  function setMicState(on, err) {
+    document.getElementById('mic-dot').classList.toggle('live', !!on);
+    var label = document.getElementById('mic-label');
+    if (on) {
+      label.textContent = 'Microphone actif';
+      return;
+    }
+    var denied = err && (err.name === 'NotAllowedError' || /permission|denied/i.test(err.message || ''));
+    label.textContent = denied
+      ? 'Microphone refusé — autorisez-le puis rechargez'
+      : 'Microphone indisponible';
   }
 
   // ── Clean disconnect on browser close / tab close ─────────────────────────
