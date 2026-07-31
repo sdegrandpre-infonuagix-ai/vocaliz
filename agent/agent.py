@@ -6,15 +6,20 @@ Entry point for the xAI-powered voice discussion agent.
 import asyncio
 import json
 import logging
+import os
 from typing import Annotated
 
 import httpx
 from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import AgentSession, Agent, RoomInputOptions, function_tool
-from livekit.plugins import xai, silero, turn_detector
+from livekit.plugins import xai, silero
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-load_dotenv()
+# override=True is deliberate: load_dotenv() otherwise leaves pre-existing OS
+# environment variables untouched, so a stale machine-wide XAI_API_KEY silently wins
+# over agent/.env and the realtime handshake fails with an opaque 400.
+load_dotenv(override=True)
 logger = logging.getLogger("salon-agent")
 
 _BASE_INSTRUCTIONS = (
@@ -435,10 +440,28 @@ async def entrypoint(ctx: agents.JobContext):
             source_url = detail.get("sourceUrl")
             additional_sources = detail.get("additionalSources") or []
 
+    # The key is passed explicitly rather than left to the plugin's env lookup: the job
+    # runs in a subprocess, and a missing key there surfaces only as an opaque 400 on the
+    # realtime handshake. The fingerprint makes that visible in the log instead.
+    xai_key = os.environ.get("XAI_API_KEY", "")
+    logger.info(
+        "xAI credentials: length=%d tail=%s",
+        len(xai_key),
+        xai_key[-4:] if xai_key else "ABSENT",
+    )
+
     agent_session = AgentSession(
-        llm=xai.realtime.RealtimeModel(voice="Ara"),
+        # Per docs.x.ai speech-to-speech: `grok-voice-latest` is the current alias, and
+        # the plugin still defaults to grok-voice-think-fast-1.0 ("previous generation").
+        # Voice ids are lowercase — "Ara" is not a valid identifier.
+        llm=xai.realtime.RealtimeModel(
+            model="grok-voice-latest", voice="ara", api_key=xai_key or None
+        ),
         vad=silero.VAD.load(),
-        turn_detector=turn_detector.EOUModel(),
+        # AgentSession takes `turn_detection`, not `turn_detector`, and EOUModel was
+        # removed from the plugin — MultilingualModel is its replacement, and the right
+        # one here since participants may speak different languages (FR12–FR17).
+        turn_detection=MultilingualModel(),
         allow_interruptions=True,   # participants can interrupt the agent naturally
     )
 

@@ -44,7 +44,14 @@ def _build_livekit_stubs() -> None:
     xai_realtime = MagicMock()
     xai_mod = _register_stub("livekit.plugins.xai", realtime=xai_realtime)
     silero_mod = _register_stub("livekit.plugins.silero", VAD=MagicMock())
-    td_mod = _register_stub("livekit.plugins.turn_detector", EOUModel=MagicMock)
+    # EOUModel was removed from the real plugin; agent.py now imports the multilingual
+    # submodule, so the stub has to expose it as a package attribute too.
+    td_multilingual = _register_stub(
+        "livekit.plugins.turn_detector.multilingual", MultilingualModel=MagicMock
+    )
+    td_mod = _register_stub(
+        "livekit.plugins.turn_detector", multilingual=td_multilingual
+    )
     plugins_mod = _register_stub(
         "livekit.plugins", xai=xai_mod, silero=silero_mod, turn_detector=td_mod
     )

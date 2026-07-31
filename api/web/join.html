@@ -218,6 +218,11 @@
     Quitter la conversation
   </button>
 
+  <!-- Shown only when the browser blocked audio playback; needs a user gesture -->
+  <button id="btn-sound" class="btn btn-primary" style="display:none" onclick="unlockAudio()">
+    🔊  Activer le son
+  </button>
+
   <!-- Static info footer (always visible) -->
   <ul class="info-list">
     <li><span class="ico">🔒</span> Accès invité sécurisé — aucun compte requis</li>
@@ -246,10 +251,24 @@
   }
 
   function showBtn(id) {
-    ['btn-join', 'btn-leave'].forEach(function(b) {
+    ['btn-join', 'btn-leave', 'btn-sound'].forEach(function(b) {
       document.getElementById(b).style.display = 'none';
     });
     if (id) document.getElementById(id).style.display = '';
+  }
+
+  // Browsers refuse to play remote audio until the page has had a user gesture, and
+  // each device tracks that independently — which is why the agent could be audible on
+  // one phone and silent on the other. startAudio() must run from a gesture.
+  async function unlockAudio() {
+    if (!room) return;
+    try {
+      await room.startAudio();
+      document.getElementById('btn-sound').style.display = 'none';
+      document.getElementById('btn-leave').style.display = '';
+    } catch (e) {
+      // Leave the button visible so the participant can try again.
+    }
   }
 
   function showError(title, detail) {
@@ -289,9 +308,16 @@
       room.on(LivekitClient.RoomEvent.TrackSubscribed, function(track) {
         if (track.kind === LivekitClient.Track.Kind.Audio) {
           var el = track.attach();
+          el.autoplay = true;
+          el.playsInline = true;   // iOS refuses inline playback without this
           el.style.display = 'none';
           document.body.appendChild(el);
         }
+      });
+
+      // Surfaces the unlock button whenever the browser blocks playback.
+      room.on(LivekitClient.RoomEvent.AudioPlaybackStatusChanged, function() {
+        if (!room.canPlaybackAudio) showBtn('btn-sound');
       });
 
       room.on(LivekitClient.RoomEvent.Disconnected, function() {
@@ -305,6 +331,14 @@
 
       await room.connect(creds.livekitUrl, creds.participantToken);
       await room.localParticipant.setMicrophoneEnabled(true);
+
+      // Still inside the click handler, so the gesture is fresh and this usually
+      // succeeds outright; the AudioPlaybackStatusChanged listener is the fallback.
+      try {
+        await room.startAudio();
+      } catch (e) {
+        showBtn('btn-sound');
+      }
 
       showCard('v-connected');
       showBtn('btn-leave');

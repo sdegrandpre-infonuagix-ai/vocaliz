@@ -17,6 +17,9 @@ RUN uv export --frozen --no-dev --no-emit-project --format requirements-txt > /t
 COPY src/ ./src/
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
+# guest_web serves web/join.html via FileResponse; without this the anonymous
+# browser join route 500s on Lambda while working fine locally.
+COPY web/ ./web/
 
 # Overridden by the migration function, which runs `alembic upgrade head` instead.
 CMD ["src.main.handler"]
