@@ -48,6 +48,30 @@ def _fresh_db():
     Base.metadata.drop_all(bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def _no_livekit_side_calls(request):
+    """Stop agent dispatch and room notifications from reaching LiveKit in tests.
+
+    Both swallow their own exceptions, so without this every session-creating test
+    would silently attempt a real connection to the configured LiveKit URL — slow and
+    dependent on the network.
+
+    Tests that exercise those functions themselves opt out with
+    @pytest.mark.real_livekit_service, otherwise they would assert against this mock.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    if request.node.get_closest_marker("real_livekit_service"):
+        yield
+        return
+
+    with (
+        patch("src.services.livekit_service.dispatch_agent", new_callable=AsyncMock),
+        patch("src.services.livekit_service.notify_room", new_callable=AsyncMock),
+    ):
+        yield
+
+
 @pytest.fixture
 def client():
     return TestClient(app)

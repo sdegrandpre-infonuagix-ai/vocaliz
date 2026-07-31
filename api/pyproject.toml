@@ -40,3 +40,8 @@ dev = [
     # Production serves through Mangum on Lambda; uvicorn is for running locally.
     "uvicorn>=0.35.0",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "real_livekit_service: exercise livekit_service directly, without the autouse mocks",
+]

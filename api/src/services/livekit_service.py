@@ -1,4 +1,5 @@
-"""LiveKit room provisioning and participant token generation."""
+"""LiveKit room provisioning, agent dispatch, and participant token generation."""
+import json
 import logging
 import uuid
 
@@ -42,6 +43,67 @@ async def create_room(room_name: str) -> None:
             status_code=503,
             detail="Impossible de créer la salle LiveKit. Veuillez réessayer.",
         ) from exc
+
+
+SALON_AGENT_NAME = "salon-agent"
+
+
+async def dispatch_agent(room_name: str, *, session_id: str, host_token: str) -> None:
+    """Dispatch the Salon agent into a room, handing it the session context it needs.
+
+    Explicit dispatch rather than room metadata: the agent needs the host's JWT to read
+    session sources and send invitations on the host's behalf, and room metadata is
+    readable by every participant — including anonymous browser guests. Job metadata is
+    not, so the token stays out of reach.
+
+    Failure is not fatal: the room already exists and participants can talk. The agent
+    simply will not join, which is logged rather than surfaced as a session error.
+    """
+    payload = json.dumps(
+        {
+            "session_id": session_id,
+            "api_url": settings.salon_web_base_url,
+            "host_token": host_token,
+        }
+    )
+    try:
+        async with lk_api.LiveKitAPI(
+            _http_url(), settings.livekit_api_key, settings.livekit_api_secret
+        ) as client:
+            await client.agent_dispatch.create_dispatch(
+                lk_api.CreateAgentDispatchRequest(
+                    agent_name=SALON_AGENT_NAME,
+                    room=room_name,
+                    metadata=payload,
+                )
+            )
+    except Exception as exc:
+        logger.error(
+            "LiveKit agent dispatch failed for room %s: %s", room_name, exc, exc_info=True
+        )
+
+
+async def notify_room(room_name: str, message: dict) -> None:
+    """Publish a JSON data message to everyone in a room.
+
+    Used to tell the agent that session state changed mid-conversation (a source was
+    added), since it otherwise only reads the session once, at job start.
+
+    Best-effort: a failed notification must not fail the request that triggered it.
+    """
+    try:
+        async with lk_api.LiveKitAPI(
+            _http_url(), settings.livekit_api_key, settings.livekit_api_secret
+        ) as client:
+            await client.room.send_data(
+                lk_api.SendDataRequest(
+                    room=room_name,
+                    data=json.dumps(message).encode("utf-8"),
+                    kind=lk_api.DataPacket.Kind.RELIABLE,
+                )
+            )
+    except Exception as exc:
+        logger.warning("LiveKit notify_room failed for %s: %s", room_name, exc)
 
 
 def generate_participant_token(

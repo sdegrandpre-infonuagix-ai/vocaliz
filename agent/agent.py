@@ -22,6 +22,10 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 load_dotenv(override=True)
 logger = logging.getLogger("salon-agent")
 
+# Must match SALON_AGENT_NAME in api/src/services/livekit_service.py — the API dispatches
+# by this exact name, and a mismatch means the agent is simply never dispatched.
+AGENT_NAME = "salon-agent"
+
 _BASE_INSTRUCTIONS = (
     "You are Salon, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
@@ -476,6 +480,37 @@ async def entrypoint(ctx: agents.JobContext):
         room=ctx.room,
     )
 
+    # Sources added mid-conversation (FR3): the API publishes a data message, since the
+    # session detail above is fetched once and would otherwise never be re-read.
+    async def _reload_sources() -> None:
+        detail = await _fetch_session_detail(api_url, session_id, host_token)
+        if not detail:
+            return
+        await salon_agent.update_instructions(
+            _build_instructions(
+                source_content=detail.get("sourceContent"),
+                source_type=detail.get("sourceType"),
+                source_url=detail.get("sourceUrl"),
+                additional_sources=detail.get("additionalSources") or [],
+            )
+        )
+        logger.info(
+            "Instructions rebuilt after source_added (%d additional sources)",
+            len(detail.get("additionalSources") or []),
+        )
+
+    def _on_data(packet) -> None:
+        if not (session_id and api_url and host_token):
+            return
+        try:
+            msg = json.loads(bytes(packet.data).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return
+        if isinstance(msg, dict) and msg.get("action") == "source_added":
+            asyncio.create_task(_reload_sources())
+
+    ctx.room.on("data_received", _on_data)
+
     await agent_session.start(
         room=ctx.room,
         agent=salon_agent,
@@ -493,6 +528,13 @@ async def entrypoint(ctx: agents.JobContext):
 
 
 if __name__ == "__main__":
+    # agent_name makes this worker dispatch-only: the API creates an explicit dispatch
+    # carrying the session context (session id, API url, host token) in job metadata,
+    # which participants cannot read. Without a name the worker would be dispatched
+    # automatically and run context-free — unable to read sources or send invitations.
     agents.cli.run_app(
-        agents.WorkerOptions(entrypoint_fnc=entrypoint)
+        agents.WorkerOptions(
+            entrypoint_fnc=entrypoint,
+            agent_name=AGENT_NAME,
+        )
     )

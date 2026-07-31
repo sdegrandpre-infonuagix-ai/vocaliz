@@ -57,6 +57,65 @@ def test_create_session_no_source_persists_empty_content(
     assert session.source_filename is None
 
 
+# ─── Agent dispatch ──────────────────────────────────────────────────────────
+
+@patch("src.routers.sessions.livekit_service.dispatch_agent", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-test")
+def test_create_session_dispatches_agent_with_context(
+    mock_name, mock_token, mock_room, mock_dispatch, client, user
+):
+    """The agent is useless without session context, so creation must dispatch it.
+
+    Passing the context through job metadata (not room metadata) keeps the host token
+    away from participants.
+    """
+    _, token = user
+    response = client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 201
+
+    mock_dispatch.assert_awaited_once()
+    kwargs = mock_dispatch.await_args.kwargs
+    assert mock_dispatch.await_args.args[0] == "salon-test"
+    assert kwargs["session_id"] == response.json()["sessionId"]
+
+    # Must be a Salon API JWT for the host, not the LiveKit participant token: the agent
+    # authenticates against our REST API with it.
+    from src.services.jwt_service import decode_token
+    host, _ = user
+    assert kwargs["host_token"] != "tok"
+    assert decode_token(kwargs["host_token"])["sub"] == str(host.id)
+
+
+@pytest.mark.real_livekit_service
+@pytest.mark.asyncio
+@patch("src.services.livekit_service.lk_api.LiveKitAPI")
+async def test_dispatch_agent_swallows_livekit_failure(mock_api):
+    """Dispatch failure must not raise: the room exists and participants can still talk.
+
+    Exercises the real service, not a mock of it — patching dispatch_agent itself would
+    bypass the try/except this asserts.
+    """
+    from src.services import livekit_service
+
+    mock_api.side_effect = RuntimeError("livekit unreachable")
+    assert await livekit_service.dispatch_agent(
+        "salon-test", session_id="s1", host_token="tok"
+    ) is None
+
+
+@pytest.mark.real_livekit_service
+@pytest.mark.asyncio
+@patch("src.services.livekit_service.lk_api.LiveKitAPI")
+async def test_notify_room_swallows_livekit_failure(mock_api):
+    """Same for notifications: a lost source_added message must not fail the request."""
+    from src.services import livekit_service
+
+    mock_api.side_effect = RuntimeError("livekit unreachable")
+    assert await livekit_service.notify_room("salon-test", {"action": "source_added"}) is None
+
+
 # ─── URL source ──────────────────────────────────────────────────────────────
 
 @patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)

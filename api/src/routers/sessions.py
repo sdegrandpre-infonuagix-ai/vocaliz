@@ -27,7 +27,13 @@ from src.schemas.session import (
 )
 from src.config import settings
 from src.schemas.invitation import InviteGuestBody
-from src.services import content_service, invitation_service, livekit_service, stripe_service
+from src.services import (
+    content_service,
+    invitation_service,
+    jwt_service,
+    livekit_service,
+    stripe_service,
+)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -100,6 +106,17 @@ async def create_session(
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    # 5. Dispatch the agent with the session context it needs to read sources, invite
+    # guests and report metering. Done after the commit so the session id exists.
+    #
+    # This is a Salon API JWT, not the LiveKit participant token above: the agent calls
+    # our REST API with it, and passing the LiveKit token here yields 401 on every call.
+    await livekit_service.dispatch_agent(
+        room_name,
+        session_id=str(session.id),
+        host_token=jwt_service.issue_token(str(current_user.id)),
+    )
 
     # Quick-start with a previous partner: auto-invite so the session starts with
     # the partner already identified (Story 5.2). The session is already persisted,
@@ -193,6 +210,12 @@ async def add_session_source(
     db.add(source)
     db.commit()
     db.refresh(source)
+
+    # The agent reads session sources once, at job start. Without this it would never
+    # learn about a source added mid-conversation (FR3).
+    await livekit_service.notify_room(
+        session.livekit_room_name, {"action": "source_added", "sourceId": str(source.id)}
+    )
 
     return SessionSourceResponse(
         sourceId=str(source.id),

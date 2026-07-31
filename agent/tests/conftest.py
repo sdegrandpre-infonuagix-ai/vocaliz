@@ -57,7 +57,8 @@ def _build_livekit_stubs() -> None:
     )
 
     # dotenv — just a no-op
-    _register_stub("dotenv", load_dotenv=lambda: None)
+    # Accepts override= since agent.py calls load_dotenv(override=True).
+    _register_stub("dotenv", load_dotenv=lambda *a, **kw: None)
 
 
 _build_livekit_stubs()

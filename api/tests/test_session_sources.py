@@ -4,6 +4,7 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from unittest.mock import AsyncMock, patch as _patch
 
 from src.models.session import SessionModel
 from src.models.session_source import SessionSource
@@ -140,6 +141,35 @@ def test_add_url_source_success(mock_content, client, host, active_session, db):
     assert src.source_url == "https://example.com/new-article"
     assert src.source_content == "New article text."
     assert src.session_id == active_session.id
+
+
+# ─── Live notification to the agent ──────────────────────────────────────────
+
+@_patch("src.routers.sessions.livekit_service.notify_room", new_callable=AsyncMock)
+@_patch(
+    "src.routers.sessions.content_service.fetch_url_content",
+    new_callable=AsyncMock,
+    return_value="Mid-session article.",
+)
+def test_add_source_notifies_the_room(mock_content, mock_notify, client, host, active_session):
+    """The agent reads sources once at job start, so it must be told about new ones.
+
+    Without this message a source added mid-conversation would never reach the agent,
+    leaving FR3 satisfied only in the database.
+    """
+    _, token = host
+    resp = client.post(
+        f"/sessions/{active_session.id}/sources",
+        data={"source_url": "https://example.com/mid"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+
+    mock_notify.assert_awaited_once()
+    room_name, message = mock_notify.await_args.args
+    assert room_name == active_session.livekit_room_name
+    assert message["action"] == "source_added"
+    assert message["sourceId"] == resp.json()["sourceId"]
 
 
 # ─── Document upload ─────────────────────────────────────────────────────────
