@@ -223,6 +223,12 @@
     🔊  Activer le son
   </button>
 
+  <!-- Retry the microphone in place. Reloading would consume the one-time join link, so
+       telling a participant to reload after a refused prompt left them with no way back. -->
+  <button id="btn-mic" class="btn btn-primary" style="display:none" onclick="retryMic()">
+    🎤  Activer le micro
+  </button>
+
   <!-- Static info footer (always visible) -->
   <ul class="info-list">
     <li><span class="ico">🔒</span> Accès invité sécurisé — aucun compte requis</li>
@@ -254,6 +260,10 @@
     ['btn-join', 'btn-leave', 'btn-sound'].forEach(function(b) {
       document.getElementById(b).style.display = 'none';
     });
+    // btn-mic is deliberately outside the exclusive rotation — it coexists with Leave and
+    // with the sound unlock. But a view with no action button is terminal (left, or
+    // errored), and there is no longer a room to retry the microphone against.
+    if (!id) document.getElementById('btn-mic').style.display = 'none';
     if (id) document.getElementById(id).style.display = '';
   }
 
@@ -333,13 +343,9 @@
 
       // Reported separately from the connection: a refused microphone still leaves a
       // usable session (you can hear), and lumping it into the connection error told
-      // the participant the wrong thing.
-      try {
-        await room.localParticipant.setMicrophoneEnabled(true);
-        setMicState(true);
-      } catch (micErr) {
-        setMicState(false, micErr);
-      }
+      // the participant the wrong thing. Same path as the retry button, so the first
+      // attempt and every later one behave identically.
+      await retryMic();
 
       // Still inside the click handler, so the gesture is fresh and this usually
       // succeeds outright; the AudioPlaybackStatusChanged listener is the fallback.
@@ -352,11 +358,17 @@
       showCard('v-connected');
       showBtn('btn-leave');
     } catch (e) {
+      // Only the connection can land here now — the microphone reports itself through
+      // setMicState. Staying on v-ready with Join re-enabled is deliberate: the one-time
+      // token was already consumed by fetchCredentials, so the terminal error card would
+      // strand the participant with a link that can never be reopened.
+      document.getElementById('ready-title').textContent = 'Connexion interrompue';
+      document.getElementById('ready-sub').textContent =
+        'La connexion au Salon a échoué. Vérifiez votre réseau puis réessayez — sans recharger la page.';
+      showCard('v-ready');
+      showBtn('btn-join');
       document.getElementById('btn-join').disabled = false;
-      showError(
-        'Microphone inaccessible',
-        "Autorisez l'accès au microphone dans votre navigateur pour rejoindre."
-      );
+      document.getElementById('btn-join').textContent = 'Réessayer';
     }
   }
 
@@ -369,14 +381,35 @@
   function setMicState(on, err) {
     document.getElementById('mic-dot').classList.toggle('live', !!on);
     var label = document.getElementById('mic-label');
+    var micBtn = document.getElementById('btn-mic');
+
     if (on) {
       label.textContent = 'Microphone actif';
+      micBtn.style.display = 'none';
       return;
     }
+
     var denied = err && (err.name === 'NotAllowedError' || /permission|denied/i.test(err.message || ''));
+    // Never suggest reloading: that consumes the one-time join link and locks the
+    // participant out entirely. The button below retries in place instead.
     label.textContent = denied
-      ? 'Microphone refusé — autorisez-le puis rechargez'
-      : 'Microphone indisponible';
+      ? "Microphone bloqué — autorisez-le via l'icône de la barre d'adresse"
+      : 'Microphone inactif';
+    micBtn.style.display = '';
+  }
+
+  async function retryMic() {
+    if (!room) return;
+    var micBtn = document.getElementById('btn-mic');
+    micBtn.disabled = true;
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true);
+      setMicState(true);
+    } catch (e) {
+      setMicState(false, e);
+    } finally {
+      micBtn.disabled = false;
+    }
   }
 
   // ── Clean disconnect on browser close / tab close ─────────────────────────

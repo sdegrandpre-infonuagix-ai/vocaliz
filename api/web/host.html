@@ -167,6 +167,7 @@
       <div class="card-sub" id="room-sub"></div>
       <div class="mic-row"><span id="mic-dot" class="mic-dot"></span><span id="mic-label">Micro inactif</span></div>
       <button class="btn btn-primary hidden" id="btn-sound" onclick="unlockAudio()">🔊  Activer le son</button>
+      <button class="btn btn-primary hidden" id="btn-mic" onclick="retryMic()">🎤  Activer le micro</button>
       <div class="row">
         <button class="btn btn-outline" onclick="leaveRoom()">Quitter</button>
       </div>
@@ -312,23 +313,33 @@
       await room.connect(creds.livekitUrl, creds.participantToken);
       // Reported separately from the connection: a refused microphone still leaves a
       // usable session (you can hear), so it must not read as a failed connection.
-      try {
-        await room.localParticipant.setMicrophoneEnabled(true);
-        document.getElementById('mic-dot').classList.add('live');
-        document.getElementById('mic-label').textContent = 'Micro actif';
-      } catch (micErr) {
-        var denied = micErr && (micErr.name === 'NotAllowedError'
-          || /permission|denied/i.test(micErr.message || ''));
-        document.getElementById('mic-label').textContent = denied
-          ? 'Micro refusé — autorisez-le puis rechargez'
-          : 'Micro indisponible';
-      }
+      await retryMic();
 
       // Called from the click that led here, so the gesture is still fresh.
       try { await room.startAudio(); } catch (e) { show('btn-sound', true); }
       show('c-room', true);
       show('c-source', true);
       show('c-invite', true);
+    }
+
+    // Retried in place: a refused prompt must not require reloading, which on the guest
+    // side consumes the one-time join link and locks the participant out for good.
+    async function retryMic() {
+      if (!room) return;
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        document.getElementById('mic-dot').classList.add('live');
+        document.getElementById('mic-label').textContent = 'Micro actif';
+        show('btn-mic', false);
+      } catch (micErr) {
+        var denied = micErr && (micErr.name === 'NotAllowedError'
+          || /permission|denied/i.test(micErr.message || ''));
+        document.getElementById('mic-dot').classList.remove('live');
+        document.getElementById('mic-label').textContent = denied
+          ? "Micro bloqué — autorisez-le via l'icône de la barre d'adresse"
+          : 'Micro inactif';
+        show('btn-mic', true);
+      }
     }
 
     async function unlockAudio() {
