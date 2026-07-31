@@ -12,7 +12,8 @@
       "bundleIdentifier": "ai.infonuagix.salon",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Salon needs microphone access for voice conversations.",
-        "NSCameraUsageDescription": "Salon may use the camera for future features."
+        "NSCameraUsageDescription": "Salon may use the camera for future features.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -38,6 +39,14 @@
           "addGeneratedScheme": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:8000",
+      "livekitUrl": "",
+      "eas": {
+        "projectId": "e1bd88f7-b3af-467b-afe1-e2f0a0025d52"
+      }
+    },
+    "owner": "infonuagix-ai"
   }
 }

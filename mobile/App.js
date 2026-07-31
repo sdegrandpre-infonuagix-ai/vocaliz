@@ -10,7 +10,7 @@ import { registerGlobals } from '@livekit/react-native';
 
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
-import AuthNavigator from './src/navigation/AuthNavigator';
+import RootNavigator from './src/navigation/RootNavigator';
 import { colors } from './src/theme/tokens';
 import { getMyProfile } from './src/services/userApi';
 
@@ -65,7 +65,7 @@ export default function App() {
       <AuthProvider>
         <LanguageBootstrap />
         <NavigationContainer>
-          <AuthNavigator />
+          <RootNavigator />
         </NavigationContainer>
       </AuthProvider>
     </LanguageProvider>

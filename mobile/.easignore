@@ -1,0 +1,19 @@
+# Excluded from the tarball uploaded to EAS Build.
+#
+# node_modules alone is 343 MB / 35k files and was making every upload a 289 MB
+# transfer — EAS reinstalls dependencies from package-lock.json on the builder, so
+# shipping it is pure waste. This file takes over from .gitignore for EAS, so
+# anything that must stay out of the archive belongs here too.
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+
+.env.local
+.env*.local
+
+*.log
+.metro-health-check*
+.DS_Store

@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 16.0.0"
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -13,7 +14,9 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "APP_VARIANT": "preview"
+        "APP_VARIANT": "preview",
+        "EXPO_PUBLIC_API_URL": "https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com",
+        "EXPO_PUBLIC_LIVEKIT_URL": "wss://salon-sojjerdy.livekit.cloud"
       }
     },
     "production": {
