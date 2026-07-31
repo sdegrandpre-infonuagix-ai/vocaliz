@@ -37,8 +37,33 @@ def _build_livekit_stubs() -> None:
         WorkerOptions=MagicMock,
     )
 
+    # livekit.agents.voice.io ── AudioInput base class, subclassed by our mixer
+    class _AudioInputBase:
+        def __init__(self, *, label, source=None):
+            self._label = label
+            self._source = source
+
+        def __aiter__(self):
+            return self
+
+    io_mod = _register_stub("livekit.agents.voice.io", AudioInput=_AudioInputBase)
+    _register_stub("livekit.agents.voice", io=io_mod)
+
+    # livekit.rtc ── audio primitives used by the mixer
+    class _TrackKind:
+        KIND_AUDIO = "audio"
+
+    rtc_mod = _register_stub(
+        "livekit.rtc",
+        TrackKind=_TrackKind,
+        AudioStream=MagicMock,
+        AudioFrame=MagicMock,
+        Room=MagicMock,
+        RemoteParticipant=MagicMock,
+    )
+
     # livekit (parent)
-    livekit_mod = _register_stub("livekit", agents=agents_mod)
+    livekit_mod = _register_stub("livekit", agents=agents_mod, rtc=rtc_mod)
 
     # plugins
     xai_realtime = MagicMock()

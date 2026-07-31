@@ -16,6 +16,8 @@ from livekit.agents import AgentSession, Agent, RoomInputOptions, function_tool
 from livekit.plugins import xai, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
+from src.mixed_audio_input import MixedParticipantAudioInput
+
 # override=True is deliberate: load_dotenv() otherwise leaves pre-existing OS
 # environment variables untouched, so a stale machine-wide XAI_API_KEY silently wins
 # over agent/.env and the realtime handshake fails with an opaque 400.
@@ -80,9 +82,10 @@ _BASE_INSTRUCTIONS = (
     "'Quelle est l'adresse courriel de [name] ?' before calling the tool. "
     "If the invitation succeeds for a Salon user, say: "
     "'J\\'ai envoyé une notification à [name] pour rejoindre le salon.' "
-    "If via SMS, say: 'J\\'ai envoyé un lien SMS à [phone] pour rejoindre le salon.' "
+    "If the guest has no Salon account, a join link is emailed to them — say: "
+    "'J\\'ai envoyé un lien par courriel à [name] pour rejoindre le salon.' "
     "If the call fails, say: 'Je n\\'ai pas pu inviter ce contact. Pouvez-vous vérifier "
-    "le numéro de téléphone ?' "
+    "l\\'adresse courriel ?' "
     "\n\n"
     "SESSION EXIT (vocal command — any language):\n"
     "When any participant says a phrase indicating they want to leave, such as:\n"
@@ -524,8 +527,28 @@ async def entrypoint(ctx: agents.JobContext):
     await agent_session.start(
         room=ctx.room,
         agent=salon_agent,
-        room_input_options=RoomInputOptions(),
+        # audio_enabled=False stops RoomIO from installing its own single-participant
+        # input; ours replaces it below. Everything else about RoomIO — the shared audio
+        # output, transcriptions, disconnect handling — is kept.
+        room_input_options=RoomInputOptions(audio_enabled=False),
     )
+
+    # RoomIO hears only the participant it linked to, so the agent was deaf to everyone
+    # else in the room. This mixes every remote participant into one stream instead.
+    mixed_input = MixedParticipantAudioInput(ctx.room)
+    mixed_input.start()
+    agent_session.input.audio = mixed_input
+
+    # Mandatory, and easy to miss: room_input_options above turned audio input off, which
+    # left AgentInput._audio_enabled False. The setter then calls on_detached() on our
+    # mixer instead of on_attached(), so its frames are never consumed — the model
+    # receives nothing and never speaks at all.
+    agent_session.input.set_audio_enabled(True)
+
+    async def _close_mixer() -> None:
+        await mixed_input.aclose()
+
+    ctx.add_shutdown_callback(_close_mixer)
 
     # Start metering heartbeat — sends elapsed seconds every 30 s so trial time
     # is committed incrementally and survives unexpected disconnects.
