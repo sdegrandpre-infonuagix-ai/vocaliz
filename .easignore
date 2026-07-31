@@ -1,0 +1,50 @@
+# Excluded from the tarball uploaded to EAS Build.
+#
+# EAS archives from the git repository root, not from mobile/, and honours only the
+# root ignore file — the root .gitignore holds a single line, so dependency trees from
+# every workspace were being uploaded (mobile/node_modules 343 MB, api/.venv ~150 MB,
+# infra/node_modules; ~338 MB compressed). A .easignore in mobile/ is never read.
+#
+# This file REPLACES .gitignore for EAS, so everything to keep out must be listed here.
+
+# ── Dependency trees: EAS reinstalls from package-lock.json on the builder ──
+node_modules/
+**/node_modules/
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# ── Not needed to build the mobile app ──
+api/
+agent/
+infra/
+_bmad/
+_bmad-output/
+bmalph/
+.ralph/
+.git/
+
+# ── Build and tooling output ──
+.expo/
+**/.expo/
+cdk.out/
+dist/
+web-build/
+android/
+ios/
+.cdk.staging/
+
+# ── Local secrets and noise ──
+.env
+.env.*
+!.env.example
+*.log
+.metro-health-check*
+.DS_Store
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
