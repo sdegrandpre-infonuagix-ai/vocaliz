@@ -48,9 +48,9 @@ def _make_invitation(db, host_user, session, *, status="pending", expired=False,
     inv = Invitation(
         session_id=session.id,
         host_user_id=host_user.id,
-        guest_phone="+15145559999",
+        guest_email="15145559999@example.com",
         guest_user_id=None,
-        invitation_type="sms_contact",
+        invitation_type="email_contact",
         join_token=token or secrets.token_urlsafe(32),
         status=status,
         expires_at=expires,
@@ -197,3 +197,13 @@ def test_guest_web_page_disconnect_nulls_room(client):
     resp = client.get(f"/join/{secrets.token_urlsafe(32)}")
     # The onPageUnload function should null out the room reference
     assert "room = null" in resp.text
+
+
+# ─── Host console page ───────────────────────────────────────────────────────
+
+def test_host_console_is_served(client):
+    """The host console is the only surface that can add a source mid-session today."""
+    resp = client.get("/host")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "Console hôte" in resp.text

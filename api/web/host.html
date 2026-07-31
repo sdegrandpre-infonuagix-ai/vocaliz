@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salon — Console hôte</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #F8F3E8;
+      color: #2C2C2C;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #7B1528;
+      color: #F8F3E8;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.06em; }
+
+    .badge-host {
+      background: #C9A84C;
+      color: #2C2C2C;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 9px;
+      border-radius: 4px;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 20px;
+      gap: 20px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 480px;
+      background: #fff;
+      border: 1px solid #e2d9cc;
+      border-radius: 14px;
+      padding: 24px;
+    }
+
+    .card-title { font-size: 1.1rem; font-weight: 700; color: #7B1528; margin-bottom: 6px; }
+    .card-sub { font-size: 0.9rem; color: #6b6257; line-height: 1.5; margin-bottom: 16px; }
+
+    label {
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b6257;
+      margin: 14px 0 6px;
+    }
+
+    input[type=text], input[type=email], input[type=file] {
+      width: 100%;
+      min-height: 44px;
+      border: 1.5px solid #e2d9cc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 1rem;
+      color: #2C2C2C;
+      background: #fff;
+    }
+
+    .btn {
+      width: 100%;
+      min-height: 44px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 14px;
+    }
+
+    .btn-primary { background: #7B1528; color: #F8F3E8; }
+    .btn-primary:disabled { background: #a99e91; cursor: default; }
+    .btn-outline { background: transparent; color: #7B1528; border: 1.5px solid #7B1528; }
+    .btn-gold { background: #C9A84C; color: #2C2C2C; }
+
+    .row { display: flex; gap: 10px; }
+    .row .btn { flex: 1; }
+
+    .status {
+      font-size: 0.85rem;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-top: 12px;
+      display: none;
+      word-break: break-all;
+    }
+    .status.ok { background: #eaf5ec; color: #245c33; display: block; }
+    .status.err { background: #fdecea; color: #8a1c13; display: block; }
+
+    .link-box {
+      background: #F8F3E8;
+      border: 1px dashed #C9A84C;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.8rem;
+      word-break: break-all;
+      margin-top: 10px;
+    }
+
+    .mic-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #6b6257; }
+    .mic-dot { width: 10px; height: 10px; border-radius: 50%; background: #a99e91; }
+    .mic-dot.live { background: #2f9e44; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SALON</h1>
+    <span class="badge-host">Console hôte</span>
+  </header>
+
+  <main>
+    <!-- Step 1: sign in -->
+    <div id="c-login" class="card">
+      <div class="card-title">Connexion</div>
+      <div class="card-sub">Le code de vérification est envoyé par courriel.</div>
+      <label for="email">Adresse courriel</label>
+      <input type="email" id="email" placeholder="vous@exemple.com" autocomplete="email">
+      <button class="btn btn-primary" id="btn-otp" onclick="requestOtp()">Recevoir mon code</button>
+      <div id="login-otp" class="hidden">
+        <label for="code">Code à 6 chiffres</label>
+        <input type="text" id="code" inputmode="numeric" maxlength="6" placeholder="123456">
+        <button class="btn btn-primary" onclick="verifyOtp()">Valider</button>
+      </div>
+      <div id="login-status" class="status"></div>
+    </div>
+
+    <!-- Step 2: create a session -->
+    <div id="c-create" class="card hidden">
+      <div class="card-title">Nouvelle session</div>
+      <div class="card-sub">
+        Une source est facultative : sans elle, l'agent vous demandera de quoi discuter.
+      </div>
+      <label for="src-url">URL d'article (facultatif)</label>
+      <input type="text" id="src-url" placeholder="https://…">
+      <label for="src-file">Ou un document (PDF, texte)</label>
+      <input type="file" id="src-file" accept=".pdf,.txt,text/plain,application/pdf">
+      <button class="btn btn-primary" onclick="createSession()">Démarrer la session</button>
+      <div id="create-status" class="status"></div>
+    </div>
+
+    <!-- Step 3: in session -->
+    <div id="c-room" class="card hidden">
+      <div class="card-title">Vous animez le Salon</div>
+      <div class="card-sub" id="room-sub"></div>
+      <div class="mic-row"><span id="mic-dot" class="mic-dot"></span><span id="mic-label">Micro inactif</span></div>
+      <button class="btn btn-primary hidden" id="btn-sound" onclick="unlockAudio()">🔊  Activer le son</button>
+      <div class="row">
+        <button class="btn btn-outline" onclick="leaveRoom()">Quitter</button>
+      </div>
+    </div>
+
+    <!-- Step 3b: add a source mid-session (host only) -->
+    <div id="c-source" class="card hidden">
+      <div class="card-title">Ajouter une source</div>
+      <div class="card-sub">
+        L'agent est prévenu immédiatement et en tiendra compte sans interrompre la conversation.
+      </div>
+      <label for="add-url">URL d'article</label>
+      <input type="text" id="add-url" placeholder="https://…">
+      <label for="add-file">Ou un document</label>
+      <input type="file" id="add-file" accept=".pdf,.txt,text/plain,application/pdf">
+      <button class="btn btn-gold" onclick="addSource()">Ajouter à la session</button>
+      <div id="source-status" class="status"></div>
+    </div>
+
+    <!-- Step 3c: invite -->
+    <div id="c-invite" class="card hidden">
+      <div class="card-title">Inviter</div>
+      <div class="card-sub">
+        Le lien est envoyé par courriel à l'invité, et s'ouvre dans n'importe quel
+        navigateur sans installer l'application. Il ne fonctionne qu'une seule fois.
+      </div>
+      <label for="guest-email">Adresse courriel du contact</label>
+      <input type="email" id="guest-email" placeholder="ami@exemple.com">
+      <button class="btn btn-gold" onclick="invite()">Générer le lien</button>
+      <div id="invite-status" class="status"></div>
+      <div id="invite-link" class="link-box hidden"></div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+  <script>
+    var token = sessionStorage.getItem('salon_host_jwt');
+    var sessionId = null;
+    var room = null;
+
+    function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
+    function setStatus(id, msg, ok) {
+      var el = document.getElementById(id);
+      el.textContent = msg;
+      el.className = 'status ' + (ok ? 'ok' : 'err');
+    }
+
+    // Every call funnels through here so an API error is always surfaced, never silent.
+    async function api(path, options) {
+      options = options || {};
+      options.headers = options.headers || {};
+      if (token) options.headers['Authorization'] = 'Bearer ' + token;
+      var resp = await fetch(path, options);
+      var body = await resp.json().catch(function() { return {}; });
+      if (!resp.ok) throw new Error(body.detail || ('Erreur ' + resp.status));
+      return body;
+    }
+
+    // ── Authentication ────────────────────────────────────────────────────────
+    async function requestOtp() {
+      var email = document.getElementById('email').value.trim().toLowerCase();
+      try {
+        await api('/auth/otp/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        });
+        show('login-otp', true);
+        setStatus('login-status', 'Code envoyé à ' + email + '.', true);
+      } catch (e) {
+        setStatus('login-status', e.message, false);
+      }
+    }
+
+    async function verifyOtp() {
+      var email = document.getElementById('email').value.trim().toLowerCase();
+      var code = document.getElementById('code').value.trim();
+      try {
+        var data = await api('/auth/otp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, code: code })
+        });
+        token = data.token;
+        sessionStorage.setItem('salon_host_jwt', token);
+        signedIn();
+      } catch (e) {
+        setStatus('login-status', e.message, false);
+      }
+    }
+
+    function signedIn() {
+      show('c-login', false);
+      show('c-create', true);
+    }
+
+    // ── Session creation ──────────────────────────────────────────────────────
+    async function createSession() {
+      var url = document.getElementById('src-url').value.trim();
+      var file = document.getElementById('src-file').files[0];
+      var form = new FormData();
+      if (url) form.append('source_url', url);
+      if (file) form.append('file', file);
+      try {
+        var data = await api('/sessions', { method: 'POST', body: form });
+        sessionId = data.sessionId;
+        document.getElementById('room-sub').textContent =
+          'Salon ' + data.livekitRoomName + ' — source : ' + data.sourceType;
+        show('c-create', false);
+        await joinRoom();
+      } catch (e) {
+        setStatus('create-status', e.message, false);
+      }
+    }
+
+    // ── Room ──────────────────────────────────────────────────────────────────
+    async function joinRoom() {
+      var creds = await api('/sessions/' + sessionId + '/join', { method: 'POST' });
+      room = new LivekitClient.Room({ dynacast: true });
+
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, function(track) {
+        if (track.kind === LivekitClient.Track.Kind.Audio) {
+          var el = track.attach();
+          el.autoplay = true;
+          el.playsInline = true;   // iOS refuses inline playback without this
+          el.style.display = 'none';
+          document.body.appendChild(el);
+        }
+      });
+
+      room.on(LivekitClient.RoomEvent.AudioPlaybackStatusChanged, function() {
+        show('btn-sound', !room.canPlaybackAudio);
+      });
+
+      await room.connect(creds.livekitUrl, creds.participantToken);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+      // Called from the click that led here, so the gesture is still fresh.
+      try { await room.startAudio(); } catch (e) { show('btn-sound', true); }
+
+      document.getElementById('mic-dot').classList.add('live');
+      document.getElementById('mic-label').textContent = 'Micro actif';
+      show('c-room', true);
+      show('c-source', true);
+      show('c-invite', true);
+    }
+
+    async function unlockAudio() {
+      try {
+        await room.startAudio();
+        show('btn-sound', false);
+      } catch (e) { /* leave the button so it can be retried */ }
+    }
+
+    async function leaveRoom() {
+      if (room) await room.disconnect();
+      try { await api('/sessions/' + sessionId + '/end', { method: 'POST' }); } catch (e) {}
+      show('c-room', false); show('c-source', false); show('c-invite', false);
+      show('c-create', true);
+    }
+
+    // ── Mid-session source (FR3) ──────────────────────────────────────────────
+    async function addSource() {
+      var url = document.getElementById('add-url').value.trim();
+      var file = document.getElementById('add-file').files[0];
+      if (!url && !file) {
+        setStatus('source-status', 'Indiquez une URL ou choisissez un document.', false);
+        return;
+      }
+      var form = new FormData();
+      if (url) form.append('source_url', url);
+      if (file) form.append('file', file);
+      try {
+        var data = await api('/sessions/' + sessionId + '/sources', { method: 'POST', body: form });
+        setStatus('source-status',
+          'Source ajoutée (' + data.sourceType + ', ' + data.contentLength + ' caractères). ' +
+          "L'agent en a été prévenu.", true);
+        document.getElementById('add-url').value = '';
+        document.getElementById('add-file').value = '';
+      } catch (e) {
+        setStatus('source-status', e.message, false);
+      }
+    }
+
+    // ── Invitation ────────────────────────────────────────────────────────────
+    async function invite() {
+      var email = document.getElementById('guest-email').value.trim().toLowerCase();
+      try {
+        var data = await api('/sessions/' + sessionId + '/invitations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guestEmail: email })
+        });
+        if (data.joinLink) {
+          setStatus('invite-status', 'Courriel envoyé à ' + email + '. Le lien est aussi affiché ci-dessous.', true);
+          var box = document.getElementById('invite-link');
+          box.textContent = data.joinLink;
+          box.classList.remove('hidden');
+        } else {
+          setStatus('invite-status',
+            'Ce contact est déjà inscrit dans Salon : il reçoit une notification in-app, ' +
+            'sans courriel ni lien web.', true);
+        }
+      } catch (e) {
+        setStatus('invite-status', e.message, false);
+      }
+    }
+
+    if (token) signedIn();
+  </script>
+</body>
+</html>
