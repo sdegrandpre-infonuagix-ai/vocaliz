@@ -115,3 +115,28 @@ export async function joinSession(
   });
   return handleResponse<JoinSessionResponse>(res);
 }
+
+/**
+ * Metering heartbeat (Story 4.2). The agent sends these too; the client sends its own so
+ * host time keeps accruing even if the agent worker drops out mid-session.
+ */
+export async function sendHeartbeat(
+  token: string,
+  sessionId: string,
+  seconds: number,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/heartbeat`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seconds }),
+  });
+  await handleResponse<unknown>(res);
+}
+
+export async function endSession(token: string, sessionId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/end`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await handleResponse<unknown>(res);
+}

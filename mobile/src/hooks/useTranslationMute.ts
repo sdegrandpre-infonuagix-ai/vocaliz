@@ -13,17 +13,24 @@
  */
 import { useEffect } from 'react';
 
-interface MuteableRoom {
-  on: (event: string, listener: (...args: any[]) => void) => void;
-  off: (event: string, listener: (...args: any[]) => void) => void;
+/**
+ * Structurally what this hook needs. Kept deliberately loose rather than importing
+ * livekit-client's Room: its event signatures are heavily overloaded generics that a
+ * plain string literal cannot satisfy, and tests stub the room entirely.
+ */
+export interface MuteableRoom {
+  on: (event: any, listener: any) => any;
+  off: (event: any, listener: any) => any;
   localParticipant: {
-    setMicrophoneEnabled: (enabled: boolean) => Promise<void>;
+    setMicrophoneEnabled: (enabled: boolean) => Promise<unknown>;
   };
 }
 
 export function useTranslationMute(room: MuteableRoom | null | undefined): void {
   useEffect(() => {
     if (!room) return;
+    // Captured so the closures below keep a non-null reference TypeScript can narrow.
+    const live = room;
 
     function handleData(payload: Uint8Array): void {
       try {
@@ -32,18 +39,18 @@ export function useTranslationMute(room: MuteableRoom | null | undefined): void 
         if (typeof msg !== 'object' || msg === null || !('action' in msg)) return;
         const action = (msg as { action: unknown }).action;
         if (action === 'translation_mute_start') {
-          room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+          live.localParticipant.setMicrophoneEnabled(false).catch(() => {});
         } else if (action === 'translation_mute_end') {
-          room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+          live.localParticipant.setMicrophoneEnabled(true).catch(() => {});
         }
       } catch {
         // Ignore malformed messages
       }
     }
 
-    room.on('dataReceived', handleData);
+    live.on('dataReceived', handleData);
     return () => {
-      room.off('dataReceived', handleData);
+      live.off('dataReceived', handleData);
     };
   }, [room]);
 }

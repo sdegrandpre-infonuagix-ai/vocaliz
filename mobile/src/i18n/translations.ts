@@ -39,6 +39,26 @@ export interface Translations {
     noSourceButtonHint: string;
     errorGeneric: string;
   };
+  room: {
+    title: string;
+    connecting: string;
+    micLive: string;
+    micOff: string;
+    sourceSection: string;
+    sourceInputLabel: string;
+    sourceInputHint: string;
+    sourceButton: string;
+    sourceAdded: string;
+    inviteSection: string;
+    inviteInputLabel: string;
+    inviteInputHint: string;
+    inviteButton: string;
+    inviteEmailed: string;
+    inviteInApp: string;
+    leaveButton: string;
+    errorConnect: string;
+    errorGeneric: string;
+  };
 }
 
 const fr: Translations = {
@@ -82,6 +102,26 @@ const fr: Translations = {
       "L'agent vous demandera de quoi vous souhaitez discuter",
     errorGeneric: 'Impossible de créer la session.',
   },
+  room: {
+    title: 'Vous animez le Salon',
+    connecting: 'Connexion au salon…',
+    micLive: 'Micro actif',
+    micOff: 'Micro inactif',
+    sourceSection: 'Ajouter une source',
+    sourceInputLabel: "URL de l'article à ajouter",
+    sourceInputHint: "L'agent en tiendra compte sans interrompre la conversation",
+    sourceButton: 'Ajouter à la session',
+    sourceAdded: "Source ajoutée. L'agent en a été prévenu.",
+    inviteSection: 'Inviter',
+    inviteInputLabel: "Adresse courriel de l'invité",
+    inviteInputHint: 'Le lien de jonction lui est envoyé par courriel',
+    inviteButton: 'Inviter',
+    inviteEmailed: 'Courriel envoyé avec le lien de jonction.',
+    inviteInApp: 'Ce contact est inscrit dans Salon : il reçoit une notification.',
+    leaveButton: 'Quitter la session',
+    errorConnect: 'Impossible de rejoindre le salon.',
+    errorGeneric: 'Une erreur est survenue.',
+  },
 };
 
 const en: Translations = {
@@ -122,6 +162,26 @@ const en: Translations = {
     noSourceButtonLabel: 'Start a session with no document or URL',
     noSourceButtonHint: 'The agent will ask what you would like to discuss',
     errorGeneric: 'Unable to create the session.',
+  },
+  room: {
+    title: 'You are hosting the Salon',
+    connecting: 'Connecting to the room…',
+    micLive: 'Microphone on',
+    micOff: 'Microphone off',
+    sourceSection: 'Add a source',
+    sourceInputLabel: 'URL of the article to add',
+    sourceInputHint: 'The agent picks it up without interrupting the conversation',
+    sourceButton: 'Add to session',
+    sourceAdded: 'Source added. The agent has been notified.',
+    inviteSection: 'Invite',
+    inviteInputLabel: "Guest's email address",
+    inviteInputHint: 'The join link is emailed to them',
+    inviteButton: 'Invite',
+    inviteEmailed: 'Email sent with the join link.',
+    inviteInApp: 'This contact has a Salon account: they get a notification.',
+    leaveButton: 'Leave session',
+    errorConnect: 'Unable to join the room.',
+    errorGeneric: 'Something went wrong.',
   },
 };
 
