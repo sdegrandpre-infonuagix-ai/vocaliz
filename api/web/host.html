@@ -146,12 +146,12 @@
       </div>
       <div id="login-status" class="status"></div>
     </div>
-
     <!-- Step 2: create a session -->
     <div id="c-create" class="card hidden">
       <div class="card-title">Nouvelle session</div>
       <div class="card-sub">
         Une source est facultative : sans elle, l'agent vous demandera de quoi discuter.
+        Toute session que vous aviez laissée ouverte est fermée automatiquement.
       </div>
       <label for="src-url">URL d'article (facultatif)</label>
       <input type="text" id="src-url" placeholder="https://…">
@@ -258,6 +258,8 @@
       }
     }
 
+    // No resume flow: POST /sessions closes any session this host still has open and
+    // deletes its room, so a stale agent can never be inherited by a new session.
     function signedIn() {
       show('c-login', false);
       show('c-create', true);

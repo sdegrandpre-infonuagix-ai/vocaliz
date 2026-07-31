@@ -1,4 +1,5 @@
 """Sessions router — create and manage discussion sessions."""
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -32,8 +33,11 @@ from src.services import (
     invitation_service,
     jwt_service,
     livekit_service,
+    session_lifecycle,
     stripe_service,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -66,6 +70,14 @@ async def create_session(
                 "Veuillez ajouter une méthode de paiement pour continuer."
             ),
         )
+
+    # 0. A host may never have two sessions open at once. A stale session keeps its agent
+    # alive and talking, so a new room could surface the previous agent instead of its own
+    # — which is precisely what happened in testing. Closing settles the metering; deleting
+    # the room is what actually stops the old agent.
+    closed = await session_lifecycle.close_previous_host_sessions(current_user, db)
+    if closed:
+        logger.info("Closed %d stale session(s) before creating a new one", closed)
 
     # 1. Extract source content. A session may start with no source at all: the agent
     # then opens by asking participants what they want to discuss (see _build_instructions).
@@ -488,7 +500,7 @@ def session_heartbeat(
 
 
 @router.post("/{session_id}/end", response_model=EndSessionResponse)
-def end_session(
+async def end_session(
     session_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -515,48 +527,14 @@ def end_session(
     if session.status == "ended":
         raise HTTPException(status_code=409, detail="Cette session est déjà terminée.")
 
-    session.status = "ended"
-    session.ended_at = datetime.now(tz=timezone.utc)
-    db.commit()
-    db.refresh(session)
+    # Shared with the cleanup that runs before a host opens a new session, so the
+    # metering clamp and the billing path cannot drift between the two.
+    charge = session_lifecycle.finalize_session(session, db)
+    billing_summary = BillingChargeSummary(**charge) if charge else None
 
-    # Accumulate remaining host trial time since the last heartbeat (or since session
-    # start if no heartbeats were received — fallback for unexpected disconnects).
-    # Only the HOST role is tracked (never guests).
-    # Normalise timestamps to UTC-aware — SQLite returns naive datetimes.
-    reference = session.last_heartbeat_at or session.created_at
-    ref = reference
-    if ref.tzinfo is None:
-        ref = ref.replace(tzinfo=timezone.utc)
-    ended = session.ended_at
-    if ended.tzinfo is None:
-        ended = ended.replace(tzinfo=timezone.utc)
-    # Clamped: an unbounded gap means nobody was there to send heartbeats, so billing it
-    # would charge the host for a session they had already abandoned.
-    elapsed_since_reference = max(0, int((ended - ref).total_seconds()))
-    remaining_seconds = min(elapsed_since_reference, settings.metering_grace_seconds)
-    host = db.query(User).filter(User.id == session.host_user_id).first()
-    if remaining_seconds > 0 and host is not None:
-        host.trial_seconds_used = host.trial_seconds_used + remaining_seconds
-        db.commit()
-
-    # Bill the host for any metered time beyond their free trial hour (Story 4.4).
-    # Prorated to the second at $5/hr, charged to the saved Stripe method.
-    # Guests are never billed — only the host role is charged.
-    # Errors are swallowed here so a payment failure never blocks session end;
-    # the unbilled span is retried automatically on the host's next session.
-    billing_summary = None
-    if host is not None:
-        try:
-            charge = stripe_service.bill_host_for_usage(host, session, db)
-            if charge is not None:
-                billing_summary = BillingChargeSummary(**charge)
-        except Exception:  # noqa: BLE001 — never let billing break session teardown
-            billing_summary = None
-
-    # Fire-and-forget: send install-link SMS to anonymous guests who participated.
-    # Errors are swallowed inside the service so session end is never blocked.
-    invitation_service.send_followup_email_to_guests(str(session.id), db)
+    # Deleting the room disconnects everyone and stops the agent; without it the worker
+    # keeps talking in a session the host believes is over.
+    await livekit_service.delete_room(session.livekit_room_name)
 
     return EndSessionResponse(
         sessionId=str(session.id),

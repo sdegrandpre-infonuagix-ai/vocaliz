@@ -68,6 +68,7 @@ def _no_livekit_side_calls(request):
     with (
         patch("src.services.livekit_service.dispatch_agent", new_callable=AsyncMock),
         patch("src.services.livekit_service.notify_room", new_callable=AsyncMock),
+        patch("src.services.livekit_service.delete_room", new_callable=AsyncMock),
     ):
         yield
 

@@ -83,6 +83,24 @@ async def dispatch_agent(room_name: str, *, session_id: str, host_token: str) ->
         )
 
 
+async def delete_room(room_name: str) -> None:
+    """Delete a room, disconnecting everyone and stopping its agent.
+
+    This is what actually silences a stale agent: ending the session row settles the
+    accounting, but the worker keeps running until its room disappears.
+
+    Best-effort — a room that is already gone, or a LiveKit outage, must not block the
+    caller from opening a new session.
+    """
+    try:
+        async with lk_api.LiveKitAPI(
+            _http_url(), settings.livekit_api_key, settings.livekit_api_secret
+        ) as client:
+            await client.room.delete_room(lk_api.DeleteRoomRequest(room=room_name))
+    except Exception as exc:
+        logger.warning("LiveKit delete_room failed for %s: %s", room_name, exc)
+
+
 async def notify_room(room_name: str, message: dict) -> None:
     """Publish a JSON data message to everyone in a room.
 

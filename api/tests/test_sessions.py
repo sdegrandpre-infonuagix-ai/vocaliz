@@ -213,3 +213,84 @@ async def test_fetch_url_rejects_ssrf_link_local():
     with pytest.raises(HTTPException) as exc_info:
         await fetch_url_content("http://169.254.169.254/latest/meta-data/")
     assert exc_info.value.status_code == 400
+
+
+# ─── One open session per host ───────────────────────────────────────────────
+
+@patch("src.services.livekit_service.delete_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
+def test_creating_a_session_closes_the_previous_one(
+    mock_token, mock_room, mock_delete, client, db, user
+):
+    """A host may never hold two open sessions.
+
+    A stale session keeps its agent alive and talking, so joining the new room could
+    surface the previous agent — the failure this rule exists to prevent.
+    """
+    from src.models.session import SessionModel
+
+    _, token = user
+    headers = {"Authorization": f"Bearer {token}"}
+
+    first = client.post("/sessions", data={}, headers=headers).json()["sessionId"]
+    second = client.post("/sessions", data={}, headers=headers).json()["sessionId"]
+    assert first != second
+
+    db.expire_all()
+    sessions = {str(s.id): s.status for s in db.query(SessionModel).all()}
+    assert sessions[first] == "ended"
+    assert sessions[second] == "active"
+
+
+@patch("src.services.livekit_service.delete_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
+def test_previous_room_is_deleted_not_just_marked_ended(
+    mock_token, mock_room, mock_delete, client, db, user
+):
+    """Deleting the room is what stops the old agent; the row only settles accounting."""
+    from src.models.session import SessionModel
+
+    _, token = user
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client.post("/sessions", data={}, headers=headers)
+    first_room = db.query(SessionModel).first().livekit_room_name
+
+    client.post("/sessions", data={}, headers=headers)
+
+    mock_delete.assert_awaited()
+    assert first_room in [call.args[0] for call in mock_delete.await_args_list]
+
+
+@patch("src.services.livekit_service.delete_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
+def test_another_host_session_is_left_alone(
+    mock_token, mock_room, mock_delete, client, db, user
+):
+    """Cleanup is scoped to the caller: it must never close someone else's session."""
+    from src.models.session import SessionModel
+    from src.models.user import User
+    from src.services.jwt_service import issue_token
+
+    other = User(email="other.host@example.com")
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+    theirs = SessionModel(
+        host_user_id=other.id,
+        livekit_room_name="salon-theirs",
+        source_type="none",
+        status="active",
+    )
+    db.add(theirs)
+    db.commit()
+
+    _, token = user
+    client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
+
+    db.expire(theirs)
+    db.refresh(theirs)
+    assert theirs.status == "active"
