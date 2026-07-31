@@ -17,6 +17,8 @@ class InvitationResponse(BaseModel):
     guestEmail: str
     status: str
     joinLink: str | None  # only for email_contact; Salon friends get an in-app notification
+    # False when delivery failed — the link is still returned so the host can share it.
+    emailSent: bool = False
 
 
 class PendingInvitationResponse(BaseModel):

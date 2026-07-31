@@ -43,6 +43,21 @@ def create_invitation(
     return result
 
 
+@router.post("/{session_id}/invitations/{invitation_id}/email", status_code=200)
+def resend_invitation_email(
+    session_id: str,
+    invitation_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Email the join link for an existing invitation.
+
+    Split from creation so the host sees the link immediately and mails it afterwards —
+    or retries a failed send without minting a second one-time token.
+    """
+    return invitation_service.send_invitation_email(invitation_id, current_user, db)
+
+
 @guest_router.get("/guest-join/{join_token}", response_model=GuestJoinResponse)
 def guest_join_session(
     join_token: str,

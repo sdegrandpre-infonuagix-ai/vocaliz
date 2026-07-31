@@ -198,6 +198,12 @@
       <button class="btn btn-gold" onclick="invite()">Générer le lien</button>
       <div id="invite-status" class="status"></div>
       <div id="invite-link" class="link-box hidden"></div>
+      <button class="btn btn-outline hidden" id="btn-copy" onclick="copyLink()">
+        Copier le lien
+      </button>
+      <button class="btn btn-primary hidden" id="btn-send" onclick="sendInviteEmail()">
+        Envoyer par courriel
+      </button>
     </div>
   </main>
 
@@ -363,6 +369,33 @@
     }
 
     // ── Invitation ────────────────────────────────────────────────────────────
+    // The link is shown unconditionally and emailing is a separate step: delivery can
+    // fail (an address outside the verified SES domain, for one) and the host still needs
+    // the link, which works over any channel.
+    var lastInvitation = null;
+
+    async function copyLink() {
+      if (!lastInvitation) return;
+      try {
+        await navigator.clipboard.writeText(lastInvitation.joinLink);
+        setStatus('invite-status', 'Lien copié.', true);
+      } catch (e) {
+        setStatus('invite-status', 'Copie refusée par le navigateur — sélectionnez le lien.', false);
+      }
+    }
+
+    async function sendInviteEmail() {
+      if (!lastInvitation) return;
+      try {
+        await api('/sessions/' + sessionId + '/invitations/' + lastInvitation.invitationId + '/email',
+                  { method: 'POST' });
+        setStatus('invite-status', 'Courriel envoyé à ' + lastInvitation.guestEmail + '.', true);
+      } catch (e) {
+        setStatus('invite-status', "Envoi impossible : " + e.message +
+                  ' Le lien reste valide, partagez-le comme vous voulez.', false);
+      }
+    }
+
     async function invite() {
       var email = document.getElementById('guest-email').value.trim().toLowerCase();
       try {
@@ -372,11 +405,21 @@
           body: JSON.stringify({ guestEmail: email })
         });
         if (data.joinLink) {
-          setStatus('invite-status', 'Courriel envoyé à ' + email + '. Le lien est aussi affiché ci-dessous.', true);
+          lastInvitation = data;
           var box = document.getElementById('invite-link');
           box.textContent = data.joinLink;
           box.classList.remove('hidden');
+          show('btn-copy', true);
+          show('btn-send', true);
+          setStatus('invite-status', data.emailSent
+            ? 'Lien généré, et courriel déjà envoyé à ' + data.guestEmail + '.'
+            : "Lien généré. Le courriel n'a pas pu partir — envoyez-le vous-même, ou réessayez.",
+            data.emailSent);
         } else {
+          lastInvitation = null;
+          show('btn-copy', false);
+          show('btn-send', false);
+          document.getElementById('invite-link').classList.add('hidden');
           setStatus('invite-status',
             'Ce contact est déjà inscrit dans Salon : il reçoit une notification in-app, ' +
             'sans courriel ni lien web.', true);

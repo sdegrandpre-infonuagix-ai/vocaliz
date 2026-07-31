@@ -70,32 +70,77 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
         expires_at=expires_at,
     )
     db.add(invitation)
-    db.flush()  # assigns PK without committing; rolled back if the email fails
-
-    if invitation_type == "email_contact":
-        join_link = f"{settings.salon_web_base_url}/join/{join_token}"
-        try:
-            _send_invitation_email(guest_email, join_link)
-        except HTTPException:
-            db.rollback()
-            raise
-
     db.commit()
     db.refresh(invitation)
-    return _build_response(invitation, session)
+
+    # The invitation is committed before the email is attempted, deliberately. A failed
+    # send used to roll it back, which destroyed the join link at the exact moment the
+    # host most needed it to share by hand — and the link works whatever the channel
+    # ("n'importe quel moyen"). Delivery is reported, never fatal.
+    email_sent = False
+    if invitation_type == "email_contact":
+        try:
+            _send_invitation_email(guest_email, _join_link(invitation.join_token))
+            email_sent = True
+        except HTTPException as exc:
+            logger.warning("Invitation %s created but email failed: %s", invitation.id, exc.detail)
+
+    return _build_response(invitation, session, email_sent=email_sent)
 
 
-def _build_response(invitation: Invitation, session: SessionModel) -> dict:
+def _join_link(join_token: str) -> str:
+    return f"{settings.salon_web_base_url}/join/{join_token}"
+
+
+def _build_response(
+    invitation: Invitation, session: SessionModel, *, email_sent: bool = False
+) -> dict:
     join_link = None
     if invitation.invitation_type == "email_contact":
-        join_link = f"{settings.salon_web_base_url}/join/{invitation.join_token}"
+        join_link = _join_link(invitation.join_token)
     return {
         "invitationId": str(invitation.id),
         "invitationType": invitation.invitation_type,
         "guestEmail": invitation.guest_email,
         "status": invitation.status,
         "joinLink": join_link,
+        "emailSent": email_sent,
     }
+
+
+def send_invitation_email(invitation_id: str, host_user: User, db: Session) -> dict:
+    """(Re)send the join link for an existing invitation.
+
+    Separate from creation so the host can show the link first and mail it after — or
+    retry when the first attempt failed, without minting a second one-time token.
+    """
+    import uuid as _uuid
+
+    try:
+        invitation_uuid = _uuid.UUID(str(invitation_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Invitation introuvable.")
+
+    invitation = (
+        db.query(Invitation)
+        .filter(
+            Invitation.id == invitation_uuid,
+            Invitation.host_user_id == host_user.id,
+        )
+        .first()
+    )
+    if invitation is None:
+        raise HTTPException(status_code=404, detail="Invitation introuvable ou accès refusé.")
+    if invitation.invitation_type != "email_contact":
+        raise HTTPException(
+            status_code=409,
+            detail="Ce contact est inscrit dans Salon : il reçoit une notification in-app.",
+        )
+    if invitation.status != "pending":
+        raise HTTPException(status_code=409, detail="Cette invitation a déjà été utilisée.")
+
+    _send_invitation_email(invitation.guest_email, _join_link(invitation.join_token))
+    return {"invitationId": str(invitation.id), "guestEmail": invitation.guest_email}
 
 
 def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:

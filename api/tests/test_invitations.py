@@ -140,10 +140,16 @@ def test_invite_idempotent_within_5_min(mock_sms, client, host, active_session):
     assert mock_sms.call_count == 1
 
 
-# ─── SMS failure returns 503 without orphaning invitation ────────────────────
+# ─── A failed send keeps the invitation ──────────────────────────────────────
 
-@patch("src.services.invitation_service._send_invitation_email", side_effect=__import__('fastapi').HTTPException(503, "SMS unavailable"))
-def test_invite_sms_failure_returns_503_no_orphan(mock_sms, client, host, active_session, db):
+@patch("src.services.invitation_service._send_invitation_email", side_effect=__import__('fastapi').HTTPException(503, "SES unavailable"))
+def test_invite_keeps_invitation_when_email_fails(mock_send, client, host, active_session, db):
+    """This test previously asserted the opposite — a 503 and no invitation row.
+
+    Rolling back was wrong: the join link works over any channel, so discarding it
+    because one channel failed left the host with nothing to share. The invitation is
+    kept, the link is returned, and emailSent reports the failure.
+    """
     from src.models.invitation import Invitation
     _, token = host
     resp = client.post(
@@ -151,9 +157,10 @@ def test_invite_sms_failure_returns_503_no_orphan(mock_sms, client, host, active
         json={"guestEmail": "15149999999@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 503
-    # No orphaned invitation row should remain
-    assert db.query(Invitation).count() == 0
+    assert resp.status_code == 201
+    assert resp.json()["emailSent"] is False
+    assert resp.json()["joinLink"]
+    assert db.query(Invitation).count() == 1
 
 
 # ─── GET /me/invitations ─────────────────────────────────────────────────────
@@ -200,3 +207,63 @@ def test_list_invitations_empty_for_unrelated_user(mock_sms, client, db, host, a
     resp = client.get("/me/invitations", headers={"Authorization": f"Bearer {other_token}"})
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+# ─── The link must survive a failed email ────────────────────────────────────
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_invitation_survives_failed_email(mock_send, client, host, active_session):
+    """A failed send must still yield the link: the host can then share it by hand.
+
+    Rolling the invitation back destroyed the join link at the exact moment it was most
+    needed — and the link works over any channel, not just email.
+    """
+    from fastapi import HTTPException
+
+    mock_send.side_effect = HTTPException(status_code=503, detail="SES indisponible")
+    _, token = host
+
+    resp = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "unreachable@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["joinLink"]
+    assert body["emailSent"] is False
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_invitation_reports_successful_delivery(mock_send, client, host, active_session):
+    """emailSent tells the host whether they still need to share the link themselves."""
+    _, token = host
+    resp = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "reachable@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.json()["emailSent"] is True
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_email_can_be_sent_afterwards(mock_send, client, host, active_session):
+    """Sending is a separate step, and reuses the same token rather than minting one."""
+    _, token = host
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "later@example.com"},
+        headers=headers,
+    ).json()
+
+    mock_send.reset_mock()
+    resp = client.post(
+        f"/sessions/{active_session.id}/invitations/{created['invitationId']}/email",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    mock_send.assert_called_once()
+    # Same one-time token as the link already shown to the host.
+    assert created["joinLink"].endswith(mock_send.call_args.args[1].split("/")[-1])
