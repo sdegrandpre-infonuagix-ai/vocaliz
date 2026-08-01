@@ -19,7 +19,8 @@
       "Bash(xargs -I{} echo *)",
       "Bash(curl -s -m 30 https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com/sessions/__TRACKED_VAR__ -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
       "Bash(curl -s -m 30 \"https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com/host\" -o /dev/null -w \"  HTTP %{http_code}\\\\n\")",
-      "Bash(python -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\('joinLink'\\)\\)\")"
+      "Bash(python -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\('joinLink'\\)\\)\")",
+      "Bash(git grep *)"
     ]
   }
 }
