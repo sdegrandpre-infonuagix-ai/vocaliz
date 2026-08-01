@@ -16,16 +16,21 @@ export interface PendingInvitation {
 
 export interface InvitationResult {
   invitationId: string;
-  invitationType: 'salon_friend' | 'sms_contact';
-  guestPhone: string;
+  /** 'sms_contact' no longer exists — sign-in moved to email and the API returns 'email_contact'. */
+  invitationType: 'salon_friend' | 'email_contact';
+  guestEmail: string;
   status: string;
-  joinLink: string | null;
+  /** Always present: a join token is minted for every type, members included. */
+  joinLink: string;
+  /** Whether SES accepted the invitation email. A false here is not an error — the
+   *  invitation exists and the link above works over any channel. */
+  emailSent: boolean;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(body.detail ?? 'Erreur inconnue');
+    throw new Error(body.detail ?? 'Unknown error');
   }
   return res.json() as Promise<T>;
 }

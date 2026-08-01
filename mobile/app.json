@@ -38,7 +38,8 @@
         {
           "addGeneratedScheme": false
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "extra": {
       "apiUrl": "http://localhost:8000",

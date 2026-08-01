@@ -12,6 +12,7 @@ from src.config import settings
 from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
+from src.services.email_text import bilingual_body, bilingual_subject
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,11 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
         if created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
         if created > cutoff:
-            return _build_response(recent, session)
+            # Idempotent on the token, not on the delivery: repeating the invitation
+            # reuses the same one-time link but mails it again. A host who invites the
+            # same address twice is telling us the first one did not arrive, and the
+            # silent return was indistinguishable from a successful send.
+            return _build_response(recent, session, email_sent=_try_send(recent))
 
     # Determine type: registered Salon user or an email-only contact
     guest_user = db.query(User).filter(User.email == guest_email).first()
@@ -77,15 +82,26 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
     # send used to roll it back, which destroyed the join link at the exact moment the
     # host most needed it to share by hand — and the link works whatever the channel
     # ("n'importe quel moyen"). Delivery is reported, never fatal.
-    email_sent = False
-    if invitation_type == "email_contact":
-        try:
-            _send_invitation_email(guest_email, _join_link(invitation.join_token))
-            email_sent = True
-        except HTTPException as exc:
-            logger.warning("Invitation %s created but email failed: %s", invitation.id, exc.detail)
+    #
+    # Sent for every invitation type, registered members included. The in-app notification
+    # only reaches a member who opens the app; an invitation to a conversation happening
+    # now has to arrive on its own. Email is the channel that always lands, so it is the
+    # baseline and the notification is the extra — not the other way round.
+    return _build_response(invitation, session, email_sent=_try_send(invitation))
 
-    return _build_response(invitation, session, email_sent=email_sent)
+
+def _try_send(invitation: Invitation) -> bool:
+    """Mail the join link, reporting delivery instead of raising.
+
+    A failed send must never be fatal here: the invitation is already committed and the
+    link works over any channel, so the host keeps something to share by hand.
+    """
+    try:
+        _send_invitation_email(invitation.guest_email, _join_link(invitation.join_token))
+        return True
+    except HTTPException as exc:
+        logger.warning("Invitation %s: email failed: %s", invitation.id, exc.detail)
+        return False
 
 
 def _join_link(join_token: str) -> str:
@@ -120,7 +136,7 @@ def send_invitation_email(invitation_id: str, host_user: User, db: Session) -> d
     try:
         invitation_uuid = _uuid.UUID(str(invitation_id))
     except ValueError:
-        raise HTTPException(status_code=404, detail="Invitation introuvable.")
+        raise HTTPException(status_code=404, detail="Invitation not found.")
 
     invitation = (
         db.query(Invitation)
@@ -131,14 +147,12 @@ def send_invitation_email(invitation_id: str, host_user: User, db: Session) -> d
         .first()
     )
     if invitation is None:
-        raise HTTPException(status_code=404, detail="Invitation introuvable ou accès refusé.")
-    if invitation.invitation_type != "email_contact":
-        raise HTTPException(
-            status_code=409,
-            detail="Ce contact est inscrit dans Salon : il reçoit une notification in-app.",
-        )
+        raise HTTPException(status_code=404, detail="Invitation not found or access denied.")
+    # No type check: a registered member is emailed like anyone else, so resending to one
+    # is a legitimate request. Refusing it used to leave the host unable to re-notify a
+    # friend who had simply not opened the app.
     if invitation.status != "pending":
-        raise HTTPException(status_code=409, detail="Cette invitation a déjà été utilisée.")
+        raise HTTPException(status_code=409, detail="This invitation has already been used.")
 
     _send_invitation_email(invitation.guest_email, _join_link(invitation.join_token))
     return {"invitationId": str(invitation.id), "guestEmail": invitation.guest_email}
@@ -237,10 +251,18 @@ def send_followup_email_to_guests(session_id_str: str, db: Session) -> int:
         try:
             _send_email(
                 inv.guest_email,
-                "Merci d'avoir participé à Salon",
-                "Merci d'avoir participé à une conversation Salon !\n\n"
-                "Installez l'application pour une expérience complète :\n"
-                f"{settings.salon_install_url}",
+                bilingual_subject(
+                    "Thanks for taking part in Salon",
+                    "Merci d'avoir participé à Salon",
+                ),
+                bilingual_body(
+                    "Thank you for taking part in a Salon conversation!\n\n"
+                    "Install the app for the full experience:\n"
+                    f"{settings.salon_install_url}",
+                    "Merci d'avoir participé à une conversation Salon !\n\n"
+                    "Installez l'application pour une expérience complète :\n"
+                    f"{settings.salon_install_url}",
+                ),
             )
             sent += 1
         except Exception:  # noqa: BLE001
@@ -265,16 +287,28 @@ def _send_email(to_address: str, subject: str, body: str) -> None:
     except ClientError as exc:
         logger.error("SES invitation send failed for %s: %s", to_address, exc, exc_info=True)
         raise HTTPException(
-            status_code=503, detail="Service d'envoi de courriel indisponible."
+            status_code=503, detail="Email delivery service unavailable."
         ) from exc
 
 
 def _send_invitation_email(to_address: str, join_link: str) -> None:
+    # The link is repeated in both halves rather than shared between them. It is the one
+    # thing the recipient has to act on, and it must be within reach of whichever half
+    # they actually read.
     _send_email(
         to_address,
-        "Vous êtes invité à une conversation Salon",
-        "Vous avez été invité à rejoindre une conversation Salon.\n\n"
-        f"Rejoignez ici : {join_link}\n\n"
-        "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures. "
-        "Ouvrez-le directement dans votre navigateur.",
+        bilingual_subject(
+            "You are invited to a Salon conversation",
+            "Vous êtes invité à une conversation Salon",
+        ),
+        bilingual_body(
+            "You have been invited to join a Salon conversation.\n\n"
+            f"Join here: {join_link}\n\n"
+            "This link works only once and expires in 24 hours. "
+            "Open it directly in your browser.",
+            "Vous avez été invité à rejoindre une conversation Salon.\n\n"
+            f"Rejoignez ici : {join_link}\n\n"
+            "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures. "
+            "Ouvrez-le directement dans votre navigateur.",
+        ),
     )

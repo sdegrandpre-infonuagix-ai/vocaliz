@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
+import LanguageToggle from '../components/LanguageToggle';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -70,6 +71,11 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ── Language switch ──
+            Repeated here because this is the first screen after signing in, and the
+            switch on the email screen is no longer reachable once a token is held. */}
+        <LanguageToggle />
+
         {/* ── Header ── */}
         <Text style={styles.title} accessibilityRole="header">
           {t.session.title}

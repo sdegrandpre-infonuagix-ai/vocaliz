@@ -66,8 +66,8 @@ async def create_session(
         raise HTTPException(
             status_code=402,
             detail=(
-                "Votre heure d'essai gratuite est épuisée. "
-                "Veuillez ajouter une méthode de paiement pour continuer."
+                "Your free trial hour is used up. "
+                "Please add a payment method to continue."
             ),
         )
 
@@ -140,7 +140,7 @@ async def create_session(
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail="partner_email doit être une adresse courriel valide.",
+                detail="partner_email must be a valid email address.",
             )
         invite = invitation_service.invite_guest(
             session_id=str(session.id),
@@ -183,22 +183,22 @@ async def add_session_source(
     try:
         session_uuid = _uuid.UUID(session_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session introuvable.")
+        raise HTTPException(status_code=404, detail="Session not found.")
 
     session = db.query(SessionModel).filter(
         SessionModel.id == session_uuid,
         SessionModel.host_user_id == current_user.id,
     ).first()
     if not session:
-        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
 
     if session.status != "active":
-        raise HTTPException(status_code=409, detail="Impossible d'ajouter une source à une session terminée.")
+        raise HTTPException(status_code=409, detail="Cannot add a source to an ended session.")
 
     if not source_url and (file is None or not file.filename):
         raise HTTPException(
             status_code=400,
-            detail="sourceUrl ou file est requis pour ajouter une source.",
+            detail="sourceUrl or file is required to add a source.",
         )
 
     # Extract content
@@ -354,14 +354,14 @@ def get_session(
     try:
         session_uuid = _uuid.UUID(session_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session introuvable.")
+        raise HTTPException(status_code=404, detail="Session not found.")
 
     session = db.query(SessionModel).filter(
         SessionModel.id == session_uuid,
         SessionModel.host_user_id == current_user.id,
     ).first()
     if not session:
-        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
 
     extra_sources = (
         db.query(SessionSource)
@@ -409,15 +409,15 @@ def join_session(
     try:
         session_uuid = _uuid.UUID(session_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session introuvable.")
+        raise HTTPException(status_code=404, detail="Session not found.")
 
     session = db.query(SessionModel).filter(
         SessionModel.id == session_uuid,
     ).first()
     if not session:
-        raise HTTPException(status_code=404, detail="Session introuvable.")
+        raise HTTPException(status_code=404, detail="Session not found.")
     if session.status != "active":
-        raise HTTPException(status_code=409, detail="Cette session est terminée.")
+        raise HTTPException(status_code=409, detail="This session has ended.")
 
     # Authorise host OR invited guest
     is_host = session.host_user_id == current_user.id
@@ -435,7 +435,7 @@ def join_session(
             .first()
         )
         if not invitation:
-            raise HTTPException(status_code=403, detail="Accès refusé à cette session.")
+            raise HTTPException(status_code=403, detail="Access denied to this session.")
 
     # Mark invitation accepted
     if invitation:
@@ -476,16 +476,16 @@ def session_heartbeat(
     try:
         session_uuid = _uuid.UUID(session_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session introuvable.")
+        raise HTTPException(status_code=404, detail="Session not found.")
 
     session = db.query(SessionModel).filter(
         SessionModel.id == session_uuid,
         SessionModel.host_user_id == current_user.id,
     ).first()
     if not session:
-        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
     if session.status != "active":
-        raise HTTPException(status_code=409, detail="La session est terminée.")
+        raise HTTPException(status_code=409, detail="The session has ended.")
 
     seconds = max(0, body.seconds)
     host = db.query(User).filter(User.id == session.host_user_id).first()
@@ -516,16 +516,16 @@ async def end_session(
     try:
         session_uuid = _uuid.UUID(session_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session introuvable.")
+        raise HTTPException(status_code=404, detail="Session not found.")
 
     session = db.query(SessionModel).filter(
         SessionModel.id == session_uuid,
         SessionModel.host_user_id == current_user.id,
     ).first()
     if not session:
-        raise HTTPException(status_code=404, detail="Session introuvable ou accès refusé.")
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
     if session.status == "ended":
-        raise HTTPException(status_code=409, detail="Cette session est déjà terminée.")
+        raise HTTPException(status_code=409, detail="This session has already ended.")
 
     # Shared with the cleanup that runs before a host opens a new session, so the
     # metering clamp and the billing path cannot drift between the two.

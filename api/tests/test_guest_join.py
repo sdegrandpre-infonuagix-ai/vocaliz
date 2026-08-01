@@ -103,7 +103,7 @@ def test_guest_join_second_use_returns_410(client, db, host, active_session):
     inv = _make_invitation(db, host_user, active_session, status="accepted")
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
     assert resp.status_code == 410
-    assert "déjà été utilisé" in resp.json()["detail"]
+    assert "already been used" in resp.json()["detail"]
 
 
 def test_guest_join_concurrent_use_blocked(client, db, host, active_session):
@@ -133,7 +133,7 @@ def test_guest_join_expired_token_returns_410(client, db, host, active_session):
     inv = _make_invitation(db, host_user, active_session, expired=True)
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
     assert resp.status_code == 410
-    assert "expiré" in resp.json()["detail"]
+    assert "expired" in resp.json()["detail"]
 
 
 def test_guest_join_ended_session_returns_410(client, db, host):
@@ -153,7 +153,7 @@ def test_guest_join_ended_session_returns_410(client, db, host):
     inv = _make_invitation(db, host_user, sess)
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
     assert resp.status_code == 410
-    assert "n'est plus disponible" in resp.json()["detail"]
+    assert "no longer available" in resp.json()["detail"]
 
 
 # ─── Web page ─────────────────────────────────────────────────────────────────
@@ -166,9 +166,15 @@ def test_guest_web_page_returns_html(client):
 
 
 def test_guest_web_page_contains_badge(client):
-    """Served HTML contains the 'Sans Installation' badge."""
+    """Served HTML contains the no-install badge, in the default language.
+
+    The markup is English and French comes from the page's own dictionary, so the badge
+    that ships in the HTML is the English one. Both are asserted: the French string is
+    what a guest sees after using the switch, and losing it would be a silent regression.
+    """
     resp = client.get(f"/join/{secrets.token_urlsafe(32)}")
-    assert "Sans Installation" in resp.text
+    assert "No install" in resp.text
+    assert "Sans installation" in resp.text
 
 
 def test_guest_web_page_is_responsive(client):

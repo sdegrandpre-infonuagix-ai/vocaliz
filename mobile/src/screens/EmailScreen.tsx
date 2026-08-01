@@ -18,6 +18,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import LanguageToggle from '../components/LanguageToggle';
 import TelegraphIcon from '../components/TelegraphIcon';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,6 +58,11 @@ export default function EmailScreen({ navigation }: Props) {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ── Language switch ──
+            On the first screen of the app, so the interface language can be settled
+            before reading anything else. */}
+        <LanguageToggle />
+
         {/* ── Telegraph icon ── */}
         <View style={styles.iconContainer} accessibilityElementsHidden>
           <TelegraphIcon size={160} />

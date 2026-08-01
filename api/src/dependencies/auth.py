@@ -19,12 +19,12 @@ def get_current_user(
     payload = decode_token(credentials.credentials)
     user_id_str: str | None = payload.get("sub")
     if not user_id_str:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalide.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
     try:
         user_id = uuid.UUID(user_id_str)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalide.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Utilisateur non trouvé.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
     return user

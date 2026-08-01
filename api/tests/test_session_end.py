@@ -119,7 +119,7 @@ def test_end_already_ended_session_returns_409(client, host, ended_session):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 409
-    assert "déjà terminée" in resp.json()["detail"]
+    assert "already ended" in resp.json()["detail"]
 
 
 def test_end_session_by_non_host_returns_404(client, other_user, active_session):

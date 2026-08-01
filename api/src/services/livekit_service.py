@@ -41,7 +41,7 @@ async def create_room(room_name: str) -> None:
         )
         raise HTTPException(
             status_code=503,
-            detail="Impossible de créer la salle LiveKit. Veuillez réessayer.",
+            detail="Could not create the LiveKit room. Please try again.",
         ) from exc
 
 

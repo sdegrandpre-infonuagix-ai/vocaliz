@@ -14,7 +14,7 @@ export interface SessionResponse {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(body.detail ?? 'Erreur inconnue');
+    throw new Error(body.detail ?? 'Unknown error');
   }
   return res.json() as Promise<T>;
 }

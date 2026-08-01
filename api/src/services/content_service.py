@@ -21,7 +21,7 @@ _MAX_TEXT_CHARS = 50_000              # trim after extraction to keep context ma
 async def fetch_url_content(url: str) -> str:
     """Fetch a URL and return extracted plain text. Raises HTTPException on failure."""
     if not re.match(r"^https?://", url):
-        raise HTTPException(status_code=400, detail="sourceUrl doit commencer par http:// ou https://")
+        raise HTTPException(status_code=400, detail="sourceUrl must start with http:// or https://")
 
     await _assert_host_is_public(url)
 
@@ -32,10 +32,10 @@ async def fetch_url_content(url: str) -> str:
     except httpx.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"Impossible de récupérer l'URL (HTTP {exc.response.status_code}).",
+            detail=f"Could not fetch the URL (HTTP {exc.response.status_code}).",
         ) from exc
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail="Impossible de récupérer l'URL.") from exc
+        raise HTTPException(status_code=502, detail="Could not fetch the URL.") from exc
 
     content_type = response.headers.get("content-type", "")
     if "text/html" in content_type or "application/xhtml" in content_type:
@@ -54,23 +54,23 @@ async def _assert_host_is_public(url: str) -> None:
     """
     host = urlparse(url).hostname
     if not host:
-        raise HTTPException(status_code=400, detail="URL invalide.")
+        raise HTTPException(status_code=400, detail="Invalid URL.")
     try:
         ip_str = await asyncio.to_thread(socket.gethostbyname, host)
         ip = ipaddress.ip_address(ip_str)
     except socket.gaierror:
-        raise HTTPException(status_code=400, detail="Impossible de résoudre l'hôte de l'URL.")
+        raise HTTPException(status_code=400, detail="Could not resolve the URL host.")
     except ValueError:
-        raise HTTPException(status_code=400, detail="URL invalide.")
+        raise HTTPException(status_code=400, detail="Invalid URL.")
     if not ip.is_global:
-        raise HTTPException(status_code=400, detail="URL non autorisée.")
+        raise HTTPException(status_code=400, detail="URL not allowed.")
 
 
 async def extract_file_content(file: UploadFile) -> str:
     """Extract plain text from a .txt or .pdf upload. Raises HTTPException on failure."""
     data = await file.read()
     if len(data) > _MAX_CONTENT_BYTES:
-        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 5 Mo).")
+        raise HTTPException(status_code=413, detail="File too large (max 5 MB).")
 
     filename = (file.filename or "").lower()
     content_type = file.content_type or ""
@@ -83,7 +83,7 @@ async def extract_file_content(file: UploadFile) -> str:
 
     raise HTTPException(
         status_code=415,
-        detail="Type de fichier non supporté. Utilisez .txt ou .pdf.",
+        detail="Unsupported file type. Use .txt or .pdf.",
     )
 
 
@@ -107,5 +107,5 @@ def _extract_pdf_text(data: bytes) -> str:
         return "\n".join(pages)[:_MAX_TEXT_CHARS]
     except Exception as exc:
         raise HTTPException(
-            status_code=422, detail="Impossible de lire le PDF."
+            status_code=422, detail="Could not read the PDF."
         ) from exc

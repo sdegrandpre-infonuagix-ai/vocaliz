@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Salon — Rejoindre la conversation</title>
+  <title>Salon — Join the conversation</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -41,6 +41,27 @@
       padding: 3px 9px;
       border-radius: 4px;
       white-space: nowrap;
+    }
+
+    /* Language switch — pushed to the far end of the header bar. */
+    .lang { margin-left: auto; display: flex; gap: 4px; }
+
+    .lang-btn {
+      background: transparent;
+      color: #F8F3E8;
+      border: 1px solid rgba(248, 243, 232, .45);
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    .lang-btn[aria-pressed="true"] {
+      background: #C9A84C;
+      color: #2C2C2C;
+      border-color: #C9A84C;
     }
 
     main {
@@ -168,9 +189,16 @@
 </head>
 <body>
 
+<!-- Copy lives in English in the markup and French comes from the dictionary in the
+     script below, so the default language renders with no JavaScript involved and a
+     failed script degrades to a readable page rather than to translation keys. -->
 <header>
   <h1>Salon</h1>
-  <span class="badge-no-install">Sans Installation</span>
+  <span class="badge-no-install" data-i18n="badge">No install</span>
+  <div class="lang" role="group" aria-label="Language">
+    <button type="button" class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
+    <button type="button" class="lang-btn" id="lang-fr" onclick="setLang('fr')">FR</button>
+  </div>
 </header>
 
 <main>
@@ -178,62 +206,63 @@
   <!-- State: loading -->
   <div id="v-loading" class="card">
     <div class="card-icon">⏳</div>
-    <div class="card-title">Connexion en cours…</div>
-    <div class="card-sub">Merci de patienter un instant.</div>
+    <div class="card-title" data-i18n="loadingTitle">Connecting…</div>
+    <div class="card-sub" data-i18n="loadingSub">One moment please.</div>
   </div>
 
-  <!-- State: ready to join -->
+  <!-- State: ready to join. Title, subtitle and icon are all driven by readyMode, so
+       they carry no data-i18n — renderReady() owns them. -->
   <div id="v-ready" class="card" style="display:none">
-    <div class="card-icon">🎙️</div>
-    <div class="card-title" id="ready-title">Prêt à rejoindre</div>
+    <div class="card-icon" id="ready-icon">🎙️</div>
+    <div class="card-title" id="ready-title">Ready to join</div>
     <div class="card-sub" id="ready-sub">
-      Salon a besoin d'accéder à votre microphone pour participer à la conversation.
+      Salon needs access to your microphone so you can take part in the conversation.
     </div>
   </div>
 
   <!-- State: connected -->
   <div id="v-connected" class="card" style="display:none">
     <div class="card-icon">🟢</div>
-    <div class="card-title">Vous êtes dans le Salon</div>
-    <div class="card-sub">La conversation est en cours. Parlez librement.</div>
+    <div class="card-title" data-i18n="connectedTitle">You are in the Salon</div>
+    <div class="card-sub" data-i18n="connectedSub">The conversation is under way. Speak freely.</div>
     <div class="mic-row">
       <div id="mic-dot" class="mic-dot"></div>
-      <span id="mic-label">Microphone en cours d'activation…</span>
+      <span id="mic-label">Turning the microphone on…</span>
     </div>
   </div>
 
   <!-- State: error -->
   <div id="v-error" class="card" style="display:none">
     <div class="card-icon">⚠️</div>
-    <div class="card-title" id="err-title">Impossible de rejoindre</div>
-    <div class="card-sub" id="err-detail">Ce lien a peut-être déjà été utilisé ou a expiré.</div>
+    <div class="card-title" id="err-title">Unable to join</div>
+    <div class="card-sub" id="err-detail">This link may already have been used, or has expired.</div>
   </div>
 
   <!-- Action buttons (conditionally shown) -->
   <button id="btn-join" class="btn btn-primary" style="display:none" onclick="joinNow()">
-    Rejoindre la conversation
+    Join the conversation
   </button>
 
-  <button id="btn-leave" class="btn btn-outline" style="display:none" onclick="leaveNow()">
-    Quitter la conversation
+  <button id="btn-leave" class="btn btn-outline" style="display:none" onclick="leaveNow()" data-i18n="leaveButton">
+    Leave the conversation
   </button>
 
   <!-- Shown only when the browser blocked audio playback; needs a user gesture -->
-  <button id="btn-sound" class="btn btn-primary" style="display:none" onclick="unlockAudio()">
-    🔊  Activer le son
+  <button id="btn-sound" class="btn btn-primary" style="display:none" onclick="unlockAudio()" data-i18n="soundButton">
+    🔊  Enable sound
   </button>
 
   <!-- Retry the microphone in place. Reloading would consume the one-time join link, so
        telling a participant to reload after a refused prompt left them with no way back. -->
-  <button id="btn-mic" class="btn btn-primary" style="display:none" onclick="retryMic()">
-    🎤  Activer le micro
+  <button id="btn-mic" class="btn btn-primary" style="display:none" onclick="retryMic()" data-i18n="micButton">
+    🎤  Enable microphone
   </button>
 
   <!-- Static info footer (always visible) -->
   <ul class="info-list">
-    <li><span class="ico">🔒</span> Accès invité sécurisé — aucun compte requis</li>
-    <li><span class="ico">📱</span> Aucune installation — tout dans votre navigateur</li>
-    <li><span class="ico">🎵</span> Conversation audio animée par l'IA Salon</li>
+    <li><span class="ico">🔒</span> <span data-i18n="info1">Secure guest access — no account needed</span></li>
+    <li><span class="ico">📱</span> <span data-i18n="info2">Nothing to install — all in your browser</span></li>
+    <li><span class="ico">🎵</span> <span data-i18n="info3">Audio conversation hosted by the Salon AI</span></li>
   </ul>
 
 </main>
@@ -241,6 +270,184 @@
 <!-- LiveKit JavaScript SDK (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <script>
+  // ── Translations ────────────────────────────────────────────────────────────
+  // The guest's own browser decides, since a join link says nothing about the language
+  // the person opening it reads. English is the fallback when the browser asks for
+  // something we do not speak. The header switch outranks detection and is remembered.
+  var I18N = {
+    en: {
+      pageTitle: 'Salon — Join the conversation',
+      badge: 'No install',
+      loadingTitle: 'Connecting…',
+      loadingSub: 'One moment please.',
+      readyTitle: 'Ready to join',
+      readySub: 'Salon needs access to your microphone so you can take part in the conversation.',
+      leftTitle: 'You have left the Salon',
+      leftSub: 'Thank you for taking part!',
+      connFailTitle: 'Connection interrupted',
+      connFailSub: 'The connection to the Salon failed. Check your network and try again — '
+                 + 'without reloading the page.',
+      connectedTitle: 'You are in the Salon',
+      connectedSub: 'The conversation is under way. Speak freely.',
+      errTitle: 'Unable to join',
+      errDetail: 'This link may already have been used, or has expired.',
+      joinButton: 'Join the conversation',
+      retryButton: 'Try again',
+      leaveButton: 'Leave the conversation',
+      soundButton: '🔊  Enable sound',
+      micButton: '🎤  Enable microphone',
+      info1: 'Secure guest access — no account needed',
+      info2: 'Nothing to install — all in your browser',
+      info3: 'Audio conversation hosted by the Salon AI',
+      micStarting: 'Turning the microphone on…',
+      micOn: 'Microphone on',
+      micOff: 'Microphone off',
+      micBlocked: 'Microphone blocked — allow it from the icon in the address bar',
+      errLinkTitle: 'Link unavailable',
+      errLinkDetail: 'This link is invalid, has already been used, or has expired.',
+      errConnTitle: 'Connection error',
+      errConnDetail: 'An unexpected error occurred.',
+      errNetTitle: 'Network error',
+      errNetDetail: 'Could not reach the server. Check your connection.',
+      errIncompleteTitle: 'Invalid link',
+      errIncompleteDetail: 'This join link is incomplete.'
+    },
+    fr: {
+      pageTitle: 'Salon — Rejoindre la conversation',
+      badge: 'Sans installation',
+      loadingTitle: 'Connexion en cours…',
+      loadingSub: 'Merci de patienter un instant.',
+      readyTitle: 'Prêt à rejoindre',
+      readySub: "Salon a besoin d'accéder à votre microphone pour participer à la conversation.",
+      leftTitle: 'Vous avez quitté le Salon',
+      leftSub: 'Merci pour votre participation !',
+      connFailTitle: 'Connexion interrompue',
+      connFailSub: 'La connexion au Salon a échoué. Vérifiez votre réseau puis réessayez — '
+                 + 'sans recharger la page.',
+      connectedTitle: 'Vous êtes dans le Salon',
+      connectedSub: 'La conversation est en cours. Parlez librement.',
+      errTitle: 'Impossible de rejoindre',
+      errDetail: 'Ce lien a peut-être déjà été utilisé ou a expiré.',
+      joinButton: 'Rejoindre la conversation',
+      retryButton: 'Réessayer',
+      leaveButton: 'Quitter la conversation',
+      soundButton: '🔊  Activer le son',
+      micButton: '🎤  Activer le micro',
+      info1: 'Accès invité sécurisé — aucun compte requis',
+      info2: 'Aucune installation — tout dans votre navigateur',
+      info3: "Conversation audio animée par l'IA Salon",
+      micStarting: "Microphone en cours d'activation…",
+      micOn: 'Microphone actif',
+      micOff: 'Microphone inactif',
+      micBlocked: "Microphone bloqué — autorisez-le via l'icône de la barre d'adresse",
+      errLinkTitle: 'Lien non disponible',
+      errLinkDetail: 'Ce lien est invalide, a déjà été utilisé, ou a expiré.',
+      errConnTitle: 'Erreur de connexion',
+      errConnDetail: 'Une erreur inattendue est survenue.',
+      errNetTitle: 'Erreur réseau',
+      errNetDetail: 'Impossible de contacter le serveur. Vérifiez votre connexion.',
+      errIncompleteTitle: 'Lien invalide',
+      errIncompleteDetail: 'Ce lien de jointure est incomplet.'
+    }
+  };
+
+  var LANG_KEY = 'salon_lang';
+
+  // Precedence: a choice made here, then the browser's own languages, then English.
+  function storedLang() {
+    // localStorage throws outright under some privacy settings, not just return null.
+    try {
+      var v = localStorage.getItem(LANG_KEY);
+      return I18N[v] ? v : null;
+    } catch (e) { return null; }
+  }
+
+  // navigator.languages is ordered by preference, so a browser set to [es, fr, en]
+  // should land on French. Taking the first entry we recognise is what gets that right;
+  // looking only at navigator.language would give English.
+  function browserLang() {
+    var list = (navigator.languages && navigator.languages.length)
+      ? navigator.languages
+      : [navigator.language || ''];
+    for (var i = 0; i < list.length; i++) {
+      var base = String(list[i]).split('-')[0].toLowerCase();
+      if (I18N[base]) return base;
+    }
+    return null;
+  }
+
+  var lang = storedLang() || browserLang() || 'en';
+
+  function T(key) { return I18N[lang][key] || I18N.en[key] || key; }
+
+  function setLang(next) {
+    if (!I18N[next]) return;
+    lang = next;
+    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: session only */ }
+    applyLang();
+  }
+
+  // Re-renders static and stateful copy alike. A guest who switches language mid-session
+  // must not be left with a half-translated page, and the parts most likely to matter to
+  // them — the microphone line, an error reason — are exactly the stateful ones.
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = T('pageTitle');
+
+    var nodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = T(nodes[i].getAttribute('data-i18n'));
+    }
+
+    document.getElementById('lang-en').setAttribute('aria-pressed', lang === 'en');
+    document.getElementById('lang-fr').setAttribute('aria-pressed', lang === 'fr');
+
+    renderReady();
+    renderError();
+    renderMic();
+    renderJoinBtn();
+  }
+
+  // ── Stateful copy ───────────────────────────────────────────────────────────
+  // Held as state rather than as finished text so applyLang() can render it again.
+  var readyMode = 'initial';            // 'initial' | 'left' | 'connfail'
+  var errState = { titleKey: 'errTitle', detailKey: 'errDetail', detailRaw: null };
+  var micState = { on: false, denied: false, starting: true };
+  var joinKey = 'joinButton';           // becomes 'retryButton' after a failed attempt
+
+  var READY_ICONS = { initial: '🎙️', left: '👋', connfail: '⚠️' };
+  var READY_KEYS = {
+    initial: ['readyTitle', 'readySub'],
+    left: ['leftTitle', 'leftSub'],
+    connfail: ['connFailTitle', 'connFailSub']
+  };
+
+  function renderReady() {
+    document.getElementById('ready-icon').textContent = READY_ICONS[readyMode];
+    document.getElementById('ready-title').textContent = T(READY_KEYS[readyMode][0]);
+    document.getElementById('ready-sub').textContent = T(READY_KEYS[readyMode][1]);
+  }
+
+  function renderError() {
+    document.getElementById('err-title').textContent = T(errState.titleKey);
+    // detailRaw holds a message from the API, which speaks French only. It is shown
+    // verbatim rather than pretending to be translatable.
+    document.getElementById('err-detail').textContent =
+      errState.detailRaw !== null ? errState.detailRaw : T(errState.detailKey);
+  }
+
+  function renderMic() {
+    document.getElementById('mic-dot').classList.toggle('live', micState.on);
+    document.getElementById('mic-label').textContent = micState.on
+      ? T('micOn')
+      : (micState.starting ? T('micStarting') : (micState.denied ? T('micBlocked') : T('micOff')));
+  }
+
+  function renderJoinBtn() {
+    document.getElementById('btn-join').textContent = T(joinKey);
+  }
+
+  // ── App ─────────────────────────────────────────────────────────────────────
   var room = null;
   var creds = null;
 
@@ -281,9 +488,9 @@
     }
   }
 
-  function showError(title, detail) {
-    document.getElementById('err-title').textContent = title || 'Erreur';
-    document.getElementById('err-detail').textContent = detail || '';
+  function showError(titleKey, detailKey, detailRaw) {
+    errState = { titleKey: titleKey, detailKey: detailKey, detailRaw: detailRaw || null };
+    renderError();
     showCard('v-error');
     showBtn(null);
   }
@@ -294,18 +501,20 @@
       var resp = await fetch('/invitations/guest-join/' + joinToken);
       var data = await resp.json();
       if (resp.status === 404 || resp.status === 410) {
-        showError('Lien non disponible', data.detail || 'Ce lien est invalide, a déjà été utilisé, ou a expiré.');
+        showError('errLinkTitle', 'errLinkDetail', data.detail);
         return;
       }
       if (!resp.ok) {
-        showError('Erreur de connexion', data.detail || 'Une erreur inattendue est survenue.');
+        showError('errConnTitle', 'errConnDetail', data.detail);
         return;
       }
       creds = data;
+      readyMode = 'initial';
+      renderReady();
       showCard('v-ready');
       showBtn('btn-join');
     } catch (e) {
-      showError('Erreur réseau', 'Impossible de contacter le serveur. Vérifiez votre connexion.');
+      showError('errNetTitle', 'errNetDetail');
     }
   }
 
@@ -332,9 +541,8 @@
 
       room.on(LivekitClient.RoomEvent.Disconnected, function() {
         room = null;
-        document.getElementById('ready-title').textContent = 'Vous avez quitté le Salon';
-        document.getElementById('ready-sub').textContent = 'Merci pour votre participation !';
-        document.getElementById('v-ready').querySelector('.card-icon').textContent = '👋';
+        readyMode = 'left';
+        renderReady();
         showCard('v-ready');
         showBtn(null);
       });
@@ -362,13 +570,13 @@
       // setMicState. Staying on v-ready with Join re-enabled is deliberate: the one-time
       // token was already consumed by fetchCredentials, so the terminal error card would
       // strand the participant with a link that can never be reopened.
-      document.getElementById('ready-title').textContent = 'Connexion interrompue';
-      document.getElementById('ready-sub').textContent =
-        'La connexion au Salon a échoué. Vérifiez votre réseau puis réessayez — sans recharger la page.';
+      readyMode = 'connfail';
+      joinKey = 'retryButton';
+      renderReady();
+      renderJoinBtn();
       showCard('v-ready');
       showBtn('btn-join');
       document.getElementById('btn-join').disabled = false;
-      document.getElementById('btn-join').textContent = 'Réessayer';
     }
   }
 
@@ -379,23 +587,19 @@
 
   // ── Microphone state, reflected instead of asserted ───────────────────────
   function setMicState(on, err) {
-    document.getElementById('mic-dot').classList.toggle('live', !!on);
-    var label = document.getElementById('mic-label');
     var micBtn = document.getElementById('btn-mic');
 
     if (on) {
-      label.textContent = 'Microphone actif';
+      micState = { on: true, denied: false, starting: false };
       micBtn.style.display = 'none';
-      return;
+    } else {
+      var denied = err && (err.name === 'NotAllowedError' || /permission|denied/i.test(err.message || ''));
+      // Never suggest reloading: that consumes the one-time join link and locks the
+      // participant out entirely. The button below retries in place instead.
+      micState = { on: false, denied: !!denied, starting: false };
+      micBtn.style.display = '';
     }
-
-    var denied = err && (err.name === 'NotAllowedError' || /permission|denied/i.test(err.message || ''));
-    // Never suggest reloading: that consumes the one-time join link and locks the
-    // participant out entirely. The button below retries in place instead.
-    label.textContent = denied
-      ? "Microphone bloqué — autorisez-le via l'icône de la barre d'adresse"
-      : 'Microphone inactif';
-    micBtn.style.display = '';
+    renderMic();
   }
 
   async function retryMic() {
@@ -424,12 +628,12 @@
   window.addEventListener('pagehide', onPageUnload);
 
   // ── Boot ──────────────────────────────────────────────────────────────────
+  applyLang();
   if (!joinToken || joinToken === 'join') {
-    showError('Lien invalide', 'Ce lien de jointure est incomplet.');
+    showError('errIncompleteTitle', 'errIncompleteDetail');
   } else {
     fetchCredentials();
   }
 </script>
-
 </body>
 </html>

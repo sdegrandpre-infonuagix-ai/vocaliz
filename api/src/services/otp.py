@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.models.user import User
+from src.services.email_text import bilingual_body, bilingual_subject
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +41,12 @@ def verify_otp(email: str, code: str, db: Session) -> User:
     user = db.query(User).filter(User.email == email).first()
 
     if user is None or user.otp_code is None:
-        raise HTTPException(status_code=400, detail="Aucun code en attente pour cette adresse.")
+        raise HTTPException(status_code=400, detail="No pending code for this address.")
 
     if user.otp_attempts >= settings.otp_max_attempts:
         raise HTTPException(
             status_code=429,
-            detail="Trop de tentatives. Veuillez demander un nouveau code.",
+            detail="Too many attempts. Please request a new code.",
         )
 
     now = datetime.now(timezone.utc)
@@ -57,14 +58,14 @@ def verify_otp(email: str, code: str, db: Session) -> User:
         _clear_otp(user, db)
         raise HTTPException(
             status_code=400,
-            detail="Ce code a expiré. Veuillez en demander un nouveau.",
+            detail="This code has expired. Please request a new one.",
         )
 
     user.otp_attempts += 1
     db.commit()
 
     if user.otp_code != code:
-        raise HTTPException(status_code=400, detail="Code incorrect. Veuillez réessayer.")
+        raise HTTPException(status_code=400, detail="Incorrect code. Please try again.")
 
     _clear_otp(user, db)
     return user
@@ -95,13 +96,22 @@ def _send_email(email: str, code: str) -> None:
             Destination={"ToAddresses": [email]},
             Content={
                 "Simple": {
-                    "Subject": {"Data": f"Votre code Salon : {code}", "Charset": "UTF-8"},
+                    "Subject": {
+                        "Data": bilingual_subject(
+                            f"Your Salon code: {code}",
+                            f"Votre code Salon : {code}",
+                        ),
+                        "Charset": "UTF-8",
+                    },
                     "Body": {
                         "Text": {
-                            "Data": (
+                            "Data": bilingual_body(
+                                f"Your Salon code is: {code}\n"
+                                f"Valid for {minutes} minutes.\n\n"
+                                "If you did not request this code, ignore this message.",
                                 f"Votre code Salon est : {code}\n"
                                 f"Valable {minutes} minutes.\n\n"
-                                "Si vous n'avez pas demandé ce code, ignorez ce message."
+                                "Si vous n'avez pas demandé ce code, ignorez ce message.",
                             ),
                             "Charset": "UTF-8",
                         }
@@ -115,5 +125,5 @@ def _send_email(email: str, code: str) -> None:
         logger.error("SES send_email failed for %s: %s", email, exc, exc_info=True)
         raise HTTPException(
             status_code=503,
-            detail="Impossible d'envoyer le courriel. Veuillez réessayer.",
+            detail="Could not send the email. Please try again.",
         ) from exc

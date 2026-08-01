@@ -21,26 +21,29 @@ registerGlobals();
 SplashScreen.preventAutoHideAsync();
 
 /**
- * Fetches the user's detected language from the API and applies it to
- * the LanguageContext whenever the auth token becomes available.
+ * Fetches the user's detected language from the API and offers it to the
+ * LanguageContext whenever the auth token becomes available.
  * Renders nothing — side-effect only.
+ *
+ * A suggestion, not an assignment: the detected language comes from the speech the agent
+ * heard, so it must not overrule a host who picked a language from the header switch.
  */
 function LanguageBootstrap() {
   const { token } = useAuth();
-  const { setLanguage } = useLanguage();
+  const { suggestLanguage } = useLanguage();
 
   useEffect(() => {
     if (!token) return;
     getMyProfile(token)
       .then(profile => {
         if (profile.detectedLanguage) {
-          setLanguage(profile.detectedLanguage);
+          suggestLanguage(profile.detectedLanguage);
         }
       })
       .catch(() => {
         // Profile fetch is best-effort; fall back to default language silently
       });
-  }, [token, setLanguage]);
+  }, [token, suggestLanguage]);
 
   return null;
 }

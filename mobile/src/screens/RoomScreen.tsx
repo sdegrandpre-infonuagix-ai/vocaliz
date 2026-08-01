@@ -145,9 +145,17 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     try {
       const invite = await sendInvitation(token, sessionId, guestEmail.trim().toLowerCase());
       setGuestEmail('');
-      // A registered Salon friend gets an in-app notification and no link at all.
-      setJoinLink(invite.joinLink ?? null);
-      setNotice(invite.joinLink ? t.room.inviteEmailed : t.room.inviteInApp);
+      // The link comes back for every type, and the email goes out for every type. The
+      // notice reports what actually happened to the email rather than inferring it from
+      // the guest being a member — a member is emailed too, and a send can fail.
+      setJoinLink(invite.joinLink);
+      setNotice(
+        !invite.emailSent
+          ? t.room.inviteEmailFailed
+          : invite.invitationType === 'salon_friend'
+            ? t.room.inviteInApp
+            : t.room.inviteEmailed,
+      );
     } catch (e: any) {
       setError(e.message ?? t.room.errorGeneric);
     } finally {

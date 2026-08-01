@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { requestOtp, resendOtp, verifyOtp } from '../services/authApi';
+import { useLanguage } from './LanguageContext';
 
 const TOKEN_KEY = 'salon_jwt';
 const USER_ID_KEY = 'salon_user_id';
@@ -22,6 +23,10 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // AuthProvider is mounted inside LanguageProvider, so these fallbacks follow the
+  // interface language instead of being French whatever the user picked.
+  const { t } = useLanguage();
+
   const [state, setState] = useState<AuthState>({
     token: null,
     userId: null,
@@ -38,9 +43,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await requestOtp(email);
       setState(s => ({ ...s, isLoading: false }));
     } catch (e: any) {
-      setError(e.message ?? 'Impossible d\'envoyer le code.');
+      setError(e.message ?? t.auth.errorSendCode);
     }
-  }, []);
+  }, [t]);
 
   const resendOtpCode = useCallback(async (email: string) => {
     setLoading();
@@ -48,9 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await resendOtp(email);
       setState(s => ({ ...s, isLoading: false }));
     } catch (e: any) {
-      setError(e.message ?? 'Impossible de renvoyer le code.');
+      setError(e.message ?? t.auth.errorResendCode);
     }
-  }, []);
+  }, [t]);
 
   const confirmOtp = useCallback(async (email: string, code: string) => {
     setLoading();
@@ -60,9 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await SecureStore.setItemAsync(USER_ID_KEY, userId);
       setState({ token, userId, isLoading: false, error: null });
     } catch (e: any) {
-      setError(e.message ?? 'Code invalide ou expiré.');
+      setError(e.message ?? t.auth.errorInvalidCode);
     }
-  }, []);
+  }, [t]);
 
   const signOut = useCallback(async () => {
     await SecureStore.deleteItemAsync(TOKEN_KEY);

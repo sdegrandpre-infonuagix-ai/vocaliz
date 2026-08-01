@@ -140,7 +140,7 @@ def test_create_session_blocked_when_trial_exhausted_and_no_payment_method(clien
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 402
-    assert "essai gratuite" in resp.json()["detail"].lower() or "paiement" in resp.json()["detail"].lower()
+    assert "trial" in resp.json()["detail"].lower() or "payment" in resp.json()["detail"].lower()
 
 
 def test_create_session_allowed_when_trial_exhausted_with_payment_method(client, db, exhausted_host):

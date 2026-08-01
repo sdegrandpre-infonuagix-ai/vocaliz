@@ -75,22 +75,22 @@ def guest_join_session(
     ).first()
 
     if not invitation:
-        raise HTTPException(status_code=404, detail="Lien invalide ou introuvable.")
+        raise HTTPException(status_code=404, detail="Invalid or unknown link.")
 
     if invitation.status != "pending":
-        raise HTTPException(status_code=410, detail="Ce lien a déjà été utilisé.")
+        raise HTTPException(status_code=410, detail="This link has already been used.")
 
     expires = invitation.expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     if expires < now:
-        raise HTTPException(status_code=410, detail="Ce lien a expiré.")
+        raise HTTPException(status_code=410, detail="This link has expired.")
 
     session = db.query(SessionModel).filter(
         SessionModel.id == invitation.session_id,
     ).first()
     if not session or session.status != "active":
-        raise HTTPException(status_code=410, detail="Cette session n'est plus disponible.")
+        raise HTTPException(status_code=410, detail="This session is no longer available.")
 
     # One-time use: mark token consumed before issuing LiveKit credentials
     invitation.status = "accepted"

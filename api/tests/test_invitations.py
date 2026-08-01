@@ -122,9 +122,33 @@ def test_invite_salon_friend(mock_sms, client, host, active_session, guest_user)
     # type, and the host may well need to share it — the in-app notification is an extra
     # channel, not a reason to withhold the link.
     assert "/join/" in data["joinLink"]
-    # No email: a Salon friend is notified in-app.
-    mock_sms.assert_not_called()
-    assert data["emailSent"] is False
+    # And an email, like everyone else. This test previously asserted the opposite. The
+    # in-app notification only reaches a member who opens the app, which is no way to
+    # reach someone about a conversation happening right now.
+    mock_sms.assert_called_once()
+    assert data["emailSent"] is True
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_email_can_be_resent_to_salon_friend(mock_send, client, host, active_session, guest_user):
+    """Resending to a registered member used to be refused with a 409."""
+    _, token = host
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": guest_user.email},
+        headers=headers,
+    ).json()
+    assert created["invitationType"] == "salon_friend"
+
+    mock_send.reset_mock()
+    resp = client.post(
+        f"/sessions/{active_session.id}/invitations/{created['invitationId']}/email",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    mock_send.assert_called_once()
 
 
 # ─── Idempotency ─────────────────────────────────────────────────────────────
@@ -140,9 +164,13 @@ def test_invite_idempotent_within_5_min(mock_sms, client, host, active_session):
 
     assert r1.status_code == 201
     assert r2.status_code == 201
+    # Idempotent on the token: no second invitation, no second one-time link.
     assert r1.json()["invitationId"] == r2.json()["invitationId"]
-    # SMS sent only once
-    assert mock_sms.call_count == 1
+    assert r1.json()["joinLink"] == r2.json()["joinLink"]
+    # But the email goes out again — repeating the invitation is how a host says the
+    # first one never arrived. This previously asserted a single send.
+    assert mock_sms.call_count == 2
+    assert r2.json()["emailSent"] is True
 
 
 # ─── A failed send keeps the invitation ──────────────────────────────────────

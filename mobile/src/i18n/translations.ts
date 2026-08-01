@@ -55,9 +55,16 @@ export interface Translations {
     inviteButton: string;
     inviteEmailed: string;
     inviteInApp: string;
+    inviteEmailFailed: string;
     leaveButton: string;
     errorConnect: string;
     errorGeneric: string;
+  };
+  /** Fallbacks used when a request fails without the API supplying a reason. */
+  auth: {
+    errorSendCode: string;
+    errorResendCode: string;
+    errorInvalidCode: string;
   };
 }
 
@@ -117,10 +124,17 @@ const fr: Translations = {
     inviteInputHint: 'Le lien de jonction lui est envoyé par courriel',
     inviteButton: 'Inviter',
     inviteEmailed: 'Courriel envoyé avec le lien de jonction.',
-    inviteInApp: 'Ce contact est inscrit dans Salon : il reçoit une notification.',
+    inviteInApp:
+      'Courriel envoyé. Ce contact est inscrit dans Salon : il reçoit aussi une notification.',
+    inviteEmailFailed: "Le courriel n'a pas pu partir — partagez le lien ci-dessous vous-même.",
     leaveButton: 'Quitter la session',
     errorConnect: 'Impossible de rejoindre le salon.',
     errorGeneric: 'Une erreur est survenue.',
+  },
+  auth: {
+    errorSendCode: "Impossible d'envoyer le code.",
+    errorResendCode: 'Impossible de renvoyer le code.',
+    errorInvalidCode: 'Code invalide ou expiré.',
   },
 };
 
@@ -178,22 +192,40 @@ const en: Translations = {
     inviteInputHint: 'The join link is emailed to them',
     inviteButton: 'Invite',
     inviteEmailed: 'Email sent with the join link.',
-    inviteInApp: 'This contact has a Salon account: they get a notification.',
+    inviteInApp: 'Email sent. This contact has a Salon account: they also get a notification.',
+    inviteEmailFailed: 'The email could not be sent — share the link below yourself.',
     leaveButton: 'Leave session',
     errorConnect: 'Unable to join the room.',
     errorGeneric: 'Something went wrong.',
+  },
+  auth: {
+    errorSendCode: 'Could not send the code.',
+    errorResendCode: 'Could not resend the code.',
+    errorInvalidCode: 'Invalid or expired code.',
   },
 };
 
 export const TRANSLATIONS: Record<SupportedLanguage, Translations> = { fr, en };
 
-export const DEFAULT_LANGUAGE: SupportedLanguage = 'fr';
+// The fallback when the device asks for a language we do not speak. The device's own
+// locale is preferred over it, and an explicit choice over both — see LanguageContext.
+export const DEFAULT_LANGUAGE: SupportedLanguage = 'en';
 
-/** Resolve any language code (BCP-47 or full tag) to a supported locale, defaulting to 'fr'. */
-export function resolveLanguage(code: string | null | undefined): SupportedLanguage {
-  if (!code) return DEFAULT_LANGUAGE;
+/**
+ * Match a language code (BCP-47 or full tag) to a supported locale, or null when we do
+ * not support it.
+ *
+ * The null case is the point: locale detection has to tell "the device asked for French"
+ * apart from "the device asked for Spanish, so fall back to English". resolveLanguage
+ * collapses both into English and cannot express that difference.
+ */
+export function matchLanguage(code: string | null | undefined): SupportedLanguage | null {
+  if (!code) return null;
   const base = code.split('-')[0].toLowerCase();
-  if (base === 'en') return 'en';
-  if (base === 'fr') return 'fr';
-  return DEFAULT_LANGUAGE;
+  return base === 'en' || base === 'fr' ? base : null;
+}
+
+/** Resolve any language code (BCP-47 or full tag) to a supported locale, defaulting to English. */
+export function resolveLanguage(code: string | null | undefined): SupportedLanguage {
+  return matchLanguage(code) ?? DEFAULT_LANGUAGE;
 }

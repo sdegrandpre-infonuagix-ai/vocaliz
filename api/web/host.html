@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salon — Console hôte</title>
+  <title>Salon — Host console</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -36,6 +36,27 @@
       letter-spacing: 0.1em;
       padding: 3px 9px;
       border-radius: 4px;
+    }
+
+    /* Language switch — pushed to the far end of the header bar. */
+    .lang { margin-left: auto; display: flex; gap: 4px; }
+
+    .lang-btn {
+      background: transparent;
+      color: #F8F3E8;
+      border: 1px solid rgba(248, 243, 232, .45);
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    .lang-btn[aria-pressed="true"] {
+      background: #C9A84C;
+      color: #2C2C2C;
+      border-color: #C9A84C;
     }
 
     main {
@@ -126,100 +147,332 @@
   </style>
 </head>
 <body>
+  <!-- Copy lives in English in the markup and French comes from the dictionary below.
+       That way the default language needs no JavaScript to render correctly, and a
+       failed script degrades to a fully readable page rather than to translation keys. -->
   <header>
     <h1>SALON</h1>
-    <span class="badge-host">Console hôte</span>
+    <span class="badge-host" data-i18n="badge">Host console</span>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
+      <button type="button" class="lang-btn" id="lang-fr" onclick="setLang('fr')">FR</button>
+    </div>
   </header>
 
   <main>
     <!-- Step 1: sign in -->
     <div id="c-login" class="card">
-      <div class="card-title">Connexion</div>
-      <div class="card-sub">Le code de vérification est envoyé par courriel.</div>
-      <label for="email">Adresse courriel</label>
-      <input type="email" id="email" placeholder="vous@exemple.com" autocomplete="email">
-      <button class="btn btn-primary" id="btn-otp" onclick="requestOtp()">Recevoir mon code</button>
+      <div class="card-title" data-i18n="loginTitle">Sign in</div>
+      <div class="card-sub" data-i18n="loginSub">The verification code is sent to you by email.</div>
+      <label for="email" data-i18n="emailLabel">Email address</label>
+      <input type="email" id="email" placeholder="you@example.com" data-i18n-ph="emailPh" autocomplete="email">
+      <button class="btn btn-primary" id="btn-otp" onclick="requestOtp()" data-i18n="otpButton">Send me a code</button>
       <div id="login-otp" class="hidden">
-        <label for="code">Code à 6 chiffres</label>
+        <label for="code" data-i18n="codeLabel">6-digit code</label>
         <input type="text" id="code" inputmode="numeric" maxlength="6" placeholder="123456">
-        <button class="btn btn-primary" onclick="verifyOtp()">Valider</button>
+        <button class="btn btn-primary" onclick="verifyOtp()" data-i18n="verifyButton">Verify</button>
       </div>
       <div id="login-status" class="status"></div>
     </div>
     <!-- Step 2: create a session -->
     <div id="c-create" class="card hidden">
-      <div class="card-title">Nouvelle session</div>
-      <div class="card-sub">
-        Une source est facultative : sans elle, l'agent vous demandera de quoi discuter.
-        Toute session que vous aviez laissée ouverte est fermée automatiquement.
+      <div class="card-title" data-i18n="createTitle">New session</div>
+      <div class="card-sub" data-i18n="createSub">
+        A source is optional: without one, the agent will ask you what to talk about.
+        Any session you had left open is closed automatically.
       </div>
-      <label for="src-url">URL d'article (facultatif)</label>
+      <label for="src-url" data-i18n="srcUrlLabel">Article URL (optional)</label>
       <input type="text" id="src-url" placeholder="https://…">
-      <label for="src-file">Ou un document (PDF, texte)</label>
+      <label for="src-file" data-i18n="srcFileLabel">Or a document (PDF, text)</label>
       <input type="file" id="src-file" accept=".pdf,.txt,text/plain,application/pdf">
-      <button class="btn btn-primary" onclick="createSession()">Démarrer la session</button>
+      <button class="btn btn-primary" onclick="createSession()" data-i18n="startButton">Start the session</button>
       <div id="create-status" class="status"></div>
     </div>
 
     <!-- Step 3: in session -->
     <div id="c-room" class="card hidden">
-      <div class="card-title">Vous animez le Salon</div>
+      <div class="card-title" data-i18n="roomTitle">You are hosting the Salon</div>
       <div class="card-sub" id="room-sub"></div>
-      <div class="mic-row"><span id="mic-dot" class="mic-dot"></span><span id="mic-label">Micro inactif</span></div>
-      <button class="btn btn-primary hidden" id="btn-sound" onclick="unlockAudio()">🔊  Activer le son</button>
-      <button class="btn btn-primary hidden" id="btn-mic" onclick="retryMic()">🎤  Activer le micro</button>
+      <div class="mic-row"><span id="mic-dot" class="mic-dot"></span><span id="mic-label">Microphone off</span></div>
+      <button class="btn btn-primary hidden" id="btn-sound" onclick="unlockAudio()" data-i18n="soundButton">🔊  Enable sound</button>
+      <button class="btn btn-primary hidden" id="btn-mic" onclick="retryMic()" data-i18n="micButton">🎤  Enable microphone</button>
       <div class="row">
-        <button class="btn btn-outline" onclick="leaveRoom()">Quitter</button>
+        <button class="btn btn-outline" onclick="leaveRoom()" data-i18n="leaveButton">Leave</button>
       </div>
     </div>
 
     <!-- Step 3b: add a source mid-session (host only) -->
     <div id="c-source" class="card hidden">
-      <div class="card-title">Ajouter une source</div>
-      <div class="card-sub">
-        L'agent est prévenu immédiatement et en tiendra compte sans interrompre la conversation.
+      <div class="card-title" data-i18n="sourceTitle">Add a source</div>
+      <div class="card-sub" data-i18n="sourceSub">
+        The agent is told immediately and will take it into account without interrupting
+        the conversation.
       </div>
-      <label for="add-url">URL d'article</label>
+      <label for="add-url" data-i18n="addUrlLabel">Article URL</label>
       <input type="text" id="add-url" placeholder="https://…">
-      <label for="add-file">Ou un document</label>
+      <label for="add-file" data-i18n="addFileLabel">Or a document</label>
       <input type="file" id="add-file" accept=".pdf,.txt,text/plain,application/pdf">
-      <button class="btn btn-gold" onclick="addSource()">Ajouter à la session</button>
+      <button class="btn btn-gold" onclick="addSource()" data-i18n="addButton">Add to the session</button>
       <div id="source-status" class="status"></div>
     </div>
 
     <!-- Step 3c: invite -->
     <div id="c-invite" class="card hidden">
-      <div class="card-title">Inviter</div>
-      <div class="card-sub">
-        Le lien est envoyé par courriel à l'invité, et s'ouvre dans n'importe quel
-        navigateur sans installer l'application. Il ne fonctionne qu'une seule fois.
+      <div class="card-title" data-i18n="inviteTitle">Invite</div>
+      <div class="card-sub" data-i18n="inviteSub">
+        The link is emailed to your guest, and opens in any browser without installing
+        the app. It only works once.
       </div>
-      <label for="guest-email">Adresse courriel du contact</label>
-      <input type="email" id="guest-email" placeholder="ami@exemple.com">
-      <button class="btn btn-gold" onclick="invite()">Générer le lien</button>
+      <label for="guest-email" data-i18n="guestEmailLabel">Contact's email address</label>
+      <input type="email" id="guest-email" placeholder="friend@example.com" data-i18n-ph="guestEmailPh">
+      <button class="btn btn-gold" onclick="invite()" data-i18n="generateButton">Generate the link</button>
       <div id="invite-status" class="status"></div>
       <div id="invite-link" class="link-box hidden"></div>
-      <button class="btn btn-outline hidden" id="btn-copy" onclick="copyLink()">
-        Copier le lien
+      <button class="btn btn-outline hidden" id="btn-copy" onclick="copyLink()" data-i18n="copyButton">
+        Copy the link
       </button>
-      <button class="btn btn-primary hidden" id="btn-send" onclick="sendInviteEmail()">
-        Envoyer par courriel
+      <button class="btn btn-primary hidden" id="btn-send" onclick="sendInviteEmail()" data-i18n="sendButton">
+        Send by email
       </button>
     </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
   <script>
+    // ── Translations ──────────────────────────────────────────────────────────
+    // The browser's language list decides, and English is the fallback when none of it
+    // is a language we speak. A choice made with the header switch outranks detection
+    // and is remembered.
+    var I18N = {
+      en: {
+        pageTitle: 'Salon — Host console',
+        badge: 'Host console',
+        loginTitle: 'Sign in',
+        loginSub: 'The verification code is sent to you by email.',
+        emailLabel: 'Email address',
+        emailPh: 'you@example.com',
+        otpButton: 'Send me a code',
+        codeLabel: '6-digit code',
+        verifyButton: 'Verify',
+        createTitle: 'New session',
+        createSub: 'A source is optional: without one, the agent will ask you what to talk '
+                 + 'about. Any session you had left open is closed automatically.',
+        srcUrlLabel: 'Article URL (optional)',
+        srcFileLabel: 'Or a document (PDF, text)',
+        startButton: 'Start the session',
+        roomTitle: 'You are hosting the Salon',
+        soundButton: '🔊  Enable sound',
+        micButton: '🎤  Enable microphone',
+        leaveButton: 'Leave',
+        sourceTitle: 'Add a source',
+        sourceSub: 'The agent is told immediately and will take it into account without '
+                 + 'interrupting the conversation.',
+        addUrlLabel: 'Article URL',
+        addFileLabel: 'Or a document',
+        addButton: 'Add to the session',
+        inviteTitle: 'Invite',
+        inviteSub: 'The link is emailed to your guest, and opens in any browser without '
+                 + 'installing the app. It only works once.',
+        guestEmailLabel: "Contact's email address",
+        guestEmailPh: 'friend@example.com',
+        generateButton: 'Generate the link',
+        copyButton: 'Copy the link',
+        sendButton: 'Send by email',
+        errHttp: 'Error {code}',
+        codeSent: 'Code sent to {email}.',
+        roomSub: 'Salon {room} — source: {source}',
+        micOn: 'Microphone on',
+        micOff: 'Microphone off',
+        micBlocked: 'Microphone blocked — allow it from the icon in the address bar',
+        sourceNeeded: 'Enter a URL or choose a document.',
+        sourceAdded: 'Source added ({type}, {chars} characters). The agent has been told.',
+        linkCopied: 'Link copied.',
+        copyRefused: 'Copy refused by the browser — select the link instead.',
+        emailSentTo: 'Email sent to {email}.',
+        sendFailed: 'Could not send: {error} The link stays valid, share it however you like.',
+        inviteOk: 'Link generated, email sent to {email}.',
+        inviteFail: 'Link generated, but the email could not be sent — send it yourself, '
+                  + 'or try again.',
+        inviteOkFriend: 'This contact has a Salon account — they also get a notification in '
+                      + 'the app. Link generated, email sent to {email}.',
+        inviteFailFriend: 'This contact has a Salon account — they also get a notification in '
+                        + 'the app. Link generated, but the email could not be sent — send it '
+                        + 'yourself, or try again.'
+      },
+      fr: {
+        pageTitle: 'Salon — Console hôte',
+        badge: 'Console hôte',
+        loginTitle: 'Connexion',
+        loginSub: 'Le code de vérification est envoyé par courriel.',
+        emailLabel: 'Adresse courriel',
+        emailPh: 'vous@exemple.com',
+        otpButton: 'Recevoir mon code',
+        codeLabel: 'Code à 6 chiffres',
+        verifyButton: 'Valider',
+        createTitle: 'Nouvelle session',
+        createSub: "Une source est facultative : sans elle, l'agent vous demandera de quoi "
+                 + 'discuter. Toute session que vous aviez laissée ouverte est fermée '
+                 + 'automatiquement.',
+        srcUrlLabel: "URL d'article (facultatif)",
+        srcFileLabel: 'Ou un document (PDF, texte)',
+        startButton: 'Démarrer la session',
+        roomTitle: 'Vous animez le Salon',
+        soundButton: '🔊  Activer le son',
+        micButton: '🎤  Activer le micro',
+        leaveButton: 'Quitter',
+        sourceTitle: 'Ajouter une source',
+        sourceSub: "L'agent est prévenu immédiatement et en tiendra compte sans interrompre "
+                 + 'la conversation.',
+        addUrlLabel: "URL d'article",
+        addFileLabel: 'Ou un document',
+        addButton: 'Ajouter à la session',
+        inviteTitle: 'Inviter',
+        inviteSub: "Le lien est envoyé par courriel à l'invité, et s'ouvre dans n'importe "
+                 + "quel navigateur sans installer l'application. Il ne fonctionne qu'une "
+                 + 'seule fois.',
+        guestEmailLabel: 'Adresse courriel du contact',
+        guestEmailPh: 'ami@exemple.com',
+        generateButton: 'Générer le lien',
+        copyButton: 'Copier le lien',
+        sendButton: 'Envoyer par courriel',
+        errHttp: 'Erreur {code}',
+        codeSent: 'Code envoyé à {email}.',
+        roomSub: 'Salon {room} — source : {source}',
+        micOn: 'Micro actif',
+        micOff: 'Micro inactif',
+        micBlocked: "Micro bloqué — autorisez-le via l'icône de la barre d'adresse",
+        sourceNeeded: 'Indiquez une URL ou choisissez un document.',
+        sourceAdded: "Source ajoutée ({type}, {chars} caractères). L'agent en a été prévenu.",
+        linkCopied: 'Lien copié.',
+        copyRefused: 'Copie refusée par le navigateur — sélectionnez le lien.',
+        emailSentTo: 'Courriel envoyé à {email}.',
+        sendFailed: 'Envoi impossible : {error} Le lien reste valide, partagez-le comme vous '
+                  + 'voulez.',
+        inviteOk: 'Lien généré, courriel envoyé à {email}.',
+        inviteFail: "Lien généré, mais le courriel n'a pas pu partir — envoyez-le vous-même, "
+                  + 'ou réessayez.',
+        inviteOkFriend: 'Ce contact a un compte Salon — il reçoit aussi une notification dans '
+                      + "l'application. Lien généré, courriel envoyé à {email}.",
+        inviteFailFriend: 'Ce contact a un compte Salon — il reçoit aussi une notification dans '
+                        + "l'application. Lien généré, mais le courriel n'a pas pu partir — "
+                        + 'envoyez-le vous-même, ou réessayez.'
+      }
+    };
+
+    var LANG_KEY = 'salon_lang';
+
+    // Precedence: a choice made here, then the browser's own languages, then English.
+    function storedLang() {
+      // localStorage throws outright under some privacy settings, not just return null.
+      try {
+        var v = localStorage.getItem(LANG_KEY);
+        return I18N[v] ? v : null;
+      } catch (e) { return null; }
+    }
+
+    // navigator.languages is ordered by preference, so a browser set to [es, fr, en]
+    // should land on French. Taking the first entry we recognise is what gets that right;
+    // looking only at navigator.language would give English.
+    function browserLang() {
+      var list = (navigator.languages && navigator.languages.length)
+        ? navigator.languages
+        : [navigator.language || ''];
+      for (var i = 0; i < list.length; i++) {
+        var base = String(list[i]).split('-')[0].toLowerCase();
+        if (I18N[base]) return base;
+      }
+      return null;
+    }
+
+    var lang = storedLang() || browserLang() || 'en';
+
+    function T(key, params) {
+      var s = I18N[lang][key] || I18N.en[key] || key;
+      if (params) {
+        for (var k in params) s = s.split('{' + k + '}').join(params[k]);
+      }
+      return s;
+    }
+
+    function setLang(next) {
+      if (!I18N[next]) return;
+      lang = next;
+      try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: session only */ }
+      applyLang();
+    }
+
+    // Re-renders everything, static and dynamic alike. Anything shown to the host has to
+    // survive a switch mid-session — a status line left in the previous language would be
+    // the most visible part of the page and the one that looks broken.
+    function applyLang() {
+      document.documentElement.lang = lang;
+      document.title = T('pageTitle');
+
+      var nodes = document.querySelectorAll('[data-i18n]');
+      for (var i = 0; i < nodes.length; i++) {
+        nodes[i].textContent = T(nodes[i].getAttribute('data-i18n'));
+      }
+      var phs = document.querySelectorAll('[data-i18n-ph]');
+      for (var j = 0; j < phs.length; j++) {
+        phs[j].placeholder = T(phs[j].getAttribute('data-i18n-ph'));
+      }
+
+      document.getElementById('lang-en').setAttribute('aria-pressed', lang === 'en');
+      document.getElementById('lang-fr').setAttribute('aria-pressed', lang === 'fr');
+
+      renderMic();
+      renderRoomSub();
+      for (var id in statusState) renderStatus(id);
+    }
+
+    // ── Deferred rendering of dynamic text ────────────────────────────────────
+    // Each dynamic string is stored as a key plus its parameters rather than as finished
+    // text, so applyLang() can render it again in the other language.
+    var statusState = {};
+
+    function setStatus(id, key, ok, params) {
+      statusState[id] = { key: key, params: params || null, ok: !!ok, raw: null };
+      renderStatus(id);
+    }
+
+    // For text that comes from the API: the server speaks French only, so it is stored
+    // verbatim and left alone by applyLang rather than pretending to be translatable.
+    function setStatusRaw(id, text, ok) {
+      statusState[id] = { key: null, params: null, ok: !!ok, raw: text };
+      renderStatus(id);
+    }
+
+    function renderStatus(id) {
+      var st = statusState[id];
+      if (!st) return;
+      var el = document.getElementById(id);
+      el.textContent = st.raw !== null ? st.raw : T(st.key, st.params);
+      el.className = 'status ' + (st.ok ? 'ok' : 'err');
+    }
+
+    var micState = { on: false, denied: false };
+
+    function renderMic() {
+      var label = document.getElementById('mic-label');
+      document.getElementById('mic-dot').classList.toggle('live', micState.on);
+      label.textContent = micState.on
+        ? T('micOn')
+        : (micState.denied ? T('micBlocked') : T('micOff'));
+    }
+
+    var roomInfo = null;
+
+    function renderRoomSub() {
+      if (!roomInfo) return;
+      document.getElementById('room-sub').textContent = T('roomSub', roomInfo);
+    }
+
+    // ── App ───────────────────────────────────────────────────────────────────
     var token = sessionStorage.getItem('salon_host_jwt');
     var sessionId = null;
     var room = null;
 
     function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
-    function setStatus(id, msg, ok) {
-      var el = document.getElementById(id);
-      el.textContent = msg;
-      el.className = 'status ' + (ok ? 'ok' : 'err');
-    }
 
     // Every call funnels through here so an API error is always surfaced, never silent.
     async function api(path, options) {
@@ -228,7 +481,7 @@
       if (token) options.headers['Authorization'] = 'Bearer ' + token;
       var resp = await fetch(path, options);
       var body = await resp.json().catch(function() { return {}; });
-      if (!resp.ok) throw new Error(body.detail || ('Erreur ' + resp.status));
+      if (!resp.ok) throw new Error(body.detail || T('errHttp', { code: resp.status }));
       return body;
     }
 
@@ -242,9 +495,9 @@
           body: JSON.stringify({ email: email })
         });
         show('login-otp', true);
-        setStatus('login-status', 'Code envoyé à ' + email + '.', true);
+        setStatus('login-status', 'codeSent', true, { email: email });
       } catch (e) {
-        setStatus('login-status', e.message, false);
+        setStatusRaw('login-status', e.message, false);
       }
     }
 
@@ -261,7 +514,7 @@
         sessionStorage.setItem('salon_host_jwt', token);
         signedIn();
       } catch (e) {
-        setStatus('login-status', e.message, false);
+        setStatusRaw('login-status', e.message, false);
       }
     }
 
@@ -282,12 +535,12 @@
       try {
         var data = await api('/sessions', { method: 'POST', body: form });
         sessionId = data.sessionId;
-        document.getElementById('room-sub').textContent =
-          'Salon ' + data.livekitRoomName + ' — source : ' + data.sourceType;
+        roomInfo = { room: data.livekitRoomName, source: data.sourceType };
+        renderRoomSub();
         show('c-create', false);
         await joinRoom();
       } catch (e) {
-        setStatus('create-status', e.message, false);
+        setStatusRaw('create-status', e.message, false);
       }
     }
 
@@ -328,18 +581,15 @@
       if (!room) return;
       try {
         await room.localParticipant.setMicrophoneEnabled(true);
-        document.getElementById('mic-dot').classList.add('live');
-        document.getElementById('mic-label').textContent = 'Micro actif';
+        micState = { on: true, denied: false };
         show('btn-mic', false);
       } catch (micErr) {
         var denied = micErr && (micErr.name === 'NotAllowedError'
           || /permission|denied/i.test(micErr.message || ''));
-        document.getElementById('mic-dot').classList.remove('live');
-        document.getElementById('mic-label').textContent = denied
-          ? "Micro bloqué — autorisez-le via l'icône de la barre d'adresse"
-          : 'Micro inactif';
+        micState = { on: false, denied: !!denied };
         show('btn-mic', true);
       }
+      renderMic();
     }
 
     async function unlockAudio() {
@@ -361,7 +611,7 @@
       var url = document.getElementById('add-url').value.trim();
       var file = document.getElementById('add-file').files[0];
       if (!url && !file) {
-        setStatus('source-status', 'Indiquez une URL ou choisissez un document.', false);
+        setStatus('source-status', 'sourceNeeded', false);
         return;
       }
       var form = new FormData();
@@ -369,13 +619,12 @@
       if (file) form.append('file', file);
       try {
         var data = await api('/sessions/' + sessionId + '/sources', { method: 'POST', body: form });
-        setStatus('source-status',
-          'Source ajoutée (' + data.sourceType + ', ' + data.contentLength + ' caractères). ' +
-          "L'agent en a été prévenu.", true);
+        setStatus('source-status', 'sourceAdded', true,
+                  { type: data.sourceType, chars: data.contentLength });
         document.getElementById('add-url').value = '';
         document.getElementById('add-file').value = '';
       } catch (e) {
-        setStatus('source-status', e.message, false);
+        setStatusRaw('source-status', e.message, false);
       }
     }
 
@@ -389,9 +638,9 @@
       if (!lastInvitation) return;
       try {
         await navigator.clipboard.writeText(lastInvitation.joinLink);
-        setStatus('invite-status', 'Lien copié.', true);
+        setStatus('invite-status', 'linkCopied', true);
       } catch (e) {
-        setStatus('invite-status', 'Copie refusée par le navigateur — sélectionnez le lien.', false);
+        setStatus('invite-status', 'copyRefused', false);
       }
     }
 
@@ -400,10 +649,9 @@
       try {
         await api('/sessions/' + sessionId + '/invitations/' + lastInvitation.invitationId + '/email',
                   { method: 'POST' });
-        setStatus('invite-status', 'Courriel envoyé à ' + lastInvitation.guestEmail + '.', true);
+        setStatus('invite-status', 'emailSentTo', true, { email: lastInvitation.guestEmail });
       } catch (e) {
-        setStatus('invite-status', "Envoi impossible : " + e.message +
-                  ' Le lien reste valide, partagez-le comme vous voulez.', false);
+        setStatus('invite-status', 'sendFailed', false, { error: e.message });
       }
     }
 
@@ -421,20 +669,19 @@
         box.textContent = data.joinLink;
         box.classList.remove('hidden');
         show('btn-copy', true);
-        show('btn-send', data.invitationType === 'email_contact');
+        // Shown for every type: the email now goes out to members too, so resending is
+        // always something the host can legitimately ask for.
+        show('btn-send', true);
 
-        if (data.invitationType === 'salon_friend') {
-          setStatus('invite-status',
-            "Ce contact a un compte Salon : il reçoit une notification dans l'application. " +
-            "Le lien ci-dessous fonctionne aussi, partagez-le si c'est plus simple.", true);
-        } else {
-          setStatus('invite-status', data.emailSent
-            ? 'Lien généré, et courriel envoyé à ' + data.guestEmail + '.'
-            : "Lien généré. Le courriel n'a pas pu partir — envoyez-le vous-même, ou réessayez.",
-            data.emailSent);
-        }
+        // Four whole sentences rather than assembled fragments — word order differs
+        // between languages, so concatenating clauses does not survive translation.
+        var friend = data.invitationType === 'salon_friend';
+        var key = data.emailSent
+          ? (friend ? 'inviteOkFriend' : 'inviteOk')
+          : (friend ? 'inviteFailFriend' : 'inviteFail');
+        setStatus('invite-status', key, data.emailSent, { email: data.guestEmail });
       } catch (e) {
-        setStatus('invite-status', e.message, false);
+        setStatusRaw('invite-status', e.message, false);
       }
     }
 
@@ -452,6 +699,7 @@
     window.addEventListener('beforeunload', onPageUnload);
     window.addEventListener('pagehide', onPageUnload);
 
+    applyLang();
     if (token) signedIn();
   </script>
 </body>

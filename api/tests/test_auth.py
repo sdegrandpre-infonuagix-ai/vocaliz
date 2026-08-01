@@ -94,7 +94,7 @@ def test_verify_otp_expired_returns_400(mock_email, client, db):
         "/auth/otp/verify", json={"email": EMAIL, "code": user.otp_code or "123456"}
     )
     assert response.status_code == 400
-    assert "expiré" in response.json()["detail"]
+    assert "expired" in response.json()["detail"]
 
 
 @patch("src.services.otp._send_email")
