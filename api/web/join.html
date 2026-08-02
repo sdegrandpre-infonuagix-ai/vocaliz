@@ -127,6 +127,16 @@
       50% { opacity: 0.35; }
     }
 
+    /* A browser holding a stored refusal rejects instantly and shows no prompt, so the
+       message after a second tap can be identical to the one already on screen. The flash
+       is what tells the participant the tap registered at all. */
+    @keyframes micflash {
+      0%, 100% { opacity: 1; }
+      35% { opacity: 0.15; }
+    }
+
+    .flash { animation: micflash 0.45s ease-in-out 2; }
+
     .btn {
       display: flex;
       align-items: center;
@@ -254,7 +264,7 @@
 
   <!-- Retry the microphone in place. Reloading would consume the one-time join link, so
        telling a participant to reload after a refused prompt left them with no way back. -->
-  <button id="btn-mic" class="btn btn-primary" style="display:none" onclick="retryMic()" data-i18n="micButton">
+  <button id="btn-mic" class="btn btn-primary" style="display:none" onclick="retryMic(true)" data-i18n="micButton">
     🎤  Enable microphone
   </button>
 
@@ -303,6 +313,9 @@
       micOn: 'Microphone on',
       micOff: 'Microphone off',
       micBlocked: 'Microphone blocked — allow it from the icon in the address bar',
+      micBlockedStill: 'Still blocked. Allow the microphone in your browser’s site settings, '
+                     + 'then tap the button again — do not reload, this link only works once.',
+      micOffStill: 'Still no microphone. Check that no other app is using it, then tap again.',
       errLinkTitle: 'Link unavailable',
       errLinkDetail: 'This link is invalid, has already been used, or has expired.',
       errConnTitle: 'Connection error',
@@ -340,6 +353,11 @@
       micOn: 'Microphone actif',
       micOff: 'Microphone inactif',
       micBlocked: "Microphone bloqué — autorisez-le via l'icône de la barre d'adresse",
+      micBlockedStill: 'Toujours bloqué. Autorisez le microphone dans les réglages du site, '
+                     + 'puis retouchez le bouton — ne rechargez pas la page, ce lien ne '
+                     + 'fonctionne qu’une seule fois.',
+      micOffStill: "Toujours aucun microphone. Vérifiez qu'aucune autre application ne "
+                 + "l'utilise, puis retouchez le bouton.",
       errLinkTitle: 'Lien non disponible',
       errLinkDetail: 'Ce lien est invalide, a déjà été utilisé, ou a expiré.',
       errConnTitle: 'Erreur de connexion',
@@ -412,7 +430,9 @@
   // Held as state rather than as finished text so applyLang() can render it again.
   var readyMode = 'initial';            // 'initial' | 'left' | 'connfail'
   var errState = { titleKey: 'errTitle', detailKey: 'errDetail', detailRaw: null };
-  var micState = { on: false, denied: false, starting: true };
+  // `retried` distinguishes the first, automatic attempt from one the participant asked
+  // for. The escalated wording is only honest after they have actually tried again.
+  var micState = { on: false, denied: false, starting: true, retried: false };
   var joinKey = 'joinButton';           // becomes 'retryButton' after a failed attempt
 
   var READY_ICONS = { initial: '🎙️', left: '👋', connfail: '⚠️' };
@@ -438,9 +458,21 @@
 
   function renderMic() {
     document.getElementById('mic-dot').classList.toggle('live', micState.on);
-    document.getElementById('mic-label').textContent = micState.on
-      ? T('micOn')
-      : (micState.starting ? T('micStarting') : (micState.denied ? T('micBlocked') : T('micOff')));
+    var key;
+    if (micState.on) key = 'micOn';
+    else if (micState.starting) key = 'micStarting';
+    else if (micState.denied) key = micState.retried ? 'micBlockedStill' : 'micBlocked';
+    else key = micState.retried ? 'micOffStill' : 'micOff';
+    document.getElementById('mic-label').textContent = T(key);
+  }
+
+  // Restarting a CSS animation requires removing the class and forcing a reflow before
+  // adding it back; without the reflow the browser coalesces both changes and nothing
+  // plays on the second and subsequent taps — exactly when the feedback matters most.
+  function flash(el) {
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
   }
 
   function renderJoinBtn() {
@@ -586,23 +618,29 @@
   }
 
   // ── Microphone state, reflected instead of asserted ───────────────────────
-  function setMicState(on, err) {
+  function setMicState(on, err, retried) {
     var micBtn = document.getElementById('btn-mic');
 
     if (on) {
-      micState = { on: true, denied: false, starting: false };
+      micState = { on: true, denied: false, starting: false, retried: false };
       micBtn.style.display = 'none';
     } else {
       var denied = err && (err.name === 'NotAllowedError' || /permission|denied/i.test(err.message || ''));
       // Never suggest reloading: that consumes the one-time join link and locks the
       // participant out entirely. The button below retries in place instead.
-      micState = { on: false, denied: !!denied, starting: false };
+      micState = { on: false, denied: !!denied, starting: false, retried: !!retried };
       micBtn.style.display = '';
     }
     renderMic();
+    // Only for a tap that failed: a browser holding a stored refusal rejects without ever
+    // prompting, so the screen would otherwise not change at all and the button would
+    // read as broken.
+    if (!on && retried) flash(document.getElementById('mic-label'));
   }
 
-  async function retryMic() {
+  // fromUser separates the automatic attempt made while joining from a deliberate tap on
+  // the button — only the latter deserves the escalated wording and the flash.
+  async function retryMic(fromUser) {
     if (!room) return;
     var micBtn = document.getElementById('btn-mic');
     micBtn.disabled = true;
@@ -610,7 +648,7 @@
       await room.localParticipant.setMicrophoneEnabled(true);
       setMicState(true);
     } catch (e) {
-      setMicState(false, e);
+      setMicState(false, e, fromUser === true);
     } finally {
       micBtn.disabled = false;
     }

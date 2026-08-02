@@ -144,6 +144,16 @@
     .mic-dot { width: 10px; height: 10px; border-radius: 50%; background: #a99e91; }
     .mic-dot.live { background: #2f9e44; }
     .hidden { display: none; }
+
+    /* A browser holding a stored refusal rejects instantly and shows no prompt, so the
+       message after a second click can be identical to the one already on screen. The
+       flash is what tells the host the click registered at all. */
+    @keyframes micflash {
+      0%, 100% { opacity: 1; }
+      35% { opacity: 0.15; }
+    }
+
+    .flash { animation: micflash 0.45s ease-in-out 2; }
   </style>
 </head>
 <body>
@@ -195,7 +205,7 @@
       <div class="card-sub" id="room-sub"></div>
       <div class="mic-row"><span id="mic-dot" class="mic-dot"></span><span id="mic-label">Microphone off</span></div>
       <button class="btn btn-primary hidden" id="btn-sound" onclick="unlockAudio()" data-i18n="soundButton">🔊  Enable sound</button>
-      <button class="btn btn-primary hidden" id="btn-mic" onclick="retryMic()" data-i18n="micButton">🎤  Enable microphone</button>
+      <button class="btn btn-primary hidden" id="btn-mic" onclick="retryMic(true)" data-i18n="micButton">🎤  Enable microphone</button>
       <div class="row">
         <button class="btn btn-outline" onclick="leaveRoom()" data-i18n="leaveButton">Leave</button>
       </div>
@@ -284,6 +294,10 @@
         micOn: 'Microphone on',
         micOff: 'Microphone off',
         micBlocked: 'Microphone blocked — allow it from the icon in the address bar',
+        micBlockedStill: 'Still blocked. Allow the microphone in your browser’s site '
+                       + 'settings, then click the button again.',
+        micOffStill: 'Still no microphone. Check that no other app is using it, then click '
+                   + 'again.',
         sourceNeeded: 'Enter a URL or choose a document.',
         sourceAdded: 'Source added ({type}, {chars} characters). The agent has been told.',
         linkCopied: 'Link copied.',
@@ -341,6 +355,10 @@
         micOn: 'Micro actif',
         micOff: 'Micro inactif',
         micBlocked: "Micro bloqué — autorisez-le via l'icône de la barre d'adresse",
+        micBlockedStill: 'Toujours bloqué. Autorisez le micro dans les réglages du site, '
+                       + 'puis recliquez sur le bouton.',
+        micOffStill: "Toujours aucun micro. Vérifiez qu'aucune autre application ne "
+                   + "l'utilise, puis recliquez.",
         sourceNeeded: 'Indiquez une URL ou choisissez un document.',
         sourceAdded: "Source ajoutée ({type}, {chars} caractères). L'agent en a été prévenu.",
         linkCopied: 'Lien copié.',
@@ -450,14 +468,27 @@
       el.className = 'status ' + (st.ok ? 'ok' : 'err');
     }
 
-    var micState = { on: false, denied: false };
+    // `retried` distinguishes the first, automatic attempt from one the host asked for.
+    // The escalated wording is only honest after they have actually tried again.
+    var micState = { on: false, denied: false, retried: false };
 
     function renderMic() {
       var label = document.getElementById('mic-label');
       document.getElementById('mic-dot').classList.toggle('live', micState.on);
-      label.textContent = micState.on
-        ? T('micOn')
-        : (micState.denied ? T('micBlocked') : T('micOff'));
+      var key;
+      if (micState.on) key = 'micOn';
+      else if (micState.denied) key = micState.retried ? 'micBlockedStill' : 'micBlocked';
+      else key = micState.retried ? 'micOffStill' : 'micOff';
+      label.textContent = T(key);
+    }
+
+    // Restarting a CSS animation requires removing the class and forcing a reflow before
+    // adding it back; without the reflow the browser coalesces both changes and nothing
+    // plays on the second and subsequent clicks — exactly when the feedback matters most.
+    function flash(el) {
+      el.classList.remove('flash');
+      void el.offsetWidth;
+      el.classList.add('flash');
     }
 
     var roomInfo = null;
@@ -577,19 +608,27 @@
 
     // Retried in place: a refused prompt must not require reloading, which on the guest
     // side consumes the one-time join link and locks the participant out for good.
-    async function retryMic() {
+    // fromUser separates the automatic attempt made while joining from a deliberate click
+    // on the button — only the latter deserves the escalated wording and the flash.
+    async function retryMic(fromUser) {
+      var failed = false;
       if (!room) return;
       try {
         await room.localParticipant.setMicrophoneEnabled(true);
-        micState = { on: true, denied: false };
+        micState = { on: true, denied: false, retried: false };
         show('btn-mic', false);
       } catch (micErr) {
         var denied = micErr && (micErr.name === 'NotAllowedError'
           || /permission|denied/i.test(micErr.message || ''));
-        micState = { on: false, denied: !!denied };
+        micState = { on: false, denied: !!denied, retried: fromUser === true };
         show('btn-mic', true);
+        failed = true;
       }
       renderMic();
+      // Only for a click that failed: a browser holding a stored refusal rejects without
+      // ever prompting, so the screen would otherwise not change at all and the button
+      // would read as broken.
+      if (failed && fromUser === true) flash(document.getElementById('mic-label'));
     }
 
     async function unlockAudio() {
