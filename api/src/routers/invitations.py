@@ -96,11 +96,25 @@ def guest_join_session(
     invitation.status = "accepted"
     db.commit()
 
-    anonymous_id = f"guest-{_uuid.uuid4().hex[:8]}"
+    # Derived from the invitation instead of random. The old `guest-<8 hex>` was minted
+    # here and stored nowhere, so no part of Salon could name a specific guest — messages
+    # could only ever be broadcast to the whole room. The invitation id is already the
+    # host's handle on this guest (it comes back when the invitation is created), which
+    # makes the participant addressable without a new column or a lookup table.
+    #
+    # It is a UUID, not personal data, and it is not a credential: the join token is the
+    # secret, and every route taking an invitation id requires the host's JWT. Other
+    # participants can read it, as they can read any identity in the room, and gain
+    # nothing by it.
+    anonymous_id = livekit_service.guest_identity(invitation.id)
     token = livekit_service.generate_participant_token(
         room_name=session.livekit_room_name,
         user_id=anonymous_id,
-        display_name="Invité",
+        # Every guest used to carry the same fixed label, which made them addressable but
+        # still indistinguishable — on screen and to the agent alike. The label carries a
+        # slice of the identity, never the email: that address is between the host and
+        # their guest, not something to publish to the room.
+        display_name=livekit_service.guest_display_name(invitation.id),
         can_publish=True,
     )
 
@@ -109,6 +123,8 @@ def guest_join_session(
         livekitRoomName=session.livekit_room_name,
         livekitUrl=livekit_service._http_url(),
         sessionId=str(session.id),
+        participantIdentity=anonymous_id,
+        participantName=livekit_service.guest_display_name(invitation.id),
     )
 
 

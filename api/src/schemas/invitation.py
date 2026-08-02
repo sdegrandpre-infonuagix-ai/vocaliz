@@ -21,6 +21,13 @@ class InvitationResponse(BaseModel):
     joinLink: str
     # False when delivery failed — the link is still returned so the host can share it.
     emailSent: bool = False
+    # The LiveKit identity this guest will join under, known before they connect. This is
+    # what makes a guest addressable: without it the only handle was a random string
+    # minted at join time and recorded nowhere.
+    participantIdentity: str
+    # How that guest is labelled to everyone in the room. Derived from the identity, never
+    # from the email — only the host, here, can tie the two together.
+    participantName: str
 
 
 class PendingInvitationResponse(BaseModel):
@@ -39,3 +46,7 @@ class GuestJoinResponse(BaseModel):
     livekitRoomName: str
     livekitUrl: str
     sessionId: str
+    # Returned so the guest's own page knows which identity in the room is itself.
+    participantIdentity: str
+    # And under which label it appears to the others.
+    participantName: str

@@ -25,6 +25,12 @@ export interface InvitationResult {
   /** Whether SES accepted the invitation email. A false here is not an error — the
    *  invitation exists and the link above works over any channel. */
   emailSent: boolean;
+  /** The LiveKit identity this guest will join under, known before they connect —
+   *  the handle to address a message to this guest rather than to the whole room. */
+  participantIdentity: string;
+  /** How the guest is labelled to everyone in the room, e.g. "Guest 3F2A". Derived
+   *  from the identity, never from their email. */
+  participantName: string;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

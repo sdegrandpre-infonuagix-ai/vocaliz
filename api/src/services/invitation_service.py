@@ -12,6 +12,7 @@ from src.config import settings
 from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
+from src.services import livekit_service
 from src.services.email_text import bilingual_body, bilingual_subject
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,13 @@ def _build_response(
         "status": invitation.status,
         "joinLink": _join_link(invitation.join_token),
         "emailSent": email_sent,
+        # Handed back at creation time, so the host holds the guest's future room identity
+        # before the guest has opened the link.
+        "participantIdentity": livekit_service.guest_identity(invitation.id),
+        # And the label that identity will wear in the room, so the host can tell which
+        # "Guest XXXX" is the person they invited — the mapping to an email exists only
+        # here, for the host, and is never published to the other participants.
+        "participantName": livekit_service.guest_display_name(invitation.id),
     }
 
 

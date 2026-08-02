@@ -101,11 +101,52 @@ async def delete_room(room_name: str) -> None:
         logger.warning("LiveKit delete_room failed for %s: %s", room_name, exc)
 
 
-async def notify_room(room_name: str, message: dict) -> None:
-    """Publish a JSON data message to everyone in a room.
+def guest_identity(invitation_id) -> str:
+    """The LiveKit participant identity an invited guest joins under.
+
+    Derived rather than random so it is knowable before the guest ever connects: the host
+    receives it with the invitation, which is what allows a later message to be addressed
+    to that specific guest. Keep this the single place the format is built — an identity
+    computed differently in two places is an identity nothing can be addressed by.
+    """
+    return f"guest-{invitation_id}"
+
+
+# Short enough to say out loud and to read in a participant list. The full identity stays
+# the UUID — this is only how a guest is *shown*, never how one is addressed.
+GUEST_LABEL_CHARS = 4
+
+
+def guest_display_name(invitation_id) -> str:
+    """The name other participants see for an invited guest.
+
+    Derived from the invitation id, deliberately, and never from the guest's email: the
+    name is visible to everyone in the room, and a guest invited by address did not agree
+    to have that address shown to the other participants.
+
+    Four hex characters, not the whole UUID: it has to be readable in a list and sayable
+    by the agent. Two guests colliding in a single room is possible in principle and
+    harmless in practice — the label only disambiguates on screen, while every actual
+    lookup uses the full identity from guest_identity().
+
+    English, matching the platform default. This is one server-side value shown to every
+    participant at once, so unlike the interface it cannot follow each viewer's language.
+    """
+    return f"Guest {str(invitation_id).replace('-', '')[:GUEST_LABEL_CHARS].upper()}"
+
+
+async def notify_room(
+    room_name: str, message: dict, *, identities: list[str] | None = None
+) -> None:
+    """Publish a JSON data message to a room, or to named participants within it.
 
     Used to tell the agent that session state changed mid-conversation (a source was
     added), since it otherwise only reads the session once, at job start.
+
+    `identities` narrows delivery to those participants; omitting it broadcasts. Note that
+    an *empty* list is LiveKit's own way of saying "everyone", so passing a filtered list
+    that happens to come out empty would broadcast to the room rather than to no one —
+    the caller is expected to skip the send instead.
 
     Best-effort: a failed notification must not fail the request that triggered it.
     """
@@ -118,6 +159,7 @@ async def notify_room(room_name: str, message: dict) -> None:
                     room=room_name,
                     data=json.dumps(message).encode("utf-8"),
                     kind=lk_api.DataPacket.Kind.RELIABLE,
+                    destination_identities=identities or [],
                 )
             )
     except Exception as exc:

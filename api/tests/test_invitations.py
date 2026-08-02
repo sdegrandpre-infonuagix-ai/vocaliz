@@ -300,3 +300,106 @@ def test_email_can_be_sent_afterwards(mock_send, client, host, active_session):
     mock_send.assert_called_once()
     # Same one-time token as the link already shown to the host.
     assert created["joinLink"].endswith(mock_send.call_args.args[1].split("/")[-1])
+
+
+# ─── Addressable guests ───────────────────────────────────────────────────────
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_invitation_exposes_the_identity_the_guest_will_join_under(
+    mock_send, client, host, active_session
+):
+    """The whole point: the host holds the guest's room identity before they connect.
+
+    Previously the identity was minted at join time and stored nowhere, so a message
+    could only ever be broadcast to the entire room.
+    """
+    _, token = host
+    created = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "addressable@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    assert created["participantIdentity"] == f"guest-{created['invitationId']}"
+
+    # And it is the identity actually used when the link is redeemed — the property that
+    # makes it addressable. Asserting both ends guards against the format drifting apart.
+    join_token = created["joinLink"].rsplit("/", 1)[-1]
+    redeemed = client.get(f"/invitations/guest-join/{join_token}")
+    assert redeemed.status_code == 200
+    assert redeemed.json()["participantIdentity"] == created["participantIdentity"]
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_guest_identity_is_stable_and_distinct_per_invitation(
+    mock_send, client, host, active_session
+):
+    """Two guests must not collide, and one guest must not change identity."""
+    _, token = host
+    headers = {"Authorization": f"Bearer {token}"}
+
+    a = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "one@example.com"},
+        headers=headers,
+    ).json()
+    b = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "two@example.com"},
+        headers=headers,
+    ).json()
+
+    assert a["participantIdentity"] != b["participantIdentity"]
+
+    # Re-inviting the same address inside the idempotency window reuses the invitation,
+    # so the identity the host was given first must not move under them.
+    again = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "one@example.com"},
+        headers=headers,
+    ).json()
+    assert again["participantIdentity"] == a["participantIdentity"]
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_guest_label_shows_the_identifier_never_the_email(
+    mock_send, client, host, active_session
+):
+    """A guest is invited by address; that address is not the room's business."""
+    _, token = host
+    email = "private.person@example.com"
+    created = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": email},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    label = created["participantName"]
+    short = created["invitationId"].replace("-", "")[:4].upper()
+    assert label == f"Guest {short}"
+
+    # The label must leak nothing of the address — neither the whole thing nor the part
+    # before the @, which is often a real name.
+    assert email not in label
+    assert email.split("@")[0] not in label.lower()
+
+    # And it is the label actually carried into the room, not just an advertised one.
+    join_token = created["joinLink"].rsplit("/", 1)[-1]
+    redeemed = client.get(f"/invitations/guest-join/{join_token}").json()
+    assert redeemed["participantName"] == label
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_two_guests_get_distinguishable_labels(mock_send, client, host, active_session):
+    """The point of the change: one fixed label told two guests apart from nobody."""
+    _, token = host
+    headers = {"Authorization": f"Bearer {token}"}
+    a = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "a@example.com"}, headers=headers,
+    ).json()
+    b = client.post(
+        f"/sessions/{active_session.id}/invitations",
+        json={"guestEmail": "b@example.com"}, headers=headers,
+    ).json()
+    assert a["participantName"] != b["participantName"]
