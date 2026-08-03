@@ -278,3 +278,66 @@ def test_invite_with_neither_contact_is_refused_before_any_call():
 
     agent = salon.SalonAgent(session_id="s", api_url="http://x", host_token="t")
     assert asyncio.run(agent.invite_contact()) == "error:need_email_or_phone"
+
+
+# ─── Reaching beyond this salon ───────────────────────────────────────────────
+
+def test_agent_exposes_the_corpus_tools():
+    a = salon.SalonAgent()
+    for tool in ("search_platform", "read_shared_page"):
+        assert callable(getattr(a, tool, None)), tool
+
+
+def test_the_search_is_the_agents_not_the_participants():
+    """Nobody types anything, so the tool turns a spoken question into a query itself.
+
+    The prompt therefore has to say the participant's own words go in — an agent that
+    translated first would defeat the translation the search performs.
+    """
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("ASKING BEYOND THIS SALON"):
+    ]
+    assert section
+    assert "in their own words" in section
+    assert "do not translate it for it" in section
+
+
+def test_instructions_require_attribution():
+    """A claim drawn from an article nobody can place is worth less than one that names its
+    source, and a listener cannot judge an unattributed assertion at all."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("ASKING BEYOND THIS SALON"):
+    ]
+    assert "Name the publisher and the date" in section
+
+
+def test_instructions_state_that_uploaded_documents_never_travel():
+    """The agent will be asked. It must answer with the rule rather than searching and
+    reporting nothing found, which sounds like the document merely could not be located."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("ASKING BEYOND THIS SALON"):
+    ]
+    assert "never shared" in section
+    assert "stay in the salon they were given to" in section
+
+
+def test_no_results_is_a_real_answer():
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("ASKING BEYOND THIS SALON"):
+    ]
+    assert "say plainly that you have nothing on it" in section
+    assert "half remember" in section
+
+
+def test_corpus_tools_refuse_without_session_context():
+    import asyncio
+
+    bare = salon.SalonAgent()
+    assert asyncio.run(bare.search_platform(query="iran")) == "no_session_context"
+    assert asyncio.run(bare.read_shared_page(source_id="x", query="y")) == "no_session_context"
+
+
+def test_translation_guidance_no_longer_assumes_three_people():
+    """The room now holds a host, three guests and the agent."""
+    assert "3-way session" not in salon._BASE_INSTRUCTIONS
+    assert "Up to four people may be in the room" in salon._BASE_INSTRUCTIONS

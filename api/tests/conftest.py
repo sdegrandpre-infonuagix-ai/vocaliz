@@ -86,7 +86,7 @@ def db():
 
 
 @pytest.fixture(autouse=True)
-def _no_translate_side_calls(request):
+def _no_translate_side_calls():
     """Stop the corpus search from reaching Amazon Translate in tests.
 
     Every question is translated into English before it is matched, because the topics are
@@ -94,15 +94,15 @@ def _no_translate_side_calls(request):
     search test would make a real, billed, network-dependent call and pass anyway — the
     worst combination: slow, costing money, and invisible.
 
-    Returning None is what a translator outage looks like, and the search is written to
-    fall back to the untranslated words. Tests that care about the translated path opt out
-    with @pytest.mark.real_translate and patch it themselves.
+    Returning None is what a translator outage looks like, and the search is written to fall
+    back to the untranslated words.
+
+    No opt-out marker, unlike the LiveKit guard above: a test that wants to control what the
+    translator returns simply patches it again inside itself, and the inner patch wins for
+    its duration. A marker was written here first and removed once it turned out to unlock
+    nothing — one whose name promised real calls that no test ever made.
     """
     from unittest.mock import patch
-
-    if request.node.get_closest_marker("real_translate"):
-        yield
-        return
 
     with patch("src.services.translation_service.translate", return_value=None):
         yield

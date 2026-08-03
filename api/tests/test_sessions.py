@@ -379,3 +379,11 @@ def test_a_phone_invitation_is_still_accepted_while_the_field_is_hidden(client, 
             headers={"Authorization": f"Bearer {issue_token(str(user.id))}"},
         )
     assert response.status_code == 201
+
+
+def test_a_room_holds_a_host_three_guests_and_the_agent():
+    """Two guests more than before. The cap is what LiveKit enforces, so it is the only
+    place this limit is real."""
+    from src.config import settings
+
+    assert settings.livekit_room_max_participants == 5

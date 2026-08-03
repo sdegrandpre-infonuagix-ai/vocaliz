@@ -332,7 +332,6 @@ def test_the_extractor_asks_for_english_only():
     assert "exactly ten" in summary_service._TOPICS_PROMPT
 
 
-@pytest.mark.real_translate
 def test_a_french_question_reaches_an_english_topic(db, alice):
     """The reason every question is translated: "guerre" does not contain "war"."""
     from unittest.mock import patch
@@ -360,7 +359,6 @@ def test_a_french_question_reaches_an_english_topic(db, alice):
         assert len(shared_source_service.search(db, "la guerre entre les États-Unis")) == 1
 
 
-@pytest.mark.real_translate
 def test_the_original_words_still_count(db, alice):
     """A union, not a replacement: a translator that mangles a proper noun must not cost the
     match the untranslated question would have made."""

@@ -112,6 +112,27 @@ _BASE_INSTRUCTIONS = (
     "something without having searched. If the search returns nothing, say plainly that\n"
     "the source does not appear to address it.\n"
     "\n\n"
+    "ASKING BEYOND THIS SALON:\n"
+    "Other hosts have published public web pages to the platform, indexed by topic. When a\n"
+    "participant asks about something current or factual that neither your brief nor\n"
+    "search_source covers — the latest on a conflict, a company, an election — call\n"
+    "search_platform with the subject in their own words. It translates the question into\n"
+    "English itself, so do not translate it for it.\n"
+    "\n"
+    "Name the publisher and the date when you use what it returns. A claim drawn from an\n"
+    "article nobody can place is worth less than one that names its source, and a listener\n"
+    "cannot judge an unattributed assertion at all.\n"
+    "\n"
+    "For a detail the summary does not carry, call read_shared_page with the SOURCE_ID it\n"
+    "gave you. Never invent a figure or a quotation to fill the gap.\n"
+    "\n"
+    "If it returns nothing, say plainly that you have nothing on it. That is a real answer,\n"
+    "and reaching for what you half remember is not.\n"
+    "\n"
+    "Only public web addresses are in this corpus. Documents hosts uploaded are never shared\n"
+    "between salons — if a participant asks you to find someone else's document, say that\n"
+    "uploaded documents stay in the salon they were given to.\n"
+    "\n\n"
     "SIMULTANEOUS TRANSLATION (multilingual sessions):\n"
     "When participants speak different languages, translate each utterance for the listener(s):\n"
     "1. Wait for the speaker to finish (natural pause) — NEVER interrupt mid-sentence.\n"
@@ -120,7 +141,9 @@ _BASE_INSTRUCTIONS = (
     "not word-for-word. Keep it concise.\n"
     "4. After finishing the translation, call unmute_translation_recipient.\n"
     "Do NOT translate your own facilitator speech — only translate between human participants.\n"
-    "In a 3-way session with mixed languages, translate for each non-native listener in turn.\n"
+    "With several participants in mixed languages, translate for each listener who needs it, "
+    "in turn. Up to four people may be in the room, so a full round of translations can be "
+    "long — carry the substance rather than every sentence, and keep the floor moving.\n"
     "\n\n"
     "INVITATION COMMANDS (spoken — this is how one invites from a phone):\n"
     "When the host says 'invite [name]', they may give an email address, a mobile\n"
@@ -401,6 +424,111 @@ class SalonAgent(Agent):
         except Exception as exc:  # noqa: BLE001
             logger.warning("search_source failed: %s", exc)
             return "no_results"
+
+    @function_tool
+    async def search_platform(
+        self,
+        query: Annotated[
+            str,
+            "The subject being asked about, in the participant's own words. Say it as they "
+            "said it — the search translates the question into English itself, because the "
+            "pages are indexed by English topics.",
+        ],
+    ) -> str:
+        """Find a web page another host published, on a subject this salon has no source for.
+
+        Use this when a participant asks about something current or factual that neither your
+        brief nor the salon's own sources cover — the latest on a conflict, a company, an
+        election. Hosts elsewhere on the platform have shared public articles, and those are
+        searchable by topic.
+
+        Returns up to three pages, each with what it says, who published it and when. Cite
+        the publisher and the date when you use one: a claim drawn from an article nobody can
+        place is worth less than one that names its source.
+
+        Returns "no_results" when nothing matches, which is a real answer — say plainly that
+        you have nothing on it rather than reaching for what you half remember.
+
+        Only public web addresses are in this corpus. Documents that hosts uploaded are never
+        shared between salons, so this can never reach one.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            return "no_session_context"
+
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                resp = await client.get(
+                    f"{self._api_url}/sources/search",
+                    params={"q": query, "limit": 3},
+                    headers={"Authorization": f"Bearer {self._host_token}"},
+                )
+            if resp.status_code != 200:
+                logger.warning("search_platform returned %s", resp.status_code)
+                return "no_results"
+            results = resp.json().get("results") or []
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("search_platform failed: %s", exc)
+            return "no_results"
+
+        if not results:
+            return "no_results"
+
+        # Formatted as text rather than handed over as JSON: what comes back is read aloud,
+        # and a model given labelled prose quotes it more faithfully than one given a
+        # structure it has to describe.
+        blocks = []
+        for item in results:
+            parts = [f"SOURCE_ID: {item.get('sourceId', '')}"]
+            if item.get("publisher"):
+                parts.append(f"PUBLISHER: {item['publisher']}")
+            if item.get("author"):
+                parts.append(f"AUTHOR: {item['author']}")
+            if item.get("articleDate"):
+                parts.append(f"PUBLISHED: {item['articleDate'][:10]}")
+            if item.get("topics"):
+                parts.append(f"TOPICS: {', '.join(item['topics'])}")
+            parts.append(f"SUMMARY: {item.get('summary', '')}")
+            blocks.append("\n".join(parts))
+        return "\n\n---\n\n".join(blocks)
+
+    @function_tool
+    async def read_shared_page(
+        self,
+        source_id: Annotated[
+            str, "The SOURCE_ID of a page search_platform returned. Nothing else works."
+        ],
+        query: Annotated[
+            str, "The detail being asked about, in keywords rather than as a full question."
+        ],
+    ) -> str:
+        """Read a passage out of a page search_platform found.
+
+        The search gives you a summary. When a participant asks about a figure, a name or a
+        quotation the summary does not carry, come back here for the passage itself rather
+        than inferring it.
+
+        Returns "no_results" when the words do not appear in that page — which means the
+        page does not address it, not that you should guess.
+        """
+        if not self._api_url or not self._host_token:
+            return "no_session_context"
+
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                resp = await client.get(
+                    f"{self._api_url}/sources/{source_id}/excerpts",
+                    params={"q": query},
+                    headers={"Authorization": f"Bearer {self._host_token}"},
+                )
+            if resp.status_code != 200:
+                logger.warning("read_shared_page returned %s", resp.status_code)
+                return "no_results"
+            excerpts = resp.json().get("excerpts") or []
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("read_shared_page failed: %s", exc)
+            return "no_results"
+
+        return "\n\n---\n\n".join(excerpts) if excerpts else "no_results"
 
     @function_tool
     async def is_first_salon(
