@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Annotated
+from typing import Annotated, Callable
 
 import httpx
 from dotenv import load_dotenv
@@ -345,6 +345,11 @@ class SalonAgent(Agent):
         self._heartbeat_task: asyncio.Task | None = None
         self._heartbeat_interval: int = 30
         self._ending_announced: bool = False
+        # Set by the entrypoint, which is where the job context lives. Ending a session and
+        # leaving the room were previously two unrelated things, and only the first happened:
+        # the agent marked the session over and stayed sitting in it.
+        self._leave: Callable[[str], None] | None = None
+        self._left: bool = False
 
     @function_tool
     async def set_intervention_frequency(
@@ -764,6 +769,12 @@ class SalonAgent(Agent):
                 resp = await client.post(url, headers=headers, json={"enjoyed": enjoyed})
             if resp.status_code == 200:
                 logger.info("Session %s marked as ended", self._session_id)
+                self.leave("the session was ended")
+                return "session_ended"
+            if resp.status_code == 409:
+                # Already ended — by the cap, by the host, or by a previous call. The session
+                # being over is exactly the case for leaving, so this is not a failure.
+                self.leave("the session was already over")
                 return "session_ended"
             detail = resp.json().get("detail", "unknown error")
             logger.error("end_session failed %s: %s", resp.status_code, detail)
@@ -771,6 +782,34 @@ class SalonAgent(Agent):
         except Exception as exc:  # noqa: BLE001
             logger.exception("end_session exception: %s", exc)
             return "error:network"
+
+    def set_departure(self, leave: Callable[[str], None]) -> None:
+        """Supplied by the entrypoint, which is where the job context lives."""
+        self._leave = leave
+
+    def leave(self, reason: str) -> None:
+        """Actually go. Marking a session ended is bookkeeping; this is departure.
+
+        Reported: the agent ended the salon on inactivity or at the ten-minute cap and stayed
+        in the room. Every server path does delete the room, which disconnects everybody — but
+        that deletion is best-effort and its failure is only logged, so the one case where
+        leaving matters most was also the case where nothing made it happen.
+
+        Idempotent: the cap, the exit flow and an empty room can all fire, and shutting a job
+        down twice would raise inside a callback nobody is awaiting.
+        """
+        if self._left:
+            return
+        self._left = True
+        self.stop_heartbeat()
+        if self._leave is None:
+            logger.warning("Nothing to leave with (session %s): %s", self._session_id, reason)
+            return
+        logger.info("Leaving the room (session %s): %s", self._session_id, reason)
+        try:
+            self._leave(reason)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not leave the room cleanly: %s", exc)
 
     def start_heartbeat(self) -> None:
         """Start the 30-second metering heartbeat background task."""
@@ -808,7 +847,14 @@ class SalonAgent(Agent):
                 logger.warning("Heartbeat returned %s for session %s", resp.status_code, self._session_id)
             else:
                 logger.debug("Heartbeat sent for session %s", self._session_id)
-                self._maybe_announce_ending(resp.json().get("secondsRemaining"))
+                body = resp.json()
+                # The API closes a session that has reached its cap and says so here. Ignoring
+                # that flag was the bug: the room deletion it performs is best-effort, so when
+                # it failed nothing else told the agent the conversation was over.
+                if body.get("sessionEnded"):
+                    self.leave("the session reached its cap")
+                    return
+                self._maybe_announce_ending(body.get("secondsRemaining"))
         except Exception as exc:  # noqa: BLE001
             logger.warning("Heartbeat failed for session %s: %s", self._session_id, exc)
 
@@ -1006,6 +1052,12 @@ async def entrypoint(ctx: agents.JobContext):
         room=ctx.room,
     )
 
+    # How the agent actually leaves. ctx.shutdown ends the job, which closes the room
+    # connection and frees the worker slot; the server deleting the room is what disconnects
+    # everybody else, and that already happens on every ending path. This is the half that was
+    # missing — and the one that has to work even when that deletion silently fails.
+    salon_agent.set_departure(ctx.shutdown)
+
     # Sources added mid-conversation (FR3): the API publishes a data message, since the
     # session detail above is fetched once and would otherwise never be re-read.
     async def _reload_sources() -> None:
@@ -1171,7 +1223,9 @@ async def entrypoint(ctx: agents.JobContext):
 
         @ctx.room.on("disconnected")
         def _on_room_disconnected(*_args):
-            salon_agent.stop_heartbeat()
+            # Stopping the heartbeat used to be all this did, which left the job running with
+            # no room — billing nothing but occupying a worker slot, and never exiting.
+            salon_agent.leave("the room disconnected")
 
 
 if __name__ == "__main__":
