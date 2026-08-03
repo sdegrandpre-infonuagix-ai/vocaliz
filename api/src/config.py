@@ -173,6 +173,14 @@ class Settings(BaseSettings):
     # Stripe billing — set STRIPE_SECRET_KEY in production
     stripe_secret_key: str = "sk_test_placeholder"
 
+    # What an advertiser pays for one broadcast, in cents. Copied onto each ad_broadcasts
+    # row at the moment it is spoken, never read back at billing time — an invoice has to
+    # charge what was agreed then, and reading this later would silently reprice history.
+    #
+    # Invoiced in batches, not per broadcast: Stripe takes roughly 2.9% plus thirty cents per
+    # transaction, so charging twenty-five cents individually would lose money on every one.
+    ad_broadcast_rate_cents: int = 25
+
     # Post-trial billing: 5 USD per host-hour, prorated to the second.
     # 500 cents / 3600 s → charged per second of host usage beyond the free trial.
     hourly_rate_cents: int = 500

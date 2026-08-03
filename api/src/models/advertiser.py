@@ -95,6 +95,10 @@ class Advertiser(Base):
     # Nothing produces those ten keywords today. See below.
     target_keywords: Mapped[list] = mapped_column(StringList, nullable=False, default=list)
 
+    # Created on the first invoice, not on signup: an advertiser who never runs an ad leaves
+    # no trace in Stripe. Same pattern as hosts.
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

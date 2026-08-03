@@ -205,6 +205,22 @@ export class SalonApiStack extends cdk.Stack {
       ],
     });
 
+    // Advertising is invoiced daily rather than per broadcast. Stripe takes roughly 2.9% plus
+    // thirty cents per transaction, so charging twenty-five cents individually would lose
+    // money on every one — the batch is what makes the pricing viable at all.
+    //
+    // Daily rather than monthly: a failure is noticed within a day instead of at month end,
+    // and the run is idempotent, so an extra pass that finds nothing costs one invocation.
+    new events.Rule(this, 'InvoiceAdvertisers', {
+      schedule: events.Schedule.rate(cdk.Duration.days(1)),
+      description: 'Invoice advertisers for broadcasts not yet billed',
+      targets: [
+        new eventTargets.LambdaFunction(migrateFn, {
+          event: events.RuleTargetInput.fromObject({ action: 'invoice_advertisers' }),
+        }),
+      ],
+    });
+
     for (const fn of [apiFn, migrateFn]) {
       appSecret.grantRead(fn);
       db.secret!.grantRead(fn);

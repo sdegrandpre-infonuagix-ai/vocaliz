@@ -7,7 +7,7 @@ os.environ.setdefault("LIVEKIT_API_SECRET", "test-only-livekit-secret")
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, StaticPool
+from sqlalchemy import create_engine, event, StaticPool
 from sqlalchemy.orm import sessionmaker
 
 from src.database import Base, get_db
@@ -22,6 +22,17 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+# SQLite ignores foreign keys unless asked, per connection. Without this, every ON DELETE
+# RESTRICT and ON DELETE SET NULL in the schema is inert in tests: they are declared, Postgres
+# enforces them, and nothing here ever checks. That is the worst place for a gap — the
+# constraints protecting billing evidence would be verified only in production.
+@event.listens_for(engine, "connect")
+def _enforce_foreign_keys(dbapi_connection, _record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 def _override_get_db():

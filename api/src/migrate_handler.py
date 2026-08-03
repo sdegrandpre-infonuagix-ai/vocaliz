@@ -63,12 +63,38 @@ def _sweep_expired_sessions() -> dict:
         db.close()
 
 
+def _invoice_advertisers() -> dict:
+    """Put every uninvoiced broadcast on a Stripe invoice.
+
+    On a schedule rather than per broadcast, and that is the whole point. Stripe takes roughly
+    2.9% plus thirty cents per transaction, so charging twenty-five cents individually would
+    lose money on every single one. One invoice per advertiser per run, with a line per
+    broadcast so a dispute can be answered without asking.
+
+    Idempotent by construction: a broadcast is marked the instant its invoice line exists, so a
+    run interrupted halfway bills nothing twice and leaves nothing behind.
+
+    Carried here for the same reason as the session sweep — this function already has database
+    access and already sits behind IAM.
+    """
+    from src.database import SessionLocal
+    from src.services import ad_billing_service
+
+    db = SessionLocal()
+    try:
+        return ad_billing_service.invoice_all(db)
+    finally:
+        db.close()
+
+
 def handler(event, context):
     """Run `alembic upgrade head`, or a named maintenance action.
 
     event = {"action": "reset_trial", "email": "..."} clears metered time for one account.
     event = {"action": "sweep_sessions"} closes sessions past the per-session cap; this is
-    what EventBridge invokes on a schedule.
+    what EventBridge invokes every five minutes.
+    event = {"action": "invoice_advertisers"} bills every uninvoiced ad broadcast; EventBridge
+    invokes it daily.
     Any other event runs migrations.
     """
     action = (event or {}).get("action")
@@ -79,6 +105,10 @@ def handler(event, context):
     if action == "sweep_sessions":
         result = _sweep_expired_sessions()
         logger.info("sweep_sessions: %s", result)
+        return result
+    if action == "invoice_advertisers":
+        result = _invoice_advertisers()
+        logger.info("invoice_advertisers: %s", result)
         return result
 
     # settings resolves DATABASE_URL from the Aurora secret; import after env is in place.
