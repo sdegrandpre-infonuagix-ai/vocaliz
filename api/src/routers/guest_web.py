@@ -84,7 +84,14 @@ def host_console_page(request: Request):
 # gets subtly wrong. Nothing outside these two sets can be named at all.
 _I18N_PAGES = frozenset({"host", "join"})
 _I18N_LANGUAGES = frozenset(
-    {"es", "pt", "de", "it", "ar", "fa", "bn", "zh", "hi", "id", "ja", "ko", "ru", "tr", "vi"}
+    {
+        "es", "pt", "de", "it", "ar", "fa", "bn", "zh", "hi", "id", "ja", "ko",
+        "ru", "tr", "vi", "af", "am", "az", "bg", "bs", "ca", "cs", "cy", "da",
+        "el", "et", "fi", "ga", "gu", "ha", "he", "hr", "ht", "hu", "hy", "is",
+        "ka", "kk", "kn", "lt", "lv", "mk", "ml", "mn", "mr", "ms", "mt", "nl",
+        "no", "pa", "pl", "ps", "ro", "si", "sk", "sl", "so", "sq", "sr", "sv",
+        "sw", "ta", "te", "th", "tl", "uk", "ur", "uz",
+    }
 )
 
 

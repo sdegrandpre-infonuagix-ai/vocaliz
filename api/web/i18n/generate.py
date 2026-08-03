@@ -36,7 +36,12 @@ OVERRIDES = HERE / "overrides"
 # dictionary, with no exceptions. A caption language missing from here would show an English
 # interface beside translated speech — offered in a language the interface does not speak.
 TARGETS = [
-    "es", "pt", "de", "it", "ar", "fa", "bn", "zh", "hi", "id", "ja", "ko", "ru", "tr", "vi",
+    "es", "pt", "de", "it", "ar", "fa", "bn", "zh", "hi", "id", "ja", "ko",
+    "ru", "tr", "vi", "af", "am", "az", "bg", "bs", "ca", "cs", "cy", "da",
+    "el", "et", "fi", "ga", "gu", "ha", "he", "hr", "ht", "hu", "hy", "is",
+    "ka", "kk", "kn", "lt", "lv", "mk", "ml", "mn", "mr", "ms", "mt", "nl",
+    "no", "pa", "pl", "ps", "ro", "si", "sk", "sl", "so", "sq", "sr", "sv",
+    "sw", "ta", "te", "th", "tl", "uk", "ur", "uz",
 ]
 
 PAGES = ["host", "join"]
@@ -78,7 +83,16 @@ def extract_english(page: str) -> dict:
 # Portuguese and the beauty-salon word in Hindi, Bengali and Vietnamese — the product renamed
 # as a hairdresser in four languages. The brand is protected too, because Arabic, Japanese and
 # Korean otherwise transliterate it while the wordmark on the page stays in Latin letters.
-PRODUCT_WORDS = [("Salons", "XVSALONPLX"), ("Salon", "XVSALONSGX"), ("Vocaliz", "XVBRANDX")]
+# The token shape matters as much as the idea. A word-like token such as XVSALONSGX is treated
+# as a word and transliterated: Gujarati, Punjabi, Serbian and Urdu all returned it rendered in
+# their own script, so the protection failed exactly where the product noun was most at risk.
+# Wrapping a single letter in percent signs survives — punctuation is not transliterated, and
+# one letter gives the tokeniser nothing to chew on. Digits break it again, so none are used.
+PRODUCT_WORDS = [("Salons", "%%P%%"), ("Salon", "%%S%%"), ("Vocaliz", "%%V%%")]
+
+# Distinct letters for placeholders, avoiding B — the one single letter that was still
+# transliterated in the Indic scripts when tested.
+_PLACEHOLDER_LETTERS = "ACDEFGHJKLMNQRTUWXYZ"
 
 
 def _placeholders(text: str) -> list[str]:
@@ -96,13 +110,13 @@ def _protect(text: str, words: list[tuple[str, str]]) -> str:
     for word, token in words:
         text = text.replace(word, token)
     for i, ph in enumerate(dict.fromkeys(_placeholders(text))):
-        text = text.replace(ph, f"XPH{i}X")
+        text = text.replace(ph, f"%%{_PLACEHOLDER_LETTERS[i]}%%")
     return text
 
 
 def _restore(text: str, original: str, words: list[tuple[str, str]]) -> str:
     for i, ph in enumerate(dict.fromkeys(_placeholders(original))):
-        text = text.replace(f"XPH{i}X", ph)
+        text = text.replace(f"%%{_PLACEHOLDER_LETTERS[i]}%%", ph)
     for word, token in words:
         text = text.replace(token, word)
     return text
