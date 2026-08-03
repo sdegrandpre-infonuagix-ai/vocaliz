@@ -1,8 +1,5 @@
 [project]
-name = "salon-agent"
+  subdomain = "salon-sojjerdy"
 
-[build]
-dockerfile = "Dockerfile"
-
-[run]
-entrypoint = "python agent.py start"
+[agent]
+  id = "CA_y85UAcFFZPEj"
