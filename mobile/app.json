@@ -21,7 +21,12 @@
       "permissions": [
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
-        "READ_CONTACTS"
+        "READ_CONTACTS",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "READ_CONTACTS",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#F8F3E8",
@@ -55,6 +60,12 @@
         "projectId": "e1bd88f7-b3af-467b-afe1-e2f0a0025d52"
       }
     },
-    "owner": "infonuagix-ai"
+    "owner": "infonuagix-ai",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e1bd88f7-b3af-467b-afe1-e2f0a0025d52"
+    }
   }
 }

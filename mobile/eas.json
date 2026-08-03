@@ -8,28 +8,32 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://app.vocaliz.net",
         "EXPO_PUBLIC_LIVEKIT_URL": "wss://salon-sojjerdy.livekit.cloud"
-      }
+      },
+      "channel": "base"
     },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
       "env": {
         "APP_VARIANT": "development"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "extends": "base",
       "distribution": "internal",
       "env": {
         "APP_VARIANT": "preview"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "extends": "base",
       "autoIncrement": true,
       "env": {
         "APP_VARIANT": "production"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
