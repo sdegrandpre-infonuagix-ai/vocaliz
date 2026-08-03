@@ -12,7 +12,7 @@ from src.config import settings
 from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
-from src.services import livekit_service, sms_service
+from src.services import livekit_service, salon_code_service, sms_service
 from src.services.email_text import bilingual_body, bilingual_subject
 
 logger = logging.getLogger(__name__)
@@ -104,6 +104,9 @@ def invite_guest(
         guest_user_id=guest_user.id if guest_user else None,
         invitation_type=invitation_type,
         join_token=join_token,
+        # Claimed from the pool, not minted here. One code per invitation, so a caller is
+        # identified by the invitation rather than merely placed in the right room.
+        phone_pin=salon_code_service.claim(db),
         status="pending",
         expires_at=expires_at,
     )
@@ -138,14 +141,16 @@ def _try_send(invitation: Invitation) -> tuple[bool, bool]:
     email_sent = False
     if invitation.guest_email:
         try:
-            _send_invitation_email(invitation.guest_email, link)
+            _send_invitation_email(invitation.guest_email, link, invitation.phone_pin or "")
             email_sent = True
         except HTTPException as exc:
             logger.warning("Invitation %s: email failed: %s", invitation.id, exc.detail)
 
     sms_sent = False
     if invitation.guest_phone:
-        sms_sent = sms_service.send_invitation_sms(invitation.guest_phone, link)
+        sms_sent = sms_service.send_invitation_sms(
+            invitation.guest_phone, link, invitation.phone_pin or ""
+        )
 
     return email_sent, sms_sent
 
@@ -171,6 +176,8 @@ def _build_response(
         "guestPhone": invitation.guest_phone,
         "status": invitation.status,
         "joinLink": _join_link(invitation.join_token),
+        # Handed back so the host can read it out to a guest who never got the message.
+        "phonePin": invitation.phone_pin or "",
         # Each channel reports separately, and only for a channel that was asked for.
         # Collapsing them into one flag would tell a host who gave both that "it was
         # sent" when only one of the two actually left.
@@ -352,7 +359,22 @@ def _send_email(to_address: str, subject: str, body: str) -> None:
         ) from exc
 
 
-def _send_invitation_email(to_address: str, join_link: str) -> None:
+def _send_invitation_email(to_address: str, join_link: str, phone_pin: str = "") -> None:
+    # Included only when there is a code and a number to dial. Promising a telephone
+    # option before the platform has a number would be worse than not mentioning it.
+    telephone_line_en = ""
+    telephone_line_fr = ""
+    if phone_pin and settings.salon_phone_number:
+        telephone_line_en = (
+            f"Prefer to join by phone? Call {settings.salon_phone_number} and enter "
+            f"{phone_pin} when asked.\n\n"
+        )
+        telephone_line_fr = (
+            f"Vous préférez rejoindre par téléphone ? Composez "
+            f"{settings.salon_phone_number} et entrez le {phone_pin} lorsqu'on vous le "
+            f"demande.\n\n"
+        )
+
     # The link is repeated in both halves rather than shared between them. It is the one
     # thing the recipient has to act on, and it must be within reach of whichever half
     # they actually read.
@@ -375,6 +397,7 @@ def _send_invitation_email(to_address: str, join_link: str) -> None:
             "into email and messaging apps often cannot reach the microphone, and you would "
             "hear everyone while nobody hears you.\n\n"
             "This link works only once and expires in 24 hours.\n\n"
+            f"{telephone_line_en}"
             # Placed last, after the link and the browser warning, but before they join:
             # this is the only moment a guest can decline by simply not coming. The agent
             # says it again in the room, for anyone who joined without reading this.
@@ -387,6 +410,7 @@ def _send_invitation_email(to_address: str, join_link: str) -> None:
             "messagerie n'accèdent souvent pas au microphone : vous entendriez tout le "
             "monde sans que personne ne vous entende.\n\n"
             "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures.\n\n"
+            f"{telephone_line_fr}"
             "À noter : ce qui se dit dans un Salon est transcrit et conservé, afin que "
             "chaque participant puisse lire la conversation dans la langue de son choix.",
         ),

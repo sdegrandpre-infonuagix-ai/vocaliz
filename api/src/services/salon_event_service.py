@@ -208,6 +208,9 @@ def record_upload(
     filename: str | None = None,
     content: str | None = None,
     tokens: int | None = None,
+    article_date=None,
+    author: str = "",
+    publisher: str = "",
 ) -> None:
     """Note a source given to a salon's agent, and what it weighed.
 
@@ -229,6 +232,12 @@ def record_upload(
                 content_hash=summary_service.content_hash(content) if content else None,
                 # Whatever the summariser reported spending. Null when it did not run.
                 tokens=tokens,
+                # Provenance, when the page said so. All three are absent for an uploaded
+                # file, and often absent for a page too — a personal blog names no
+                # publisher and plenty of articles carry no date.
+                article_date=article_date,
+                author=(author or "")[:200],
+                publisher=(publisher or "")[:200],
             )
         )
         db.commit()

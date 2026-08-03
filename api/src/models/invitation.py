@@ -24,6 +24,16 @@ class Invitation(Base):
 
     # Kept nullable for invitations created before the switch to email.
     guest_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Six digits, so a guest can join by telephone: a call carries no URL, so the one-time
+    # link is useless to someone dialling in. LiveKit collects these on the keypad and
+    # places the caller in the room whose dispatch rule carries them.
+    #
+    # Per invitation rather than per salon, deliberately. A code shared by a whole salon
+    # would leave the caller anonymous — no address, and no number either when the caller
+    # id is withheld — and salon_events requires one of the two. Tied to an invitation, the
+    # code identifies the guest through what the host already typed.
+    phone_pin: Mapped[str | None] = mapped_column(String(6), nullable=True)
+
     guest_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

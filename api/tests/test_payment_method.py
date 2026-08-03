@@ -150,7 +150,10 @@ def test_create_session_allowed_when_trial_exhausted_with_payment_method(client,
     db.commit()
 
     with (
-        patch("src.services.content_service.fetch_url_content", return_value="article content"),
+        patch(
+            "src.services.content_service.fetch_url_document",
+            return_value=("article content", {"article_date": "", "author": "", "publisher": ""}),
+        ),
         patch("src.services.livekit_service.new_room_name", return_value="salon-room-99"),
         patch("src.services.livekit_service.create_room"),
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
@@ -169,7 +172,10 @@ def test_create_session_allowed_when_trial_not_exhausted(client, host):
     _, token = host
 
     with (
-        patch("src.services.content_service.fetch_url_content", return_value="content"),
+        patch(
+            "src.services.content_service.fetch_url_document",
+            return_value=("content", {"article_date": "", "author": "", "publisher": ""}),
+        ),
         patch("src.services.livekit_service.new_room_name", return_value="salon-room-100"),
         patch("src.services.livekit_service.create_room"),
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),

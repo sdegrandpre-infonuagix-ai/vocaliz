@@ -143,6 +143,82 @@ async def summarise(text: str, language: str | None = None) -> tuple[str | None,
         return None, None
 
 
+_KEYWORDS_PROMPT = (
+    "You extract search keywords from a document. Return ONLY a comma-separated list, "
+    "lowercase, no numbering, no explanation, no trailing full stop. "
+    "Give between five and fifteen terms: the proper nouns, places, organisations, "
+    "people and subject terms someone would actually say out loud when asking about this "
+    "document. Prefer the words a person would use over the words the document uses — "
+    "someone asking about a treaty says the country names, not the treaty's legal title. "
+    "Write them in English AND in the document's own language when the two differ, since "
+    "the question may come in either."
+)
+
+# Bounded so one document cannot dominate the corpus, and so a model that ignores its
+# instructions and returns prose does not fill a JSONB column with a paragraph.
+MAX_KEYWORDS = 20
+MAX_KEYWORD_LENGTH = 60
+
+
+async def keywords(text: str) -> list[str]:
+    """Topic terms a spoken question could be matched against.
+
+    Extracted by the model rather than computed by frequency, because the terms that
+    matter are often absent from the text: an article about a conflict names cities and
+    officials, while the person asking says the two countries. Frequency analysis returns
+    the document's vocabulary; this returns the question's.
+
+    Never raises, and returns [] on every failure path. A source with no keywords is
+    simply harder to find, which is a degraded corpus rather than a failed upload.
+    """
+    if not settings.xai_api_key or not text:
+        return []
+
+    payload = {
+        "model": settings.summary_model,
+        "messages": [
+            {"role": "system", "content": _KEYWORDS_PROMPT},
+            {"role": "user", "content": text[:20000]},
+        ],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                _XAI_CHAT_URL,
+                json=payload,
+                headers={"Authorization": f"Bearer {settings.xai_api_key}"},
+            )
+        if resp.status_code != 200:
+            logger.warning("Keyword extraction returned %s", resp.status_code)
+            return []
+        raw = resp.json()["choices"][0]["message"]["content"]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Keyword extraction failed: %s", exc)
+        return []
+
+    return normalise_keywords(raw.split(","))
+
+
+def normalise_keywords(terms: list[str]) -> list[str]:
+    """Clean, deduplicate and bound a keyword list.
+
+    Separate from the call so the same rules apply to a list typed by a human as to one
+    produced by the model — and so they can be tested without a network.
+    """
+    seen: list[str] = []
+    for term in terms:
+        cleaned = " ".join(term.strip().lower().split())
+        cleaned = cleaned.strip(".;:!?\"'()[]")
+        if not cleaned or len(cleaned) > MAX_KEYWORD_LENGTH:
+            continue
+        if cleaned in seen:
+            continue
+        seen.append(cleaned)
+        if len(seen) >= MAX_KEYWORDS:
+            break
+    return seen
+
+
 def search(text: str, query: str, *, max_excerpts: int = 3, window: int = 700) -> list[str]:
     """Find the passages of a source that bear on a question.
 

@@ -141,7 +141,10 @@ def test_quick_start_auto_invites_registered_partner(client, db, user):
     db.commit()
 
     with (
-        patch("src.services.content_service.fetch_url_content", return_value="content"),
+        patch(
+            "src.services.content_service.fetch_url_document",
+            return_value=("content", {"article_date": "", "author": "", "publisher": ""}),
+        ),
         patch("src.services.livekit_service.new_room_name", return_value="salon-room-qs1"),
         patch("src.services.livekit_service.create_room"),
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
@@ -173,7 +176,10 @@ def test_quick_start_email_contact_sends_link(client, db, user):
     host, token = user
 
     with (
-        patch("src.services.content_service.fetch_url_content", return_value="content"),
+        patch(
+            "src.services.content_service.fetch_url_document",
+            return_value=("content", {"article_date": "", "author": "", "publisher": ""}),
+        ),
         patch("src.services.livekit_service.new_room_name", return_value="salon-room-qs2"),
         patch("src.services.livekit_service.create_room"),
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
@@ -196,7 +202,10 @@ def test_create_session_without_partner_has_no_invitation(client, user):
     """Omitting partner_email keeps the original behaviour (no auto-invite)."""
     _, token = user
     with (
-        patch("src.services.content_service.fetch_url_content", return_value="content"),
+        patch(
+            "src.services.content_service.fetch_url_document",
+            return_value=("content", {"article_date": "", "author": "", "publisher": ""}),
+        ),
         patch("src.services.livekit_service.new_room_name", return_value="salon-room-qs3"),
         patch("src.services.livekit_service.create_room"),
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
@@ -214,7 +223,10 @@ def test_quick_start_rejects_invalid_partner_email(client, user):
     """A malformed partner_email yields 400, not a 500."""
     _, token = user
     with (
-        patch("src.services.content_service.fetch_url_content", return_value="content"),
+        patch(
+            "src.services.content_service.fetch_url_document",
+            return_value=("content", {"article_date": "", "author": "", "publisher": ""}),
+        ),
         patch("src.services.livekit_service.new_room_name", return_value="salon-room-qs4"),
         patch("src.services.livekit_service.create_room"),
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),

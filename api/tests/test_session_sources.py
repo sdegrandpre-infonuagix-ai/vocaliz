@@ -96,7 +96,11 @@ def test_add_source_non_host_returns_404(client, db, active_session):
 
 # ─── Session status check ────────────────────────────────────────────────────
 
-@patch("src.routers.sessions.content_service.fetch_url_content", new_callable=AsyncMock, return_value="text")
+@patch(
+    "src.routers.sessions.content_service.fetch_url_document",
+    new_callable=AsyncMock,
+    return_value=("text", {"article_date": "", "author": "", "publisher": ""}),
+)
 def test_add_source_to_ended_session_returns_409(mock_content, client, host, ended_session):
     _, token = host
     resp = client.post(
@@ -121,7 +125,11 @@ def test_add_source_no_input_returns_400(client, host, active_session):
 
 # ─── URL source ──────────────────────────────────────────────────────────────
 
-@patch("src.routers.sessions.content_service.fetch_url_content", new_callable=AsyncMock, return_value="New article text.")
+@patch(
+    "src.routers.sessions.content_service.fetch_url_document",
+    new_callable=AsyncMock,
+    return_value=("New article text.", {"article_date": "", "author": "", "publisher": ""}),
+)
 def test_add_url_source_success(mock_content, client, host, active_session, db):
     _, token = host
     resp = client.post(
@@ -147,9 +155,10 @@ def test_add_url_source_success(mock_content, client, host, active_session, db):
 
 @_patch("src.routers.sessions.livekit_service.notify_room", new_callable=AsyncMock)
 @_patch(
-    "src.routers.sessions.content_service.fetch_url_content",
+    "src.routers.sessions.content_service.fetch_url_document",
     new_callable=AsyncMock,
-    return_value="Mid-session article.",
+    # (text, metadata). A page that carries no provenance is the ordinary case.
+    return_value=("Mid-session article.", {"article_date": "", "author": "", "publisher": ""}),
 )
 def test_add_source_notifies_the_room(mock_content, mock_notify, client, host, active_session):
     """The agent reads sources once at job start, so it must be told about new ones.
@@ -196,7 +205,11 @@ def test_add_document_source_success(mock_name, mock_token, mock_room, client, h
 
 # ─── Multiple sources per session ────────────────────────────────────────────
 
-@patch("src.routers.sessions.content_service.fetch_url_content", new_callable=AsyncMock, return_value="content")
+@patch(
+    "src.routers.sessions.content_service.fetch_url_document",
+    new_callable=AsyncMock,
+    return_value=("content", {"article_date": "", "author": "", "publisher": ""}),
+)
 def test_multiple_sources_accumulate(mock_content, client, host, active_session, db):
     _, token = host
     headers = {"Authorization": f"Bearer {token}"}

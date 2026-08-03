@@ -116,6 +116,21 @@ class Settings(BaseSettings):
     # an approximate area.
     location_code_length: int = 6
 
+    # The number guests call to join a salon by telephone. One number for everyone: a
+    # salon lasts ten minutes and a number is leased by the month, so one per salon is
+    # impossible. Routing happens after the call is answered, on the six-digit code the
+    # guest received.
+    #
+    # Empty until a SIP-capable number exists, and every message omits the telephone
+    # option while it is: promising a way in that does not answer is worse than silence.
+    # Note that the toll-free number leased for SMS cannot serve this — AWS End User
+    # Messaging does not offer a SIP trunk.
+    salon_phone_number: str = ""
+
+    # The LiveKit inbound SIP trunk that number terminates on. Empty disables the dispatch
+    # rules entirely, so the code below is inert rather than failing on every invitation.
+    sip_trunk_id: str = ""
+
     # Whether the clients offer to invite by text message.
     #
     # A flag rather than markup commented out, because the thing it waits on is an AWS

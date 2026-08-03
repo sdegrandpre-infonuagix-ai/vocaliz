@@ -55,6 +55,18 @@ class UploadedData(Base):
     # meaning anything.
     content_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
+    # Provenance, when the page said so. All three are optional and absent is ordinary: a
+    # personal blog names no publisher, plenty of pages carry no date, and an uploaded file
+    # carries none of it.
+    #
+    # article_date is a timestamp rather than the string the page wrote, because ordering is
+    # the only reason it exists. A date nothing can sort is not a date.
+    article_date: Mapped[object | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    author: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    publisher: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+
     uploaded_by: Mapped[str] = mapped_column(String(320), nullable=False)
 
     uploaded_at: Mapped[datetime] = mapped_column(

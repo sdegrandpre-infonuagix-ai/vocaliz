@@ -15,6 +15,7 @@ from src.models.user import User
 from src.services import (
     invitation_service,
     livekit_service,
+    salon_code_service,
     salon_event_service,
     stripe_service,
 )
@@ -77,6 +78,12 @@ def finalize_session(
     # when a guest shuts their tab, so the end of the session is the only moment their
     # departure is reliably known.
     salon_event_service.record_salon_exit(db, session.livekit_room_name, enjoyed=enjoyed)
+
+    # Back to the pool. Without this a code stays pointed at a conversation that is
+    # over, and someone dialling an old code would be placed in an empty room.
+    released = salon_code_service.release_for_session(db, session.id)
+    if released:
+        logger.info("Released %d telephone code(s) for salon %s", released, session.id)
 
     invitation_service.send_followup_email_to_guests(str(session.id), db)
     return billing_summary

@@ -41,6 +41,7 @@ from src.services import (
     livekit_service,
     salon_event_service,
     session_lifecycle,
+    shared_source_service,
     summary_service,
     stripe_service,
     translation_service,
@@ -52,12 +53,53 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
+async def _publish_to_corpus(
+    db: DbSession,
+    *,
+    session_id,
+    shared_by: str,
+    url: str,
+    summary: str | None,
+    content: str,
+    provenance: dict,
+    article_date,
+) -> None:
+    """Add a consented page to the shared corpus, keywords and all.
+
+    Written once and called from both source paths so the two cannot drift: a page shared
+    on creation and the same page shared mid-conversation must land identically.
+
+    Keywords are extracted here rather than at search time, because a spoken question has
+    to be answered in the time it takes to say a sentence. Best-effort throughout — a
+    failure costs the page its searchability, never the host their source.
+    """
+    try:
+        keywords = await summary_service.keywords(content)
+        shared_source_service.publish(
+            db,
+            session_id=session_id,
+            shared_by=shared_by,
+            url=url,
+            summary=summary or "",
+            content=content,
+            keywords=keywords,
+            article_date=article_date,
+            author=provenance.get("author", ""),
+            publisher=provenance.get("publisher", ""),
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not publish %s to the shared corpus", url, exc_info=True)
+
+
 @router.post("", response_model=SessionResponse, status_code=201)
 async def create_session(
     source_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     partner_email: Optional[str] = Form(None),
     language: Optional[str] = Form(None),
+    # Opt-in, per source, and only ever honoured for a URL. False by default: a host who
+    # says nothing has shared nothing.
+    share_with_platform: bool = Form(False),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -92,8 +134,11 @@ async def create_session(
 
     # 1. Extract source content. A session may start with no source at all: the agent
     # then opens by asking participants what they want to discuss (see _build_instructions).
+    # Metadata is read from the same fetch as the text, never a second request: fetching
+    # twice doubles the wait and can return two different versions of a page.
+    provenance = {"article_date": "", "author": "", "publisher": ""}
     if source_url:
-        content = await content_service.fetch_url_content(source_url)
+        content, provenance = await content_service.fetch_url_document(source_url)
         source_type = "url"
         source_filename = None
     elif file is not None and file.filename:
@@ -104,6 +149,8 @@ async def create_session(
         content = None
         source_type = "none"
         source_filename = None
+
+    article_date = content_service.parse_article_date(provenance.get("article_date", ""))
 
     # 2. Provision LiveKit room
     room_name = livekit_service.new_room_name()
@@ -152,6 +199,24 @@ async def create_session(
             filename=source_filename,
             content=content,
             tokens=summary_tokens,
+            article_date=article_date,
+            author=provenance.get("author", ""),
+            publisher=provenance.get("publisher", ""),
+        )
+
+    # Publish to the shared corpus, if the host asked and the source is a URL. The type
+    # check is belt-and-braces: publish() has no parameter for a file and shared_sources has
+    # no column for one, so a document cannot get in even from here.
+    if share_with_platform and source_type == "url" and content:
+        await _publish_to_corpus(
+            db,
+            session_id=session.id,
+            shared_by=current_user.email,
+            url=source_url,
+            summary=summary,
+            content=content,
+            provenance=provenance,
+            article_date=article_date,
         )
 
     # 5. Dispatch the agent with the session context it needs to read sources, invite
@@ -206,6 +271,7 @@ async def add_session_source(
     session_id: str,
     source_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+    share_with_platform: bool = Form(False),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -237,8 +303,9 @@ async def add_session_source(
         )
 
     # Extract content
+    provenance = {"article_date": "", "author": "", "publisher": ""}
     if source_url:
-        content = await content_service.fetch_url_content(source_url)
+        content, provenance = await content_service.fetch_url_document(source_url)
         src_type = "url"
         src_filename = None
     else:
@@ -272,7 +339,24 @@ async def add_session_source(
         filename=src_filename,
         content=content,
         tokens=summary_tokens,
+        article_date=content_service.parse_article_date(provenance.get("article_date", "")),
+        author=provenance.get("author", ""),
+        publisher=provenance.get("publisher", ""),
     )
+
+    if share_with_platform and source_url and content:
+        await _publish_to_corpus(
+            db,
+            session_id=session.id,
+            shared_by=current_user.email,
+            url=source_url,
+            summary=summary,
+            content=content,
+            provenance=provenance,
+            article_date=content_service.parse_article_date(
+                provenance.get("article_date", "")
+            ),
+        )
 
     # The agent reads session sources once, at job start. Without this it would never
     # learn about a source added mid-conversation (FR3).

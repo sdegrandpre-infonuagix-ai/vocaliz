@@ -35,18 +35,30 @@ class Advertiser(Base):
     describes what was talked about.
 
     Encryption at rest is the Aurora cluster's, as everywhere else: KMS covers the
-    storage, its snapshots and its backups, and contact_email is readable in clear to
-    anyone holding SQL access.
+    storage, its snapshots and its backups, and the contact details are readable in clear
+    to anyone holding SQL access. Unlike salon_events, this is business contact
+    information rather than personal data about a participant.
     """
 
     __tablename__ = "advertisers"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    advertiser_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    contact_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    # The business itself. Renamed from `name` when address, phone and website joined it:
+    # `name` beside `company` would have been two columns for one idea, and one of them
+    # would eventually have been left empty.
+    company: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    # How to reach them. The email is required — it is how an advertiser is contacted
+    # about their own account — and the rest are not: a business may have no street
+    # address worth recording, and asking for a website before there is one invites a
+    # placeholder.
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    address: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    website: Mapped[str] = mapped_column(String(300), nullable=False, default="")
 
     # Paused on arrival. An advertiser that started running the moment its row was
     # written would go live before anyone had looked at what it wants to say.
@@ -94,6 +106,10 @@ class Advertiser(Base):
         CheckConstraint(
             "status IN ('active', 'paused', 'suspended')", name="ck_advertisers_status"
         ),
+        # An advertiser with no company name and no address to answer at is a row nobody
+        # can act on.
+        CheckConstraint("trim(company) <> ''", name="ck_advertisers_company_not_blank"),
+        CheckConstraint("trim(email) <> ''", name="ck_advertisers_email_not_blank"),
         # A circle is three numbers or none. Two of the three describes nothing, and a
         # half-written circle would silently match everyone or no one depending on which
         # part of the query read it first.

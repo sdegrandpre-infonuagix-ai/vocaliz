@@ -121,7 +121,11 @@ async def test_notify_room_swallows_livekit_failure(mock_api):
 @patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
 @patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="lk-tok")
 @patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-abc")
-@patch("src.routers.sessions.content_service.fetch_url_content", new_callable=AsyncMock, return_value="Article text.")
+@patch(
+    "src.routers.sessions.content_service.fetch_url_document",
+    new_callable=AsyncMock,
+    return_value=("Article text.", {"article_date": "", "author": "", "publisher": ""}),
+)
 def test_create_session_url_success(mock_content, mock_name, mock_token, mock_room, client, user, db):
     _, token = user
     response = client.post(
