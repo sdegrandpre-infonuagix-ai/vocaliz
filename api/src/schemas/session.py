@@ -156,3 +156,56 @@ class HeartbeatResponse(BaseModel):
     secondsRemaining: int = 0
     # True when this very heartbeat is the one that closed the session.
     sessionEnded: bool = False
+
+
+class UtteranceBody(BaseModel):
+    """One final turn of speech, posted by the agent as it is transcribed.
+
+    speakerIdentity is the LiveKit one — the only handle available at the moment someone
+    speaks, and deliberately not an email: a caption carries a display label, and a
+    guest's address must never reach the other participants.
+
+    targetLanguages asks for the turn rendered into each of them in the same round trip.
+    The agent knows what every viewer is reading, from their participant attributes, and
+    asking here saves a second call before the caption can be published.
+    """
+    speakerIdentity: str
+    speakerRole: str
+    text: str
+    language: str | None = None
+    targetLanguages: list[str] = []
+
+    @field_validator("speakerRole")
+    @classmethod
+    def role_is_known(cls, v: str) -> str:
+        v = v.strip().lower()
+        if v not in {"host", "guest", "agent"}:
+            raise ValueError("speakerRole must be one of: host, guest, agent")
+        return v
+
+    @field_validator("text")
+    @classmethod
+    def text_is_not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("text must not be blank")
+        return v
+
+
+class UtteranceResponse(BaseModel):
+    sequence: int
+    speaker: str
+    role: str
+    text: str
+    language: str | None = None
+    spokenAt: str | None = None
+    # Keyed by requested language. A language whose translation failed is absent rather
+    # than echoing the original: the caller can tell "not translated" from "translated".
+    translations: dict[str, str] = {}
+
+
+class TranscriptResponse(BaseModel):
+    sessionId: str
+    # Echoed so a client can tell which language it is looking at after changing it
+    # mid-salon, when a request in flight may answer after the newer one.
+    language: str | None = None
+    utterances: list[dict]

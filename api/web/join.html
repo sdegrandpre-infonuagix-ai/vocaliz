@@ -207,6 +207,26 @@
 
     .powered a { color: #7B1528; text-decoration: none; }
     .powered a:hover { text-decoration: underline; }
+
+    /* ── Live captions ──────────────────────────────────────────────────────── */
+    .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .cap-head select {
+      width:auto; min-width:150px; margin:0; padding:8px 10px; font-size:14px;
+    }
+    /* Bounded and scrolling: a ten-minute salon is a few hundred turns, and a panel that
+       grows without limit pushes every other control off the screen. */
+    #cap-log {
+      max-height:260px; overflow-y:auto; margin-top:14px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .cap-line { border-left:2px solid rgba(201,168,106,.45); padding:2px 0 2px 12px; }
+    .cap-who { font-size:12px; letter-spacing:.04em; text-transform:uppercase; opacity:.65; }
+    .cap-text { font-size:15px; line-height:1.5; }
+    /* The spoken words, kept under the translation. A translation with no original is a
+       claim the reader cannot check — and the check matters most when it reads oddly. */
+    .cap-src { font-size:13px; line-height:1.45; opacity:.5; font-style:italic; margin-top:2px; }
+    .cap-empty { font-size:14px; opacity:.55; }
+    .cap-notice { font-size:12.5px; line-height:1.5; opacity:.62; margin-top:12px; }
   </style>
 </head>
 <body>
@@ -250,6 +270,16 @@
     <div class="mic-row">
       <div id="mic-dot" class="mic-dot"></div>
       <span id="mic-label">Turning the microphone on…</span>
+    </div>
+
+    <div class="cap-head" style="margin-top:18px">
+      <div class="card-title" data-i18n="capTitle">Live captions</div>
+      <select id="cap-lang" onchange="setCaptionLang(this.value)"
+              aria-label="Caption language"></select>
+    </div>
+    <div id="cap-log"><div class="cap-empty" data-i18n="capEmpty">Nothing said yet.</div></div>
+    <div class="cap-notice" data-i18n="capNotice">
+      What is said in this Salon is transcribed and stored so it can be translated.
     </div>
   </div>
 
@@ -340,7 +370,12 @@
       errNetTitle: 'Network error',
       errNetDetail: 'Could not reach the server. Check your connection.',
       errIncompleteTitle: 'Invalid link',
-      errIncompleteDetail: 'This join link is incomplete.'
+      errIncompleteDetail: 'This join link is incomplete.',
+      capTitle: 'Live captions',
+      capAsSpoken: 'As spoken',
+      capEmpty: 'Nothing said yet.',
+      capNotice: 'What is said in this Salon is transcribed and stored so it can be '
+               + 'translated. Everyone here can read it in the language they choose.'
     },
     fr: {
       pageTitle: 'Vocaliz — Rejoindre la conversation',
@@ -382,7 +417,12 @@
       errNetTitle: 'Erreur réseau',
       errNetDetail: 'Impossible de contacter le serveur. Vérifiez votre connexion.',
       errIncompleteTitle: 'Lien invalide',
-      errIncompleteDetail: 'Ce lien de jointure est incomplet.'
+      errIncompleteDetail: 'Ce lien de jointure est incomplet.',
+      capTitle: 'Sous-titres en direct',
+      capAsSpoken: 'Tel que dit',
+      capEmpty: 'Rien encore dit.',
+      capNotice: 'Ce qui se dit dans ce Salon est transcrit et conservé afin de pouvoir '
+               + 'être traduit. Chacun ici peut le lire dans la langue de son choix.'
     }
   };
 
@@ -425,6 +465,113 @@
   // Re-renders static and stateful copy alike. A guest who switches language mid-session
   // must not be left with a half-translated page, and the parts most likely to matter to
   // them — the microphone line, an error reason — are exactly the stateful ones.
+
+    // ── Live captions ─────────────────────────────────────────────────────────
+    // Each finalised turn arrives over the room's data channel, already translated into
+    // the languages the participants said they were reading. The choice travels as a
+    // participant attribute, so changing it takes effect on the next turn without the
+    // agent having to be told anything.
+    var CAPTION_LANGS = [
+      ['', 'As spoken'], ['en', 'English'], ['fr', 'Français'], ['es', 'Español'],
+      ['pt', 'Português'], ['de', 'Deutsch'], ['it', 'Italiano'], ['ar', 'العربية'],
+      ['bn', 'বাংলা'], ['zh', '中文'], ['hi', 'हिन्दी'], ['id', 'Indonesia'],
+      ['ja', '日本語'], ['ko', '한국어'], ['ru', 'Русский'], ['tr', 'Türkçe'],
+      ['vi', 'Tiếng Việt']
+    ];
+    var CAP_KEY = 'vocaliz.captionLang';
+    var captionLang = '';
+    try { captionLang = localStorage.getItem(CAP_KEY) || ''; } catch (e) { }
+
+    // Held in memory with their translations so a change of language re-renders what has
+    // already been said. Turns that arrived before the change carry no translation into
+    // the newly chosen language, and fall back to the words as spoken — the agent only
+    // asks for languages somebody was reading at the time.
+    var captionLog = [];
+
+    function initCaptions() {
+      var sel = document.getElementById('cap-lang');
+      if (!sel || sel.options.length) return;
+      for (var i = 0; i < CAPTION_LANGS.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = CAPTION_LANGS[i][0];
+        opt.textContent = CAPTION_LANGS[i][0] ? CAPTION_LANGS[i][1] : T('capAsSpoken');
+        sel.appendChild(opt);
+      }
+      sel.value = captionLang;
+    }
+
+    function setCaptionLang(next) {
+      captionLang = next || '';
+      try { localStorage.setItem(CAP_KEY, captionLang); } catch (e) { }
+      publishCaptionLang();
+      renderCaptions();
+    }
+
+    // Attributes are how the agent learns what to translate into. Sent on connect and on
+    // every change; failing to send one costs captions in that language, nothing else.
+    function publishCaptionLang() {
+      if (!room || !room.localParticipant) return;
+      try { room.localParticipant.setAttributes({ caption_lang: captionLang }); } catch (e) { }
+    }
+
+    function onCaptionData(payload, participant, kind, topic) {
+      if (topic !== 'captions') return;
+      var msg;
+      try { msg = JSON.parse(new TextDecoder().decode(payload)); } catch (e) { return; }
+      if (!msg || msg.type !== 'caption' || !msg.text) return;
+      // The agent may retry a turn; keeping one row per sequence stops a caption being
+      // shown twice.
+      for (var i = 0; i < captionLog.length; i++) {
+        if (captionLog[i].sequence === msg.sequence) return;
+      }
+      captionLog.push(msg);
+      renderCaptions();
+    }
+
+    function renderCaptions() {
+      var log = document.getElementById('cap-log');
+      if (!log) return;
+      if (!captionLog.length) {
+        log.innerHTML = '';
+        var empty = document.createElement('div');
+        empty.className = 'cap-empty';
+        empty.textContent = T('capEmpty');
+        log.appendChild(empty);
+        return;
+      }
+      // Rebuilt rather than appended to: a language change has to redraw every line, and
+      // one code path is easier to keep correct than two.
+      log.innerHTML = '';
+      for (var i = 0; i < captionLog.length; i++) {
+        var c = captionLog[i];
+        var translated = captionLang && c.translations ? c.translations[captionLang] : null;
+
+        var line = document.createElement('div');
+        line.className = 'cap-line';
+
+        var who = document.createElement('div');
+        who.className = 'cap-who';
+        who.textContent = c.speaker || '';
+        line.appendChild(who);
+
+        var text = document.createElement('div');
+        text.className = 'cap-text';
+        // textContent throughout: a caption is whatever was said, and it must never be
+        // able to become markup on someone else's screen.
+        text.textContent = translated || c.text;
+        line.appendChild(text);
+
+        if (translated && translated !== c.text) {
+          var src = document.createElement('div');
+          src.className = 'cap-src';
+          src.textContent = c.text;
+          line.appendChild(src);
+        }
+        log.appendChild(line);
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+
   function applyLang() {
     document.documentElement.lang = lang;
     document.title = T('pageTitle');
@@ -441,6 +588,11 @@
     renderError();
     renderMic();
     renderJoinBtn();
+    // The "As spoken" option and the empty-log line are interface text, so they follow
+    // the interface language rather than the caption language.
+    var capSel = document.getElementById('cap-lang');
+    if (capSel && capSel.options.length) capSel.options[0].textContent = T('capAsSpoken');
+    renderCaptions();
   }
 
   // ── Stateful copy ───────────────────────────────────────────────────────────
@@ -588,6 +740,8 @@
         if (!room.canPlaybackAudio) showBtn('btn-sound');
       });
 
+      room.on(LivekitClient.RoomEvent.DataReceived, onCaptionData);
+
       room.on(LivekitClient.RoomEvent.Disconnected, function() {
         room = null;
         // Reset here rather than in leaveNow() so every way out is covered — the Leave
@@ -620,6 +774,10 @@
 
       showCard('v-connected');
       showBtn('btn-leave');
+      initCaptions();
+      // Sent once connected: the agent reads it from the participant attributes to know
+      // which languages to translate into.
+      publishCaptionLang();
     } catch (e) {
       // Only the connection can land here now — the microphone reports itself through
       // setMicState. Staying on v-ready with Join re-enabled is deliberate: the one-time

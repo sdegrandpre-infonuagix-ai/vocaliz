@@ -210,6 +210,17 @@ export class SalonApiStack extends cdk.Stack {
       }),
     );
 
+    // Live captions: each turn of speech is rendered into whatever language the other
+    // participants are reading. Amazon Translate has no resource to scope to — a
+    // translation is a call, not an object — so '*' is the only grant it accepts.
+    // TranslateText alone: nothing here creates terminologies or batch jobs.
+    apiFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['translate:TranslateText'],
+        resources: ['*'],
+      }),
+    );
+
     // ── Custom domain ─────────────────────────────────────────────────────────
     const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
       hostedZoneId: HOSTED_ZONE_ID,

@@ -191,3 +191,43 @@ def test_sponsorship_is_gated_on_being_a_newcomer():
     assert "is_first_salon" in section
     assert "'returning'" in section
     assert "say nothing about it at all" in section
+
+
+# ─── Transcription notice ────────────────────────────────────────────────────
+
+def test_base_instructions_announce_transcription():
+    """Speech is now stored. Everyone in the room has to be told, out loud."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("TRANSCRIPTION NOTICE"):
+    ]
+    assert section, "the notice must have its own section, not be buried in prose"
+    assert "transcribed" in section
+    # Matched without the article: the prompt wraps between "their" and "own language".
+    assert "own language" in section
+
+
+def test_transcription_notice_is_not_gated_on_being_a_newcomer():
+    """Unlike the sponsorship aside, this one is owed to returning participants too."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("TRANSCRIPTION NOTICE"):
+        salon._BASE_INSTRUCTIONS.find("SPONSORSHIP MENTION")
+    ]
+    assert "is_first_salon" not in section
+    assert "returning participants too" in section
+
+
+def test_transcription_notice_does_not_ask_for_permission():
+    """A consent prompt the agent cannot honour would be worse than a plain statement."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("TRANSCRIPTION NOTICE"):
+        salon._BASE_INSTRUCTIONS.find("SPONSORSHIP MENTION")
+    ]
+    assert "do not ask for permission" in section
+
+
+def test_transcription_notice_survives_both_opening_paths():
+    for instructions in (
+        salon._build_instructions(source_summary="A brief.", source_type="url"),
+        salon._build_instructions(),
+    ):
+        assert "TRANSCRIPTION NOTICE" in instructions

@@ -28,6 +28,9 @@ from src.schemas.session import (
     SessionSourceResponse,
     SessionSourceSummary,
     SourceSearchResponse,
+    TranscriptResponse,
+    UtteranceBody,
+    UtteranceResponse,
 )
 from src.config import settings
 from src.schemas.invitation import GeoBody, InviteGuestBody
@@ -40,6 +43,8 @@ from src.services import (
     session_lifecycle,
     summary_service,
     stripe_service,
+    translation_service,
+    utterance_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -770,4 +775,108 @@ async def end_session(
         status=session.status,
         endedAt=session.ended_at.isoformat(),
         billing=billing_summary,
+    )
+
+
+@router.post("/{session_id}/utterances", response_model=UtteranceResponse, status_code=201)
+def record_utterance(
+    session_id: str,
+    body: UtteranceBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Store one final turn of speech and return it in the languages being watched.
+
+    Called by the agent with the host's token, as the other agent-facing endpoints are:
+    authorisation is ownership of the session, not being the person who spoke.
+
+    Storing and translating happen in one round trip on purpose. The caption cannot be
+    published until it is translated, so a second call would sit on the critical path
+    between someone finishing a sentence and the other person reading it.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+
+    utterance = utterance_service.record(
+        db,
+        session_id=session.id,
+        speaker_identity=body.speakerIdentity,
+        speaker_role=body.speakerRole,
+        text=body.text,
+        language=body.language,
+    )
+    if utterance is None:
+        raise HTTPException(status_code=500, detail="Could not record the utterance.")
+
+    translations: dict[str, str] = {}
+    for target in body.targetLanguages:
+        rendered = translation_service.translated_text(db, utterance, target)
+        # Omit rather than echo the original: an absent key means "not translated", and a
+        # viewer reading a caption in what they think is their language deserves to know.
+        if rendered != utterance.text or translation_service.same_language(
+            utterance.language, target
+        ):
+            translations[target] = rendered
+
+    return UtteranceResponse(
+        sequence=utterance.sequence,
+        speaker=utterance_service.display_label(
+            utterance.speaker_identity, utterance.speaker_role
+        ),
+        role=utterance.speaker_role,
+        text=utterance.text,
+        language=utterance.language,
+        spokenAt=utterance.spoken_at.isoformat() if utterance.spoken_at else None,
+        translations=translations,
+    )
+
+
+@router.get("/{session_id}/utterances", response_model=TranscriptResponse)
+def get_transcript(
+    session_id: str,
+    lang: str | None = None,
+    after: int = 0,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """This salon's turns, in order, translated into `lang`.
+
+    Live captions travel over the room's data channel; this exists for the viewer who
+    joined late, reloaded, or changed language mid-conversation and needs what came
+    before rendered again.
+
+    `after` is a sequence number rather than a timestamp, so a client that has seen turn
+    12 asks for everything above 12 and cannot lose one to a clock skew.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+
+    return TranscriptResponse(
+        sessionId=str(session.id),
+        language=lang,
+        utterances=utterance_service.transcript(
+            db, session_id=session.id, language=lang, after=after
+        ),
     )

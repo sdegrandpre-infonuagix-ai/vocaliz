@@ -18,6 +18,7 @@ from livekit.agents import AgentSession, Agent, function_tool, inference
 from livekit.agents.voice.room_io import RoomOptions
 from livekit.plugins import xai, silero
 
+from src.captions import CaptionPublisher
 from src.mixed_audio_input import MixedParticipantAudioInput
 
 # override=True is deliberate: load_dotenv() otherwise leaves pre-existing OS
@@ -78,6 +79,16 @@ _BASE_INSTRUCTIONS = (
     "— call report_participant_language once with their LiveKit identity and that "
     "language. Report what you heard first, not what they end up speaking most: it is "
     "recorded once and never revised. Use the identity, not the display name. "
+    "\n\n"
+    "TRANSCRIPTION NOTICE (everyone, before the conversation begins):\n"
+    "The FIRST time each participant speaks, tell them in ONE short sentence, in their\n"
+    "own language, that what is said here is transcribed and kept so that everyone can\n"
+    "read it in the language they choose. Say it plainly, as a fact about the room, and\n"
+    "do not ask for permission or wait for an answer — they can leave if they object.\n"
+    "This is not optional and it is not the same as the sponsorship aside below: say it\n"
+    "to returning participants too, and say it even when there is nothing else to say.\n"
+    "The written notice on the page cannot be relied on — a participant may have joined\n"
+    "by telephone, or never looked at the screen.\n"
     "\n\n"
     "SPONSORSHIP MENTION (newcomers only, once):\n"
     "Before greeting someone, call is_first_salon with their LiveKit identity.\n"
@@ -786,6 +797,44 @@ async def entrypoint(ctx: agents.JobContext):
         await mixed_input.aclose()
 
     ctx.add_shutdown_callback(_close_mixer)
+
+    # ── Live captions ─────────────────────────────────────────────────────────
+    # The realtime session already transcribes what it hears — input transcription is on
+    # by default in the xAI plugin — and until now the agent received that text and threw
+    # it away. Each finalised turn is now stored and published to the room, translated
+    # into whatever language each participant says they are reading.
+    if session_id and api_url and host_token:
+        captions = CaptionPublisher(ctx.room, api_url, session_id, host_token)
+        # Attribution comes from LiveKit, not from the model: every participant is mixed
+        # into one audio stream, so the realtime model cannot say who spoke.
+        captions.track_active_speakers()
+
+        @agent_session.on("user_input_transcribed")
+        def _on_user_transcript(event) -> None:
+            # Finals only. The model revises a transcript as it hears more, and the
+            # interim versions are half-sentences that were never true.
+            if not event.is_final:
+                return
+            captions.publish_soon(
+                text=event.transcript,
+                # speaker_id is populated on the plugin's STT path and never on the
+                # realtime one, so it is not worth reading here.
+                identity=captions.attributed_speaker(),
+                language=event.language,
+            )
+
+        @agent_session.on("conversation_item_added")
+        def _on_agent_speech(event) -> None:
+            # The same event carries both sides of the conversation; the user's half
+            # already arrived above as a transcript, and posting it twice would double
+            # every caption.
+            item = getattr(event, "item", None)
+            if item is None or getattr(item, "role", None) != "assistant":
+                return
+            captions.publish_soon(
+                text=getattr(item, "text_content", None) or "",
+                identity="agent",
+            )
 
     # Start metering heartbeat — sends elapsed seconds every 30 s so trial time
     # is committed incrementally and survives unexpected disconnects.
