@@ -46,23 +46,23 @@
     /* Language switch — pushed to the far end of the header bar. */
     .lang { margin-left: auto; display: flex; gap: 4px; }
 
-    .lang-btn {
-      background: transparent;
+    .lang select {
+      background: rgba(248, 243, 232, .12);
       color: #F8F3E8;
       border: 1px solid rgba(248, 243, 232, .45);
       border-radius: 6px;
-      padding: 4px 9px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      min-height: 30px;
+      width: auto;
+      margin: 0;
     }
 
-    .lang-btn[aria-pressed="true"] {
-      background: #C9A84C;
-      color: #2C2C2C;
-      border-color: #C9A84C;
-    }
+    /* The list itself is drawn by the operating system, in its own colours — a dark option
+       on a dark background is unreadable on some platforms. */
+    .lang select option { color: #2C2C2C; background: #fff; }
+
 
     main {
       flex: 1;
@@ -252,9 +252,28 @@
 <header>
   <h1>Vocaliz</h1>
   <span class="badge-no-install" data-i18n="badge">No install</span>
-  <div class="lang" role="group" aria-label="Language">
-    <button type="button" class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
-    <button type="button" class="lang-btn" id="lang-fr" onclick="setLang('fr')">FR</button>
+  <div class="lang">
+    <!-- Sixteen languages, so a select rather than a row of buttons. English and
+         French are inline in this file and switch instantly; the other fourteen are
+         fetched from /i18n on first use. -->
+    <select id="lang-select" onchange="setLang(this.value)" aria-label="Language">
+      <option value="en">English</option>
+      <option value="fr">Français</option>
+      <option value="es">Español</option>
+      <option value="pt">Português</option>
+      <option value="de">Deutsch</option>
+      <option value="it">Italiano</option>
+      <option value="ar">العربية</option>
+      <option value="bn">বাংলা</option>
+      <option value="zh">中文</option>
+      <option value="hi">हिन्दी</option>
+      <option value="id">Indonesia</option>
+      <option value="ja">日本語</option>
+      <option value="ko">한국어</option>
+      <option value="ru">Русский</option>
+      <option value="tr">Türkçe</option>
+      <option value="vi">Tiếng Việt</option>
+    </select>
   </div>
 </header>
 
@@ -458,6 +477,32 @@
     }
   };
 
+
+  // Every language the interface offers. English and French live in this file; the rest are
+  // generated from the English and fetched on demand — shipping sixteen dictionaries inline
+  // would triple a file that is already long, and a reader who never leaves English would
+  // download fifteen they will never use.
+  var SUPPORTED_LANGS = ['en', 'fr', 'es', 'pt', 'de', 'it', 'ar', 'bn', 'zh', 'hi', 'id', 'ja', 'ko', 'ru', 'tr', 'vi'];
+
+  function haveDictionary(code) { return !!I18N[code]; }
+
+  function isSupported(code) { return SUPPORTED_LANGS.indexOf(code) !== -1; }
+
+  // Fetched once per language per page load, then cached in I18N. A failure leaves the
+  // language unchanged rather than showing a page that fell back to English without saying
+  // why — the reader would have no idea their choice had not taken.
+  async function loadDictionary(code) {
+    if (haveDictionary(code)) return true;
+    try {
+      var resp = await fetch('/i18n/join/' + code);
+      if (!resp.ok) return false;
+      I18N[code] = await resp.json();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   var LANG_KEY = 'salon_lang';
 
   // Precedence: a choice made here, then the browser's own languages, then English.
@@ -465,7 +510,9 @@
     // localStorage throws outright under some privacy settings, not just return null.
     try {
       var v = localStorage.getItem(LANG_KEY);
-      return I18N[v] ? v : null;
+      // Checked against every supported language, not against what is loaded: a stored
+      // choice of Japanese is valid even though its dictionary has not been fetched yet.
+      return isSupported(v) ? v : null;
     } catch (e) { return null; }
   }
 
@@ -478,7 +525,7 @@
       : [navigator.language || ''];
     for (var i = 0; i < list.length; i++) {
       var base = String(list[i]).split('-')[0].toLowerCase();
-      if (I18N[base]) return base;
+      if (isSupported(base)) return base;
     }
     return null;
   }
@@ -487,8 +534,17 @@
 
   function T(key) { return I18N[lang][key] || I18N.en[key] || key; }
 
-  function setLang(next) {
-    if (!I18N[next]) return;
+  async function setLang(next) {
+    if (!isSupported(next)) return;
+    // Awaited before anything changes. Switching first and fetching after would leave the
+    // page in the new language with English strings for a beat.
+    if (!(await loadDictionary(next))) {
+      // Put the control back on the language actually in use, so the reader can see their
+      // choice did not take rather than wondering why nothing moved.
+      var sel = document.getElementById('lang-select');
+      if (sel) sel.value = lang;
+      return;
+    }
     lang = next;
     try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: session only */ }
     applyLang();
@@ -621,8 +677,8 @@
       nodes[i].textContent = T(nodes[i].getAttribute('data-i18n'));
     }
 
-    document.getElementById('lang-en').setAttribute('aria-pressed', lang === 'en');
-    document.getElementById('lang-fr').setAttribute('aria-pressed', lang === 'fr');
+    var langSelect = document.getElementById('lang-select');
+    if (langSelect) langSelect.value = lang;
 
     renderReady();
     renderError();
@@ -997,7 +1053,13 @@
   window.addEventListener('pagehide', onPageUnload);
 
   // ── Boot ──────────────────────────────────────────────────────────────────
+  // Rendered immediately with whatever is in memory — English and French are — so the page
+  // is never blank waiting on a network call. A stored choice among the other fourteen then
+  // arrives and the page is rendered again.
   applyLang();
+  if (lang !== 'en' && lang !== 'fr') {
+    loadDictionary(lang).then(function (ok) { if (ok) applyLang(); });
+  }
   if (!joinToken || joinToken === 'join') {
     showError('errIncompleteTitle', 'errIncompleteDetail');
   } else {
