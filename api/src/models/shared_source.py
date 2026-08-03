@@ -56,10 +56,14 @@ class SharedSource(Base):
     # salon actually read is the honest one.
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    # Lowercased topic terms, extracted once at publication. This is what a spoken question
+    # Ten lowercased topics, extracted once at publication. This is what a spoken question
     # is matched against: "the latest on the USA and Iran" has to reach a page nobody
     # tagged by hand.
-    keywords: Mapped[list] = mapped_column(StringList, nullable=False, default=list)
+    #
+    # Named topics rather than keywords because ads.topic already exists and these two are
+    # meant to be compared — an ad about coffee should reach a page whose topics include
+    # coffee. Two names for one idea is how a query ends up joining the wrong pair.
+    topics: Mapped[list] = mapped_column(StringList, nullable=False, default=list)
 
     # Provenance, when the page said so. Optional, and absent is ordinary. Returned with
     # every search result: an agent about to read a summary aloud should be able to say who

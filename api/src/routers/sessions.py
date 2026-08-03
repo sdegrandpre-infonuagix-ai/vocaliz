@@ -64,17 +64,17 @@ async def _publish_to_corpus(
     provenance: dict,
     article_date,
 ) -> None:
-    """Add a consented page to the shared corpus, keywords and all.
+    """Add a consented page to the shared corpus, topics and all.
 
     Written once and called from both source paths so the two cannot drift: a page shared
     on creation and the same page shared mid-conversation must land identically.
 
-    Keywords are extracted here rather than at search time, because a spoken question has
+    Topics are extracted here rather than at search time, because a spoken question has
     to be answered in the time it takes to say a sentence. Best-effort throughout — a
     failure costs the page its searchability, never the host their source.
     """
     try:
-        keywords = await summary_service.keywords(content)
+        topics = await summary_service.topics(content)
         shared_source_service.publish(
             db,
             session_id=session_id,
@@ -82,7 +82,7 @@ async def _publish_to_corpus(
             url=url,
             summary=summary or "",
             content=content,
-            keywords=keywords,
+            topics=topics,
             article_date=article_date,
             author=provenance.get("author", ""),
             publisher=provenance.get("publisher", ""),

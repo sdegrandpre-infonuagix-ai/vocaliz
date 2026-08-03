@@ -7,11 +7,18 @@ so a search cannot accidentally reach anything else — the safety property is t
 contents, not a filter anyone has to remember.
 
 Searching scores candidates in Python rather than in SQL. The corpus is small, the query
-arrives as a spoken sentence rather than as terms, and ranking needs both topical overlap
-and recency: "the latest news on the USA and Iran" is a question about time as much as
-about subject. Postgres full-text search or embeddings would beat this once there are
-thousands of sources; at the current size they would be machinery in search of a problem,
-and neither would run on the SQLite the tests use.
+arrives as a spoken sentence in any of sixteen languages, and ranking needs both topical
+overlap and recency: "the latest news on the USA and Iran" is a question about time as much
+as about subject.
+
+Every question is translated into English before it is matched, because the topics are in
+English and nothing else. One vocabulary for the whole corpus is what lets a French question
+reach a Spanish page; the alternative — topics in each document's own language — would need
+the question translated into all sixteen instead of one.
+
+Postgres full-text search or embeddings would beat this once there are thousands of pages.
+At the current size they would be machinery in search of a problem, and neither would run on
+the SQLite the tests use.
 """
 import logging
 import re
@@ -20,7 +27,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session as DbSession
 
 from src.models.shared_source import SharedSource, SharedSourceConsent
-from src.services import summary_service
+from src.services import summary_service, translation_service
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +36,13 @@ logger = logging.getLogger(__name__)
 # the cost is a few hundred short rows rather than megabytes.
 CANDIDATE_LIMIT = 500
 
-# Words shorter than this carry no topic. Applied to the question, not to the keywords:
+# Words shorter than this carry no topic. Applied to the question, not to the topics:
 # "USA" is three characters and is exactly what someone would say.
 MIN_QUERY_WORD = 3
 
-# A match on a keyword is worth more than a match in the prose, because keywords were
+# A match on a topic is worth more than a match in the prose, because the topics were
 # chosen as the terms a person would say out loud.
-KEYWORD_WEIGHT = 3
+TOPIC_WEIGHT = 3
 SUMMARY_WEIGHT = 1
 
 # Recency, in points added to a score, decaying over roughly a month. Enough to separate
@@ -51,6 +58,27 @@ def _words(text: str) -> set[str]:
     }
 
 
+def _query_words(query: str) -> set[str]:
+    """The words to match a question by, in its own language and in English.
+
+    The topics are English, always, so a question asked in French would miss them —
+    "guerre" does not contain "war". Translating the question is what bridges that, and it
+    is why the topics can be one vocabulary instead of sixteen.
+
+    A union rather than a replacement, for two reasons. "Iran" is the same word in both, so
+    the original often matches on its own. And a translator that mangles a proper noun must
+    not cost the match the untranslated question would have made.
+
+    Best-effort: a failed translation leaves the original words, which is a narrower search
+    rather than no search.
+    """
+    words = _words(query)
+    english = translation_service.translate(query, "en")
+    if english:
+        words |= _words(english)
+    return words
+
+
 def publish(
     db: DbSession,
     *,
@@ -59,7 +87,7 @@ def publish(
     url: str,
     summary: str = "",
     content: str = "",
-    keywords: list[str] | None = None,
+    topics: list[str] | None = None,
     article_date=None,
     author: str = "",
     publisher: str = "",
@@ -96,7 +124,7 @@ def publish(
                 url=url,
                 summary=summary,
                 content=content,
-                keywords=summary_service.normalise_keywords(keywords or []),
+                topics=summary_service.normalise_topics(topics or []),
                 article_date=article_date,
                 author=(author or "")[:200],
                 publisher=(publisher or "")[:200],
@@ -130,15 +158,15 @@ def publish(
 def _score(row, query_words: set[str], now: datetime) -> float:
     """How well one published source answers a question.
 
-    Substring matching in both directions, so "iran" finds "iranian" and a keyword
+    Substring matching in both directions, so "iran" finds "iranian" and a topic
     "united states" is found by "states". Crude, and right often enough for a corpus this
     size — it is the summary the agent reads out, so a near miss costs a sentence rather
     than a wrong answer.
     """
     hits = 0
-    for keyword in row.keywords or []:
-        if any(w in keyword or keyword in w for w in query_words):
-            hits += KEYWORD_WEIGHT
+    for topic in row.topics or []:
+        if any(w in topic or topic in w for w in query_words):
+            hits += TOPIC_WEIGHT
 
     prose = (row.summary or "").lower()
     hits += SUMMARY_WEIGHT * sum(1 for w in query_words if w in prose)
@@ -170,7 +198,7 @@ def search(db: DbSession, query: str, *, limit: int = 3) -> list[dict]:
     and scoring five hundred of them in memory would cost megabytes to answer one
     question.
     """
-    words = _words(query)
+    words = _query_words(query)
     if not words:
         return []
 
@@ -180,7 +208,7 @@ def search(db: DbSession, query: str, *, limit: int = 3) -> list[dict]:
                 SharedSource.id,
                 SharedSource.url,
                 SharedSource.summary,
-                SharedSource.keywords,
+                SharedSource.topics,
                 SharedSource.article_date,
                 SharedSource.author,
                 SharedSource.publisher,
@@ -205,7 +233,7 @@ def search(db: DbSession, query: str, *, limit: int = 3) -> list[dict]:
             "sourceId": str(row.id),
             "url": row.url,
             "summary": row.summary,
-            "keywords": list(row.keywords or []),
+            "topics": list(row.topics or []),
             # Attribution travels with the result. An agent reading a summary aloud should
             # be able to say where it came from, and a claim with no source is worth less.
             "articleDate": row.article_date.isoformat() if row.article_date else None,
@@ -268,3 +296,40 @@ def withdraw(db: DbSession, *, shared_by: str, source_id) -> bool:
         db.rollback()
         logger.warning("Could not withdraw shared source %s", source_id, exc_info=True)
         return False
+
+
+# Bounded so the billboard cannot become the slowest thing on the page. Only the topic lists
+# are read — ten short strings per row — so five thousand rows is a few hundred kilobytes.
+TOPIC_TALLY_LIMIT = 5000
+
+
+def top_topics(db: DbSession, *, limit: int = 10) -> list[dict]:
+    """The most common topics across the published corpus, most frequent first.
+
+    Counted in Python rather than in SQL. Unnesting a JSONB array is a Postgres expression
+    with no SQLite equivalent, and the corpus is small enough that reading ten short strings
+    per row costs less than maintaining two queries.
+
+    Only shared_sources is consulted, which means only material a host explicitly published.
+    Nothing private is counted, and a topic here can only have come from a public web page.
+
+    Worth knowing while the platform is small: with a handful of hosts this is a portrait of
+    what those few people read, not of what a population is interested in.
+    """
+    try:
+        rows = (
+            db.query(SharedSource.topics).limit(TOPIC_TALLY_LIMIT).all()
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not tally topics", exc_info=True)
+        return []
+
+    tally: dict[str, int] = {}
+    for (topics,) in rows:
+        # Counted once per page even if a page repeats a topic: the question is how many
+        # pages are about a subject, not how many times a word appears.
+        for topic in set(topics or []):
+            tally[topic] = tally.get(topic, 0) + 1
+
+    ordered = sorted(tally.items(), key=lambda pair: (-pair[1], pair[0]))
+    return [{"topic": topic, "pages": count} for topic, count in ordered[:limit]]

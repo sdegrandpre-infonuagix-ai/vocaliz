@@ -83,3 +83,26 @@ def db():
     session = TestingSession()
     yield session
     session.close()
+
+
+@pytest.fixture(autouse=True)
+def _no_translate_side_calls(request):
+    """Stop the corpus search from reaching Amazon Translate in tests.
+
+    Every question is translated into English before it is matched, because the topics are
+    English. translate() swallows its own errors and returns None, so without this each
+    search test would make a real, billed, network-dependent call and pass anyway — the
+    worst combination: slow, costing money, and invisible.
+
+    Returning None is what a translator outage looks like, and the search is written to
+    fall back to the untranslated words. Tests that care about the translated path opt out
+    with @pytest.mark.real_translate and patch it themselves.
+    """
+    from unittest.mock import patch
+
+    if request.node.get_closest_marker("real_translate"):
+        yield
+        return
+
+    with patch("src.services.translation_service.translate", return_value=None):
+        yield

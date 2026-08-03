@@ -108,7 +108,7 @@ def my_shared_sources(
                 "author": row.author or "",
                 "publisher": row.publisher or "",
                 "articleDate": row.article_date.isoformat() if row.article_date else None,
-                "keywords": list(row.keywords or []),
+                "topics": list(row.topics or []),
                 # When *this host* published it, not when the page entered the corpus.
                 "sharedAt": shared_at.isoformat() if shared_at else None,
             }
@@ -143,3 +143,25 @@ def withdraw_shared_source(
 
     logger.info("Host %s withdrew a shared source", current_user.email)
     return {"withdrawn": True}
+
+
+@router.get("/topics")
+@limiter.limit("60/minute")
+def top_topics(
+    request: Request,
+    limit: int = Query(10, ge=1, le=50),
+    db: DbSession = Depends(get_db),
+):
+    """What the published corpus is about, most common first.
+
+    Unauthenticated, unlike everything else here, because it is shown at the top of the host
+    page before anyone signs in. What it exposes is a list of subject words and how many
+    public web pages carry each — no addresses, no summaries, and nothing from a source
+    somebody kept private. That is the same class of information as a trending list on any
+    site.
+
+    One thing it does reveal: what the people using Vocaliz are reading about. Harmless in
+    aggregate, and less so while there are few of them — with a handful of hosts this is a
+    portrait of those few rather than of a population.
+    """
+    return {"topics": shared_source_service.top_topics(db, limit=limit)}

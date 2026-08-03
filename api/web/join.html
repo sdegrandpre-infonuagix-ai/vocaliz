@@ -209,6 +209,24 @@
     .powered a:hover { text-decoration: underline; }
 
 
+    /* ── Billboard: what the shared corpus is about ──────────────────────────── */
+    /* Hidden until there is something to show. An empty billboard says less than none, and
+       it would be the first thing a visitor sees. */
+    .billboard { display: none; background: #2C2C2C; color: #F8F3E8; padding: 9px 16px; }
+    .billboard.on { display: block; }
+    .billboard-inner {
+      max-width: 900px; margin: 0 auto; display: flex; align-items: center;
+      gap: 10px; flex-wrap: wrap;
+    }
+    .billboard-label {
+      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+      color: #C9A84C; white-space: nowrap;
+    }
+    .billboard-topics { display: flex; gap: 8px; flex-wrap: wrap; }
+    .billboard-topic { font-size: 0.76rem; color: #F8F3E8; white-space: nowrap; }
+    /* The count is what makes it a popularity list rather than a tag cloud. */
+    .billboard-count { color: #a99e91; }
+
     /* ── Countdown to the agent speaking ────────────────────────────────────── */
     .countdown {
       display: none;
@@ -245,6 +263,16 @@
   </style>
 </head>
 <body>
+<!-- What the published corpus is about. Filled from /sources/topics, which is
+     unauthenticated because this band shows before anyone signs in. It carries subject words
+     and page counts — no addresses, and nothing from a source anybody kept private. -->
+<div class="billboard" id="billboard">
+  <div class="billboard-inner">
+    <span class="billboard-label" id="billboard-label"></span>
+    <span class="billboard-topics" id="billboard-topics"></span>
+  </div>
+</div>
+
 
 <!-- Copy lives in English in the markup and French comes from the dictionary in the
      script below, so the default language renders with no JavaScript involved and a
@@ -419,6 +447,7 @@
       soundOnButton: '\ud83d\udd0a  Sound is on',
       countdownWaiting: 'before Vocaliz opens the conversation',
       countdownNow: 'Vocaliz is starting…',
+      billboardLabel: 'Being discussed',
       capTitle: 'Live captions',
       capAsSpoken: 'As spoken',
       capEmpty: 'Nothing said yet.',
@@ -469,6 +498,7 @@
       soundOnButton: '\ud83d\udd0a  Le son est actif',
       countdownWaiting: 'avant que Vocaliz ouvre la conversation',
       countdownNow: 'Vocaliz commence…',
+      billboardLabel: 'On en parle',
       capTitle: 'Sous-titres en direct',
       capAsSpoken: 'Tel que dit',
       capEmpty: 'Rien encore dit.',
@@ -818,6 +848,53 @@
       T(countdownLeft > 0 ? 'countdownWaiting' : 'countdownNow');
   }
 
+  // ── Billboard ───────────────────────────────────────────────────────────────
+  // The ten most common topics across everything hosts have published. Read once at load and
+  // then every few minutes: it is a pulse, not a live feed, and a page open for an hour should
+  // not still be showing this morning's list.
+  var BILLBOARD_REFRESH_MS = 180000;
+  var billboardTopics = [];
+
+  async function loadBillboard() {
+    try {
+      var resp = await fetch('/sources/topics?limit=10');
+      if (!resp.ok) return;
+      var data = await resp.json();
+      billboardTopics = (data && data.topics) || [];
+      renderBillboard();
+    } catch (e) {
+      // Left as it was. A billboard that fails to refresh should keep showing the last list
+      // it had rather than emptying itself.
+    }
+  }
+
+  function renderBillboard() {
+    var box = document.getElementById('billboard');
+    if (!box) return;
+    if (!billboardTopics.length) {
+      box.className = 'billboard';
+      return;
+    }
+    box.className = 'billboard on';
+    document.getElementById('billboard-label').textContent = T('billboardLabel');
+
+    var strip = document.getElementById('billboard-topics');
+    strip.innerHTML = '';
+    for (var i = 0; i < billboardTopics.length; i++) {
+      var entry = billboardTopics[i];
+      var span = document.createElement('span');
+      span.className = 'billboard-topic';
+      // textContent throughout: a topic comes from a model reading a web page, and must never
+      // be able to become markup on somebody else's screen.
+      span.textContent = entry.topic;
+      var count = document.createElement('span');
+      count.className = 'billboard-count';
+      count.textContent = '\u00a0' + entry.pages;
+      span.appendChild(count);
+      strip.appendChild(span);
+    }
+  }
+
   // ── Sound ───────────────────────────────────────────────────────────────────
   // Off on arrival, and remembered once chosen. A voice starting out of a laptop
   // unannounced is worse than a moment of silence, and browsers refuse to autoplay
@@ -1056,6 +1133,8 @@
   // Rendered immediately with whatever is in memory — English and French are — so the page
   // is never blank waiting on a network call. A stored choice among the other fourteen then
   // arrives and the page is rendered again.
+  loadBillboard();
+  setInterval(loadBillboard, BILLBOARD_REFRESH_MS);
   applyLang();
   if (lang !== 'en' && lang !== 'fr') {
     loadDictionary(lang).then(function (ok) { if (ok) applyLang(); });

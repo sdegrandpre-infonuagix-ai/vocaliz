@@ -47,7 +47,7 @@ def _publish(db, user, session, **overrides):
         "url": "https://news.example/iran-usa",
         "summary": "Tensions between the United States and Iran escalated this week.",
         "content": "Full article text about the conflict and its consequences.",
-        "keywords": ["usa", "iran", "conflict"],
+        "topics": ["usa", "iran", "conflict"],
     }
     fields.update(overrides)
     return shared_source_service.publish(db, **fields)
@@ -182,21 +182,21 @@ def test_an_unrelated_question_finds_nothing(db, alice):
     assert shared_source_service.search(db, "bread baking sourdough") == []
 
 
-def test_keywords_outweigh_the_prose(db, alice):
-    """Keywords are the terms a person would say out loud, so a hit there is worth more."""
+def test_topics_outweigh_the_prose(db, alice):
+    """Topics are the terms a person would say out loud, so a hit there is worth more."""
     user, session, _ = alice
-    _publish(db, user, session, keywords=["nuclear"], content="A", summary="Something else.")
+    _publish(db, user, session, topics=["nuclear"], content="A", summary="Something else.")
     _publish(
         db,
         user,
         session,
         url="https://other.example/b",
-        keywords=[],
+        topics=[],
         content="B",
         summary="A passing mention of nuclear matters.",
     )
     results = shared_source_service.search(db, "nuclear")
-    assert results[0]["keywords"] == ["nuclear"]
+    assert results[0]["topics"] == ["nuclear"]
 
 
 def test_the_article_date_decides_recency_not_the_paste_date(db, alice):
@@ -302,3 +302,117 @@ def test_metadata_falls_back_to_the_host_name():
     uninformative."""
     meta = content_service.extract_metadata("<html></html>", "https://www.lemonde.fr/a")
     assert meta["publisher"] == "lemonde.fr"
+
+
+# ─── Ten topics, in English, and the billboard ────────────────────────────────
+
+def test_topics_are_capped_at_ten():
+    """The extractor asks for ten; the ceiling is what holds if a model ignores it."""
+    from src.services import summary_service
+
+    assert summary_service.MAX_TOPICS == 10
+    many = [f"topic{i}" for i in range(30)]
+    assert len(summary_service.normalise_topics(many)) == 10
+
+
+def test_fewer_than_ten_is_accepted():
+    """A thin page has fewer topics, and padding to reach a count would make it findable by
+    questions it cannot answer."""
+    from src.services import summary_service
+
+    assert summary_service.normalise_topics(["iran", "usa"]) == ["iran", "usa"]
+
+
+def test_the_extractor_asks_for_english_only():
+    """One vocabulary for the corpus is what lets a question in any language be matched
+    against every page — a corpus half in French would make the translation useless."""
+    from src.services import summary_service
+
+    assert "Write them in English, always" in summary_service._TOPICS_PROMPT
+    assert "exactly ten" in summary_service._TOPICS_PROMPT
+
+
+@pytest.mark.real_translate
+def test_a_french_question_reaches_an_english_topic(db, alice):
+    """The reason every question is translated: "guerre" does not contain "war"."""
+    from unittest.mock import patch
+
+    from src.services import translation_service
+
+    user, session, _ = alice
+    _publish(
+        db,
+        user,
+        session,
+        topics=["war", "iran", "united states"],
+        summary="An English summary of the conflict.",
+        content="English body text.",
+    )
+
+    # Untranslated, the French words match nothing.
+    with patch.object(translation_service, "translate", return_value=None):
+        assert shared_source_service.search(db, "la guerre entre les États-Unis") == []
+
+    # Translated, they reach it.
+    with patch.object(
+        translation_service, "translate", return_value="the war between the United States"
+    ):
+        assert len(shared_source_service.search(db, "la guerre entre les États-Unis")) == 1
+
+
+@pytest.mark.real_translate
+def test_the_original_words_still_count(db, alice):
+    """A union, not a replacement: a translator that mangles a proper noun must not cost the
+    match the untranslated question would have made."""
+    from unittest.mock import patch
+
+    from src.services import translation_service
+
+    user, session, _ = alice
+    _publish(db, user, session, topics=["iran"], summary="About Iran.", content="Body.")
+
+    with patch.object(translation_service, "translate", return_value="the country of Persia"):
+        assert len(shared_source_service.search(db, "Iran")) == 1
+
+
+# ─── The billboard ────────────────────────────────────────────────────────────
+
+def test_the_billboard_counts_pages_not_mentions(db, alice):
+    """The question is how many pages are about a subject, not how often a word appears."""
+    user, session, _ = alice
+    _publish(db, user, session, topics=["iran", "iran", "usa"], content="A")
+    _publish(db, user, session, url="https://b.example/b", topics=["iran"], content="B")
+
+    tally = {t["topic"]: t["pages"] for t in shared_source_service.top_topics(db)}
+    assert tally == {"iran": 2, "usa": 1}
+
+
+def test_the_billboard_is_ordered_by_popularity(db, alice):
+    user, session, _ = alice
+    _publish(db, user, session, topics=["rare"], content="A")
+    for i in range(3):
+        _publish(db, user, session, url=f"https://x{i}.example/", topics=["common"], content=f"B{i}")
+
+    assert [t["topic"] for t in shared_source_service.top_topics(db)] == ["common", "rare"]
+
+
+def test_the_billboard_is_empty_when_nothing_is_published(db):
+    """An empty billboard says less than none, so the page hides it — but the endpoint has
+    to say so rather than fail."""
+    assert shared_source_service.top_topics(db) == []
+
+
+def test_the_billboard_needs_no_token(client):
+    """It shows at the top of the host page before anyone signs in."""
+    assert client.get("/sources/topics").status_code == 200
+
+
+def test_the_billboard_exposes_no_addresses(client, db, alice):
+    """Subject words and counts only. No URLs, no summaries, and nothing from a private
+    source — shared_sources holds only what a host published."""
+    user, session, _ = alice
+    _publish(db, user, session)
+    body = client.get("/sources/topics").json()
+    assert body["topics"]
+    for entry in body["topics"]:
+        assert set(entry) == {"topic", "pages"}

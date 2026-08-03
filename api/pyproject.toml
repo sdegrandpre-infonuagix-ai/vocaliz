@@ -45,4 +45,5 @@ dev = [
 [tool.pytest.ini_options]
 markers = [
     "real_livekit_service: exercise livekit_service directly, without the autouse mocks",
+    "real_translate: exercise the translated search path, patching translate directly",
 ]
