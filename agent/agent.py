@@ -73,6 +73,28 @@ _BASE_INSTRUCTIONS = (
     "When you detect the HOST's language for the first time, call report_detected_language "
     "with the BCP-47 code (e.g. 'fr' for French, 'en' for English, 'es' for Spanish). "
     "Call this tool only once per session — on first detection, not on every utterance. "
+    "\n"
+    "Separately, the FIRST time you hear ANY participant speak — host and guests alike "
+    "— call report_participant_language once with their LiveKit identity and that "
+    "language. Report what you heard first, not what they end up speaking most: it is "
+    "recorded once and never revised. Use the identity, not the display name. "
+    "\n\n"
+    "SPONSORSHIP MENTION (newcomers only, once):\n"
+    "Before greeting someone, call is_first_salon with their LiveKit identity.\n"
+    "If it answers 'first_salon', add ONE short sentence to your welcome: a business\n"
+    "wishing to advertise in the Salons can contact Infonuagix.ai, the company that built\n"
+    "Vocaliz. If it answers 'returning', say nothing about it at all — they have heard it.\n"
+    "Say it in the participant's language, once, and never bring it up again: repeating\n"
+    "it, or pressing it, would turn a conversation into a sales call. Then move straight\n"
+    "on to the topic — the mention is an aside, not the point of the greeting.\n"
+    "\n\n"
+    "ANSWERING FROM THE SOURCES:\n"
+    "What you were given is a summary of the documents, not the documents themselves.\n"
+    "When a participant asks about a figure, a name, a quotation or a passage your\n"
+    "summary does not carry, call search_source with their keywords before answering.\n"
+    "Never invent a detail to fill the gap, and never claim the source is silent on\n"
+    "something without having searched. If the search returns nothing, say plainly that\n"
+    "the source does not appear to address it.\n"
     "\n\n"
     "SIMULTANEOUS TRANSLATION (multilingual sessions):\n"
     "When participants speak different languages, translate each utterance for the listener(s):\n"
@@ -109,20 +131,23 @@ _BASE_INSTRUCTIONS = (
     "   ES: '¿Fue tu conversación en Vocaliz una bella experiencia?'\n"
     "   (use the participant's detected language; default to French if unknown)\n"
     "3. After they reply (or after a natural pause of ~3 seconds if no reply),\n"
-    "   thank them briefly and call end_session to close the session.\n"
+    "   thank them briefly and call end_session to close the session. Pass their\n"
+    "   answer as `enjoyed`: true if positive, false if negative, and leave it unset\n"
+    "   if they did not answer — silence is not a complaint.\n"
     "IMPORTANT: You MUST ask the satisfaction question before calling end_session.\n"
     "Do NOT skip directly to end_session — the question is mandatory.\n"
     "\n\n"
-    "ANONYMOUS GUESTS (display name 'Invité'):\n"
-    "Anonymous browser guests have no Vocaliz account. Apply these rules for them:\n"
+    "GUESTS WITHOUT AN ACCOUNT (display name 'Guest' followed by four characters):\n"
+    "A browser guest was invited by name, to an email address the host typed in. They\n"
+    "are not anonymous — they simply have no Vocaliz account. Rules for them:\n"
     "- Ask the satisfaction question exactly as you would for a registered user.\n"
     "  Their verbal response is valuable even without a profile.\n"
-    "- Do NOT call report_detected_language for anonymous guests — they have no\n"
-    "  profile to update. Language detection tools are for the host only.\n"
-    "- Satisfaction responses from anonymous guests are purely conversational:\n"
-    "  they are NOT saved to any database. Thank them warmly regardless.\n"
-    "- An anonymous guest joining via browser will appear with identity 'Invité'.\n"
-    "  Treat them as a full participant for facilitation and exit purposes.\n"
+    "- Do NOT call report_detected_language for these guests — that one writes to an\n"
+    "  account, and they have none. DO call report_participant_language for them: it\n"
+    "  records against the salon, which works for everyone.\n"
+    "- A guest joining via browser appears as 'Guest 3F2A' or similar — the four\n"
+    "  characters distinguish one guest from another.\n"
+    "- Treat a guest without an account as a full participant for facilitation and exit.\n"
 )
 
 _CONTENT_PREVIEW_CHARS = 2500
@@ -134,14 +159,31 @@ def _build_instructions(
     source_type: str | None = None,
     source_url: str | None = None,
     additional_sources: list[dict] | None = None,
+    source_summary: str | None = None,
 ) -> str:
-    """Build agent instructions, injecting session content for facilitation and contrast."""
+    """Build agent instructions, injecting session content for facilitation and contrast.
+
+    The summary is preferred over the raw text, and that is the whole point: the first
+    2 500 characters of a forty-page document were its table of contents, so the agent
+    opened conversations on a page and a half it mistook for the whole thing. The summary
+    covers all of it, in the host's language, for a fraction of the context — which
+    matters because a realtime session reprocesses that context on every turn.
+
+    The truncation remains as the fallback. A summariser that is unreachable or
+    unconfigured must degrade to the old behaviour, not to silence.
+    """
     instructions = _BASE_INSTRUCTIONS
     additional_sources = additional_sources or []
 
-    if source_content:
-        preview = source_content[:_CONTENT_PREVIEW_CHARS]
-        ellipsis = "…" if len(source_content) > _CONTENT_PREVIEW_CHARS else ""
+    body = source_summary or source_content
+    if body:
+        # Only truncate when falling back to raw text; a summary is already short by
+        # construction and cutting it would remove the end of the argument.
+        if source_summary:
+            preview, ellipsis = source_summary, ""
+        else:
+            preview = source_content[:_CONTENT_PREVIEW_CHARS]
+            ellipsis = "…" if len(source_content) > _CONTENT_PREVIEW_CHARS else ""
         source_label = source_url or f"uploaded {source_type or 'document'}"
 
         instructions += (
@@ -167,10 +209,16 @@ def _build_instructions(
     if additional_sources:
         instructions += "\n\nADDITIONAL SOURCES (added during session):\n"
         for i, src in enumerate(additional_sources, 1):
+            summary = src.get("sourceSummary")
             content = src.get("sourceContent") or ""
             label = src.get("sourceUrl") or f"document {i}"
-            preview = content[:_EXTRA_SOURCE_PREVIEW_CHARS]
-            ellipsis = "…" if len(content) > _EXTRA_SOURCE_PREVIEW_CHARS else ""
+            # Same rule as the opening source: the brief when there is one, the first
+            # thousand characters only as a fallback.
+            if summary:
+                preview, ellipsis = summary, ""
+            else:
+                preview = content[:_EXTRA_SOURCE_PREVIEW_CHARS]
+                ellipsis = "…" if len(content) > _EXTRA_SOURCE_PREVIEW_CHARS else ""
             instructions += f"\n[Source {i}] {label}\n{preview}{ellipsis}\n"
 
         instructions += (
@@ -199,6 +247,7 @@ class SalonAgent(Agent):
         source_type: str | None = None,
         source_url: str | None = None,
         additional_sources: list[dict] | None = None,
+        source_summary: str | None = None,
         room=None,
     ) -> None:
         instructions = _build_instructions(
@@ -206,6 +255,7 @@ class SalonAgent(Agent):
             source_type=source_type,
             source_url=source_url,
             additional_sources=additional_sources,
+            source_summary=source_summary,
         )
         super().__init__(instructions=instructions)
         self._session_id = session_id
@@ -277,6 +327,123 @@ class SalonAgent(Agent):
         return "unmuted"
 
     @function_tool
+    @function_tool
+    async def search_source(
+        self,
+        query: Annotated[
+            str,
+            "What you are looking for, in the words the participant used. Keywords work "
+            "better than a full question — the search matches vocabulary, not meaning.",
+        ],
+    ) -> str:
+        """Look up a detail in the salon's sources that your summary does not carry.
+
+        You hold a brief of the documents, not the documents. When someone asks about a
+        figure, a name or a passage the brief does not mention, search for it here rather
+        than guessing or saying the source does not cover it.
+
+        Returns the matching passages, or nothing when the words do not appear. Nothing
+        found is a real answer: say the source does not seem to address it.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            return "no_session_context"
+
+        url = f"{self._api_url}/sessions/{self._session_id}/search"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    url,
+                    params={"q": query},
+                    headers={"Authorization": f"Bearer {self._host_token}"},
+                )
+            if resp.status_code != 200:
+                logger.warning("search_source returned %s", resp.status_code)
+                return "no_results"
+            excerpts = resp.json().get("excerpts") or []
+            if not excerpts:
+                return "no_results"
+            return "\n\n---\n\n".join(excerpts)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("search_source failed: %s", exc)
+            return "no_results"
+
+    @function_tool
+    async def is_first_salon(
+        self,
+        participant_identity: Annotated[
+            str,
+            "The LiveKit identity of the participant you are greeting, exactly as it "
+            "appears in the room. Not their display name.",
+        ],
+    ) -> str:
+        """Whether this is the participant's very first salon.
+
+        Ask before mentioning sponsorship in a welcome: the aside is for newcomers, and
+        someone on their fifth salon has heard it four times too many.
+
+        Returns "first_salon" or "returning". On any doubt it answers "first_salon" —
+        saying it once too often is a smaller failure than never saying it.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            return "first_salon"
+
+        url = f"{self._api_url}/sessions/{self._session_id}/participant-history"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    url,
+                    params={"identity": participant_identity},
+                    headers={"Authorization": f"Bearer {self._host_token}"},
+                )
+            if resp.status_code != 200:
+                return "first_salon"
+            return "first_salon" if resp.json().get("firstSalon") else "returning"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("is_first_salon failed: %s", exc)
+            return "first_salon"
+
+    @function_tool
+    async def report_participant_language(
+        self,
+        participant_identity: Annotated[
+            str,
+            "The LiveKit identity of the participant, exactly as it appears in the room "
+            "(a guest looks like 'guest-<uuid>'). Not their display name.",
+        ],
+        language_code: Annotated[
+            str, "BCP-47 code of the first language you heard them speak, e.g. 'fr', 'en'"
+        ],
+    ) -> str:
+        """Record the first language one participant spoke in this salon.
+
+        Call once per participant, on first hearing them — guests included. Unlike
+        report_detected_language, which sets a property of the host's account, this belongs
+        to the participation: the same person may speak French here and English tomorrow.
+
+        Reporting again is harmless; the first value is kept.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            return "no_session_context"
+
+        url = f"{self._api_url}/sessions/{self._session_id}/participant-language"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    url,
+                    json={
+                        "participantIdentity": participant_identity,
+                        "language": language_code,
+                    },
+                    headers={"Authorization": f"Bearer {self._host_token}"},
+                )
+            if resp.status_code == 200:
+                return f"language_recorded:{language_code}"
+            logger.warning("report_participant_language returned %s", resp.status_code)
+            return f"error:{resp.status_code}"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("report_participant_language failed: %s", exc)
+            return "error:network"
+
     async def report_detected_language(
         self,
         language_code: Annotated[
@@ -310,12 +477,23 @@ class SalonAgent(Agent):
             return "error:network"
 
     @function_tool
-    async def end_session(self) -> str:
+    async def end_session(
+        self,
+        enjoyed: Annotated[
+            bool | None,
+            "Whether the participant said the conversation was a good experience. "
+            "True for yes, False for no, and None when they did not answer — leave it "
+            "None rather than guessing, since an unanswered question is not a complaint.",
+        ] = None,
+    ) -> str:
         """Mark the current session as ended in the API.
 
         Call this as the final step of the session exit flow — AFTER acknowledging
         the participant's departure and asking the satisfaction question.
         This closes the session and signals all clients to disconnect.
+
+        Pass along the answer to the satisfaction question: the agent is the only party
+        that hears it, so it is the only one that can record it.
         """
         if not self._session_id or not self._api_url or not self._host_token:
             logger.warning("end_session called but agent has no session context")
@@ -326,7 +504,7 @@ class SalonAgent(Agent):
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(url, headers=headers)
+                resp = await client.post(url, headers=headers, json={"enjoyed": enjoyed})
             if resp.status_code == 200:
                 logger.info("Session %s marked as ended", self._session_id)
                 return "session_ended"
@@ -476,6 +654,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Fetch session content so the agent can read it aloud and introduce contrast
     source_content: str | None = None
+    source_summary: str | None = None
     source_type: str | None = None
     source_url: str | None = None
     additional_sources: list[dict] = []
@@ -484,6 +663,7 @@ async def entrypoint(ctx: agents.JobContext):
         detail = await _fetch_session_detail(api_url, session_id, host_token)
         if detail:
             source_content = detail.get("sourceContent")
+            source_summary = detail.get("sourceSummary")
             source_type = detail.get("sourceType")
             source_url = detail.get("sourceUrl")
             additional_sources = detail.get("additionalSources") or []
@@ -532,6 +712,7 @@ async def entrypoint(ctx: agents.JobContext):
         source_type=source_type,
         source_url=source_url,
         additional_sources=additional_sources,
+        source_summary=source_summary,
         room=ctx.room,
     )
 
@@ -547,6 +728,7 @@ async def entrypoint(ctx: agents.JobContext):
                 source_type=detail.get("sourceType"),
                 source_url=detail.get("sourceUrl"),
                 additional_sources=detail.get("additionalSources") or [],
+                source_summary=detail.get("sourceSummary"),
             )
         )
         logger.info(
