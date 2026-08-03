@@ -309,14 +309,25 @@ def _send_invitation_email(to_address: str, join_link: str) -> None:
             "You are invited to a Salon conversation",
             "Vous êtes invité à une conversation Salon",
         ),
+        # The browser instruction is spelled out, and says why. "Open it in your browser"
+        # was already there and was not enough: tapping a link inside a mail or messaging
+        # app opens an embedded webview, and those routinely cannot reach the microphone —
+        # sometimes without even showing a prompt. The guest then hears everyone and is
+        # heard by no one, which reads as a broken product rather than a wrong browser.
+        # Worse, the link is single-use, so reopening it properly needs a fresh invitation.
         bilingual_body(
             "You have been invited to join a Salon conversation.\n\n"
             f"Join here: {join_link}\n\n"
-            "This link works only once and expires in 24 hours. "
-            "Open it directly in your browser.",
+            "Open this link in Safari or Chrome, not inside your email app. Browsers built "
+            "into email and messaging apps often cannot reach the microphone, and you would "
+            "hear everyone while nobody hears you.\n\n"
+            "This link works only once and expires in 24 hours.",
             "Vous avez été invité à rejoindre une conversation Salon.\n\n"
             f"Rejoignez ici : {join_link}\n\n"
-            "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures. "
-            "Ouvrez-le directement dans votre navigateur.",
+            "Ouvrez ce lien dans Safari ou Chrome, et non dans votre application de "
+            "courriel. Les navigateurs intégrés aux applications de courriel et de "
+            "messagerie n'accèdent souvent pas au microphone : vous entendriez tout le "
+            "monde sans que personne ne vous entende.\n\n"
+            "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures.",
         ),
     )
