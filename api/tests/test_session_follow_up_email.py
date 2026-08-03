@@ -1,10 +1,16 @@
-"""Tests for follow-up install-link SMS to anonymous guests (Story 3.4)."""
+"""Tests for the email a guest receives on leaving a Salon (Story 3.4).
+
+It used to carry an app-store link. It now points at the host console: someone who has
+just taken part already knows what a Salon is, and the step worth offering is holding
+their own — which the console does in a browser, with nothing to install.
+"""
 import secrets
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.config import settings
 from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
@@ -73,11 +79,18 @@ def test_followup_email_sent_to_accepted_email_contact(db, host, active_session)
     mock_client.send_email.assert_called_once()
     call_kwargs = mock_client.send_email.call_args[1]
     assert call_kwargs["Destination"]["ToAddresses"] == [inv.guest_email]
-    assert "salon.app/install" in call_kwargs["Content"]["Simple"]["Body"]["Text"]["Data"]
+    body = call_kwargs["Content"]["Simple"]["Body"]["Text"]["Data"]
+    # The host console, not the app store. Someone who has just taken part already knows
+    # what a Salon is; the step worth offering is holding their own, and the console does
+    # that in a browser with nothing to install.
+    assert f"{settings.salon_web_base_url}/host" in body
+    assert settings.salon_install_url not in body
+    # In both halves: a reader who scrolled past the English must find it too.
+    assert body.count(f"{settings.salon_web_base_url}/host") == 2
 
 
-def test_followup_email_message_contains_install_url(db, host, active_session):
-    """The follow-up SMS body contains the install URL."""
+def test_followup_email_invites_the_guest_to_host(db, host, active_session):
+    """The point of the message: turning a guest into a host."""
     host_user, _ = host
     _add_invitation(db, host_user, active_session)
 
@@ -87,7 +100,10 @@ def test_followup_email_message_contains_install_url(db, host, active_session):
         invitation_service.send_followup_email_to_guests(str(active_session.id), db)
 
     msg = mock_client.send_email.call_args[1]["Content"]["Simple"]["Body"]["Text"]["Data"]
-    assert "install" in msg.lower() or "salon.app" in msg
+    assert f"{settings.salon_web_base_url}/host" in msg
+    # And says why it is worth clicking. A bare link asks for a decision with no reason.
+    assert "host one of your own" in msg
+    assert "animer une vous-même" in msg
 
 
 def test_followup_email_not_sent_to_pending_invitation(db, host, active_session):
@@ -179,3 +195,4 @@ def test_end_session_succeeds_even_if_sms_fails(client, db, host, active_session
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "ended"
+

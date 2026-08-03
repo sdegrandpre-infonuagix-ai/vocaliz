@@ -323,13 +323,20 @@ def send_followup_email_to_guests(session_id_str: str, db: Session) -> int:
                     "Thanks for taking part in Vocaliz",
                     "Merci d'avoir participé à Vocaliz",
                 ),
+                # The host console, not the app store. Someone who has just taken part
+                # already knows what a Salon is; the next step worth offering is holding
+                # their own, and the console does that in a browser with nothing to
+                # install. An install link asks for a commitment before the value is
+                # obvious, and drops anyone reading this on a desktop.
                 bilingual_body(
                     "Thank you for taking part in a Salon conversation!\n\n"
-                    "Install the app for the full experience:\n"
-                    f"{settings.salon_install_url}",
+                    "Want to host one of your own? Start here, in your browser — nothing "
+                    "to install:\n"
+                    f"{settings.salon_web_base_url}/host",
                     "Merci d'avoir participé à une conversation Salon !\n\n"
-                    "Installez l'application pour une expérience complète :\n"
-                    f"{settings.salon_install_url}",
+                    "Envie d'en animer une vous-même ? Commencez ici, dans votre "
+                    "navigateur — rien à installer :\n"
+                    f"{settings.salon_web_base_url}/host",
                 ),
             )
             sent += 1

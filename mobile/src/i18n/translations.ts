@@ -67,6 +67,8 @@ export interface Translations {
     drivingToggle: string;
     drivingHint: string;
     drivingExit: string;
+    countdownWaiting: string;
+    countdownNow: string;
     invitePhoneLabel: string;
     invitePhoneHint: string;
     inviteContactHint: string;
@@ -156,6 +158,8 @@ const fr: Translations = {
     drivingToggle: 'Conduite',
     drivingHint: 'Mode conduite. La conversation continue.\nTouchez l’écran pour revenir.',
     drivingExit: 'Quitter le mode conduite',
+    countdownWaiting: 'avant que Vocaliz ouvre la conversation',
+    countdownNow: 'Vocaliz commence…',
     invitePhoneLabel: 'Numéro de mobile de l’invité',
     invitePhoneHint: 'Avec l’indicatif du pays, par exemple +1 514 555 0123.',
     inviteContactHint: 'L’un des deux suffit. Donnez les deux et l’invitation part par les deux.',
@@ -241,6 +245,8 @@ const en: Translations = {
     drivingToggle: 'Driving',
     drivingHint: 'Driving mode. The conversation continues.\nTap the screen to come back.',
     drivingExit: 'Leave driving mode',
+    countdownWaiting: 'before Vocaliz opens the conversation',
+    countdownNow: 'Vocaliz is starting…',
     invitePhoneLabel: 'Guest mobile number',
     invitePhoneHint: 'With the country code, for example +1 514 555 0123.',
     inviteContactHint: 'One of the two is enough. Give both and the invitation goes out by both.',

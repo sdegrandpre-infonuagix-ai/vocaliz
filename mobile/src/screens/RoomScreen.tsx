@@ -25,12 +25,14 @@ import { Room } from 'livekit-client';
 
 import PoweredBy from '../components/PoweredBy';
 import CaptionsPanel from '../components/CaptionsPanel';
+import OpeningCountdown from '../components/OpeningCountdown';
 import DrivingMode from '../components/DrivingMode';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTranslationMute } from '../hooks/useTranslationMute';
 import { useCaptions } from '../hooks/useCaptions';
+import { useOpeningCountdown } from '../hooks/useOpeningCountdown';
 import { addSourceFromUrl, endSession, joinSession, sendHeartbeat } from '../services/sessionsApi';
 import { sendInvitation } from '../services/invitationsApi';
 import { getPublicConfig } from '../services/configApi';
@@ -73,6 +75,10 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
   // Live captions. The chosen language travels to the agent as a participant attribute,
   // so it knows which languages to translate each turn into.
   const { captions, language: captionLang, setLanguage: setCaptionLang } = useCaptions(room);
+
+  // Driven by the same room message the agent waits on, so the counter and the agent
+  // cannot disagree about when the conversation opens.
+  const openingSeconds = useOpeningCountdown(room);
 
   // Nobody reads while driving, so nothing is translated for them: the empty attribute
   // tells the agent to stop rendering turns this participant will never see. The choice
@@ -317,6 +323,8 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         {notice ? (
           <Text style={styles.noticeText} accessibilityLiveRegion="polite">{notice}</Text>
         ) : null}
+
+        <OpeningCountdown secondsLeft={openingSeconds} />
 
         <CaptionsPanel
           captions={captions}

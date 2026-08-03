@@ -37,9 +37,9 @@ AGENT_NAME = "salon-agent"
 # threshold and the announcement would never fire.
 ENDING_WARNING_SECONDS = 75
 
-# How long after a guest is invited the agent opens the conversation by itself. Long
-# enough for the host to put the phone down, short enough that the silence never becomes
-# a question about whether anything is working.
+# Fallback only. The API publishes the real figure in the guest_invited message, so the
+# countdown the clients display and the delay waited here are one number. This is what is
+# used if that field is ever missing — an older API, or a message from something else.
 INVITATION_OPENING_SECONDS = 15
 
 _BASE_INSTRUCTIONS = (
@@ -808,7 +808,7 @@ async def entrypoint(ctx: agents.JobContext):
     # the opening only makes sense as an opening.
     opened = {"done": False}
 
-    async def _open_after_invitation() -> None:
+    async def _open_after_invitation(delay: float) -> None:
         """Start the conversation a quarter of a minute after a guest was invited.
 
         The agent used to wait to be spoken to, which left a host who had just sent an
@@ -818,11 +818,15 @@ async def entrypoint(ctx: agents.JobContext):
 
         Deliberately not tied to the guest arriving: they may take minutes, or never come.
         The opening is for the host, and the guest is greeted separately when they join.
+
+        The delay comes from the message rather than from the constant below. The clients
+        show a countdown built from the same number, and a counter that reaches zero while
+        the agent is still waiting is the most alarming way for this to be wrong.
         """
         if opened["done"]:
             return
         opened["done"] = True
-        await asyncio.sleep(INVITATION_OPENING_SECONDS)
+        await asyncio.sleep(delay)
         try:
             agent_session.generate_reply(
                 instructions=(
@@ -849,7 +853,13 @@ async def entrypoint(ctx: agents.JobContext):
         if isinstance(msg, dict) and msg.get("action") == "source_added":
             asyncio.create_task(_reload_sources())
         elif isinstance(msg, dict) and msg.get("action") == "guest_invited":
-            asyncio.create_task(_open_after_invitation())
+            # The API publishes how long it told the clients to count down. Falling back to
+            # the local constant only matters for a message from an older API.
+            try:
+                delay = float(msg.get("opensInSeconds") or INVITATION_OPENING_SECONDS)
+            except (TypeError, ValueError):
+                delay = INVITATION_OPENING_SECONDS
+            asyncio.create_task(_open_after_invitation(delay))
 
     ctx.room.on("data_received", _on_data)
 

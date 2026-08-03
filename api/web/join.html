@@ -208,6 +208,21 @@
     .powered a { color: #7B1528; text-decoration: none; }
     .powered a:hover { text-decoration: underline; }
 
+
+    /* ── Countdown to the agent speaking ────────────────────────────────────── */
+    .countdown {
+      display: none;
+      text-align: center;
+      padding: 14px 12px;
+      margin-top: 14px;
+      border-radius: 12px;
+      background: #F8F3E8;
+      border: 1px solid #C9A84C;
+    }
+    .countdown.on { display: block; }
+    .countdown-n { font-size: 2.2rem; font-weight: 700; color: #7B1528; line-height: 1.1; }
+    .countdown-label { font-size: 0.82rem; color: #6b6257; margin-top: 4px; }
+
     /* ── Live captions ──────────────────────────────────────────────────────── */
     .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .cap-head select {
@@ -272,6 +287,15 @@
       <span id="mic-label">Turning the microphone on…</span>
     </div>
 
+    <!-- Driven by the guest_invited message, which also carries how long to count. The
+         agent waits out the same number, so the counter cannot reach zero while it is
+         still waiting — the most alarming way for this to be wrong. -->
+    <div class="countdown" id="countdown" role="status" aria-live="polite">
+      <div class="countdown-n" id="countdown-n">15</div>
+      <div class="countdown-label" id="countdown-label"></div>
+    </div>
+
+
     <div class="cap-head" style="margin-top:18px">
       <div class="card-title" data-i18n="capTitle">Live captions</div>
       <select id="cap-lang" onchange="setCaptionLang(this.value)"
@@ -299,9 +323,11 @@
     Leave the conversation
   </button>
 
-  <!-- Shown only when the browser blocked audio playback; needs a user gesture -->
-  <button id="btn-sound" class="btn btn-primary" style="display:none" onclick="unlockAudio()" data-i18n="soundButton">
-    🔊  Enable sound
+  <!-- Not part of the exclusive group below: it reports a setting, so it has to stay on
+       screen next to Leave rather than replace it. -->
+  <button id="btn-sound" class="btn btn-primary" style="display:none" onclick="toggleSound()"
+          aria-pressed="false">
+    🔇  Sound is off — turn it on
   </button>
 
   <!-- Retry the microphone in place. Reloading would consume the one-time join link, so
@@ -350,7 +376,6 @@
       joinButton: 'Join the conversation',
       retryButton: 'Try again',
       leaveButton: 'Leave the conversation',
-      soundButton: '🔊  Enable sound',
       micButton: '🎤  Enable microphone',
       info1: 'Secure guest access — no account needed',
       info2: 'Nothing to install — all in your browser',
@@ -371,6 +396,10 @@
       errNetDetail: 'Could not reach the server. Check your connection.',
       errIncompleteTitle: 'Invalid link',
       errIncompleteDetail: 'This join link is incomplete.',
+      soundOffButton: '\ud83d\udd07  Sound is off — turn it on',
+      soundOnButton: '\ud83d\udd0a  Sound is on',
+      countdownWaiting: 'before Vocaliz opens the conversation',
+      countdownNow: 'Vocaliz is starting…',
       capTitle: 'Live captions',
       capAsSpoken: 'As spoken',
       capEmpty: 'Nothing said yet.',
@@ -395,7 +424,6 @@
       joinButton: 'Rejoindre la conversation',
       retryButton: 'Réessayer',
       leaveButton: 'Quitter la conversation',
-      soundButton: '🔊  Activer le son',
       micButton: '🎤  Activer le micro',
       info1: 'Accès invité sécurisé — aucun compte requis',
       info2: 'Aucune installation — tout dans votre navigateur',
@@ -418,6 +446,10 @@
       errNetDetail: 'Impossible de contacter le serveur. Vérifiez votre connexion.',
       errIncompleteTitle: 'Lien invalide',
       errIncompleteDetail: 'Ce lien de jointure est incomplet.',
+      soundOffButton: '\ud83d\udd07  Le son est coupé — activez-le',
+      soundOnButton: '\ud83d\udd0a  Le son est actif',
+      countdownWaiting: 'avant que Vocaliz ouvre la conversation',
+      countdownNow: 'Vocaliz commence…',
       capTitle: 'Sous-titres en direct',
       capAsSpoken: 'Tel que dit',
       capEmpty: 'Rien encore dit.',
@@ -596,6 +628,8 @@
     renderError();
     renderMic();
     renderJoinBtn();
+    renderSound();
+    if (countdownTimer || countdownLeft) renderCountdown();
     // The "As spoken" option and the empty-log line are interface text, so they follow
     // the interface language rather than the caption language.
     var capSel = document.getElementById('cap-lang');
@@ -673,7 +707,10 @@
   }
 
   function showBtn(id) {
-    ['btn-join', 'btn-leave', 'btn-sound'].forEach(function(b) {
+    // btn-sound is absent on purpose: it is a setting, not one of the mutually
+    // exclusive actions, and hiding it whenever another button showed would take the
+    // control away exactly when the participant is in the conversation.
+    ['btn-join', 'btn-leave'].forEach(function(b) {
       document.getElementById(b).style.display = 'none';
     });
     // btn-mic is deliberately outside the exclusive rotation — it coexists with Leave and
@@ -683,18 +720,87 @@
     if (id) document.getElementById(id).style.display = '';
   }
 
-  // Browsers refuse to play remote audio until the page has had a user gesture, and
-  // each device tracks that independently — which is why the agent could be audible on
-  // one phone and silent on the other. startAudio() must run from a gesture.
-  async function unlockAudio() {
-    if (!room) return;
-    try {
-      await room.startAudio();
-      document.getElementById('btn-sound').style.display = 'none';
-      document.getElementById('btn-leave').style.display = '';
-    } catch (e) {
-      // Leave the button visible so the participant can try again.
+
+  // ── Countdown to the agent speaking ───────────────────────────────────────
+  // Started by the guest_invited message rather than by the invitation response, so the
+  // counter and the agent are driven by the same event. The message carries the number
+  // of seconds, so nothing here has to agree with a constant kept somewhere else.
+  var countdownTimer = null;
+  var countdownLeft = 0;
+
+  function onRoomData(payload, participant, kind, topic) {
+    // Captions travel on their own topic; this one has none.
+    if (topic) return;
+    var msg;
+    try { msg = JSON.parse(new TextDecoder().decode(payload)); } catch (e) { return; }
+    if (!msg || msg.action !== 'guest_invited') return;
+    startCountdown(parseInt(msg.opensInSeconds, 10) || 15);
+  }
+
+  function startCountdown(seconds) {
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownLeft = seconds;
+    renderCountdown();
+    countdownTimer = setInterval(function () {
+      countdownLeft -= 1;
+      renderCountdown();
+      // Left on screen at zero rather than removed: the last thing a host read should be
+      // that the agent is starting, not a panel that vanished a moment before it spoke.
+      if (countdownLeft <= 0) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }, 1000);
+  }
+
+  function renderCountdown() {
+    var box = document.getElementById('countdown');
+    if (!box) return;
+    box.className = 'countdown on';
+    document.getElementById('countdown-n').textContent = Math.max(countdownLeft, 0);
+    document.getElementById('countdown-label').textContent =
+      T(countdownLeft > 0 ? 'countdownWaiting' : 'countdownNow');
+  }
+
+  // ── Sound ───────────────────────────────────────────────────────────────────
+  // Off on arrival, and remembered once chosen. A voice starting out of a laptop
+  // unannounced is worse than a moment of silence, and browsers refuse to autoplay
+  // audible media anyway — starting muted means the stream always attaches, and the
+  // toggle, being a click, satisfies the gesture requirement when sound is turned on.
+  var SOUND_KEY = 'vocaliz.soundOn';
+  var soundOn = false;
+  try { soundOn = localStorage.getItem(SOUND_KEY) === '1'; } catch (e) { }
+
+  // Every attached element, so the toggle reaches tracks that arrived before it was
+  // flipped as well as after.
+  var audioElements = [];
+
+  function registerAudio(el) {
+    audioElements.push(el);
+    el.muted = !soundOn;
+  }
+
+  async function toggleSound() {
+    soundOn = !soundOn;
+    try { localStorage.setItem(SOUND_KEY, soundOn ? '1' : '0'); } catch (e) { }
+    for (var i = 0; i < audioElements.length; i++) {
+      audioElements[i].muted = !soundOn;
     }
+    // Only ever needed on the way up, and only from a gesture — which this is.
+    if (soundOn && room) {
+      try { await room.startAudio(); } catch (e) { /* the toggle can be pressed again */ }
+    }
+    renderSound();
+  }
+
+  // Loud when sound is off, deliberately. A silent voice product reads as broken, so the
+  // reason has to be the most visible thing on screen rather than a subtle icon.
+  function renderSound() {
+    var btn = document.getElementById('btn-sound');
+    if (!btn) return;
+    btn.textContent = T(soundOn ? 'soundOnButton' : 'soundOffButton');
+    btn.className = 'btn ' + (soundOn ? 'btn-outline' : 'btn-primary');
+    btn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
   }
 
   function showError(titleKey, detailKey, detailRaw) {
@@ -739,16 +845,23 @@
           el.autoplay = true;
           el.playsInline = true;   // iOS refuses inline playback without this
           el.style.display = 'none';
+          // Muted before it reaches the document: attaching audible and muting a frame
+          // later is what produces a burst of sound.
+          registerAudio(el);
           document.body.appendChild(el);
         }
       });
 
-      // Surfaces the unlock button whenever the browser blocks playback.
+      // Muted playback is never blocked, so nothing has to be surfaced any more: the
+      // only thing needing a gesture is turning sound on, and the toggle is that gesture.
       room.on(LivekitClient.RoomEvent.AudioPlaybackStatusChanged, function() {
-        if (!room.canPlaybackAudio) showBtn('btn-sound');
+        if (soundOn && !room.canPlaybackAudio) {
+          console.warn('Vocaliz: the browser is refusing to play audio');
+        }
       });
 
       room.on(LivekitClient.RoomEvent.DataReceived, onCaptionData);
+      room.on(LivekitClient.RoomEvent.DataReceived, onRoomData);
 
       room.on(LivekitClient.RoomEvent.Disconnected, function() {
         room = null;
@@ -757,6 +870,9 @@
         // "Microphone actif" with the dot still pulsing, asserting something untrue about
         // a session that no longer exists.
         micState = { on: false, denied: false, starting: false, retried: false };
+        // Nothing left to hear: the control would offer to unmute a room that is gone.
+        audioElements = [];
+        document.getElementById('btn-sound').style.display = 'none';
         renderMic();
         readyMode = 'left';
         renderReady();
@@ -772,16 +888,18 @@
       // attempt and every later one behave identically.
       await retryMic();
 
-      // Still inside the click handler, so the gesture is fresh and this usually
-      // succeeds outright; the AudioPlaybackStatusChanged listener is the fallback.
-      try {
-        await room.startAudio();
-      } catch (e) {
-        showBtn('btn-sound');
+      // Only when sound was asked for. Starting audio for a participant who left it off
+      // would be doing the one thing they did not ask for. Still inside the click handler,
+      // so the gesture is fresh.
+      if (soundOn) {
+        try { await room.startAudio(); } catch (e) { /* the toggle retries */ }
       }
 
       showCard('v-connected');
       showBtn('btn-leave');
+      // Its own visibility: a setting has to stay on screen next to Leave.
+      document.getElementById('btn-sound').style.display = '';
+      renderSound();
       initCaptions();
       // Sent once connected: the agent reads it from the participant attributes to know
       // which languages to translate into.

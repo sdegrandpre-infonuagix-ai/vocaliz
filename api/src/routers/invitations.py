@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session as DbSession
 
+from src.config import settings
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.invitation import Invitation
@@ -61,7 +62,13 @@ async def create_invitation(
     if session is not None:
         await livekit_service.notify_room(
             session.livekit_room_name,
-            {"action": "guest_invited", "invitationId": result["invitationId"]},
+            {
+                "action": "guest_invited",
+                "invitationId": result["invitationId"],
+                # The clients count down from this and the agent waits it out, so both are
+                # reading one number rather than each trusting their own copy.
+                "opensInSeconds": settings.invitation_opening_seconds,
+            },
         )
 
     return result
