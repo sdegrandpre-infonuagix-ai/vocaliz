@@ -562,7 +562,15 @@
 
   var lang = storedLang() || browserLang() || 'en';
 
-  function T(key) { return I18N[lang][key] || I18N.en[key] || key; }
+  // `lang` may name a dictionary that has not arrived yet, by design: a stored choice is
+  // validated against the supported list rather than against what is loaded (see storedLang).
+  // Only English and French ship inline, so for the other fourteen the first render happens
+  // before the fetch lands.
+  //
+  // Indexing straight through an absent dictionary threw, and because the first render runs
+  // during boot the exception took the rest of the page with it. Falling back to English costs
+  // one render in the wrong language; throwing cost the whole page.
+  function T(key) { return (I18N[lang] || {})[key] || I18N.en[key] || key; }
 
   async function setLang(next) {
     if (!isSupported(next)) return;
