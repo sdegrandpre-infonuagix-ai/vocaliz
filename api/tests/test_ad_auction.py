@@ -271,9 +271,21 @@ def test_the_winner_is_recorded_at_the_price_it_won_for(db, salon):
     assert row.salon_name == "salon-auction"
 
 
-def test_winning_spends_one_of_the_allowance(db, salon):
+def test_winning_reserves_without_spending(db, salon):
+    """Winning sets the ad aside; it does not spend it. The salon may close before the greeting
+    ends, and an advertiser must pay nothing — neither money nor one of their broadcasts — for a
+    sentence nobody heard."""
     ad = _ad(db, _advertiser(db, "Alone"), bid=500, topic="coffee", left=2)
-    ad_auction_service.broadcast_winner(db, session=salon, salon_topics=["coffee"])
+    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=["coffee"])
+    db.expire_all()
+    assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 2
+    assert db.get(AdBroadcast, row.id).delivered_at is None
+
+
+def test_delivery_is_what_spends_the_allowance(db, salon):
+    ad = _ad(db, _advertiser(db, "Alone"), bid=500, topic="coffee", left=2)
+    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=["coffee"])
+    assert ad_auction_service.mark_delivered(db, row)
     db.expire_all()
     assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 1
 

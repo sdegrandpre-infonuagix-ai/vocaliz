@@ -222,12 +222,20 @@ def broadcast_winner(
     salon_topics=None,
     salon_languages=None,
 ) -> AdBroadcast | None:
-    """Run the auction and record the winner's broadcast at the price it won for.
+    """Run the auction and reserve the winner for this salon at the price it won for.
+
+    RESERVES, it does not deliver. The row is written with delivered_at NULL and the ad's
+    allowance is untouched, because this runs when the salon opens and the pitch may never be
+    spoken — the host closes their tab, the worker dies. Charging an advertiser for a sentence
+    nobody heard is the one outcome an advertising system must not produce.
+
+    mark_delivered below is what completes it: the allowance is spent and the row becomes
+    billable only once the agent has actually said the words.
 
     Deliberately separate from record_broadcast in ad_billing_service, which charges the flat
-    rate. That one exists for an ad bought by the broadcast; this one for an ad that bid. Both
-    write the same table, and both copy the price onto the row — an invoice must charge what was
-    agreed at the moment, not what a setting says later.
+    rate for an ad bought by the broadcast. Both write the same table, and both copy the price
+    onto the row — an invoice must charge what was agreed at the moment, not what a setting says
+    later.
     """
     from datetime import datetime, timezone
 
@@ -261,11 +269,12 @@ def broadcast_winner(
             broadcast_at=datetime.now(tz=timezone.utc),
         )
         db.add(row)
-        ad.number_of_broadcasts_left = ad.number_of_broadcasts_left - 1
+        # The allowance is NOT spent here. A reservation that is never spoken must cost the
+        # advertiser nothing at all — neither money nor one of the broadcasts they bought.
         db.commit()
         db.refresh(row)
         logger.info(
-            "Ad %s broadcast at %d cents (%s)",
+            "Ad %s reserved at %d cents (%s)",
             ad.ad_id,
             price,
             f"{outcome['bidders']} bidder(s)" if outcome else "house ad, no bidders",
@@ -273,5 +282,32 @@ def broadcast_winner(
         return row
     except Exception:  # noqa: BLE001
         db.rollback()
-        logger.warning("Could not record the auction winner", exc_info=True)
+        logger.warning("Could not reserve the auction winner", exc_info=True)
         return None
+
+
+def mark_delivered(db: DbSession, broadcast: AdBroadcast) -> bool:
+    """Record that a reserved ad was actually spoken, and spend one of its allowance.
+
+    This is the moment the advertiser becomes liable: the invoicing run only ever considers rows
+    with a delivery time, and the database refuses a charge without one.
+
+    Idempotent. A second confirmation of the same broadcast changes nothing and spends nothing —
+    the agent may retry, and a retry must not cost two of a purchase.
+    """
+    from datetime import datetime, timezone
+
+    if broadcast.delivered_at is not None:
+        return True
+
+    try:
+        broadcast.delivered_at = datetime.now(tz=timezone.utc)
+        ad = db.get(Ad, broadcast.ad_id)
+        if ad is not None and ad.number_of_broadcasts_left > 0:
+            ad.number_of_broadcasts_left = ad.number_of_broadcasts_left - 1
+        db.commit()
+        return True
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.warning("Could not mark broadcast %s delivered", broadcast.id, exc_info=True)
+        return False

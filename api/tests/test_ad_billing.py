@@ -329,3 +329,74 @@ def test_the_handler_action_invoices_and_reports(db, ad, salon, advertiser):
 
     assert result["advertisers"] == 1
     assert result["amountCents"] == settings.ad_broadcast_rate_cents
+
+
+# ─── Reserved is not delivered ────────────────────────────────────────────────
+
+def test_a_reservation_costs_the_advertiser_nothing(db, ad, salon):
+    """The salon opens, the ad is set aside, and then nobody hears it — the host closed their tab
+    before the greeting ended. Charging for that is the one outcome this must not produce."""
+    from src.services import ad_auction_service
+
+    ad.bid_cents = 500
+    db.commit()
+    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=[""])
+    assert row is not None
+    assert row.delivered_at is None
+
+    db.expire_all()
+    assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 3, "no allowance spent"
+
+    advertiser_row = db.get(Advertiser, ad.advertiser_id)
+    with patch("src.services.ad_billing_service.stripe", _stripe_double()) as stripe_mock:
+        result = ad_billing_service.invoice_advertiser(db, advertiser_row)
+    assert result["status"] == "nothing_to_invoice"
+    assert stripe_mock.InvoiceItem.create.call_count == 0
+
+
+def test_delivery_is_what_spends_and_bills(db, ad, salon):
+    from src.services import ad_auction_service
+
+    ad.bid_cents = 500
+    db.commit()
+    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=[""])
+    assert ad_auction_service.mark_delivered(db, row)
+
+    db.expire_all()
+    assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 2
+    assert db.get(AdBroadcast, row.id).delivered_at is not None
+
+    advertiser_row = db.get(Advertiser, ad.advertiser_id)
+    with patch("src.services.ad_billing_service.stripe", _stripe_double()):
+        result = ad_billing_service.invoice_advertiser(db, advertiser_row)
+    assert result["broadcasts"] == 1
+
+
+def test_confirming_twice_spends_once(db, ad, salon):
+    """The agent may retry, and a retry must not cost two of a purchase."""
+    from src.services import ad_auction_service
+
+    ad.bid_cents = 500
+    db.commit()
+    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=[""])
+    ad_auction_service.mark_delivered(db, row)
+    ad_auction_service.mark_delivered(db, row)
+
+    db.expire_all()
+    assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 2
+
+
+def test_the_schema_refuses_a_charge_for_something_unspoken(db, ad):
+    """The guarantee lives in the database, not in a query somebody has to write correctly."""
+    db.add(
+        AdBroadcast(
+            ad_id=ad.ad_id,
+            advertiser_id=ad.advertiser_id,
+            amount_cents=25,
+            delivered_at=None,
+            stripe_invoice_item_id="ii_x",
+            invoiced_at=datetime.now(tz=timezone.utc),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        db.commit()

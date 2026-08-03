@@ -48,6 +48,9 @@ def record_broadcast(db: DbSession, *, ad: Ad, session=None) -> AdBroadcast | No
             amount_cents=settings.ad_broadcast_rate_cents,
             currency=settings.billing_currency,
             broadcast_at=datetime.now(tz=timezone.utc),
+            # Delivered on the spot: this path records an ad at the moment it is spoken, unlike
+            # the auction, which reserves one when the salon opens.
+            delivered_at=datetime.now(tz=timezone.utc),
         )
         db.add(row)
         # Decremented in the same transaction as the record. Two statements, one commit: an
@@ -103,6 +106,9 @@ def invoice_advertiser(db: DbSession, advertiser: Advertiser) -> dict:
             AdBroadcast.advertiser_id == advertiser.advertiser_id,
             AdBroadcast.stripe_invoice_item_id.is_(None),
             AdBroadcast.amount_cents > 0,
+            # Reserved but never spoken is not billable. The database refuses such a charge
+            # anyway; filtering here is what stops the run from trying and failing.
+            AdBroadcast.delivered_at.isnot(None),
         )
         .order_by(AdBroadcast.broadcast_at)
         .all()
@@ -189,7 +195,9 @@ def invoice_all(db: DbSession) -> dict:
         row[0]
         for row in db.query(AdBroadcast.advertiser_id)
         .filter(
-            AdBroadcast.stripe_invoice_item_id.is_(None), AdBroadcast.amount_cents > 0
+            AdBroadcast.stripe_invoice_item_id.is_(None),
+            AdBroadcast.amount_cents > 0,
+            AdBroadcast.delivered_at.isnot(None),
         )
         .distinct()
         .all()

@@ -144,24 +144,60 @@ def test_base_instructions_guest_without_account_identity_described():
 
 # ─── Sponsorship mention ─────────────────────────────────────────────────────
 
-def test_base_instructions_mention_infonuagix_once_at_welcome():
-    """The advertising aside belongs to the greeting, and only to the greeting."""
-    instructions = salon._BASE_INSTRUCTIONS
-    assert "Infonuagix.ai" in instructions
-    section = instructions[instructions.find("SPONSORSHIP MENTION"):]
-    assert section, "the mention must live in its own section, not buried in prose"
-    # Bounded on purpose: one sentence, to newcomers only, with no second attempt.
-    # Without these the model is free to bring it up again mid-conversation.
-    assert "ONE short sentence" in section
-    assert "never bring it up again" in section
+def test_a_salon_opens_in_three_steps_in_order():
+    """Welcome, announcement, then the source. The order is the product decision: an
+    announcement to somebody ungreeted is jarring, and one delivered later interrupts."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("HOW A SALON OPENS"):
+    ]
+    assert section
+    assert section.index("1. WELCOME") < section.index("2. THE ANNOUNCEMENT")
+    assert section.index("2. THE ANNOUNCEMENT") < section.index("3. THE CONVERSATION")
 
 
-def test_sponsorship_mention_survives_both_opening_paths():
-    """A salon may open with a source or without one; the greeting happens either way."""
-    with_source = salon._build_instructions(source_summary="A brief.", source_type="url")
-    without_source = salon._build_instructions()
-    for instructions in (with_source, without_source):
-        assert "Infonuagix.ai" in instructions
+def test_the_hardcoded_sponsorship_mention_is_gone():
+    """It said what a house ad now says, so a newcomer heard it twice. The auction carries the
+    message; a second copy in the prompt would be a duplicate nobody could turn off."""
+    assert "SPONSORSHIP MENTION" not in salon._BASE_INSTRUCTIONS
+    # And the company is no longer named in the prompt at all: what an advertiser says is data
+    # now, not instructions, so it can change without a redeploy.
+    assert "Infonuagix.ai" not in salon._BASE_INSTRUCTIONS
+
+
+def test_silence_rather_than_announcing_the_absence_of_a_sponsor():
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("HOW A SALON OPENS"):
+    ]
+    assert "never announce that there is no sponsor" in section
+
+
+def test_the_announcement_is_bounded():
+    """Repeating or pressing it turns a conversation into a sales call, which is the fastest way
+    to make the advertising worthless."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("HOW A SALON OPENS"):
+    ]
+    assert "once and never return to it" in section
+    assert "never add a claim they did not make" in section
+
+
+def test_the_agent_can_request_an_ad():
+    assert callable(getattr(salon.SalonAgent(), "request_ad", None))
+
+
+def test_requesting_an_ad_without_a_session_says_nothing():
+    import asyncio
+
+    assert asyncio.run(salon.SalonAgent().request_ad()) == "no_ad"
+
+
+def test_the_opening_sequence_survives_both_paths():
+    """A salon may open with a source or without one; the three steps happen either way."""
+    for instructions in (
+        salon._build_instructions(source_summary="A brief.", source_type="url"),
+        salon._build_instructions(),
+    ):
+        assert "HOW A SALON OPENS" in instructions
 
 
 # ─── Answering from the sources ──────────────────────────────────────────────
@@ -184,13 +220,14 @@ def test_instructions_forbid_inventing_details():
     assert "without having searched" in section
 
 
-def test_sponsorship_is_gated_on_being_a_newcomer():
+def test_the_advertiser_is_chosen_by_the_server_not_the_prompt():
+    """Who is heard, and what they pay, comes from an auction over region, topics and language.
+    A prompt naming one advertiser could not be outbid, discounted, or replaced without a
+    redeploy."""
     section = salon._BASE_INSTRUCTIONS[
-        salon._BASE_INSTRUCTIONS.find("SPONSORSHIP MENTION"):
+        salon._BASE_INSTRUCTIONS.find("HOW A SALON OPENS"):
     ]
-    assert "is_first_salon" in section
-    assert "'returning'" in section
-    assert "say nothing about it at all" in section
+    assert "request_ad" in section
 
 
 # ─── Transcription notice ────────────────────────────────────────────────────
@@ -353,3 +390,27 @@ def test_translation_guidance_no_longer_assumes_three_people():
     """The room now holds a host, three guests and the agent."""
     assert "3-way session" not in salon._BASE_INSTRUCTIONS
     assert "Up to three people may be in the room" in salon._BASE_INSTRUCTIONS
+
+
+def test_the_agent_confirms_delivery_separately():
+    """Reserving and delivering are two acts. The advertiser is charged by the second, so an ad
+    reserved when the salon opened and never spoken costs them nothing."""
+    a = salon.SalonAgent()
+    assert callable(getattr(a, "confirm_ad_delivered", None))
+
+
+def test_the_prompt_ties_the_charge_to_the_confirmation():
+    """A model that skipped the confirmation would cost real revenue, and one that called it
+    without speaking would bill somebody for silence. Both have to be stated."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("HOW A SALON OPENS"):
+    ]
+    assert "confirm_ad_delivered" in section
+    assert "before it they pay nothing" in section
+    assert "bills somebody" in section
+
+
+def test_confirming_without_a_session_does_nothing():
+    import asyncio
+
+    assert asyncio.run(salon.SalonAgent().confirm_ad_delivered()) == "not_confirmed"

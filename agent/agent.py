@@ -95,14 +95,30 @@ _BASE_INSTRUCTIONS = (
     "The written notice on the page cannot be relied on — a participant may have joined\n"
     "by telephone, or never looked at the screen.\n"
     "\n\n"
-    "SPONSORSHIP MENTION (newcomers only, once):\n"
-    "Before greeting someone, call is_first_salon with their LiveKit identity.\n"
-    "If it answers 'first_salon', add ONE short sentence to your welcome: a business\n"
-    "wishing to advertise in the Salons can contact Infonuagix.ai, the company that built\n"
-    "Vocaliz. If it answers 'returning', say nothing about it at all — they have heard it.\n"
-    "Say it in the participant's language, once, and never bring it up again: repeating\n"
-    "it, or pressing it, would turn a conversation into a sales call. Then move straight\n"
-    "on to the topic — the mention is an aside, not the point of the greeting.\n"
+    "HOW A SALON OPENS — three steps, in this order and no other:\n"
+    "1. WELCOME. Greet whoever is here, in their language, in a sentence or two.\n"
+    "2. THE ANNOUNCEMENT. Call request_ad once. If it returns a pitch, deliver it in ONE or\n"
+    "   TWO short sentences, in the participant's language, and make clear by your phrasing\n"
+    "   that it is a sponsor's message rather than something you are recommending. If it\n"
+    "   returns nothing, say nothing about it — never announce that there is no sponsor.\n"
+    "   Having said it, call confirm_ad_delivered. That call is what charges the advertiser:\n"
+    "   before it they pay nothing, and claiming a delivery you did not make bills somebody\n"
+    "   for silence.\n"
+    "3. THE CONVERSATION. Turn to the source and open with a question about it. This is the\n"
+    "   point of the salon; the announcement is a step on the way, never a subject of its own.\n"
+    "\n"
+    "Deliver the announcement once and never return to it. Repeating it, pressing it, or\n"
+    "answering questions about the advertiser at length turns a conversation into a sales\n"
+    "call — which is the fastest way to make participants stop coming, and therefore the\n"
+    "fastest way to make the advertising worthless.\n"
+    "\n"
+    "The pitch is the advertiser's substance, not a script. Say it in the listener's language\n"
+    "and in your own register, but never add a claim they did not make: an advertiser answers\n"
+    "for what they said, and you must not put words in their mouth.\n"
+    "\n"
+    "Call request_ad after the welcome and before the source. Not before the welcome — an\n"
+    "announcement to somebody who has not been greeted is jarring — and not later, when it\n"
+    "would interrupt a conversation already under way.\n"
     "\n\n"
     "ANSWERING FROM THE SOURCES:\n"
     "What you were given is a summary of the documents, not the documents themselves.\n"
@@ -428,6 +444,75 @@ class SalonAgent(Agent):
         except Exception as exc:  # noqa: BLE001
             logger.warning("search_source failed: %s", exc)
             return "no_results"
+
+    @function_tool
+    async def request_ad(self) -> str:
+        """Ask whether a sponsor's message belongs in this salon, and get its text.
+
+        Call once, immediately after the welcome and before turning to the source.
+
+        Returns the pitch to deliver, or "no_ad" — which means say nothing about sponsorship at
+        all. Announcing that there is no sponsor would be a strange thing to tell anyone.
+
+        The auction happens server-side: which advertiser wins, and what they pay, depends on
+        where the participants are, what the salon is about and what was bid. None of that is
+        your concern — you deliver the result.
+
+        The pitch was already chosen when the salon opened, so this returns immediately — no
+        auction runs while somebody is waiting to hear you speak.
+
+        Call confirm_ad_delivered once you have actually said it. Until you do, the advertiser is
+        charged nothing: a reservation nobody heard must cost them neither money nor one of the
+        broadcasts they bought.
+
+        Safe if called twice by accident: the second call returns "no_ad" rather than reserving
+        anything else.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            return "no_ad"
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{self._api_url}/sessions/{self._session_id}/ad",
+                    headers={"Authorization": f"Bearer {self._host_token}"},
+                )
+            if resp.status_code != 200:
+                logger.warning("request_ad returned %s", resp.status_code)
+                return "no_ad"
+            pitch = (resp.json().get("pitch") or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("request_ad failed: %s", exc)
+            return "no_ad"
+
+        return pitch or "no_ad"
+
+    @function_tool
+    async def confirm_ad_delivered(self) -> str:
+        """Confirm that you have spoken the sponsor's message.
+
+        Call immediately after saying it, and only then. This is what makes the advertiser
+        liable — before it, the reservation costs them nothing at all.
+
+        Never call it if you did not say the pitch, or if request_ad returned "no_ad". Claiming a
+        delivery that did not happen bills somebody for silence.
+        """
+        if not self._session_id or not self._api_url or not self._host_token:
+            return "not_confirmed"
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{self._api_url}/sessions/{self._session_id}/ad/delivered",
+                    headers={"Authorization": f"Bearer {self._host_token}"},
+                )
+            if resp.status_code != 200:
+                logger.warning("confirm_ad_delivered returned %s", resp.status_code)
+                return "not_confirmed"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("confirm_ad_delivered failed: %s", exc)
+            return "not_confirmed"
+        return "confirmed"
 
     @function_tool
     async def search_platform(

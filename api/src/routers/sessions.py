@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session as DbSession
 
 from src.database import get_db
 from src.dependencies.auth import get_current_user
+from src.models.ad import Ad
+from src.models.ad_broadcast import AdBroadcast
+from src.models.salon_event import SalonEvent
 from src.models.session import SessionModel
+from src.models.shared_source import SharedSource, SharedSourceConsent
 from src.models.session_source import SessionSource
 from src.models.user import User
 from src.models.invitation import Invitation
@@ -35,6 +39,7 @@ from src.schemas.session import (
 from src.config import settings
 from src.schemas.invitation import GeoBody, InviteGuestBody
 from src.services import (
+    ad_auction_service,
     content_service,
     invitation_service,
     jwt_service,
@@ -964,3 +969,128 @@ def get_transcript(
             db, session_id=session.id, language=lang, after=after
         ),
     )
+
+
+@router.post("/{session_id}/ad", status_code=200)
+def request_ad(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Run the auction for this salon and hand back the winning pitch, once.
+
+    Called by the agent immediately after its welcome. Everything the auction needs is gathered
+    here rather than passed in: the agent knows who is in the room but not where they are, what
+    the salon's topics are, or what anyone bid.
+
+    ONE PER SESSION, enforced here rather than trusted to the prompt. A model that called this
+    twice would spend two of an advertiser's broadcasts and charge for both, and no instruction
+    is a substitute for the check.
+
+    Returns {"pitch": ""} when nothing is eligible. An empty pitch means say nothing at all —
+    not "we have no advertisers", which would be a strange thing to announce.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+
+    already = (
+        db.query(AdBroadcast).filter(AdBroadcast.session_id == session.id).first()
+    )
+    if already is not None:
+        return {"pitch": "", "reason": "already_broadcast"}
+
+    # Where the participants are and what they speak, from the participation records. Both may
+    # be empty this early — someone who declined the location prompt has no position, and a
+    # participant who has not spoken has no language yet. The auction treats an unknown language
+    # as admitting everything, so an ad still plays.
+    participations = (
+        db.query(SalonEvent.plus_code, SalonEvent.first_spoken_language)
+        .filter(SalonEvent.salon_name == session.livekit_room_name)
+        .all()
+    )
+    participant_codes = [row[0] for row in participations]
+    salon_languages = [row[1] for row in participations if row[1]]
+
+    # The salon's topics exist only if the host published their source to the shared corpus.
+    # Otherwise topic targeting cannot apply here, and the auction falls back to region alone —
+    # deliberately, because extracting topics from a private document to place advertising is a
+    # different consent from making a public page searchable.
+    topics: list[str] = []
+    if session.source_url:
+        shared = (
+            db.query(SharedSource)
+            .join(SharedSourceConsent, SharedSourceConsent.source_id == SharedSource.id)
+            .filter(SharedSourceConsent.session_id == session.id)
+            .first()
+        )
+        if shared is not None:
+            topics = list(shared.topics or [])
+
+    broadcast = ad_auction_service.broadcast_winner(
+        db,
+        session=session,
+        participant_codes=participant_codes,
+        salon_topics=topics,
+        salon_languages=salon_languages,
+    )
+    if broadcast is None:
+        return {"pitch": "", "reason": "no_eligible_ad"}
+
+    ad = db.get(Ad, broadcast.ad_id)
+    return {
+        # What the agent says. Rendered by it into the listener's language, so the wording here
+        # is the advertiser's substance rather than a script to read verbatim.
+        "pitch": ad.sales_pitch if ad else "",
+        "writtenIn": ad.spoken_language if ad else "en",
+    }
+
+
+@router.post("/{session_id}/ad/delivered", status_code=200)
+def confirm_ad_delivered(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Confirm that the reserved ad was actually spoken.
+
+    This is the moment the advertiser becomes liable. Until it arrives, the reservation costs
+    them nothing — not money, not one of the broadcasts they bought — because a salon that opens
+    and closes before the greeting ends must not produce a charge.
+
+    Idempotent: a second confirmation changes nothing. The agent may retry, and a retry must not
+    spend two of a purchase.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+
+    broadcast = (
+        db.query(AdBroadcast).filter(AdBroadcast.session_id == session.id).first()
+    )
+    if broadcast is None:
+        # Nothing was reserved, so nothing can be confirmed. Not an error: an agent that heard
+        # "no ad" and confirmed anyway is harmless, and refusing would make it look like one.
+        return {"delivered": False, "reason": "nothing_reserved"}
+
+    return {"delivered": ad_auction_service.mark_delivered(db, broadcast)}

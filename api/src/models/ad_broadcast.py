@@ -67,8 +67,20 @@ class AdBroadcast(Base):
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="usd")
 
+    # When the auction was won and the ad set aside for this salon.
     broadcast_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # When it was actually spoken. NULL means reserved and never delivered — the host closed
+    # their tab, or the worker died, between the salon opening and the greeting ending.
+    #
+    # The row is kept rather than deleted, so the gap between reserved and heard is measurable
+    # instead of invisible. Nothing NULL is ever invoiced, and no allowance is spent on it:
+    # charging an advertiser for a sentence nobody heard is the one outcome this must not
+    # produce.
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     # NULL until this broadcast has been put on a Stripe invoice. That makes the invoicing
@@ -89,6 +101,12 @@ class AdBroadcast(Base):
             "(stripe_invoice_item_id IS NULL AND invoiced_at IS NULL) OR "
             "(stripe_invoice_item_id IS NOT NULL AND invoiced_at IS NOT NULL)",
             name="ck_ad_broadcasts_invoiced_consistent",
+        ),
+        # The guarantee, in the schema rather than in a query somebody has to write correctly:
+        # a charge cannot exist for something that was never spoken.
+        CheckConstraint(
+            "stripe_invoice_item_id IS NULL OR delivered_at IS NOT NULL",
+            name="ck_ad_broadcasts_billed_only_if_delivered",
         ),
     )
 
