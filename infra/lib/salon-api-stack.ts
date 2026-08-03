@@ -4,6 +4,8 @@ import * as apigw from 'aws-cdk-lib/aws-apigatewayv2';
 import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
@@ -183,6 +185,24 @@ export class SalonApiStack extends cdk.Stack {
         retention: logs.RetentionDays.TWO_WEEKS,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       }),
+    });
+
+    // The per-session cap used to be evaluated only when a heartbeat arrived, which meant
+    // it was not evaluated at all in the most ordinary failure: a host closes their laptop,
+    // or the agent worker dies. The session then stayed active for good, leaking an open
+    // session, a reserved telephone code and a span of metered time never settled.
+    //
+    // Five minutes is chosen against the ten-minute cap: a session overruns by at most half
+    // its own length, which is well inside what a spending guard needs, and the sweep costs
+    // one Lambda invocation that usually finds nothing.
+    new events.Rule(this, 'SweepExpiredSessions', {
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      description: 'Close sessions past the per-session cap, regardless of heartbeats',
+      targets: [
+        new eventTargets.LambdaFunction(migrateFn, {
+          event: events.RuleTargetInput.fromObject({ action: 'sweep_sessions' }),
+        }),
+      ],
     });
 
     for (const fn of [apiFn, migrateFn]) {

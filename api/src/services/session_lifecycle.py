@@ -5,7 +5,7 @@ session behave identically. Two copies of this would drift, and the metering cla
 exactly the kind of detail that gets fixed in one and forgotten in the other.
 """
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session as DbSession
 
@@ -116,3 +116,46 @@ async def close_previous_host_sessions(host: User, db: DbSession) -> int:
         logger.info("Closed stale session %s (room %s)", session.id, room_name)
 
     return len(stale)
+
+
+async def close_expired_sessions(db: DbSession) -> list[str]:
+    """End every session that has outlived the per-session cap, whatever its heartbeats say.
+
+    The cap was previously enforced only when a heartbeat arrived, which meant it was not
+    enforced at all in the most ordinary failure: a host closes their laptop, or the agent
+    worker dies. No heartbeat, no evaluation, and the session stays active for good. That
+    leaked three things at once — an open session in the data, a telephone code reserved for
+    a conversation that was over, and a span of metered time never settled.
+
+    Driven by created_at rather than last_heartbeat_at, deliberately. A session's ceiling is
+    its age, not its silence: one that has been running eleven minutes is over whether or
+    not somebody was still talking a second ago.
+
+    Returns the ids closed, so the caller can log what it did rather than only how much.
+    """
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(seconds=settings.max_session_seconds)
+
+    expired = (
+        db.query(SessionModel)
+        .filter(SessionModel.status == "active", SessionModel.created_at < cutoff)
+        .all()
+    )
+
+    closed: list[str] = []
+    for session in expired:
+        room_name = session.livekit_room_name
+        try:
+            finalize_session(session, db)
+            # After finalizing, as everywhere else: the accounting is settled even if
+            # deleting the room fails, and a room LiveKit already collected is not an error.
+            await livekit_service.delete_room(room_name)
+            closed.append(str(session.id))
+            logger.info("Closed expired session %s (room %s)", session.id, room_name)
+        except Exception:  # noqa: BLE001
+            # One session that refuses to close must not stop the sweep from reaching the
+            # rest. A sweep that aborts halfway is worse than no sweep, because the
+            # remainder is silently skipped every run.
+            db.rollback()
+            logger.warning("Could not close expired session %s", session.id, exc_info=True)
+
+    return closed

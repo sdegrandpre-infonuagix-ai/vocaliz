@@ -38,16 +38,47 @@ def _reset_trial(email: str) -> dict:
         db.close()
 
 
+def _sweep_expired_sessions() -> dict:
+    """Close every session that has outlived its cap, whatever its heartbeats say.
+
+    Runs on a schedule rather than on a request, because the thing it fixes is the absence
+    of requests: the per-session cap used to be evaluated only when a heartbeat arrived, so
+    a host who closed their laptop left a session active for good — with its telephone code
+    reserved and its metered time never settled.
+
+    Carried by this function rather than a new one: it already has database access, already
+    sits behind IAM, and adding a Lambda to run twenty lines would be infrastructure in
+    search of a home.
+    """
+    import asyncio
+
+    from src.database import SessionLocal
+    from src.services import session_lifecycle
+
+    db = SessionLocal()
+    try:
+        closed = asyncio.run(session_lifecycle.close_expired_sessions(db))
+        return {"status": "ok", "closed": len(closed), "sessionIds": closed}
+    finally:
+        db.close()
+
+
 def handler(event, context):
     """Run `alembic upgrade head`, or a named maintenance action.
 
     event = {"action": "reset_trial", "email": "..."} clears metered time for one account.
+    event = {"action": "sweep_sessions"} closes sessions past the per-session cap; this is
+    what EventBridge invokes on a schedule.
     Any other event runs migrations.
     """
     action = (event or {}).get("action")
     if action == "reset_trial":
         result = _reset_trial(event["email"])
         logger.info("reset_trial: %s", result)
+        return result
+    if action == "sweep_sessions":
+        result = _sweep_expired_sessions()
+        logger.info("sweep_sessions: %s", result)
         return result
 
     # settings resolves DATABASE_URL from the Aurora secret; import after env is in place.

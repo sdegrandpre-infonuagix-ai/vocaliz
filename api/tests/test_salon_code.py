@@ -176,3 +176,26 @@ def test_a_code_of_the_wrong_length_is_refused(db):
     db.add(CodeAvailable(code="123", available=True))
     with pytest.raises(IntegrityError):
         db.commit()
+
+
+def test_a_code_with_a_letter_is_refused(db):
+    """Six digits, not six characters. A keypad cannot enter a letter, so this would be a
+    code nobody could ever dial — stored, reserved and unreachable."""
+    db.add(CodeAvailable(code="12a456", available=True))
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_a_code_with_a_space_is_refused(db):
+    db.add(CodeAvailable(code="12 456", available=True))
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_every_digit_is_accepted(db):
+    """Guards the replace chain: a bug in it could reject a legitimate digit rather than
+    only letters, and the failure would look like a saturated pool."""
+    db.add(CodeAvailable(code="012345", available=True))
+    db.add(CodeAvailable(code="678900", available=True))
+    db.commit()
+    assert db.query(CodeAvailable).count() == 2

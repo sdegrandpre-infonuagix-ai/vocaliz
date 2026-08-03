@@ -22,6 +22,22 @@ from src.database import Base
 CODE_DIGITS = 6
 
 
+def digits_only(column: str) -> str:
+    """A CHECK expression asserting that `column` holds nothing but digits.
+
+    A chain of replaces rather than a regular expression, deliberately. Postgres would
+    write `code ~ '^[0-9]{6}$'` and SQLite `code GLOB '[0-9]...'` — two different strings
+    meaning the same thing, one enforced in production and the other in the tests, free to
+    drift the day somebody edits one of them. Stripping every digit and requiring nothing
+    to remain is uglier and runs identically on both, so the tests verify the rule exactly
+    as production enforces it.
+    """
+    expression = column
+    for digit in "0123456789":
+        expression = f"replace({expression}, '{digit}', '')"
+    return f"length({expression}) = 0"
+
+
 class CodeAvailable(Base):
     """One telephone code, free or in use."""
 
@@ -48,10 +64,12 @@ class CodeAvailable(Base):
     )
 
     __table_args__ = (
-        # Exactly six characters. Digit-only would need a regex, and the operators differ
-        # between Postgres and the SQLite the tests run against — the generator is the only
-        # thing that writes here, and it writes digits.
-        CheckConstraint(f"length(code) = {CODE_DIGITS}", name="ck_code_available_length"),
+        # Six digits, not six characters. A keypad cannot enter a letter, so "12a456"
+        # would be a code nobody could ever dial — stored, reserved and unreachable.
+        CheckConstraint(
+            f"length(code) = {CODE_DIGITS} AND {digits_only('code')}",
+            name="ck_code_available_digits",
+        ),
         # A free code cannot carry a claim time, and a reserved one must. This is what stops
         # the two facts from contradicting each other.
         CheckConstraint(
