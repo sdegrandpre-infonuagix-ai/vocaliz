@@ -20,6 +20,7 @@ from livekit.plugins import xai, silero
 
 from src.captions import CaptionPublisher
 from src.mixed_audio_input import MixedParticipantAudioInput
+from src.opening import OpeningGate
 
 # override=True is deliberate: load_dotenv() otherwise leaves pre-existing OS
 # environment variables untouched, so a stale machine-wide XAI_API_KEY silently wins
@@ -1025,44 +1026,37 @@ async def entrypoint(ctx: agents.JobContext):
             len(detail.get("additionalSources") or []),
         )
 
-    # Fires once per session. A host inviting two people should not be greeted twice, and
-    # the opening only makes sense as an opening.
-    opened = {"done": False}
+    def _speak_the_opening() -> None:
+        """Start the conversation, without having been spoken to.
 
-    async def _open_after_invitation(delay: float) -> None:
-        """Start the conversation a quarter of a minute after a guest was invited.
-
-        The agent used to wait to be spoken to, which left a host who had just sent an
-        invitation sitting in silence with nothing to react to. Fifteen seconds is long
-        enough for the host to put the phone down and short enough that the silence never
-        becomes a question about whether anything is working.
+        Fifteen seconds is long enough for the host to put the phone down and short enough
+        that the silence never becomes a question about whether anything is working.
 
         Deliberately not tied to the guest arriving: they may take minutes, or never come.
         The opening is for the host, and the guest is greeted separately when they join.
-
-        The delay comes from the message rather than from the constant below. The clients
-        show a countdown built from the same number, and a counter that reaches zero while
-        the agent is still waiting is the most alarming way for this to be wrong.
         """
-        if opened["done"]:
-            return
-        opened["done"] = True
-        await asyncio.sleep(delay)
-        try:
-            agent_session.generate_reply(
-                instructions=(
-                    "Open the conversation now, without waiting to be spoken to. Greet "
-                    "the host in their language, say briefly that their guest has been "
-                    "invited and will join shortly, and begin on the topic — ask them an "
-                    "opening question about it rather than describing what you are about "
-                    "to do. Keep it to a few sentences. Do not mention timers or waiting "
-                    "periods."
-                )
+        agent_session.generate_reply(
+            instructions=(
+                "Open the conversation now, without waiting to be spoken to. Greet "
+                "the host in their language, say briefly that their guest has been "
+                "invited and will join shortly, and begin on the topic — ask them an "
+                "opening question about it rather than describing what you are about "
+                "to do. Keep it to a few sentences. Do not mention timers or waiting "
+                "periods."
             )
-            logger.info("Opened the conversation after an invitation (session %s)", session_id)
-        except Exception as exc:  # noqa: BLE001
-            # A failed opening must not disturb a session that is otherwise working.
-            logger.warning("Could not open the conversation after an invitation: %s", exc)
+        )
+        logger.info("Opened the conversation after an invitation (session %s)", session_id)
+
+    # Fires once per session: a host inviting two people should not be greeted twice, and an
+    # opening only makes sense as an opening. Speech during the wait stands it down — see
+    # src/opening.py for why that produces no reply of its own.
+    opening = OpeningGate(_speak_the_opening, label=f"session {session_id}")
+
+    async def _drop_pending_opening() -> None:
+        # A room that empties mid-wait leaves a timer with nobody to greet.
+        opening.cancel()
+
+    ctx.add_shutdown_callback(_drop_pending_opening)
 
     def _on_data(packet) -> None:
         if not (session_id and api_url and host_token):
@@ -1080,9 +1074,18 @@ async def entrypoint(ctx: agents.JobContext):
                 delay = float(msg.get("opensInSeconds") or INVITATION_OPENING_SECONDS)
             except (TypeError, ValueError):
                 delay = INVITATION_OPENING_SECONDS
-            asyncio.create_task(_open_after_invitation(delay))
+            opening.schedule(delay)
 
     ctx.room.on("data_received", _on_data)
+
+    # Registered separately from the caption handler below: cancelling the wait is not a
+    # captions feature, and it must keep working in a session that publishes none.
+    @agent_session.on("user_input_transcribed")
+    def _speech_stands_down_the_opening(event) -> None:
+        # Finals only, for the same reason as the captions: an interim transcript can be
+        # revised away, and a false start should not cost the opening.
+        if getattr(event, "is_final", False):
+            opening.stand_down()
 
     # Closing the browser or killing the app ends no session by itself: the client simply
     # stops sending heartbeats, leaving the session active. The agent is the only party

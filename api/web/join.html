@@ -697,6 +697,10 @@
       }
       captionLog.push(msg);
       renderCaptions();
+      // Anything transcribed means the wait is over — whether the agent opened on time or
+      // somebody spoke first. A counter still ticking down while words appear above it is
+      // the clearest possible way to look broken.
+      standDownCountdown();
     }
 
     function renderCaptions() {
@@ -882,6 +886,18 @@
         countdownTimer = null;
       }
     }, 1000);
+  }
+
+  // The delay is a maximum, not a promise of silence: if someone speaks at second three,
+  // the agent answers then, and the remaining twelve seconds no longer describe anything.
+  // Shown as the same "starting" state it reaches by counting down, rather than removed —
+  // a panel that vanishes just as the agent speaks reads as a fault.
+  function standDownCountdown() {
+    if (!countdownTimer && countdownLeft <= 0) return;
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+    countdownLeft = 0;
+    renderCountdown();
   }
 
   function renderCountdown() {

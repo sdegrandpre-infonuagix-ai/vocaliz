@@ -59,7 +59,17 @@ export function useOpeningCountdown(room: Room | null) {
       _kind?: unknown,
       topic?: string,
     ) => {
-      // Captions travel on their own topic; this message has none.
+      // A caption means the wait is over, whether the agent opened on time or somebody spoke
+      // first. The delay is a maximum, not a promise of silence: a host who talks at second
+      // three gets answered then, and a counter still ticking while words arrive above it is
+      // the clearest possible way to look broken. Held at zero rather than cleared, the same
+      // state it reaches by counting down.
+      if (topic === 'captions') {
+        stop();
+        setSecondsLeft((left) => (left === null ? null : 0));
+        return;
+      }
+      // Any other topic belongs to somebody else; this message travels with none.
       if (topic) return;
       let message: any;
       try {
