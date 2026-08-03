@@ -163,3 +163,62 @@ def test_a_second_reading_does_not_replace_the_first(db, session):
         longitude=-71.2080,
     )
     assert db.query(SalonEvent).one().plus_code == first
+
+
+# ─── Purging participations nobody was heard in ───────────────────────────────
+
+def _entry(db, salon, email, *, language=None, role="guest"):
+    salon_event_service.record_entry(
+        db,
+        email=email,
+        user_type=role,
+        salon_name=salon,
+        first_spoken_language=language,
+    )
+
+
+def test_the_purge_is_a_dry_run_by_default(db, session):
+    """Destructive and irreversible, so the count comes before the deletion."""
+    _entry(db, "salon-a", "silent@example.com")
+    result = salon_event_service.purge_silent_participations(db)
+    assert result["status"] == "dry_run"
+    assert result["matched"] == 1
+    assert result["deleted"] == 0
+    assert db.query(SalonEvent).count() == 1, "nothing removed"
+
+
+def test_the_dry_run_names_whose_history_is_at_stake(db, session):
+    """The point of a dry run is recognising the contacts, not just counting rows."""
+    _entry(db, "salon-a", "silent@example.com")
+    assert salon_event_service.purge_silent_participations(db)["contacts"] == [
+        "silent@example.com"
+    ]
+
+
+def test_the_purge_removes_only_the_silent(db, session):
+    _entry(db, "salon-a", "spoke@example.com", language="fr")
+    _entry(db, "salon-b", "silent@example.com")
+
+    result = salon_event_service.purge_silent_participations(db, confirm=True)
+    assert result["deleted"] == 1
+    remaining = db.query(SalonEvent).all()
+    assert [row.email for row in remaining] == ["spoke@example.com"]
+
+
+def test_the_purge_reaches_host_rows_too(db, session):
+    """The scope nobody expects: the admin listing aggregates languages across a person's salons,
+    so somebody shown as speaking French may still have silent rows."""
+    _entry(db, "salon-a", "host@example.com", language="fr", role="host")
+    _entry(db, "salon-b", "host@example.com", role="host")
+    _entry(db, "salon-c", "host@example.com", role="host")
+
+    result = salon_event_service.purge_silent_participations(db)
+    assert result["matched"] == 2
+    assert result["byRole"] == {"host": 2}
+
+
+def test_a_purge_with_nothing_silent_is_not_an_error(db, session):
+    _entry(db, "salon-a", "spoke@example.com", language="en")
+    result = salon_event_service.purge_silent_participations(db, confirm=True)
+    assert result["status"] == "purged"
+    assert result["deleted"] == 0

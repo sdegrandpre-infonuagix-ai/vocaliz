@@ -18,7 +18,12 @@ from src.schemas.invitation import (
     InviteGuestBody,
     PendingInvitationResponse,
 )
-from src.services import invitation_service, livekit_service, salon_event_service
+from src.services import (
+    invitation_service,
+    livekit_service,
+    salon_event_service,
+    utterance_service,
+)
 
 router = APIRouter(prefix="/sessions", tags=["invitations"])
 guest_router = APIRouter(prefix="/invitations", tags=["guest"])
@@ -224,3 +229,46 @@ def list_my_invitations(
     current_user: User = Depends(get_current_user),
 ):
     return invitation_service.get_pending_invitations_for_user(user=current_user, db=db)
+
+
+@guest_router.get("/guest-join/{join_token}/utterances")
+def guest_transcript(
+    join_token: str,
+    lang: str | None = None,
+    after: int = 0,
+    db: DbSession = Depends(get_db),
+):
+    """The salon's transcript for a guest, translated into the language they are reading.
+
+    Exists so a guest who changes caption language mid-conversation sees the whole exchange in
+    the new one, not half of it. They are the reader who most needs it: the host usually speaks
+    the language being used, and the guest often does not.
+
+    Authenticated by the join token, which is the same credential that let them into the room —
+    no weaker, and the only one they hold. A guest has no API session, so requiring the host's
+    would mean the feature could never reach them.
+
+    Bounded to the guest's own salon: the token names one invitation, which names one session.
+    """
+    invitation = db.query(Invitation).filter(Invitation.join_token == join_token).first()
+    if invitation is None:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
+
+    # Expiry is not checked. A conversation in progress outliving its invitation window is
+    # possible, and cutting a participant's captions mid-sentence over a timestamp would be a
+    # strange way to enforce it — the room membership is what governs whether they are present.
+    session = db.query(SessionModel).filter(
+        SessionModel.id == invitation.session_id,
+    ).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    return {
+        "sessionId": str(session.id),
+        # Echoed so a client can tell which language it is looking at: requests can land out of
+        # order, and a stale reply must not overwrite a newer choice.
+        "language": lang,
+        "utterances": utterance_service.transcript(
+            db, session_id=session.id, language=lang, after=after
+        ),
+    }

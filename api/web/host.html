@@ -834,10 +834,15 @@
       var form = new FormData();
       if (url) form.append('source_url', url);
       if (file) form.append('file', file);
-      // Sent only alongside a URL. A ticked box with a document selected must not travel
-      // as consent to publish the document — the API and the table both refuse it, and
-      // sending it anyway would make the refusal the only thing standing in the way.
-      if (url && document.getElementById('src-share').checked) {
+      // Sent only alongside a URL. A ticked box with a document selected must not travel as
+      // consent to publish the document — the API and the table both refuse it, and sending it
+      // anyway would make the refusal the only thing standing in the way.
+      //
+      // The element is looked up defensively, and that is not paranoia: this line used to sit
+      // outside the try below, so a browser serving a cached page from before the checkbox
+      // existed threw here and the session simply never started, with no message at all.
+      var share = document.getElementById('src-share');
+      if (url && share && share.checked) {
         form.append('share_with_platform', 'true');
       }
       try {
@@ -891,8 +896,54 @@
       captionLang = next || '';
       try { localStorage.setItem(CAP_KEY, captionLang); } catch (e) { }
       publishCaptionLang();
+      // Drawn immediately with what is in memory, so the change is visible at once, then again
+      // once the retranslated history arrives.
       renderCaptions();
+      retranslateHistory();
     }
+
+    // Retranslates what has already been said. Before this, a change of language applied only to
+    // turns that arrived afterwards — leaving half a conversation in one language and half in
+    // another, which is worse than either.
+    //
+    // The transcript endpoint renders every turn into the requested language and caches each
+    // translation on (turn, language), so a reader who switches back pays nothing, and a second
+    // reader of the same language pays nothing either.
+    async function retranslateHistory() {
+      if (!captionLog.length || !sessionId) return;
+      // "As spoken" needs no request: every turn already carries the words it was said in.
+      if (!captionLang) { renderCaptions(); return; }
+
+      try {
+        var data = await api('/sessions/' + sessionId + '/utterances?lang='
+                             + encodeURIComponent(captionLang));
+        // A reply for a language the reader has since moved on from must not overwrite the
+        // screen. Requests can land out of order, and the last one asked for is the one meant.
+        if (data.language !== captionLang) return;
+
+        var bySequence = {};
+        for (var i = 0; i < (data.utterances || []).length; i++) {
+          var t = data.utterances[i];
+          bySequence[t.sequence] = t;
+        }
+        for (var j = 0; j < captionLog.length; j++) {
+          var known = bySequence[captionLog[j].sequence];
+          if (!known) continue;
+          captionLog[j].translations = captionLog[j].translations || {};
+          // Only when it actually differs from the spoken words. Storing an untranslated copy
+          // would make a failed translation indistinguishable from a successful one.
+          if (known.text && known.text !== known.originalText) {
+            captionLog[j].translations[captionLang] = known.text;
+          }
+        }
+        renderCaptions();
+      } catch (e) {
+        // The turns already on screen keep whatever they had. A failed retranslation costs a
+        // language, not a transcript.
+        console.warn('Vocaliz: could not retranslate the history', e);
+      }
+    }
+
 
     // Attributes are how the agent learns what to translate into. Sent on connect and on
     // every change; failing to send one costs captions in that language, nothing else.
@@ -1227,7 +1278,8 @@
       var form = new FormData();
       if (url) form.append('source_url', url);
       if (file) form.append('file', file);
-      if (url && document.getElementById('add-share').checked) {
+      var addShare = document.getElementById('add-share');
+      if (url && addShare && addShare.checked) {
         form.append('share_with_platform', 'true');
       }
       try {
@@ -1238,7 +1290,7 @@
         document.getElementById('add-file').value = '';
         // Cleared with the fields. A box left ticked would silently publish the next page
         // the host pastes, which is the one mistake this control must not make.
-        document.getElementById('add-share').checked = false;
+        if (addShare) addShare.checked = false;
       } catch (e) {
         setStatusRaw('source-status', e.message, false);
       }

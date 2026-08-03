@@ -622,7 +622,52 @@
       captionLang = next || '';
       try { localStorage.setItem(CAP_KEY, captionLang); } catch (e) { }
       publishCaptionLang();
+      // Drawn immediately with what is in memory, then again once the retranslated history lands.
       renderCaptions();
+      retranslateHistory();
+    }
+
+    // Retranslates what has already been said. A change of language used to apply only to turns
+    // arriving afterwards, leaving half a conversation in one language and half in another —
+    // worse than either.
+    //
+    // The guest is the reader who most needs this: the host usually speaks the language being
+    // used and the guest often does not. Authenticated by the join token, the same credential
+    // that let them into the room and the only one they hold.
+    async function retranslateHistory() {
+      if (!captionLog.length || !joinToken) return;
+      // "As spoken" needs no request: every turn already carries the words it was said in.
+      if (!captionLang) { renderCaptions(); return; }
+
+      try {
+        var resp = await fetch('/invitations/guest-join/' + encodeURIComponent(joinToken)
+                               + '/utterances?lang=' + encodeURIComponent(captionLang));
+        if (!resp.ok) return;
+        var data = await resp.json();
+        // A reply for a language the reader has since left must not overwrite the screen:
+        // requests can land out of order, and the last one asked for is the one meant.
+        if (data.language !== captionLang) return;
+
+        var bySequence = {};
+        for (var i = 0; i < (data.utterances || []).length; i++) {
+          bySequence[data.utterances[i].sequence] = data.utterances[i];
+        }
+        for (var j = 0; j < captionLog.length; j++) {
+          var known = bySequence[captionLog[j].sequence];
+          if (!known) continue;
+          captionLog[j].translations = captionLog[j].translations || {};
+          // Only when it differs from the spoken words. Storing an untranslated copy would make
+          // a failed translation indistinguishable from a successful one.
+          if (known.text && known.text !== known.originalText) {
+            captionLog[j].translations[captionLang] = known.text;
+          }
+        }
+        renderCaptions();
+      } catch (e) {
+        // The turns on screen keep what they had. A failed retranslation costs a language, not
+        // a transcript.
+        console.warn('Vocaliz: could not retranslate the history', e);
+      }
     }
 
     // Attributes are how the agent learns what to translate into. Sent on connect and on

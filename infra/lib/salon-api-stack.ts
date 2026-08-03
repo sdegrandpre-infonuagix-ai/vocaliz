@@ -252,7 +252,14 @@ export class SalonApiStack extends cdk.Stack {
     // TranslateText alone: nothing here creates terminologies or batch jobs.
     apiFn.addToRolePolicy(
       new iam.PolicyStatement({
-        actions: ['translate:TranslateText'],
+        actions: [
+          'translate:TranslateText',
+          // Translate calls Comprehend under the hood whenever the source language is 'auto',
+          // which is every caption whose language the model did not report and every corpus
+          // search. Without this the call fails with an AccessDenied naming a service nobody
+          // configured — and translation-by-detection was silently broken in production.
+          'comprehend:DetectDominantLanguage',
+        ],
         resources: ['*'],
       }),
     );

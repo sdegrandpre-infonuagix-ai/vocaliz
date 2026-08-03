@@ -11,10 +11,19 @@ _WEB_DIR = os.path.normpath(
 )
 
 
+# These pages change with every deployment and talk to an API that changes with them. A
+# browser holding yesterday's HTML against today's API produces failures that look like
+# application bugs and are not — we spent a diagnosis on exactly that. They are a few tens of
+# kilobytes, so revalidating on every load costs nothing worth measuring.
+_NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
+
+
 @router.get("/join/{join_token}", include_in_schema=False)
 def guest_join_page(join_token: str):
     """Serve the browser join page. Token validation happens client-side via the API."""
-    return FileResponse(os.path.join(_WEB_DIR, "join.html"), media_type="text/html")
+    return FileResponse(
+        os.path.join(_WEB_DIR, "join.html"), media_type="text/html", headers=_NO_CACHE
+    )
 
 
 @router.get("/host", include_in_schema=False)
@@ -26,7 +35,9 @@ def host_console_page():
     generate an invitation. It authenticates with the same email OTP as the app, so it
     grants nothing the host does not already have.
     """
-    return FileResponse(os.path.join(_WEB_DIR, "host.html"), media_type="text/html")
+    return FileResponse(
+        os.path.join(_WEB_DIR, "host.html"), media_type="text/html", headers=_NO_CACHE
+    )
 
 
 # The pages whose dictionaries can be requested, and the languages that exist as generated

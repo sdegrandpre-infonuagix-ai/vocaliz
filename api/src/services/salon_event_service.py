@@ -244,3 +244,56 @@ def record_upload(
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.warning("Could not record upload for salon %s", salon_id, exc_info=True)
+
+
+def purge_silent_participations(db: DbSession, *, confirm: bool = False) -> dict:
+    """Remove participations where the agent never heard the person speak.
+
+    A row with no first_spoken_language means somebody entered a salon and said nothing that was
+    transcribed — a blocked microphone, or a departure within seconds. As test noise it is worth
+    clearing; as data it is a record that they were there at all, so this is destructive and
+    irreversible.
+
+    Dry run unless confirm is True. The count matters more than the request: the admin listing
+    aggregates languages across a person's salons, so somebody shown as speaking French may still
+    have four silent rows out of five. Seeing the number before deleting is the difference between
+    clearing noise and quietly halving a history.
+
+    Returns what would be, or was, removed — broken down by role, because a silent guest is the
+    expected case and a silent host is not.
+    """
+    try:
+        doomed = (
+            db.query(SalonEvent)
+            .filter(SalonEvent.first_spoken_language.is_(None))
+            .all()
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not list silent participations", exc_info=True)
+        return {"status": "error", "matched": 0, "deleted": 0}
+
+    by_role: dict[str, int] = {}
+    for row in doomed:
+        by_role[row.user_type] = by_role.get(row.user_type, 0) + 1
+
+    summary = {
+        "matched": len(doomed),
+        "byRole": by_role,
+        # Named, because the point of the dry run is to recognise whose history is at stake.
+        "contacts": sorted({(row.email or row.phone) for row in doomed}),
+    }
+
+    if not confirm:
+        return {"status": "dry_run", "deleted": 0, **summary}
+
+    try:
+        for row in doomed:
+            db.delete(row)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.warning("Could not purge silent participations", exc_info=True)
+        return {"status": "error", "deleted": 0, **summary}
+
+    logger.info("Purged %d silent participation(s): %s", len(doomed), by_role)
+    return {"status": "purged", "deleted": len(doomed), **summary}
