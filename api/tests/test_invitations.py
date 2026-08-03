@@ -403,3 +403,30 @@ def test_two_guests_get_distinguishable_labels(mock_send, client, host, active_s
         json={"guestEmail": "b@example.com"}, headers=headers,
     ).json()
     assert a["participantName"] != b["participantName"]
+
+
+# ─── Transcription notice in the invitation ──────────────────────────────────
+
+@patch("src.services.invitation_service._send_email")
+def test_invitation_email_warns_that_speech_is_kept(mock_send):
+    """The invitation is the only moment a guest can decline by simply not coming.
+
+    The agent repeats it in the room for anyone who joined without reading, but a notice
+    that first appears once you are already talking is not much of a notice.
+    """
+    from src.services import invitation_service
+
+    invitation_service._send_invitation_email("guest@example.com", "https://x/join/tok")
+    body = mock_send.call_args.args[2]
+    assert "transcribed and kept" in body
+    assert "transcrit et conservé" in body
+
+
+@patch("src.services.invitation_service._send_email")
+def test_the_notice_comes_after_the_link_not_before(mock_send):
+    """The link is what the recipient must act on; a legal preamble above it buries it."""
+    from src.services import invitation_service
+
+    invitation_service._send_invitation_email("guest@example.com", "https://x/join/tok")
+    body = mock_send.call_args.args[2]
+    assert body.index("https://x/join/tok") < body.index("transcribed and kept")

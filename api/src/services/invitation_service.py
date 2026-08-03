@@ -321,13 +321,20 @@ def _send_invitation_email(to_address: str, join_link: str) -> None:
             "Open this link in Safari or Chrome, not inside your email app. Browsers built "
             "into email and messaging apps often cannot reach the microphone, and you would "
             "hear everyone while nobody hears you.\n\n"
-            "This link works only once and expires in 24 hours.",
+            "This link works only once and expires in 24 hours.\n\n"
+            # Placed last, after the link and the browser warning, but before they join:
+            # this is the only moment a guest can decline by simply not coming. The agent
+            # says it again in the room, for anyone who joined without reading this.
+            "Please note: what is said in a Salon is transcribed and kept, so that each "
+            "participant can read the conversation in the language they choose.",
             "Vous avez été invité à rejoindre une conversation Salon.\n\n"
             f"Rejoignez ici : {join_link}\n\n"
             "Ouvrez ce lien dans Safari ou Chrome, et non dans votre application de "
             "courriel. Les navigateurs intégrés aux applications de courriel et de "
             "messagerie n'accèdent souvent pas au microphone : vous entendriez tout le "
             "monde sans que personne ne vous entende.\n\n"
-            "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures.",
+            "Ce lien ne fonctionne qu'une seule fois et expire dans 24 heures.\n\n"
+            "À noter : ce qui se dit dans un Salon est transcrit et conservé, afin que "
+            "chaque participant puisse lire la conversation dans la langue de son choix.",
         ),
     )
