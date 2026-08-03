@@ -48,6 +48,7 @@ class SessionSourceSummary(BaseModel):
     sourceType: str
     sourceUrl: str | None = None
     sourceContent: str | None = None   # full extracted text — used by agent for contrast facilitation
+    sourceSummary: str | None = None
     contentLength: int
     createdAt: str
 
@@ -58,6 +59,9 @@ class SessionDetailResponse(BaseModel):
     sourceType: str
     sourceUrl: str | None
     sourceContent: str | None
+    # The brief the agent works from. sourceContent stays available for search, but it is
+    # this that goes into the prompt.
+    sourceSummary: str | None = None
     additionalSources: list[SessionSourceSummary]
     status: str
     createdAt: str
@@ -108,6 +112,36 @@ class EndSessionResponse(BaseModel):
     endedAt: str
     # Present only when the host was charged for usage beyond the free trial.
     billing: BillingChargeSummary | None = None
+
+
+class SourceSearchResponse(BaseModel):
+    """Passages of a salon's sources that bear on a question.
+
+    Excerpts rather than the whole text: the point of summarising was to keep the prompt
+    small, and answering a question by posting the document back into the conversation
+    would undo it.
+    """
+    excerpts: list[str]
+
+
+class ParticipantLanguageBody(BaseModel):
+    """The first language heard from one participant of one salon.
+
+    participantIdentity is the LiveKit one, the only handle the agent holds. It resolves
+    to an email server-side, which is what salon_events is keyed by.
+    """
+    participantIdentity: str
+    language: str
+
+
+class EndSessionBody(BaseModel):
+    """Optional closing answer, supplied by the agent that asked the question.
+
+    Three states and the third is not a failure: True and False are answers, None means
+    the participant never replied — someone who simply closed the tab. Recording None as
+    False would invent dissatisfaction nobody voiced.
+    """
+    enjoyed: bool | None = None
 
 
 class HeartbeatBody(BaseModel):

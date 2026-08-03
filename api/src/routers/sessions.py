@@ -2,7 +2,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session as DbSession
 
 from src.database import get_db
@@ -13,8 +13,10 @@ from src.models.user import User
 from src.models.invitation import Invitation
 from src.schemas.session import (
     BillingChargeSummary,
+    EndSessionBody,
     EndSessionResponse,
     HeartbeatBody,
+    ParticipantLanguageBody,
     HeartbeatResponse,
     JoinSessionResponse,
     SessionDetailResponse,
@@ -25,15 +27,18 @@ from src.schemas.session import (
     SessionResponse,
     SessionSourceResponse,
     SessionSourceSummary,
+    SourceSearchResponse,
 )
 from src.config import settings
-from src.schemas.invitation import InviteGuestBody
+from src.schemas.invitation import GeoBody, InviteGuestBody
 from src.services import (
     content_service,
     invitation_service,
     jwt_service,
     livekit_service,
+    salon_event_service,
     session_lifecycle,
+    summary_service,
     stripe_service,
 )
 
@@ -47,6 +52,7 @@ async def create_session(
     source_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     partner_email: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -106,6 +112,17 @@ async def create_session(
         can_publish=True,
     )
 
+    # 3b. Condense the source into the host's language. This is what the agent will
+    # actually read: the full text stays below for search, but the prompt carries the
+    # brief. Sent before the room exists so a failure here costs nothing but a fallback.
+    #
+    # The language comes from the client when it knows it — the web console knows which
+    # of EN/FR the host is reading — falling back to whatever the agent detected last
+    # time. A brief the host has to translate in their head is worse than no brief.
+    summary, summary_tokens = await summary_service.summarise(
+        content, language or current_user.detected_language
+    )
+
     # 4. Persist session
     session = SessionModel(
         host_user_id=current_user.id,
@@ -114,10 +131,23 @@ async def create_session(
         source_url=source_url,
         source_filename=source_filename,
         source_content=content,
+        source_summary=summary,
     )
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    # Accounting only — nothing reads this back during the conversation.
+    if content:
+        salon_event_service.record_upload(
+            db,
+            salon_id=session.id,
+            uploaded_by=current_user.email,
+            url=source_url,
+            filename=source_filename,
+            content=content,
+            tokens=summary_tokens,
+        )
 
     # 5. Dispatch the agent with the session context it needs to read sources, invite
     # guests and report metering. Done after the commit so the session id exists.
@@ -211,6 +241,11 @@ async def add_session_source(
         src_type = "document"
         src_filename = file.filename  # type: ignore[union-attr]
 
+    # Same treatment as the opening source: the agent reads the brief, not the raw text.
+    summary, summary_tokens = await summary_service.summarise(
+        content, current_user.detected_language
+    )
+
     source = SessionSource(
         session_id=session_uuid,
         host_user_id=current_user.id,
@@ -218,10 +253,21 @@ async def add_session_source(
         source_url=source_url,
         source_filename=src_filename,
         source_content=content,
+        source_summary=summary,
     )
     db.add(source)
     db.commit()
     db.refresh(source)
+
+    salon_event_service.record_upload(
+        db,
+        salon_id=session.id,
+        uploaded_by=current_user.email,
+        url=source_url,
+        filename=src_filename,
+        content=content,
+        tokens=summary_tokens,
+    )
 
     # The agent reads session sources once, at job start. Without this it would never
     # learn about a source added mid-conversation (FR3).
@@ -376,6 +422,7 @@ def get_session(
         sourceType=session.source_type,
         sourceUrl=session.source_url,
         sourceContent=session.source_content,
+        sourceSummary=session.source_summary,
         additionalSources=[
             SessionSourceSummary(
                 sourceId=str(s.id),
@@ -395,6 +442,8 @@ def get_session(
 @router.post("/{session_id}/join", response_model=JoinSessionResponse)
 def join_session(
     session_id: str,
+    request: Request,
+    body: GeoBody | None = None,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -441,6 +490,20 @@ def join_session(
     if invitation:
         invitation.status = "accepted"
         db.commit()
+
+    # A signed-in participant is recorded here, which is the moment they receive the
+    # credentials to enter. Guests without an account are recorded elsewhere, on
+    # confirm — their presence only becomes real once the microphone works.
+    salon_event_service.record_entry(
+        db,
+        email=current_user.email,
+        user_type="host" if is_host else "guest",
+        salon_name=session.livekit_room_name,
+        ip=salon_event_service.client_ip(request),
+        latitude=body.latitude if body else None,
+        longitude=body.longitude if body else None,
+        first_spoken_language=current_user.detected_language,
+    )
 
     token = livekit_service.generate_participant_token(
         room_name=session.livekit_room_name,
@@ -532,9 +595,138 @@ async def session_heartbeat(
     )
 
 
+@router.get("/{session_id}/search", response_model=SourceSearchResponse)
+def search_session_sources(
+    session_id: str,
+    q: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Find the passages of this salon's sources that bear on a question.
+
+    This is the other half of summarising. The agent holds a brief of a few thousand
+    characters; when a participant asks about a detail the brief does not carry, it comes
+    here rather than being handed the whole document — which is what the brief exists to
+    avoid.
+
+    Searches the opening source and everything added since, because a participant asking
+    about "the article" does not know which of them it lives in.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+
+    texts = [session.source_content]
+    texts += [
+        src.source_content
+        for src in db.query(SessionSource)
+        .filter(SessionSource.session_id == session_uuid)
+        .all()
+    ]
+
+    excerpts: list[str] = []
+    for text in texts:
+        if text:
+            excerpts.extend(summary_service.search(text, q))
+
+    # Capped after merging: three excerpts from each of four sources would be twelve
+    # passages read into a live conversation, which helps nobody.
+    return SourceSearchResponse(excerpts=excerpts[:4])
+
+
+@router.get("/{session_id}/participant-history", status_code=200)
+def participant_history(
+    session_id: str,
+    identity: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Whether this participant has ever been in another salon.
+
+    Exists so the agent can say something once to a newcomer and never again — an aside
+    repeated at every salon stops being an aside.
+
+    Answers about the participant, not the caller: the agent asks with the host's token on
+    behalf of whoever just joined.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+
+    return {
+        "firstSalon": salon_event_service.is_first_salon(
+            db,
+            salon_name=session.livekit_room_name,
+            participant_identity=identity,
+        )
+    }
+
+
+@router.post("/{session_id}/participant-language", status_code=200)
+def record_participant_language(
+    session_id: str,
+    body: ParticipantLanguageBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Record the first language heard from one participant of this salon.
+
+    Distinct from PATCH /me/language, which sets a property of an *account*. A person may
+    hold one conversation in French and the next in English, so the language belongs to
+    the participation — and guests, having no account, had nowhere for it to go at all.
+
+    Called by the agent with the host's token, which is why authorisation is ownership of
+    the session rather than being the participant in question.
+    """
+    import uuid as _uuid
+
+    try:
+        session_uuid = _uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+
+    written = salon_event_service.record_first_language(
+        db,
+        salon_name=session.livekit_room_name,
+        participant_identity=body.participantIdentity,
+        language=body.language,
+    )
+    # 200 either way. "Already known" is the expected answer once the first report has
+    # landed, and the agent has nothing useful to do with an error.
+    return {"recorded": written}
+
+
 @router.post("/{session_id}/end", response_model=EndSessionResponse)
 async def end_session(
     session_id: str,
+    body: EndSessionBody | None = None,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -562,7 +754,11 @@ async def end_session(
 
     # Shared with the cleanup that runs before a host opens a new session, so the
     # metering clamp and the billing path cannot drift between the two.
-    charge = session_lifecycle.finalize_session(session, db)
+    # The closing answer, when the agent managed to get one. The cap path above passes
+    # nothing: a session cut off by its own limit was never asked the question.
+    charge = session_lifecycle.finalize_session(
+        session, db, enjoyed=body.enjoyed if body else None
+    )
     billing_summary = BillingChargeSummary(**charge) if charge else None
 
     # Deleting the room disconnects everyone and stops the agent; without it the worker

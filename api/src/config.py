@@ -75,11 +75,25 @@ class Settings(BaseSettings):
     # Invitation join links sent via SMS to non-registered contacts
     salon_web_base_url: str = "https://salon.app"
 
-    # App installation link sent to anonymous guests after their first session
+    # App installation link sent to guests without an account after their first session
     salon_install_url: str = "https://salon.app/install"
 
     # Free trial cap: 1 hour (3 600 s) of cumulative host-role time per account
     free_trial_limit_seconds: int = 3600
+
+    # ── Source summarisation ──────────────────────────────────────────────────
+    # A document reached the agent as its first 2 500 characters and no further: a
+    # forty-page PDF was accepted, extracted, stored, then silently cut to a page and a
+    # half. Summarising once replaces that truncation — the agent gets the substance of
+    # the whole document, and the full text stays searchable for detailed questions.
+    xai_api_key: str = ""
+    # Non-reasoning on purpose. Measured against grok-4.5 on the same document: 1.0 s
+    # versus 3.5 s, for a longer and more concrete summary. Condensing text is not a
+    # reasoning task, and this call sits in the path of a host waiting to start.
+    summary_model: str = "grok-4.20-0309-non-reasoning"
+    # Room for the substance of a long document while staying a fraction of what the raw
+    # text would cost, since the prompt is processed on every turn of the conversation.
+    summary_target_chars: int = 3000
 
     # Hard cap on a single conversation, independent of the trial above. The trial bounds
     # what one account can spend in total; this bounds what one runaway session can spend

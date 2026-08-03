@@ -22,6 +22,12 @@ class SessionModel(Base):
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_content: Mapped[str | None] = mapped_column(Text, nullable=True)   # extracted plain text
+
+    # What the agent is actually given. The full text above stays for search;
+    # this is the brief that replaces the old 2 500-character truncation, and it is
+    # written in the host's language whatever language the source is in. Null when
+    # the summariser was unreachable — the agent then falls back to the truncation.
+    source_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
