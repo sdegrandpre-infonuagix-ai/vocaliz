@@ -456,3 +456,49 @@ def test_confirming_without_a_session_does_nothing():
     import asyncio
 
     assert asyncio.run(salon.SalonAgent().confirm_ad_delivered()) == "not_confirmed"
+
+
+# ─── Every language the model knows, not the three that are printed ──────────
+
+def _flat() -> str:
+    """The prompt with its line wrapping removed, so an assertion tests the wording rather
+    than where the eighty-column limit happened to fall."""
+    return " ".join(salon._BASE_INSTRUCTIONS.split())
+
+
+def test_the_three_written_languages_are_examples_not_a_limit():
+    """French, English and Spanish are spelled out in three places because an example has to be
+    written in some language. Read as a list of what is supported, they would make the agent
+    answer a Polish speaker in French — which is the failure this wording prevents."""
+    flat = _flat()
+    assert "not only the ones named in these instructions" in flat
+    assert "they are not the set you are limited to" in flat
+    assert "illustrations of the intent, not the set of languages this works in" in flat
+    assert "reference wordings" in flat
+
+
+def test_the_fallback_is_english_not_french():
+    """It used to say "default to French if unknown", which contradicted the product decision
+    that English is the default and French a choice."""
+    flat = _flat()
+    assert "default to French if unknown" not in flat
+    assert "English is the fallback when you genuinely could not tell" in flat
+
+
+def test_a_farewell_in_an_unlisted_language_still_ends_the_salon():
+    """Waiting for one of the printed phrases would strand everybody else."""
+    assert "counts exactly the same" in _flat()
+
+
+def test_languages_beyond_the_interface_are_named_explicitly():
+    """Naming a few unlisted languages is what stops the three examples reading as the whole
+    world. These are deliberately languages the site does NOT offer an interface in."""
+    flat = _flat()
+    named = [lang for lang in ("Polish", "Ukrainian", "Thai", "Swedish", "Hebrew") if lang in flat]
+    assert len(named) >= 3, f"only {named} named"
+
+
+def test_answering_in_the_wrong_language_is_forbidden_in_so_many_words():
+    """The specific failure worth naming: reaching for the nearest language that appears in the
+    prompt rather than the one actually being spoken."""
+    assert "never do is answer in a language they did not use" in _flat()
