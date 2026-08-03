@@ -17,21 +17,51 @@ const API_DIR = path.join(__dirname, '..', '..', 'api');
  * per architecture.md (Lambda + API Gateway for the API, Aurora for persistence).
  *
  * The Lambda sits in private subnets with egress because it calls LiveKit, Stripe and
- * SNS — hence the single NAT gateway, which is the main fixed cost of this stack.
+ * SNS — hence the single NAT, which is the main fixed cost of this stack and is served by
+ * an instance rather than a managed gateway (see the comment on natProvider below).
  */
 export class SalonApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // A NAT instance rather than a managed gateway. The gateway was this stack's largest
+    // fixed cost — roughly 33 USD a month before data charges — and it exists only so the
+    // Lambda can reach LiveKit, Stripe and SES. A t4g.nano does the same work for about a
+    // tenth of that.
+    //
+    // What is traded away is availability, and the trade is real: a managed gateway is
+    // redundant and self-healing, this is one instance in one availability zone. If it
+    // dies, every outbound call from the API fails until it is replaced — no rooms, no
+    // invitations, no billing. That is acceptable while Salon is being tested; switch back
+    // to NatProvider.gateway() once an outage costs more than the 30 USD it saves.
+    const natProvider = ec2.NatProvider.instanceV2({
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.NANO),
+      // Not the default. NatInstanceProviderV2 defaults to INBOUND_AND_OUTBOUND, which
+      // attaches a security group allowing every port from 0.0.0.0/0 — the whole internet
+      // reaching a host that only ever needs to serve traffic already inside the VPC.
+      defaultAllowedTraffic: ec2.NatTrafficDirection.OUTBOUND_ONLY,
+    });
+
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
       natGateways: 1,
+      natGatewayProvider: natProvider,
       subnetConfiguration: [
         { name: 'public', subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
         { name: 'app', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 24 },
         { name: 'data', subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
       ],
     });
+
+    // OUTBOUND_ONLY leaves the instance with no inbound rule whatsoever, which would also
+    // turn away the private subnets it exists to serve. This puts back exactly one thing:
+    // traffic that is already inside the VPC. Written after the Vpc because the CIDR is
+    // only known once it is constructed.
+    natProvider.connections.allowFrom(
+      ec2.Peer.ipv4(vpc.vpcCidrBlock),
+      ec2.Port.allTraffic(),
+      'Egress for the private subnets routed through this NAT instance',
+    );
 
     // ── Database ──────────────────────────────────────────────────────────────
     const db = new rds.DatabaseCluster(this, 'Db', {
@@ -44,8 +74,20 @@ export class SalonApiStack extends cdk.Stack {
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       writer: rds.ClusterInstance.serverlessV2('writer'),
-      serverlessV2MinCapacity: 0.5,
+      // 0, not 0.5: a floor of 0.5 ACU bills around the clock for a database that is
+      // only touched during test sessions — roughly 50 USD a month to keep an idle
+      // cluster warm. PostgreSQL 16.14 supports scaling to zero, so it now costs
+      // storage alone while nobody is talking.
+      //
+      // The price is a resume of about fifteen seconds on the first request after a
+      // pause. That fits inside the API Lambda's 29 s ceiling below, but it is real:
+      // the first call after an idle night will be visibly slow.
+      serverlessV2MinCapacity: 0,
       serverlessV2MaxCapacity: 2,
+      // Ten minutes rather than the five-minute default: sessions come in bursts, and
+      // this keeps consecutive tests from each paying for a resume, while still leaving
+      // an idle evening at zero.
+      serverlessV2AutoPauseDuration: cdk.Duration.minutes(10),
       defaultDatabaseName: 'salon',
       credentials: rds.Credentials.fromGeneratedSecret('salon'),
       storageEncrypted: true,
