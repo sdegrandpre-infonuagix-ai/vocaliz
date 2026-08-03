@@ -22,6 +22,7 @@ import { AudioSession } from '@livekit/react-native';
 // it is declared as a direct dependency so this import is not resting on hoisting.
 import { Room } from 'livekit-client';
 
+import PoweredBy from '../components/PoweredBy';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -279,6 +280,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         >
           <Text style={styles.buttonOutlineText}>{t.room.leaveButton}</Text>
         </Pressable>
+        <PoweredBy />
       </ScrollView>
     </KeyboardAvoidingView>
   );

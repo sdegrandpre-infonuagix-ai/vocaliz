@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
+import PoweredBy from '../components/PoweredBy';
 import LanguageToggle from '../components/LanguageToggle';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
@@ -163,6 +164,7 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
         >
           <Text style={styles.noSourceButtonText}>{t.session.noSourceButton}</Text>
         </Pressable>
+        <PoweredBy />
       </ScrollView>
     </KeyboardAvoidingView>
   );

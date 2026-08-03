@@ -195,6 +195,18 @@
       main { padding: 48px 32px; gap: 24px; }
       .card { padding: 36px 32px; }
     }
+
+    /* Attribution, discrete but present on every screen. rel=noopener because
+       target=_blank without it hands the opened page a handle on this one. */
+    .powered {
+      text-align: center;
+      font-size: 0.72rem;
+      color: #8b8175;
+      padding: 18px 12px 24px;
+    }
+
+    .powered a { color: #7B1528; text-decoration: none; }
+    .powered a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -276,6 +288,11 @@
   </ul>
 
 </main>
+
+<footer class="powered">
+  Powered by <a href="https://infonuagix.ai" target="_blank" rel="noopener noreferrer">Infonuagix.ai</a>
+</footer>
+
 
 <!-- LiveKit JavaScript SDK (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>

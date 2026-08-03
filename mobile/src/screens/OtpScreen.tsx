@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 
+import PoweredBy from '../components/PoweredBy';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -188,6 +189,7 @@ export default function OtpScreen({ navigation, route }: Props) {
           </Text>
         </Pressable>
       </View>
+        <PoweredBy />
     </KeyboardAvoidingView>
   );
 }

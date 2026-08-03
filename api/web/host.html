@@ -154,6 +154,18 @@
     }
 
     .flash { animation: micflash 0.45s ease-in-out 2; }
+
+    /* Attribution, discrete but present on every screen. rel=noopener because
+       target=_blank without it hands the opened page a handle on this one. */
+    .powered {
+      text-align: center;
+      font-size: 0.72rem;
+      color: #8b8175;
+      padding: 18px 12px 24px;
+    }
+
+    .powered a { color: #7B1528; text-decoration: none; }
+    .powered a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -246,6 +258,11 @@
       </button>
     </div>
   </main>
+
+<footer class="powered">
+  Powered by <a href="https://infonuagix.ai" target="_blank" rel="noopener noreferrer">Infonuagix.ai</a>
+</footer>
+
 
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
   <script>

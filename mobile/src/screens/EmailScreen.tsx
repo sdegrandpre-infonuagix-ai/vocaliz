@@ -18,6 +18,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import PoweredBy from '../components/PoweredBy';
 import LanguageToggle from '../components/LanguageToggle';
 import TelegraphIcon from '../components/TelegraphIcon';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
@@ -124,6 +125,7 @@ export default function EmailScreen({ navigation }: Props) {
         <Text style={styles.legal}>
           {t.email.legal}
         </Text>
+        <PoweredBy />
       </ScrollView>
     </KeyboardAvoidingView>
   );
