@@ -54,6 +54,7 @@
   "privateNote2": "Tài liệu bạn tải lên không bao giờ được chia sẻ giữa các Salon - chỉ có thể có một địa chỉ web công khai, bởi vì bất kỳ ai cũng có thể đọc nó bằng cách theo liên kết.",
   "roomSub": "Salon {room} — nguồn: {source}",
   "roomTitle": "Bạn đang tổ chức Salon",
+  "salonEnded": "Salon đã kết thúc. Bạn có thể mở một cái mới.",
   "sendButton": "Gửi qua email",
   "sendFailed": "Không thể gửi: {error} Liên kết vẫn hợp lệ, hãy chia sẻ nó theo cách bạn thích.",
   "shareLabel": "Cho phép các máy chủ khác tìm thấy trang này trong cuộc trò chuyện của riêng họ",

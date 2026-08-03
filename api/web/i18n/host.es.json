@@ -54,6 +54,7 @@
   "privateNote2": "Los documentos que subas nunca se comparten entre salones; solo puede compartirse con una dirección web pública, ya que cualquiera puede leerlos siguiendo el enlace.",
   "roomSub": "Salon {room} — fuente: {source}",
   "roomTitle": "Eres el anfitrión del salón",
+  "salonEnded": "El salón ha terminado. Puedes abrir uno nuevo.",
   "sendButton": "Enviar por correo electrónico",
   "sendFailed": "No se pudo enviar: {error} El enlace sigue siendo válido, compártelo como quieras.",
   "shareLabel": "Permita que otros anfitriones encuentren esta página en sus propias conversaciones",

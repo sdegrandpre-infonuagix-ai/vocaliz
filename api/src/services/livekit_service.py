@@ -1,4 +1,5 @@
 """LiveKit room provisioning, agent dispatch, and participant token generation."""
+import asyncio
 import json
 import logging
 import uuid
@@ -83,22 +84,64 @@ async def dispatch_agent(room_name: str, *, session_id: str, host_token: str) ->
         )
 
 
-async def delete_room(room_name: str) -> None:
-    """Delete a room, disconnecting everyone and stopping its agent.
+DELETE_ROOM_ATTEMPTS = 3
+DELETE_ROOM_BACKOFF_SECONDS = 0.4
 
-    This is what actually silences a stale agent: ending the session row settles the
-    accounting, but the worker keeps running until its room disappears.
 
-    Best-effort — a room that is already gone, or a LiveKit outage, must not block the
-    caller from opening a new session.
+async def delete_room(room_name: str) -> bool:
+    """Get everyone out of a room: tell them it is over, then delete it.
+
+    Deleting the room is what disconnects the participants and stops the agent — ending the
+    session row only settles the accounting. So this is the single point where a conversation
+    actually stops, and it used to swallow its failures into a warning nobody reads.
+
+    Announced before deletion, not after, for two reasons. A deleted room cannot be sent
+    anything, so afterwards is too late. And it makes the clients independent of this call
+    succeeding: they leave because they were told to, not only because their transport
+    dropped. That matters because a failure here left everybody sitting in a room with no
+    agent and no session behind it.
+
+    Retried, because a transient LiveKit error is exactly the case that used to strand a
+    room permanently — nothing ever tried again.
+
+    Returns whether the room is known to be gone, so a caller can react. Still non-fatal: a
+    room that outlives its session must not block the host from opening the next one.
     """
-    try:
-        async with lk_api.LiveKitAPI(
-            _http_url(), settings.livekit_api_key, settings.livekit_api_secret
-        ) as client:
-            await client.room.delete_room(lk_api.DeleteRoomRequest(room=room_name))
-    except Exception as exc:
-        logger.warning("LiveKit delete_room failed for %s: %s", room_name, exc)
+    # Best-effort and deliberately not retried: if the room is already gone this fails, which
+    # is not worth a second attempt. The deletion below is the part that must be certain.
+    await notify_room(room_name, {"action": "session_ended"})
+
+    last: Exception | None = None
+    for attempt in range(1, DELETE_ROOM_ATTEMPTS + 1):
+        try:
+            async with lk_api.LiveKitAPI(
+                _http_url(), settings.livekit_api_key, settings.livekit_api_secret
+            ) as client:
+                await client.room.delete_room(lk_api.DeleteRoomRequest(room=room_name))
+            return True
+        except lk_api.TwirpError as exc:
+            # Already collected by LiveKit, which is the outcome asked for rather than a
+            # failure. Retrying would turn the ordinary case into three round trips.
+            if getattr(exc, "code", None) == lk_api.TwirpErrorCode.NOT_FOUND:
+                logger.info("LiveKit room %s was already gone", room_name)
+                return True
+            last = exc
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+
+        if attempt < DELETE_ROOM_ATTEMPTS:
+            await asyncio.sleep(DELETE_ROOM_BACKOFF_SECONDS * attempt)
+
+    # Error, not warning: this leaves participants connected to a room whose session is over,
+    # and the only reason it was survivable before is that nobody noticed.
+    logger.error(
+        "LiveKit delete_room failed for %s after %d attempts: %s",
+        room_name,
+        DELETE_ROOM_ATTEMPTS,
+        last,
+        exc_info=last,
+    )
+    return False
 
 
 def guest_identity(invitation_id) -> str:

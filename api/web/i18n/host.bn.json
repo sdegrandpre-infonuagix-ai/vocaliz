@@ -54,6 +54,7 @@
   "privateNote2": "আপনি আপলোড করা নথিগুলি কখনই সেলুনের মধ্যে ভাগ করা হয় না - শুধুমাত্র একটি পাবলিক ওয়েব ঠিকানা হতে পারে, কারণ যে কেউ ইতিমধ্যে লিঙ্কটি অনুসরণ করে এটি পড়তে পারে।",
   "roomSub": "Salon {room} — source: {source}",
   "roomTitle": "আপনি সেলুন হোস্ট করছেন",
+  "salonEnded": "সেলুন শেষ হয়েছে। আপনি একটি নতুন খুলতে পারেন।",
   "sendButton": "ইমেইল দ্বারা পাঠান",
   "sendFailed": "Could not send: {error} The link stays valid, share it however you like.",
   "shareLabel": "অন্যান্য হোস্ট তাদের নিজস্ব কথোপকথনে এই পৃষ্ঠাটি খুঁজে",

@@ -54,6 +54,7 @@
   "privateNote2": "Dokumente, die du hochlädst, werden niemals zwischen Salons geteilt — es kann nur eine öffentliche Webadresse sein, da jeder sie bereits lesen könnte, indem er dem Link folgt.",
   "roomSub": "Salon {room} — Quelle: {source}",
   "roomTitle": "Du bist Gastgeber des Salons",
+  "salonEnded": "Der Salon ist beendet. Du kannst ein neues eröffnen.",
   "sendButton": "Per E-Mail senden",
   "sendFailed": "Konnte nicht gesendet werden: {error} Der Link bleibt gültig, teile ihn, wie du willst.",
   "shareLabel": "Lass andere Gastgeber diese Seite in ihren eigenen Unterhaltungen finden",

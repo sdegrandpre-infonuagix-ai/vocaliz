@@ -54,6 +54,7 @@
   "privateNote2": "Os documentos que você carrega nunca são compartilhados entre os salões — somente um endereço público da web pode ser, porque qualquer pessoa já pode lê-los seguindo o link.",
   "roomSub": "Salon {room} — fonte: {source}",
   "roomTitle": "Você está hospedando o Salão",
+  "salonEnded": "O Salão acabou. Você pode abrir um novo.",
   "sendButton": "Enviar por e-mail",
   "sendFailed": "Não foi possível enviar: {error} O link permanece válido, compartilhe-o como quiser.",
   "shareLabel": "Permita que outros anfitriões encontrem essa página em suas próprias conversas",

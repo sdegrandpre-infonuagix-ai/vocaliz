@@ -1117,7 +1117,12 @@ async def entrypoint(ctx: agents.JobContext):
             msg = json.loads(bytes(packet.data).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             return
-        if isinstance(msg, dict) and msg.get("action") == "source_added":
+        if isinstance(msg, dict) and msg.get("action") == "session_ended":
+            # Published by the API just before it deletes the room. A third way of learning
+            # the conversation is over, alongside end_session and the heartbeat flag — and the
+            # only one that arrives when the host ends a salon the agent had no part in.
+            salon_agent.leave("the API announced the session had ended")
+        elif isinstance(msg, dict) and msg.get("action") == "source_added":
             asyncio.create_task(_reload_sources())
         elif isinstance(msg, dict) and msg.get("action") == "guest_invited":
             # The API publishes how long it told the clients to count down. Falling back to

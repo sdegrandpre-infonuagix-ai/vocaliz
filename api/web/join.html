@@ -876,7 +876,16 @@
     if (topic) return;
     var msg;
     try { msg = JSON.parse(new TextDecoder().decode(payload)); } catch (e) { return; }
-    if (!msg || msg.action !== 'guest_invited') return;
+    if (!msg) return;
+    // Sent by the API just before it deletes the room, so this page learns the salon is over
+    // even when that deletion fails — which it used to do silently, leaving a guest connected
+    // to a room with no session behind it. Disconnecting ourselves reuses the Disconnected
+    // handler below rather than duplicating a teardown it already does correctly.
+    if (msg.action === 'session_ended') {
+      if (room) { try { room.disconnect(); } catch (e) { } }
+      return;
+    }
+    if (msg.action !== 'guest_invited') return;
     startCountdown(parseInt(msg.opensInSeconds, 10) || 15);
   }
 

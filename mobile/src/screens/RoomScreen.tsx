@@ -21,7 +21,7 @@ import { Contact } from 'expo-contacts';
 import { AudioSession } from '@livekit/react-native';
 // livekit-client is pulled in by @livekit/react-native, which does not re-export Room;
 // it is declared as a direct dependency so this import is not resting on hoisting.
-import { Room } from 'livekit-client';
+import { Room, RoomEvent } from 'livekit-client';
 
 import PoweredBy from '../components/PoweredBy';
 import CaptionsPanel from '../components/CaptionsPanel';
@@ -128,6 +128,9 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         }
         connected = r;
         roomRef.current = r;
+        // Cleared per connection, not once per mount: the guard is armed by the cleanup below,
+        // and a screen reused for a second session must be able to exit again.
+        leaving.current = false;
         setRoom(r);
       } catch (e: any) {
         if (!cancelled) setError(e.message ?? t.room.errorConnect);
@@ -140,6 +143,10 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
 
     return () => {
       cancelled = true;
+      // Armed before disconnecting. This cleanup runs before the one that removes the
+      // Disconnected listener — React tears effects down in the order they were defined — so
+      // without it, unmounting would report the salon as having ended under the user.
+      leaving.current = true;
       if (connected) connected.disconnect().catch(() => {});
       roomRef.current = null;
       AudioSession.stopAudioSession().catch(() => {});
@@ -261,7 +268,14 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     }
   }, [token, sessionId, guestEmail, guestPhone, smsEnabled, t.room]);
 
+  // Guards every exit against running twice. Disconnecting fires the Disconnected event that
+  // the effect below also listens on, and unmounting disconnects as well — so without this a
+  // normal Leave would report the salon as having ended underneath the user.
+  const leaving = useRef(false);
+
   const handleLeave = useCallback(async () => {
+    if (leaving.current) return;
+    leaving.current = true;
     setBusy(true);
     try {
       if (roomRef.current) await roomRef.current.disconnect();
@@ -272,6 +286,46 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
       onLeft();
     }
   }, [token, sessionId, onLeft]);
+
+  // A salon can end without anybody tapping Leave: the ten-minute cap, or the agent closing a
+  // room everybody had left. The API announces it just before deleting the room, so this does
+  // not rest on that deletion succeeding — and it used to fail silently, leaving the app in a
+  // room with no session behind it and no way to notice.
+  useEffect(() => {
+    if (!room) return;
+
+    const over = () => {
+      if (leaving.current) return;
+      leaving.current = true;
+      roomRef.current = null;
+      room.disconnect().catch(() => {});
+      // Deliberately no endSession call: the server is the party that ended it, and asking
+      // again answers 409 — an error shown for something that worked.
+      onLeft();
+    };
+
+    const onData = (
+      payload: Uint8Array,
+      _participant?: unknown,
+      _kind?: unknown,
+      topic?: string,
+    ) => {
+      // Captions travel on their own topic; this message has none.
+      if (topic) return;
+      try {
+        if (JSON.parse(new TextDecoder().decode(payload))?.action === 'session_ended') over();
+      } catch {
+        // Somebody else's message, or not JSON at all.
+      }
+    };
+
+    room.on(RoomEvent.DataReceived, onData);
+    room.on(RoomEvent.Disconnected, over);
+    return () => {
+      room.off(RoomEvent.DataReceived, onData);
+      room.off(RoomEvent.Disconnected, over);
+    };
+  }, [room, onLeft]);
 
   if (connecting) {
     return (

@@ -455,6 +455,7 @@
         sendButton: 'Send by email',
         errHttp: 'Error {code}',
         codeSent: 'Code sent to {email}.',
+        salonEnded: 'The Salon has ended. You can open a new one.',
         roomSub: 'Salon {room} — source: {source}',
         micOn: 'Microphone on',
         micOff: 'Microphone off',
@@ -544,6 +545,7 @@
         sendButton: 'Envoyer par courriel',
         errHttp: 'Erreur {code}',
         codeSent: 'Code envoyé à {email}.',
+        salonEnded: 'Le Salon est terminé. Vous pouvez en ouvrir un nouveau.',
         roomSub: 'Salon {room} — source : {source}',
         micOn: 'Micro actif',
         micOff: 'Micro inactif',
@@ -748,6 +750,14 @@
       el.className = 'status ' + (st.ok ? 'ok' : 'err');
     }
 
+    // Emptying the text is not enough: .status.ok forces display:block, so a cleared status
+    // would leave a coloured box with nothing in it. Clearing means dropping the class.
+    function clearStatus(id) {
+      delete statusState[id];
+      var el = document.getElementById(id);
+      if (el) { el.textContent = ''; el.className = 'status'; }
+    }
+
     // `retried` distinguishes the first, automatic attempt from one the host asked for.
     // The escalated wording is only honest after they have actually tried again.
     var micState = { on: false, denied: false, retried: false };
@@ -857,6 +867,10 @@
       try {
         var data = await api('/sessions', { method: 'POST', body: form });
         sessionId = data.sessionId;
+        // Cleared per salon, not per page load: without this the second salon of a sitting
+        // could never be closed, because the guard would still be holding the first one's.
+        salonOver = false;
+        clearStatus('create-status');
         roomInfo = { room: data.livekitRoomName, source: data.sourceType };
         renderRoomSub();
         show('c-create', false);
@@ -1058,8 +1072,38 @@
       if (topic) return;
       var msg;
       try { msg = JSON.parse(new TextDecoder().decode(payload)); } catch (e) { return; }
-      if (!msg || msg.action !== 'guest_invited') return;
+      if (!msg) return;
+      // Sent by the API just before it deletes the room, so this page learns the salon is
+      // over even when that deletion fails. Relying on the transport dropping was the whole
+      // problem: the failure was logged as a warning and nobody was told anything.
+      if (msg.action === 'session_ended') { salonIsOver(); return; }
+      if (msg.action !== 'guest_invited') return;
       startCountdown(parseInt(msg.opensInSeconds, 10) || 15);
+    }
+
+    var salonOver = false;
+
+    // The salon ended without the host asking: the ten-minute cap, or the agent closing a
+    // room everybody had left. Everything leaveRoom() does except telling the API, which is
+    // the party that told us — a second /end would answer 409 and the host would be shown an
+    // error for something that worked exactly as intended.
+    async function salonIsOver() {
+      if (salonOver) return;
+      salonOver = true;
+      if (room) {
+        // The browser's recording indicator is what tells the host they are off the air.
+        // Leaving it lit after the salon ended is precisely what people notice and distrust.
+        try { await room.localParticipant.setMicrophoneEnabled(false); } catch (e) { }
+        try { await room.disconnect(); } catch (e) { }
+        room = null;
+      }
+      micState = { on: false, denied: false, retried: false };
+      renderMic();
+      show('btn-mic', false);
+      show('btn-sound', false);
+      show('c-room', false); show('c-source', false); show('c-invite', false);
+      show('c-create', true);
+      setStatus('create-status', 'salonEnded', true);
     }
 
     function startCountdown(seconds) {
@@ -1221,6 +1265,13 @@
 
       room.on(LivekitClient.RoomEvent.DataReceived, onCaptionData);
       room.on(LivekitClient.RoomEvent.DataReceived, onRoomData);
+
+      // There was no handler here at all, so a salon closed by the ten-minute cap left this
+      // page asserting a live session: the mic dot still pulsing, the Salon card still up,
+      // over a room that no longer existed.
+      room.on(LivekitClient.RoomEvent.Disconnected, function () {
+        salonIsOver();
+      });
 
       await room.connect(creds.livekitUrl, creds.participantToken);
       // Reported separately from the connection: a refused microphone still leaves a

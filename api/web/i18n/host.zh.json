@@ -54,6 +54,7 @@
   "privateNote2": "您上传的文件永远不会在沙龙之间共享，只能共享公共网址，因为任何人都可以通过点击链接阅读该地址。",
   "roomSub": "Salon {room} — source: {source}",
   "roomTitle": "你正在主持沙龙",
+  "salonEnded": "沙龙已经结束。你可以打开一个新的。",
   "sendButton": "通过电子邮件发送",
   "sendFailed": "无法发送：{error} 链接保持有效，随心所欲地分享。",
   "shareLabel": "让其他房东在自己的对话中找到这个页面",

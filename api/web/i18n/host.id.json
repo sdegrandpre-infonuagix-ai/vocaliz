@@ -54,6 +54,7 @@
   "privateNote2": "Dokumen yang Anda unggah tidak pernah dibagikan di antara Salon — hanya alamat web publik yang bisa, karena siapa pun sudah bisa membacanya dengan mengikuti tautan.",
   "roomSub": "Salon {room} — sumber: {source}",
   "roomTitle": "Anda menjadi tuan rumah salon",
+  "salonEnded": "Salonnya sudah berakhir. Anda dapat membuka yang baru.",
   "sendButton": "Kirim melalui email",
   "sendFailed": "Tidak dapat mengirim: {error} Tautan tetap valid, bagikan sesuka Anda.",
   "shareLabel": "Biarkan host lain menemukan halaman ini dalam percakapan mereka sendiri",

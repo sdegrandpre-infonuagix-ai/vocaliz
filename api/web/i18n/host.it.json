@@ -54,6 +54,7 @@
   "privateNote2": "I documenti caricati non vengono mai condivisi tra i Salon: può esserlo solo un indirizzo web pubblico, perché chiunque potrebbe già leggerlo seguendo il link.",
   "roomSub": "Salon {room} — fonte: {source}",
   "roomTitle": "Stai ospitando il Salon",
+  "salonEnded": "Il Salon è terminato. Puoi aprirne uno nuovo.",
   "sendButton": "Invia per email",
   "sendFailed": "Impossibile inviare: {error} Il link rimane valido, condividilo come preferisci.",
   "shareLabel": "Consenti ad altri host di trovare questa pagina nelle loro conversazioni",

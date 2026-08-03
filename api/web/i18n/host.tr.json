@@ -54,6 +54,7 @@
   "privateNote2": "Yüklediğiniz belgeler asla Salonlar arasında paylaşılmaz - yalnızca genel bir web adresi olabilir, çünkü herkes bağlantıyı takip ederek zaten okuyabilir.",
   "roomSub": "Salon {room} — kaynak: {source}",
   "roomTitle": "Salona ev sahipliği yapıyorsunuz",
+  "salonEnded": "Salon sona erdi. Yeni bir tane açabilirsiniz.",
   "sendButton": "E-posta ile gönder",
   "sendFailed": "Gönderilemedi: {error} Bağlantı geçerli kalır, istediğiniz gibi paylaşın.",
   "shareLabel": "Diğer ev sahiplerinin bu sayfayı kendi konuşmalarında bulmasına izin verin",
