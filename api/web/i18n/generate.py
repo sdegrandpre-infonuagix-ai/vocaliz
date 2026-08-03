@@ -21,6 +21,7 @@ so a bad rendering can be fixed once and stay fixed.
 """
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -30,17 +31,12 @@ HERE = pathlib.Path(__file__).parent
 WEB = HERE.parent
 OVERRIDES = HERE / "overrides"
 
-# The interface languages, minus the two written by hand. Mostly the same list as the caption
-# languages, and deliberately no longer identical: Farsi is offered for captions but the
-# interface is not translated into it, so a Farsi reader gets Farsi captions beside an English
-# or French interface. That is a product decision, not drift — do not "fix" it by adding "fa"
-# here without also generating and reviewing two Farsi dictionaries.
-#
-# Everything else must stay in step with CAPTION_LANGS in the pages and CAPTION_LANGUAGES in
-# the mobile app: a caption language whose interface is missing shows English beside
-# translated speech, which is the mismatch above and should be a choice each time.
+# The interface languages, minus the two written by hand. Must stay in step with CAPTION_LANGS
+# in the pages and CAPTION_LANGUAGES in the mobile app: every language the site offers has a
+# dictionary, with no exceptions. A caption language missing from here would show an English
+# interface beside translated speech — offered in a language the interface does not speak.
 TARGETS = [
-    "es", "pt", "de", "it", "ar", "bn", "zh", "hi", "id", "ja", "ko", "ru", "tr", "vi",
+    "es", "pt", "de", "it", "ar", "fa", "bn", "zh", "hi", "id", "ja", "ko", "ru", "tr", "vi",
 ]
 
 PAGES = ["host", "join"]
@@ -77,32 +73,80 @@ def extract_english(page: str) -> dict:
     return json.loads(result.stdout)
 
 
-def translate_all(strings: dict, language: str, client) -> dict:
-    """Every string in one language, one call each.
+# Words Amazon Translate must not touch, longest first so a plural is not eaten by its
+# singular. "Salon" is the one that matters: left alone it became "salão de beleza" in
+# Portuguese and the beauty-salon word in Hindi, Bengali and Vietnamese — the product renamed
+# as a hairdresser in four languages. The brand is protected too, because Arabic, Japanese and
+# Korean otherwise transliterate it while the wordmark on the page stays in Latin letters.
+PRODUCT_WORDS = [("Salons", "XVSALONPLX"), ("Salon", "XVSALONSGX"), ("Vocaliz", "XVBRANDX")]
 
-    Placeholders such as {email} are left alone by Amazon Translate in practice, but they
-    are checked afterwards rather than trusted: a lost placeholder produces a sentence
-    with a hole in it, which is worse than an untranslated one.
+
+def _placeholders(text: str) -> list[str]:
+    return re.findall(r"\{[a-zA-Z]+\}", text)
+
+
+def _protect(text: str, words: list[tuple[str, str]]) -> str:
+    """Words and {placeholders} swapped for opaque tokens before translation.
+
+    Placeholders used to be passed through as-is and merely checked afterwards, which was fine
+    for the left-to-right languages and failed for Farsi: four strings came back with the
+    braces reordered or dropped, and the check could only fall back to English. A token that
+    looks like a word survives where punctuation does not.
     """
+    for word, token in words:
+        text = text.replace(word, token)
+    for i, ph in enumerate(dict.fromkeys(_placeholders(text))):
+        text = text.replace(ph, f"XPH{i}X")
+    return text
+
+
+def _restore(text: str, original: str, words: list[tuple[str, str]]) -> str:
+    for i, ph in enumerate(dict.fromkeys(_placeholders(original))):
+        text = text.replace(f"XPH{i}X", ph)
+    for word, token in words:
+        text = text.replace(token, word)
+    return text
+
+
+def _intact(rendered: str, english: str, words: list[tuple[str, str]]) -> bool:
+    """Everything held back must come back exactly as often as it went in.
+
+    Counted rather than merely looked for: Bengali once transliterated two tokens of three and
+    left the last one, so "is it in there" passed on a sentence reading "XVBRANDX XVSALONPLX".
+    """
+    if any(rendered.count(p) != english.count(p) for p in set(_placeholders(english))):
+        return False
+    return all(rendered.count(w) == english.count(w) for w, _ in words)
+
+
+def translate_all(strings: dict, language: str, client) -> dict:
+    """Every string in one language, one call each."""
     out = {}
     for key, text in strings.items():
-        try:
-            response = client.translate_text(
-                Text=text, SourceLanguageCode="en", TargetLanguageCode=language
-            )
-            rendered = response["TranslatedText"]
-        except Exception as exc:  # noqa: BLE001
-            print(f"    {key}: failed ({exc}), keeping English")
-            out[key] = text
-            continue
+        rendered = None
+        # Protecting the brand is better when it works, but three opaque tokens in one short
+        # sentence is more than some languages tolerate. So a failure retries with the brand
+        # left translatable, which keeps the defect that actually matters — the product noun —
+        # fixed even where the nicety cannot be.
+        for words in (PRODUCT_WORDS, [w for w in PRODUCT_WORDS if w[0] != "Vocaliz"]):
+            try:
+                response = client.translate_text(
+                    Text=_protect(text, words),
+                    SourceLanguageCode="en",
+                    TargetLanguageCode=language,
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(f"    {key}: failed ({exc}), keeping English")
+                break
+            candidate = _restore(response["TranslatedText"], text, words)
+            if _intact(candidate, text, words):
+                rendered = candidate
+                break
 
-        # Every {placeholder} present in the English must survive. Falling back to
-        # English is the lesser failure: a reader sees the wrong language, not a
-        # sentence missing the name it was about.
-        placeholders = {p for p in text.split("{")[1:]}
-        expected = {p.split("}")[0] for p in placeholders if "}" in p}
-        if any("{" + p + "}" not in rendered for p in expected):
-            print(f"    {key}: placeholder lost, keeping English")
+        # Falling back to English is the lesser failure: a reader sees the wrong language, not
+        # a sentence missing the name it was about.
+        if rendered is None:
+            print(f"    {key}: protected text lost, keeping English")
             out[key] = text
             continue
 

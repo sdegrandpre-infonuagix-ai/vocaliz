@@ -8,7 +8,7 @@
   "connFailSub": "সেলনের সাথে সংযোগ ব্যর্থ হয়েছিল। আপনার নেটওয়ার্ক পরীক্ষা করুন এবং আবার চেষ্টা করুন।",
   "connFailTitle": "সংযোগ বাধা দেয়",
   "connectedSub": "কথোপকথন চলছে। অবাধে কথা বলুন।",
-  "connectedTitle": "আপনি সেলনে আছেন",
+  "connectedTitle": "You are in the Salon",
   "countdownNow": "ভোকালিজ শুরু করছে...",
   "countdownWaiting": "ভোকালিজ কথোপকথন খোলার আগে",
   "errConnDetail": "অপ্রত্যাশিত ত্রুটি ঘটেছে।",

@@ -8,7 +8,7 @@
   "connFailSub": "살롱 연결에 실패했습니다.네트워크를 확인하고 다시 시도하세요.",
   "connFailTitle": "연결이 끊어짐",
   "connectedSub": "대화가 진행 중입니다.자유롭게 말하세요.",
-  "connectedTitle": "살롱에 계세요",
+  "connectedTitle": "당신은 Salon에 있습니다",
   "countdownNow": "보컬리즈가 시작됩니다...",
   "countdownWaiting": "보컬리즈가 대화를 시작하기 전에",
   "errConnDetail": "예상치 못한 오류가 발생했습니다.",

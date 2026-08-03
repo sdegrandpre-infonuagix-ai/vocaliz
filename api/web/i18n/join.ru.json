@@ -8,7 +8,7 @@
   "connFailSub": "Не удалось подключиться к салону. Проверьте сеть и повторите попытку.",
   "connFailTitle": "Подключение прервано",
   "connectedSub": "Разговор продолжается. Говорите свободно.",
-  "connectedTitle": "Вы в салоне",
+  "connectedTitle": "Вы находитесь в Salon",
   "countdownNow": "Vocaliz начинается...",
   "countdownWaiting": "прежде чем Vocaliz начнет разговор",
   "errConnDetail": "Произошла непредвиденная ошибка.",

@@ -8,7 +8,7 @@
   "connFailSub": "サロンへの接続に失敗しました。ネットワークを確認して、もう一度試してください。",
   "connFailTitle": "接続が中断されました",
   "connectedSub": "会話は進行中です。自由に話してください。",
-  "connectedTitle": "あなたはサロンにいます",
+  "connectedTitle": "あなたはSalonにいます",
   "countdownNow": "ボーカリズが始動しています...",
   "countdownWaiting": "Vocaliz が会話を始める前に",
   "errConnDetail": "予期しないエラーが発生しました。",

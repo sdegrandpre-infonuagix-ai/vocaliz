@@ -5,9 +5,9 @@ forgotten in another is invisible until somebody joins from the wrong client and
 language their friend can choose and they cannot — and the two pages are the host and guest
 halves of the same conversation, so a divergence there splits one salon.
 
-Farsi is the case that prompted this: added for captions, deliberately not added to the
-interface dictionaries. That asymmetry is a decision, so it is written down here rather than
-left for the next person to discover and "correct".
+Farsi is the case that prompted this. It also has to be reachable, which means four lists
+agreeing rather than three: the API serves dictionaries from its own allowlist, so a language
+generated but not named there answers 404 and silently falls back to English.
 """
 import pathlib
 import re
@@ -71,6 +71,11 @@ def test_farsi_is_offered_for_captions():
         assert "fa" in codes, name
 
 
+def test_farsi_has_both_interface_dictionaries():
+    for page in ("host", "join"):
+        assert (WEB / "i18n" / f"{page}.{'fa'}.json").exists()
+
+
 def test_farsi_survives_normalisation():
     """The code has to reach Amazon Translate in the form it accepts: "fa-IR" is refused
     where "fa" answers."""
@@ -78,32 +83,17 @@ def test_farsi_survives_normalisation():
     assert translation_service.normalise("fa-IR") == "fa"
 
 
-def test_farsi_is_deliberately_absent_from_the_interface_languages():
-    """Captions are translated by Amazon Translate at request time; the interface is a
-    committed dictionary per language. Offering Farsi captions costs nothing extra, translating
-    the interface means two more generated files nobody here can review.
+# ─── Every offered language has a dictionary ─────────────────────────────────
 
-    If Farsi interface dictionaries are ever added, this test should be deleted along with the
-    note in generate.py — it exists to make the gap deliberate, not permanent.
-    """
-    generate = (WEB / "i18n" / "generate.py").read_text(encoding="utf-8")
-    targets = generate[generate.index("TARGETS = [") : generate.index("]", generate.index("TARGETS = ["))]
-    assert '"fa"' not in targets
-    assert not (WEB / "i18n" / "host.fa.json").exists()
-    # And the reason is recorded where somebody would go to change it.
-    assert "Farsi is offered for captions" in generate
-
-
-# ─── The interface languages are otherwise the caption languages ─────────────
-
-def test_the_interface_covers_every_other_caption_language():
-    """Everything except Farsi and the two hand-written languages must have a dictionary, or a
-    reader gets translated speech beside an English interface without anyone deciding that."""
+def test_the_interface_covers_every_caption_language():
+    """No exceptions. A caption language with no interface dictionary would offer translated
+    speech beside an English interface — the site speaking a language it does not read."""
     generate_targets = {
         m.group(1)
         for m in re.finditer(r'"([a-z]{2})"', _targets_block())
     }
-    captions = set(ALL_CLIENTS["host.html"]) - {"", "en", "fr", "fa"}
+    # English and French are written by hand inline, so they have no generated file.
+    captions = set(ALL_CLIENTS["host.html"]) - {"", "en", "fr"}
     assert captions == generate_targets, f"difference: {captions ^ generate_targets}"
 
 
@@ -118,3 +108,39 @@ def test_every_interface_language_has_both_dictionaries(page):
     """A language in TARGETS with no file on disk would fall back to English silently."""
     for code in re.findall(r'"([a-z]{2})"', _targets_block()):
         assert (WEB / "i18n" / f"{page}.{code}.json").exists(), f"{page}.{code}.json missing"
+
+
+# ─── Reachability and the product noun ───────────────────────────────────────
+
+def _api_allowlist() -> set[str]:
+    source = (
+        pathlib.Path(__file__).resolve().parents[1] / "src" / "routers" / "guest_web.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("_I18N_LANGUAGES = frozenset(")
+    return set(re.findall(r'"([a-z]{2})"', source[start : source.index(")", start)]))
+
+
+def test_every_generated_language_is_reachable():
+    """The dictionaries are served through an allowlist, deliberately — the language is part of
+    a path, and a constructed path is how directory traversal starts. The cost is one more list
+    to keep in step: a file on disk that the allowlist does not name is unreachable, and the
+    page falls back to English without saying why."""
+    generated = set(re.findall(r'"([a-z]{2})"', _targets_block()))
+    assert _api_allowlist() == generated, f"difference: {_api_allowlist() ^ generated}"
+
+
+@pytest.mark.parametrize("page", ["host", "join"])
+def test_the_product_noun_is_never_translated(page):
+    """"Salon" became "salão de beleza" in Portuguese and the beauty-salon word in three other
+    languages — the product renamed as a hairdresser. Both generators hold it back now, and this
+    is what would catch a regeneration that lost the protection."""
+    import json
+
+    for code in re.findall(r'"([a-z]{2})"', _targets_block()):
+        strings = json.loads(
+            (WEB / "i18n" / f"{page}.{code}.json").read_text(encoding="utf-8")
+        )
+        # Any string that mentions a Salon must still spell it that way.
+        for key, value in strings.items():
+            if key in ("roomSub", "whatIsVocaliz", "salonEnded", "connectedTitle"):
+                assert "Salon" in value, f"{page}.{code}.json {key}: {value}"
