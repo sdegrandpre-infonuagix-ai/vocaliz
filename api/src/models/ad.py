@@ -58,6 +58,14 @@ class Ad(Base):
     # advertiser is entitled to know which version was authored.
     spoken_language: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
 
+    # The most this ad will pay for one broadcast. Zero means it does not bid at all — an ad
+    # can exist, be bought by broadcast count, and sit out of the auction.
+    #
+    # It is a ceiling, never the price. The winner pays the least it would have taken to beat
+    # the runner-up, because a first-price auction is played rather than bid: everyone shades
+    # downwards guessing at the others, and the ranking stops reflecting who values the salon.
+    bid_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     # Decremented once per broadcast. Zero means exhausted, not disabled: an ad that has
     # been heard its full count has done what it was paid for, and the row is kept so the
     # history survives. Never negative — the CHECK is what stops a concurrent decrement
@@ -91,6 +99,7 @@ class Ad(Base):
         CheckConstraint(
             "number_of_broadcasts_left >= 0", name="ck_ads_broadcasts_not_negative"
         ),
+        CheckConstraint("bid_cents >= 0", name="ck_ads_bid_not_negative"),
     )
 
 

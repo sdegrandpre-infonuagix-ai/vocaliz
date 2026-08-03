@@ -87,6 +87,23 @@ def _invoice_advertisers() -> dict:
         db.close()
 
 
+def _seed_house_ads() -> dict:
+    """Create or refresh the platform's own two ads, in French and English.
+
+    Idempotent, and deliberately more than a one-time insert: it also rewrites the copy, so the
+    function is the definition of what a house ad says rather than something somebody has to
+    remember editing in the database.
+    """
+    from src.database import SessionLocal
+    from src.services import house_ads
+
+    db = SessionLocal()
+    try:
+        return house_ads.seed(db)
+    finally:
+        db.close()
+
+
 def handler(event, context):
     """Run `alembic upgrade head`, or a named maintenance action.
 
@@ -105,6 +122,10 @@ def handler(event, context):
     if action == "sweep_sessions":
         result = _sweep_expired_sessions()
         logger.info("sweep_sessions: %s", result)
+        return result
+    if action == "seed_house_ads":
+        result = _seed_house_ads()
+        logger.info("seed_house_ads: %s", result)
         return result
     if action == "invoice_advertisers":
         result = _invoice_advertisers()

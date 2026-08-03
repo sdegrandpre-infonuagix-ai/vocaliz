@@ -173,12 +173,26 @@ class Settings(BaseSettings):
     # Stripe billing — set STRIPE_SECRET_KEY in production
     stripe_secret_key: str = "sk_test_placeholder"
 
+    # ── The auction ───────────────────────────────────────────────────────────
+    # How an ad's bid is distributed across the two things that make it relevant to a salon.
+    # They are normalised before use, so 3 and 1 means the same as 0.75 and 0.25 — what matters
+    # is their ratio, not that they sum to one.
+    #
+    # Equal by default, which is a claim about nothing: it says region and subject matter the
+    # same amount, because there is no traffic yet to say otherwise. Raise the region weight to
+    # favour local businesses, the topic weight to favour relevance over geography.
+    bid_region_weight: float = 1.0
+    bid_topic_weight: float = 1.0
+
     # What an advertiser pays for one broadcast, in cents. Copied onto each ad_broadcasts
     # row at the moment it is spoken, never read back at billing time — an invoice has to
     # charge what was agreed then, and reading this later would silently reprice history.
     #
     # Invoiced in batches, not per broadcast: Stripe takes roughly 2.9% plus thirty cents per
     # transaction, so charging twenty-five cents individually would lose money on every one.
+    #
+    # With the auction above this is the reserve: the floor an ad must clear to be eligible at
+    # all, and the price charged when it won without anyone to outbid.
     ad_broadcast_rate_cents: int = 25
 
     # Post-trial billing: 5 USD per host-hour, prorated to the second.
