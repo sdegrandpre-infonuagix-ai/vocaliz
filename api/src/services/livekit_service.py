@@ -184,6 +184,13 @@ def generate_participant_token(
                 room=room_name,
                 can_publish=can_publish,
                 can_subscribe=True,
+                # Required for live captions, and easy to miss because nothing complains.
+                # A participant announces the language it is reading by setting its own
+                # `caption_lang` attribute; without this grant the server rejects the
+                # call, the agent sees nobody asking for a translation, and captions come
+                # back in the language they were spoken — which looks exactly like a
+                # translator that is not working.
+                can_update_own_metadata=True,
             )
         )
     )

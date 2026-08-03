@@ -82,8 +82,12 @@ export function useCaptions(room: Room | null) {
     if (!room) return;
     try {
       room.localParticipant.setAttributes({ [CAPTION_LANGUAGE_ATTRIBUTE]: language });
-    } catch {
-      /* the conversation matters more than the captions */
+    } catch (e) {
+      // Logged rather than swallowed. This call is the whole mechanism: if the token
+      // lacks canUpdateOwnMetadata the server refuses it, the agent sees nobody asking
+      // for a translation, and captions arrive in the language they were spoken —
+      // indistinguishable from a broken translator unless the refusal is visible.
+      console.warn('Vocaliz: could not publish the caption language', e);
     }
   }, [room, language]);
 

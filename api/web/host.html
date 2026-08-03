@@ -686,7 +686,15 @@
     // every change; failing to send one costs captions in that language, nothing else.
     function publishCaptionLang() {
       if (!room || !room.localParticipant) return;
-      try { room.localParticipant.setAttributes({ caption_lang: captionLang }); } catch (e) { }
+      try {
+        room.localParticipant.setAttributes({ caption_lang: captionLang });
+      } catch (e) {
+        // Logged rather than swallowed. This call is the whole mechanism: if the token
+        // lacks canUpdateOwnMetadata the server refuses it, the agent sees nobody asking
+        // for a translation, and captions arrive in the language they were spoken —
+        // indistinguishable from a broken translator unless the refusal is visible.
+        console.warn('Vocaliz: could not publish the caption language', e);
+      }
     }
 
     function onCaptionData(payload, participant, kind, topic) {

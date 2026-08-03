@@ -294,3 +294,23 @@ def test_another_host_session_is_left_alone(
     db.expire(theirs)
     db.refresh(theirs)
     assert theirs.status == "active"
+
+
+# ─── Live captions need the token to allow it ────────────────────────────────
+
+def test_participant_token_allows_updating_own_attributes():
+    """Captions depend on it, and its absence fails silently.
+
+    A participant announces the language it is reading by setting its own caption_lang
+    attribute. Without canUpdateOwnMetadata the server refuses the call, the agent sees
+    nobody asking for a translation, and captions come back in the language they were
+    spoken — which is indistinguishable from a translator that is not working.
+    """
+    import jwt as pyjwt
+
+    from src.config import settings
+    from src.services import livekit_service
+
+    token = livekit_service.generate_participant_token("salon-x", "user-1")
+    claims = pyjwt.decode(token, settings.livekit_api_secret, algorithms=["HS256"])
+    assert claims["video"]["canUpdateOwnMetadata"] is True
