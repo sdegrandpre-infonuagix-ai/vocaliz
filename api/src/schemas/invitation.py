@@ -1,14 +1,65 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
 
 class InviteGuestBody(BaseModel):
-    guestEmail: EmailStr
+    """An address, a number, or both — but not neither.
+
+    Neither channel is privileged. A host may hold one, the other or both, and the join
+    link is the same whichever way it travels; when both are given the invitation goes
+    out over both, because the point is that it arrives.
+    """
+
+    guestEmail: EmailStr | None = None
+    guestPhone: str | None = None
 
     @field_validator("guestEmail")
     @classmethod
-    def normalize(cls, v: str) -> str:
-        """Lowercase and trim so a guest is matched to their account regardless of casing."""
-        return v.strip().lower()
+    def normalize(cls, v: str | None) -> str | None:
+        """Lowercase and trim so a guest is matched to their account regardless of casing.
+
+        A field left blank arrives as "" from a form and becomes None: an empty string is
+        not an address, and storing it as one would make it look like a channel we tried.
+        """
+        if v is None:
+            return None
+        v = v.strip().lower()
+        return v or None
+
+    @field_validator("guestPhone")
+    @classmethod
+    def phone_is_e164(cls, v: str | None) -> str | None:
+        """E.164, or nothing at all.
+
+        An empty field arrives as "" from a form that was left blank, which is not a
+        number and must not be stored as one — it becomes None rather than a validation
+        error, since leaving it blank is the expected behaviour.
+
+        The country code is required. A ten-digit local number would be guessed at by the
+        carrier, and a text message about a conversation starting in fifteen seconds is
+        not worth guessing on.
+        """
+        if v is None:
+            return None
+        v = v.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        if not v:
+            return None
+        if not v.startswith("+") or not v[1:].isdigit() or not 8 <= len(v) <= 16:
+            raise ValueError(
+                "guestPhone must be in E.164 format, including the country code (e.g. +15145550123)"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def at_least_one_contact(self):
+        """One of the two is required.
+
+        Checked here as well as by a CHECK in the database: the constraint is what makes
+        an unidentified invitation impossible, and this is what makes the refusal a clear
+        400 instead of an integrity error surfacing as a 500.
+        """
+        if not self.guestEmail and not self.guestPhone:
+            raise ValueError("An email address or a phone number is required.")
+        return self
 
 
 class GeoBody(BaseModel):
@@ -24,13 +75,20 @@ class GeoBody(BaseModel):
 class InvitationResponse(BaseModel):
     invitationId: str
     invitationType: str   # 'salon_friend' | 'email_contact'
-    guestEmail: str
+    # Either may be empty — never both. A guest reached only by text has no address here,
+    # and the empty string says so; NULL would mean the same thing in a second way.
+    guestEmail: str = ""
+    guestPhone: str = ""
     status: str
     # Always present: a join token exists for every invitation, and the browser join
     # endpoint accepts it whatever the type. Salon friends also get an in-app notification.
     joinLink: str
-    # False when delivery failed — the link is still returned so the host can share it.
+    # One flag per channel, each False unless that channel was asked for AND succeeded.
+    # A single combined flag would tell a host who supplied both that "it was sent" when
+    # only one of the two actually left. The link is returned either way, so a failure
+    # costs convenience rather than the invitation.
     emailSent: bool = False
+    smsSent: bool = False
     # The LiveKit identity this guest will join under, known before they connect. This is
     # what makes a guest addressable: without it the only handle was a random string
     # minted at join time and recorded nowhere.

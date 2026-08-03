@@ -27,7 +27,20 @@ class SalonEvent(Base):
     # IP and GPS were initially meant to be part of this key. They are not, and could not
     # be: a primary key column cannot be NULL, and the position is missing whenever the
     # browser refuses it.
-    email: Mapped[str] = mapped_column(String(320), primary_key=True)
+    # Identity is two columns because a guest may be invited by text message alone and
+    # have no address at all. Neither can be NULL — a primary key column cannot be — so
+    # the absent one is an empty string, and that sentinel has to be respected everywhere:
+    # to the database '' is a value like any other, so "has an email" is `<> ''` and never
+    # `IS NOT NULL`. A single lapse would quietly create a second row for one person.
+    #
+    # The CHECK below makes the one intolerable state impossible: both empty, a
+    # participation attached to nobody.
+    #
+    # Expect this consequence: someone invited by email to one salon and by text to
+    # another is two identities here, not one. Reconciling them would need a rule for
+    # deciding that an address and a number belong to the same person, and there is none.
+    email: Mapped[str] = mapped_column(String(320), primary_key=True, default="")
+    phone: Mapped[str] = mapped_column(String(16), primary_key=True, default="")
     user_type: Mapped[str] = mapped_column(String(5), primary_key=True)
     salon_name: Mapped[str] = mapped_column(String(100), primary_key=True)
 
@@ -68,4 +81,5 @@ class SalonEvent(Base):
 
     __table_args__ = (
         CheckConstraint("user_type IN ('host', 'guest')", name="ck_salon_events_user_type"),
+        CheckConstraint("email <> '' OR phone <> ''", name="ck_salon_events_identified"),
     )

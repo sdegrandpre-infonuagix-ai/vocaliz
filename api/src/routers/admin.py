@@ -12,7 +12,7 @@ decrypt on the way out.
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func
+from sqlalchemy import func, tuple_
 from sqlalchemy.orm import Session as DbSession
 
 from src.database import get_db
@@ -36,22 +36,33 @@ def list_participants(
     db: DbSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> ParticipantsResponse:
-    """Every email recorded in salon_events, one entry per person.
+    """Every contact recorded in salon_events, one entry per person.
 
-    Grouped by email rather than returned row by row: a person who held four salons is
-    one participant, not four. The aggregation is done with count/min/max, which behave
-    the same on Postgres and on the SQLite the tests run against — array_agg would not.
+    Grouped rather than returned row by row: a person who held four salons is one
+    participant, not four. Identity is the (email, phone) pair, since a guest invited by
+    text alone has no address — grouping on email would collapse all of them into one row
+    keyed on the empty string.
+
+    The aggregation uses count/min/max, which behave the same on Postgres and on the
+    SQLite the tests run against; array_agg would not.
     """
-    total = db.query(func.count(func.distinct(SalonEvent.email))).scalar() or 0
+    # Grouped on the pair, because identity is now two columns and a guest reached only
+    # by text has no address at all. Grouping on email alone would collapse every one of
+    # them into a single row keyed on the empty string.
+    total = (
+        db.query(func.count(func.distinct(SalonEvent.email + "|" + SalonEvent.phone))).scalar()
+        or 0
+    )
 
     grouped = (
         db.query(
             SalonEvent.email,
+            SalonEvent.phone,
             func.count(func.distinct(SalonEvent.salon_name)).label("salons"),
             func.min(SalonEvent.entered_at).label("first_seen"),
             func.max(SalonEvent.entered_at).label("last_seen"),
         )
-        .group_by(SalonEvent.email)
+        .group_by(SalonEvent.email, SalonEvent.phone)
         # Most recent first: the useful end of the list when it grows.
         .order_by(func.max(SalonEvent.entered_at).desc())
         .limit(limit)
@@ -59,27 +70,31 @@ def list_participants(
         .all()
     )
 
-    emails = [row.email for row in grouped]
+    people = [(row.email, row.phone) for row in grouped]
     # Two small lookups instead of aggregating arrays in SQL. Restricted to the page's
     # emails, so their cost follows the page and not the size of the table.
-    types: dict[str, set[str]] = {}
-    languages: dict[str, set[str]] = {}
-    if emails:
-        for email, user_type in (
-            db.query(SalonEvent.email, SalonEvent.user_type)
-            .filter(SalonEvent.email.in_(emails))
+    types: dict[tuple[str, str], set[str]] = {}
+    languages: dict[tuple[str, str], set[str]] = {}
+    if people:
+        # Filtered on the pair itself, not on each column separately: two independent
+        # IN clauses match combinations that are not on this page — harmless here, since
+        # the results are keyed by pair and the extras are never read, but it reads as if
+        # it were exact when it is not.
+        on_page = tuple_(SalonEvent.email, SalonEvent.phone).in_(people)
+        for email, phone, user_type in (
+            db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.user_type)
+            .filter(on_page)
             .distinct()
         ):
-            types.setdefault(email, set()).add(user_type)
-        for email, language in (
-            db.query(SalonEvent.email, SalonEvent.first_spoken_language)
-            .filter(
-                SalonEvent.email.in_(emails),
-                SalonEvent.first_spoken_language.isnot(None),
+            types.setdefault((email, phone), set()).add(user_type)
+        for email, phone, language in (
+            db.query(
+                SalonEvent.email, SalonEvent.phone, SalonEvent.first_spoken_language
             )
+            .filter(on_page, SalonEvent.first_spoken_language.isnot(None))
             .distinct()
         ):
-            languages.setdefault(email, set()).add(language)
+            languages.setdefault((email, phone), set()).add(language)
 
     # Who read what, and how much of it. Not the addresses themselves: writing the list
     # to CloudWatch would copy the personal data into a second store with its own
@@ -98,11 +113,12 @@ def list_participants(
         participants=[
             ParticipantRecord(
                 email=row.email,
-                userTypes=sorted(types.get(row.email, set())),
+                phone=row.phone,
+                userTypes=sorted(types.get((row.email, row.phone), set())),
                 salonCount=row.salons,
                 firstSeen=row.first_seen,
                 lastSeen=row.last_seen,
-                languages=sorted(languages.get(row.email, set())),
+                languages=sorted(languages.get((row.email, row.phone), set())),
             )
             for row in grouped
         ],

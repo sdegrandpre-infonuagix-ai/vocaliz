@@ -37,6 +37,11 @@ AGENT_NAME = "salon-agent"
 # threshold and the announcement would never fire.
 ENDING_WARNING_SECONDS = 75
 
+# How long after a guest is invited the agent opens the conversation by itself. Long
+# enough for the host to put the phone down, short enough that the silence never becomes
+# a question about whether anything is working.
+INVITATION_OPENING_SECONDS = 15
+
 _BASE_INSTRUCTIONS = (
     "You are Vocaliz, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
@@ -747,6 +752,41 @@ async def entrypoint(ctx: agents.JobContext):
             len(detail.get("additionalSources") or []),
         )
 
+    # Fires once per session. A host inviting two people should not be greeted twice, and
+    # the opening only makes sense as an opening.
+    opened = {"done": False}
+
+    async def _open_after_invitation() -> None:
+        """Start the conversation a quarter of a minute after a guest was invited.
+
+        The agent used to wait to be spoken to, which left a host who had just sent an
+        invitation sitting in silence with nothing to react to. Fifteen seconds is long
+        enough for the host to put the phone down and short enough that the silence never
+        becomes a question about whether anything is working.
+
+        Deliberately not tied to the guest arriving: they may take minutes, or never come.
+        The opening is for the host, and the guest is greeted separately when they join.
+        """
+        if opened["done"]:
+            return
+        opened["done"] = True
+        await asyncio.sleep(INVITATION_OPENING_SECONDS)
+        try:
+            agent_session.generate_reply(
+                instructions=(
+                    "Open the conversation now, without waiting to be spoken to. Greet "
+                    "the host in their language, say briefly that their guest has been "
+                    "invited and will join shortly, and begin on the topic — ask them an "
+                    "opening question about it rather than describing what you are about "
+                    "to do. Keep it to a few sentences. Do not mention timers or waiting "
+                    "periods."
+                )
+            )
+            logger.info("Opened the conversation after an invitation (session %s)", session_id)
+        except Exception as exc:  # noqa: BLE001
+            # A failed opening must not disturb a session that is otherwise working.
+            logger.warning("Could not open the conversation after an invitation: %s", exc)
+
     def _on_data(packet) -> None:
         if not (session_id and api_url and host_token):
             return
@@ -756,6 +796,8 @@ async def entrypoint(ctx: agents.JobContext):
             return
         if isinstance(msg, dict) and msg.get("action") == "source_added":
             asyncio.create_task(_reload_sources())
+        elif isinstance(msg, dict) and msg.get("action") == "guest_invited":
+            asyncio.create_task(_open_after_invitation())
 
     ctx.room.on("data_received", _on_data)
 

@@ -24,7 +24,7 @@ guest_router = APIRouter(prefix="/invitations", tags=["guest"])
 
 
 @router.post("/{session_id}/invitations", response_model=InvitationResponse, status_code=201)
-def create_invitation(
+async def create_invitation(
     session_id: str,
     body: InviteGuestBody,
     db: DbSession = Depends(get_db),
@@ -35,12 +35,35 @@ def create_invitation(
             session_id=session_id,
             host_user=current_user,
             guest_email=body.guestEmail,
+            guest_phone=body.guestPhone,
             db=db,
         )
     except ValueError as exc:
         if str(exc) == "session_not_found":
             raise HTTPException(status_code=404, detail="Session not found or access denied")
+        if str(exc) == "contact_required":
+            raise HTTPException(
+                status_code=400,
+                detail="An email address or a phone number is required.",
+            )
         raise HTTPException(status_code=400, detail=str(exc))
+
+    # Tell the agent a guest is on the way, so it opens the conversation instead of
+    # leaving the host in silence. Sent from here rather than from the client: it must
+    # fire whichever app made the invitation, and whether or not that app is still there
+    # a moment later.
+    #
+    # Best-effort like every other room notification — a lost message costs the automatic
+    # opening, never the invitation.
+    session = db.query(SessionModel).filter(
+        SessionModel.id == _uuid.UUID(str(session_id)),
+    ).first()
+    if session is not None:
+        await livekit_service.notify_room(
+            session.livekit_room_name,
+            {"action": "guest_invited", "invitationId": result["invitationId"]},
+        )
+
     return result
 
 
@@ -171,7 +194,10 @@ def confirm_guest_join(
     if session is not None:
         salon_event_service.record_entry(
             db,
-            email=invitation.guest_email,
+            # Whichever half the host supplied. A guest invited by text alone has no
+            # address, and an empty string is a complete identity here, not a gap.
+            email=invitation.guest_email or "",
+            phone=invitation.guest_phone or "",
             user_type="guest",
             salon_name=session.livekit_room_name,
             ip=salon_event_service.client_ip(request),

@@ -12,18 +12,38 @@ from src.config import settings
 from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
-from src.services import livekit_service
+from src.services import livekit_service, sms_service
 from src.services.email_text import bilingual_body, bilingual_subject
 
 logger = logging.getLogger(__name__)
 
 
-def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session) -> dict:
-    """
-    Invite guest_email to session_id.
-    Raises ValueError for session not found; HTTPException(503) if the email fails.
+def invite_guest(
+    session_id: str,
+    host_user: User,
+    db: Session,
+    guest_email: str | None = None,
+    guest_phone: str | None = None,
+) -> dict:
+    """Invite someone to a session by email, by text message, or by both.
+
+    One of the two is required and neither is privileged: a host may hold an address, a
+    number, or both, and the join link is the same whichever way it travels. Absent is
+    stored as an empty string rather than NULL, matching salon_events, so the two tables
+    answer "do we have an address" the same way.
+
+    Raises ValueError("contact_required") when both are missing, and
+    ValueError("session_not_found") when the session is not this host's. Delivery is
+    reported in the response, never raised: the invitation is committed first and the
+    link works over any channel, so a failed send still leaves the host something to
+    share by hand.
     """
     import uuid as _uuid
+
+    guest_email = (guest_email or "").strip().lower()
+    guest_phone = (guest_phone or "").strip()
+    if not guest_email and not guest_phone:
+        raise ValueError("contact_required")
 
     session_id_uuid = _uuid.UUID(str(session_id))
 
@@ -37,11 +57,18 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
 
     # Idempotency: return existing pending invitation if sent <5 min ago
     cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=5)
+    # Matched on whichever contact the host gave. An empty string would match every
+    # phone-only invitation ever sent to this salon, and hand back the wrong link.
+    same_contact = (
+        (Invitation.guest_email == guest_email)
+        if guest_email
+        else (Invitation.guest_phone == guest_phone)
+    )
     recent = (
         db.query(Invitation)
         .filter(
             Invitation.session_id == session_id_uuid,
-            Invitation.guest_email == guest_email,
+            same_contact,
             Invitation.status == "pending",
         )
         .order_by(Invitation.created_at.desc())
@@ -56,10 +83,14 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
             # reuses the same one-time link but mails it again. A host who invites the
             # same address twice is telling us the first one did not arrive, and the
             # silent return was indistinguishable from a successful send.
-            return _build_response(recent, session, email_sent=_try_send(recent))
+            return _build_response(recent, session, sent=_try_send(recent))
 
-    # Determine type: registered Vocaliz user or an email-only contact
-    guest_user = db.query(User).filter(User.email == guest_email).first()
+    # Determine type: registered Vocaliz user or an email-only contact. Looked up by
+    # address only — a phone number is not an account handle here, sign-in having moved
+    # to email.
+    guest_user = (
+        db.query(User).filter(User.email == guest_email).first() if guest_email else None
+    )
     invitation_type = "salon_friend" if guest_user else "email_contact"
 
     join_token = secrets.token_urlsafe(32)
@@ -69,6 +100,7 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
         session_id=session_id_uuid,
         host_user_id=host_user.id,
         guest_email=guest_email,
+        guest_phone=guest_phone,
         guest_user_id=guest_user.id if guest_user else None,
         invitation_type=invitation_type,
         join_token=join_token,
@@ -88,21 +120,34 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
     # only reaches a member who opens the app; an invitation to a conversation happening
     # now has to arrive on its own. Email is the channel that always lands, so it is the
     # baseline and the notification is the extra — not the other way round.
-    return _build_response(invitation, session, email_sent=_try_send(invitation))
+    return _build_response(invitation, session, sent=_try_send(invitation))
 
 
-def _try_send(invitation: Invitation) -> bool:
-    """Mail the join link, reporting delivery instead of raising.
+def _try_send(invitation: Invitation) -> tuple[bool, bool]:
+    """Send the join link over every channel the host supplied.
 
-    A failed send must never be fatal here: the invitation is already committed and the
-    link works over any channel, so the host keeps something to share by hand.
+    Returns (email_sent, sms_sent). A channel that was not asked for reports False, which
+    the response distinguishes from a channel that failed by also returning what was
+    requested — otherwise "not sent" and "not attempted" would look identical to the host.
+
+    Neither failure is fatal: the invitation is already committed and the link works over
+    any channel, so the host keeps something to share by hand.
     """
-    try:
-        _send_invitation_email(invitation.guest_email, _join_link(invitation.join_token))
-        return True
-    except HTTPException as exc:
-        logger.warning("Invitation %s: email failed: %s", invitation.id, exc.detail)
-        return False
+    link = _join_link(invitation.join_token)
+
+    email_sent = False
+    if invitation.guest_email:
+        try:
+            _send_invitation_email(invitation.guest_email, link)
+            email_sent = True
+        except HTTPException as exc:
+            logger.warning("Invitation %s: email failed: %s", invitation.id, exc.detail)
+
+    sms_sent = False
+    if invitation.guest_phone:
+        sms_sent = sms_service.send_invitation_sms(invitation.guest_phone, link)
+
+    return email_sent, sms_sent
 
 
 def _join_link(join_token: str) -> str:
@@ -110,7 +155,10 @@ def _join_link(join_token: str) -> str:
 
 
 def _build_response(
-    invitation: Invitation, session: SessionModel, *, email_sent: bool = False
+    invitation: Invitation,
+    session: SessionModel,
+    *,
+    sent: tuple[bool, bool] = (False, False),
 ) -> dict:
     # The link is returned for every invitation type, including salon_friend. A join token
     # is minted for all of them and guest_join_session validates it without looking at the
@@ -120,9 +168,14 @@ def _build_response(
         "invitationId": str(invitation.id),
         "invitationType": invitation.invitation_type,
         "guestEmail": invitation.guest_email,
+        "guestPhone": invitation.guest_phone,
         "status": invitation.status,
         "joinLink": _join_link(invitation.join_token),
-        "emailSent": email_sent,
+        # Each channel reports separately, and only for a channel that was asked for.
+        # Collapsing them into one flag would tell a host who gave both that "it was
+        # sent" when only one of the two actually left.
+        "emailSent": sent[0],
+        "smsSent": sent[1],
         # Handed back at creation time, so the host holds the guest's future room identity
         # before the guest has opened the link.
         "participantIdentity": livekit_service.guest_identity(invitation.id),

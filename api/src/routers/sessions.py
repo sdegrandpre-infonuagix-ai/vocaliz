@@ -501,7 +501,8 @@ def join_session(
     # confirm — their presence only becomes real once the microphone works.
     salon_event_service.record_entry(
         db,
-        email=current_user.email,
+        email=current_user.email or "",
+        phone=current_user.phone_number or "",
         user_type="host" if is_host else "guest",
         salon_name=session.livekit_room_name,
         ip=salon_event_service.client_ip(request),

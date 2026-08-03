@@ -38,7 +38,8 @@ def client_ip(request: Request) -> str | None:
 def record_entry(
     db: DbSession,
     *,
-    email: str,
+    email: str = "",
+    phone: str = "",
     user_type: str,
     salon_name: str,
     ip: str | None = None,
@@ -48,18 +49,30 @@ def record_entry(
 ) -> None:
     """Note that someone joined a salon.
 
-    Keyed on (email, user_type, salon_name), so re-entering the same salon updates the
-    existing row instead of adding a second one. The entry time is not rewritten on a
+    Keyed on (email, phone, user_type, salon_name), so re-entering the same salon updates
+    the existing row instead of adding a second one. The absent half of the identity is an
+    empty string, never None: it is part of a primary key, which cannot hold NULL.
+
+    A participant with neither is not recorded at all. The database forbids it, and
+    raising here would turn an observation into an obstacle — the point of this module is
+    that failing to note something never keeps anyone out of a room. The entry time is not rewritten on a
     re-entry — the interesting figure is when the person first arrived, and overwriting it
     would erase exactly that. A position or an address learned late is still filled in,
     since the first attempt may have had neither.
     """
+    email = email or ""
+    phone = phone or ""
+    if not email and not phone:
+        logger.warning("Refusing to record a participation with no identity in %s", salon_name)
+        return
+
     try:
-        row = db.get(SalonEvent, (email, user_type, salon_name))
+        row = db.get(SalonEvent, (email, phone, user_type, salon_name))
         if row is None:
             db.add(
                 SalonEvent(
                     email=email,
+                    phone=phone,
                     user_type=user_type,
                     salon_name=salon_name,
                     client_ip=ip,
@@ -129,11 +142,11 @@ def record_first_language(
     entered is noise. Returns whether anything was written.
     """
     try:
-        email, user_type = _resolve_participant(db, participant_identity)
-        if not email:
+        email, phone, user_type = _resolve_participant(db, participant_identity)
+        if not email and not phone:
             return False
 
-        row = db.get(SalonEvent, (email, user_type, salon_name))
+        row = db.get(SalonEvent, (email, phone, user_type, salon_name))
         if row is None or row.first_spoken_language is not None:
             return False
 
@@ -158,12 +171,17 @@ def is_first_salon(db: DbSession, *, salon_name: str, participant_identity: str)
     than one that repeats it.
     """
     try:
-        email, _ = _resolve_participant(db, participant_identity)
-        if not email:
+        email, phone, _ = _resolve_participant(db, participant_identity)
+        if not email and not phone:
             return True
+        # Matched on whichever half of the identity we hold. An empty string would match
+        # every participant who lacks that half, so the absent one is never compared.
+        identity = (
+            (SalonEvent.email == email) if email else (SalonEvent.phone == phone)
+        )
         prior = (
             db.query(SalonEvent)
-            .filter(SalonEvent.email == email, SalonEvent.salon_name != salon_name)
+            .filter(identity, SalonEvent.salon_name != salon_name)
             .first()
         )
         return prior is None
@@ -172,18 +190,27 @@ def is_first_salon(db: DbSession, *, salon_name: str, participant_identity: str)
         return True
 
 
-def _resolve_participant(db: DbSession, identity: str) -> tuple[str | None, str]:
-    """LiveKit identity to (email, user_type)."""
+def _resolve_participant(db: DbSession, identity: str) -> tuple[str, str, str]:
+    """LiveKit identity to (email, phone, user_type).
+
+    Empty strings rather than None throughout, because these values go straight into a
+    primary key. A guest invited by text message alone has an empty email, and that is a
+    complete identity — not a missing one.
+    """
     if identity.startswith("guest-"):
         invitation = (
             db.query(Invitation)
             .filter(Invitation.id == identity.removeprefix("guest-"))
             .first()
         )
-        return (invitation.guest_email if invitation else None), "guest"
+        if invitation is None:
+            return "", "", "guest"
+        return (invitation.guest_email or ""), (invitation.guest_phone or ""), "guest"
 
     user = db.query(User).filter(User.id == identity).first()
-    return (user.email if user else None), "host"
+    if user is None:
+        return "", "", "host"
+    return (user.email or ""), (user.phone_number or ""), "host"
 
 
 def record_upload(
