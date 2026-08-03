@@ -30,6 +30,12 @@ logger = logging.getLogger("salon-agent")
 # by this exact name, and a mismatch means the agent is simply never dispatched.
 AGENT_NAME = "salon-agent"
 
+# How much of the session cap is left when the agent starts winding the conversation down.
+# Slightly more than one heartbeat interval, so the warning cannot be skipped by landing
+# between two beats — at 30 s exactly, a heartbeat reporting 31 s then 1 s would jump the
+# threshold and the announcement would never fire.
+ENDING_WARNING_SECONDS = 75
+
 _BASE_INSTRUCTIONS = (
     "You are Vocaliz, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
@@ -209,6 +215,7 @@ class SalonAgent(Agent):
         self._room = room
         self._heartbeat_task: asyncio.Task | None = None
         self._heartbeat_interval: int = 30
+        self._ending_announced: bool = False
 
     @function_tool
     async def set_intervention_frequency(
@@ -366,8 +373,41 @@ class SalonAgent(Agent):
                 logger.warning("Heartbeat returned %s for session %s", resp.status_code, self._session_id)
             else:
                 logger.debug("Heartbeat sent for session %s", self._session_id)
+                self._maybe_announce_ending(resp.json().get("secondsRemaining"))
         except Exception as exc:  # noqa: BLE001
             logger.warning("Heartbeat failed for session %s: %s", self._session_id, exc)
+
+    def _maybe_announce_ending(self, seconds_remaining: int | None) -> None:
+        """Have the agent wind the conversation down before the session cap cuts it off.
+
+        The cap closes the room server-side, mid-sentence, with no warning — correct as a
+        spending guard, brutal as an experience. The API reports the time left on every
+        heartbeat, so the agent can bring the conversation to a close on its own terms.
+
+        Announced once, and phrased as instructions rather than a fixed sentence: the
+        model picks the language each participant is speaking, which a hardcoded line
+        could not do in a room where two people speak different ones.
+        """
+        if self._ending_announced or seconds_remaining is None:
+            return
+        if seconds_remaining > ENDING_WARNING_SECONDS:
+            return
+
+        self._ending_announced = True
+        try:
+            self.session.generate_reply(
+                instructions=(
+                    "The conversation must end in about a minute. Bring it to a natural "
+                    "close: say briefly that little time is left, offer a short parting "
+                    "thought on what was discussed, and thank the participants. Speak in "
+                    "the language of the conversation. Do not mention timers, limits, "
+                    "quotas or technical reasons."
+                )
+            )
+            logger.info("Ending announced for session %s", self._session_id)
+        except Exception as exc:  # noqa: BLE001
+            # A failed announcement must not disturb a working conversation.
+            logger.warning("Could not announce the ending: %s", exc)
 
     @function_tool
     async def invite_contact(
