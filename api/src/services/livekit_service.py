@@ -53,7 +53,7 @@ async def dispatch_agent(room_name: str, *, session_id: str, host_token: str) ->
 
     Explicit dispatch rather than room metadata: the agent needs the host's JWT to read
     session sources and send invitations on the host's behalf, and room metadata is
-    readable by every participant — including anonymous browser guests. Job metadata is
+    readable by every participant — including browser guests. Job metadata is
     not, so the token stays out of reach.
 
     Failure is not fatal: the room already exists and participants can talk. The agent

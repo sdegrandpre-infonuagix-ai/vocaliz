@@ -205,7 +205,7 @@ def get_pending_invitations_for_user(user: User, db: Session) -> list[dict]:
 
 
 def link_prior_invitations(user: User, db: Session) -> int:
-    """Link this user's prior anonymous invitations to their newly registered account.
+    """Link this user's earlier invitations to their newly registered account.
 
     Called after OTP verification. Updates guest_user_id on all prior email_contact
     invitations so the app can recognise their participation (Story 3.5).
@@ -213,7 +213,7 @@ def link_prior_invitations(user: User, db: Session) -> int:
 
     Correlating on email is what makes this reliable: an account always has one, whereas
     the phone number this used to match on became optional when sign-in moved to email,
-    leaving anonymous participation impossible to reattach.
+    leaving earlier participation impossible to reattach.
     """
     prior = (
         db.query(Invitation)
@@ -231,7 +231,7 @@ def link_prior_invitations(user: User, db: Session) -> int:
 
 
 def send_followup_email_to_guests(session_id_str: str, db: Session) -> int:
-    """Email an app-install link to anonymous guests who completed this session (FR30).
+    """Email an app-install link to guests without an account who completed this session (FR30).
 
     Called after a session is marked ended. Returns the count of emails sent.
     Errors on individual sends are swallowed so session end is never blocked.

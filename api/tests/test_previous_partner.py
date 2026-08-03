@@ -1,4 +1,4 @@
-"""Tests for Story 5.2 — Nouvelle Session avec un Partenaire Précédent.
+"""Tests for Story 5.2 — Starting a new session with a previous partner.
 
 A registered user can list their previous partners and quick-start a new session
 with one already identified, without repeating the full invitation flow.

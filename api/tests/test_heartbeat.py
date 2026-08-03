@@ -1,4 +1,4 @@
-"""Tests for Story 4.2 — Métrage Précis du Temps de Conversation."""
+"""Tests for Story 4.2 — Accurate metering of conversation time."""
 from datetime import datetime, timedelta, timezone
 
 import pytest

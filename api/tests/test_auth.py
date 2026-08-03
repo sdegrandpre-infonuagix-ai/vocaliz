@@ -21,7 +21,7 @@ def test_request_otp_creates_user(mock_email, client):
     """First OTP request for a new address creates a User row."""
     response = client.post("/auth/otp/request", json={"email": EMAIL})
     assert response.status_code == 202
-    assert response.json()["message"] == "Code envoyé."
+    assert response.json()["message"] == "Code sent."
     mock_email.assert_called_once()
 
 

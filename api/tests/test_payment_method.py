@@ -1,4 +1,4 @@
-"""Tests for Story 4.3 — Ajout de Méthode de Paiement Stripe."""
+"""Tests for Story 4.3 — Adding a Stripe payment method."""
 from unittest.mock import MagicMock, patch
 
 import pytest

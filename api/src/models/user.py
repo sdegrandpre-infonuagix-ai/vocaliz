@@ -18,7 +18,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
 
     # Optional now that sign-in is email-based. Still the only key that correlates an
-    # anonymous guest's SMS invitation to the account they later register
+    # invitation of a guest without an account to the account they later register
     # (see invitation_service.link_prior_invitations), so it is kept, not dropped.
     phone_number: Mapped[str | None] = mapped_column(
         String(20), unique=True, nullable=True, index=True

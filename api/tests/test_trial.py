@@ -1,4 +1,4 @@
-"""Tests for Story 4.1 — Heure d'Essai Gratuite à Vie par Hôte."""
+"""Tests for Story 4.1 — One lifetime free trial hour per host."""
 import time
 from datetime import datetime, timedelta, timezone
 

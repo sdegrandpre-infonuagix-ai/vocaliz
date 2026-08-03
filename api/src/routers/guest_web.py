@@ -1,4 +1,4 @@
-"""Guest web router — serves the browser join page for anonymous participants."""
+"""Guest web router — serves the browser join page for guests without an account."""
 import os
 
 from fastapi import APIRouter

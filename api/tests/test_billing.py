@@ -1,4 +1,4 @@
-"""Tests for Story 4.4 — Facturation à l'Heure Après l'Essai Gratuit.
+"""Tests for Story 4.4 — Hourly billing once the free trial is spent.
 
 A host with a saved payment method is charged $5/hr, prorated to the second,
 for time used beyond their free trial hour. Guests are never billed.
