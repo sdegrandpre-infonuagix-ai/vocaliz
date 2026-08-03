@@ -1425,7 +1425,16 @@
     // fourteen then arrives and the page is rendered again.
     loadBillboard();
     setInterval(loadBillboard, BILLBOARD_REFRESH_MS);
-    applyLang();
+    // Rendering must not be able to take the application down with it. A throw in applyLang()
+    // aborted the rest of this block — including the fetch immediately below, which is exactly
+    // what would have supplied the missing strings. So one unreadable string left the page
+    // permanently in English with no config and no session, rather than briefly imperfect.
+    // Logged rather than swallowed: reaching this is a bug, not a state.
+    try {
+      applyLang();
+    } catch (e) {
+      console.error('Vocaliz: could not apply the language', e);
+    }
     if (lang !== 'en' && lang !== 'fr') {
       loadDictionary(lang).then(function (ok) { if (ok) applyLang(); });
     }
