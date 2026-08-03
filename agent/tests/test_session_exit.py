@@ -231,3 +231,50 @@ def test_transcription_notice_survives_both_opening_paths():
         salon._build_instructions(),
     ):
         assert "TRANSCRIPTION NOTICE" in instructions
+
+
+# ─── Inviting by voice ───────────────────────────────────────────────────────
+
+def test_invite_tool_accepts_a_phone_number():
+    """From a phone, speaking a number is the whole point — typing one is the fallback."""
+    import inspect
+
+    params = inspect.signature(salon.SalonAgent.invite_contact).parameters
+    assert "phone" in params
+    # Both optional, because either alone is a complete invitation.
+    assert params["email"].default == ""
+    assert params["phone"].default == ""
+
+
+def test_instructions_explain_turning_spoken_words_into_a_number():
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("INVITATION COMMANDS"):
+    ]
+    assert "spoken aloud arrives as words" in section
+    assert "+1 followed by those ten digits" in section
+
+
+def test_instructions_require_reading_a_number_back():
+    """A digit misheard by one sends the invitation to a stranger, irrecoverably."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("INVITATION COMMANDS"):
+    ]
+    assert "read a number back before inviting" in section
+    assert "wait for confirmation" in section
+    # And not the same ceremony for addresses, which would be tedious and pointless.
+    assert "only numbers" in section
+
+
+def test_instructions_forbid_claiming_an_invitation_that_did_not_leave():
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("INVITATION COMMANDS"):
+    ]
+    assert "nothing_sent_share_link_manually" in section
+    assert "Never say someone was invited when no" in section
+
+
+def test_invite_with_neither_contact_is_refused_before_any_call():
+    import asyncio
+
+    agent = salon.SalonAgent(session_id="s", api_url="http://x", host_token="t")
+    assert asyncio.run(agent.invite_contact()) == "error:need_email_or_phone"

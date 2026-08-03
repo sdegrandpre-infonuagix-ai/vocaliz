@@ -107,6 +107,28 @@ class Settings(BaseSettings):
     # whole abandoned period would be billed the moment the session is finally ended.
     metering_grace_seconds: int = 90
 
+    # How precise a recorded position is allowed to be, as an Open Location Code length.
+    # The grid is base 20, so each rung is twenty times the last and there is no
+    # neighbourhood-sized one: 6 is a borough (5.5 km), 8 is a block (275 m).
+    #
+    # Six by default. Eight is nearer the literal size of a neighbourhood, but outside a
+    # dense city it narrows to a handful of houses — an approximate address rather than
+    # an approximate area.
+    location_code_length: int = 6
+
+    # Whether the clients offer to invite by text message.
+    #
+    # A flag rather than markup commented out, because the thing it waits on is an AWS
+    # review and not a decision of ours: hiding the field in the app would mean a store
+    # build to bring it back, days after the capability actually arrives. Flipping this
+    # is one secret change and one API deployment, and every client picks it up on its
+    # next launch.
+    #
+    # The API keeps accepting a phone number regardless. This governs what is offered,
+    # not what is allowed — a request that arrives with one is still honoured, and the
+    # host still gets the link to share by hand when the send fails.
+    sms_enabled: bool = False
+
     # ── Administration ────────────────────────────────────────────────────────
     # Who may read the participation records. Comma-separated, compared without regard
     # to case. Kept in configuration rather than in a database column on purpose: a

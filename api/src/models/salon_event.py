@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Numeric, String, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
@@ -15,8 +15,8 @@ class SalonEvent(Base):
     a deliberate choice: column encryption would have forced a deterministic scheme on the
     key columns and ruled out every query but equality.
 
-    The row still holds personal data — an email, an IP, sometimes a precise position. It
-    deserves a retention rule; there is none yet.
+    The row still holds personal data — an email or a phone number, and sometimes an
+    approximate position. It deserves a retention rule; there is none yet.
     """
 
     __tablename__ = "salon_events"
@@ -44,9 +44,19 @@ class SalonEvent(Base):
     user_type: Mapped[str] = mapped_column(String(5), primary_key=True)
     salon_name: Mapped[str] = mapped_column(String(100), primary_key=True)
 
-    # Nullable on purpose. The address is normally supplied by API Gateway, but a proxy
-    # can hide it, and a row worth keeping should not be lost over a missing header.
-    client_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    # Where they were, to the nearest cell of an Open Location Code grid — six digits by
+    # default, about five and a half kilometres across. Encoded at ingestion, so the
+    # precise coordinates never reach the disk.
+    #
+    # A Plus Code rather than rounded decimals because a decimal pair still reads as a
+    # point, and a point invites being treated as one. This is a cell; the imprecision is
+    # part of the value.
+    #
+    # Empty when the participant declined the location prompt, which is the common case.
+    # There is no fallback: deriving a position from an IP address needs a GeoIP source
+    # that does not exist here, and keeping the address in case one appeared one day
+    # would be holding personal data against a plan rather than against a use.
+    plus_code: Mapped[str] = mapped_column(String(16), nullable=False, default="")
 
     # BCP-47 code for the first language this person was heard speaking *in this salon* —
     # not the language of the interface they clicked through, and not a property of the
@@ -61,13 +71,6 @@ class SalonEvent(Base):
     # Written once. A later report is ignored rather than overwriting, so the column
     # keeps meaning what its name says.
     first_spoken_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
-
-    # Precision is fixed rather than floating: these are coordinates, compared and stored
-    # as given. Six decimals is about eleven centimetres, far beyond what a browser
-    # reports. NULL whenever the participant declined the location prompt, which is the
-    # common case and not an error.
-    gps_latitude: Mapped[float | None] = mapped_column(Numeric(8, 6), nullable=True)
-    gps_longitude: Mapped[float | None] = mapped_column(Numeric(9, 6), nullable=True)
 
     entered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

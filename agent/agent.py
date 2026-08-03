@@ -122,16 +122,35 @@ _BASE_INSTRUCTIONS = (
     "Do NOT translate your own facilitator speech — only translate between human participants.\n"
     "In a 3-way session with mixed languages, translate for each non-native listener in turn.\n"
     "\n\n"
-    "INVITATION COMMANDS: When the host says 'invite [name]' or 'invite [name] at "
-    "[email address]', call invite_contact with the guest's email address. "
-    "If the host gives only a name with no address, politely ask: "
-    "'Quelle est l'adresse courriel de [name] ?' before calling the tool. "
-    "If the invitation succeeds for a Vocaliz user, say: "
-    "'J\\'ai envoyé une notification à [name] pour rejoindre le salon.' "
-    "If the guest has no Vocaliz account, a join link is emailed to them — say: "
-    "'J\\'ai envoyé un lien par courriel à [name] pour rejoindre le salon.' "
-    "If the call fails, say: 'Je n\\'ai pas pu inviter ce contact. Pouvez-vous vérifier "
-    "l\\'adresse courriel ?' "
+    "INVITATION COMMANDS (spoken — this is how one invites from a phone):\n"
+    "When the host says 'invite [name]', they may give an email address, a mobile\n"
+    "number, or both. Call invite_contact with whichever they gave; one is enough, and\n"
+    "both means the invitation goes out over both.\n"
+    "\n"
+    "A number spoken aloud arrives as words, not digits. Convert it before calling: keep\n"
+    "the digits in the order you heard them, drop everything else — 'dash', 'point',\n"
+    "pauses, brackets — and prefix the country code. A ten-digit North American number\n"
+    "becomes +1 followed by those ten digits, unless the host names another country.\n"
+    "\n"
+    "ALWAYS read a number back before inviting, grouped as it is normally spoken, and\n"
+    "wait for confirmation. A digit misheard by one is the likeliest failure here, and an\n"
+    "invitation sent to a stranger cannot be recalled. Do not read email addresses back\n"
+    "this way — only numbers.\n"
+    "\n"
+    "If the host names someone with neither an address nor a number, ask for one before\n"
+    "calling the tool.\n"
+    "\n"
+    "The tool reports what actually went out. Say that, and nothing more:\n"
+    "  - 'email_sent' — the join link was emailed.\n"
+    "  - 'sms_sent' — the join link was texted.\n"
+    "  - both — say both.\n"
+    "  - 'nothing_sent_share_link_manually' — say plainly that nothing could be sent and\n"
+    "    that the link is on their screen to share. Never say someone was invited when no\n"
+    "    message left: the host would only find out when nobody joins.\n"
+    "  - 'salon_friend' — that person has a Vocaliz account and also gets a notification\n"
+    "    in the app.\n"
+    "If the call fails outright, say you could not invite that contact, and ask them to\n"
+    "check the address or the number.\n"
     "\n\n"
     "SESSION EXIT (vocal command — any language):\n"
     "When any participant says a phrase indicating they want to leave, such as:\n"
@@ -606,27 +625,60 @@ class SalonAgent(Agent):
     @function_tool
     async def invite_contact(
         self,
-        email: Annotated[str, "Guest email address, e.g. ami@exemple.com"],
+        email: Annotated[
+            str, "Guest email address, e.g. ami@exemple.com. Empty string if none was given."
+        ] = "",
+        phone: Annotated[
+            str,
+            "Guest mobile number in E.164 form, e.g. +15145550123. Convert what you heard: "
+            "strip spoken punctuation, keep the digits in order, and prefix the country "
+            "code. Assume +1 for a ten-digit North American number unless the host names "
+            "another country. Empty string if none was given.",
+        ] = "",
     ) -> str:
-        """Invite a contact to the current session by email address.
+        """Invite a contact to the current session, by email or by text message.
 
-        Returns a short status message describing the outcome.
-        Call this when the host says 'invite [name]'.
+        One of the two is required; giving both sends by both. Call this when the host
+        says "invite [name]" and has supplied an address or a number.
+
+        Returns a short status describing what happened, including which channels
+        actually went out — say so plainly rather than claiming an invitation arrived.
         """
         if not self._session_id or not self._api_url or not self._host_token:
             logger.warning("invite_contact called but agent has no session context")
             return "no_session_context"
 
+        email = (email or "").strip()
+        phone = (phone or "").strip()
+        if not email and not phone:
+            return "error:need_email_or_phone"
+
         url = f"{self._api_url}/sessions/{self._session_id}/invitations"
         headers = {"Authorization": f"Bearer {self._host_token}"}
-        payload = {"guestEmail": email}
+        # Omitted rather than sent empty: an empty string is not an address, and the API
+        # would have to guess whether it was a channel the host meant to use.
+        payload = {}
+        if email:
+            payload["guestEmail"] = email
+        if phone:
+            payload["guestPhone"] = phone
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code in (200, 201):
                 data = resp.json()
-                return data.get("invitationType", "invited")
+                # Reported per channel so the agent can tell the host what actually left.
+                # Saying "invited" when the text message failed would be a lie the host
+                # only discovers when nobody joins.
+                channels = []
+                if data.get("emailSent"):
+                    channels.append("email_sent")
+                if data.get("smsSent"):
+                    channels.append("sms_sent")
+                if not channels:
+                    channels.append("nothing_sent_share_link_manually")
+                return f"{data.get('invitationType', 'invited')}:{','.join(channels)}"
             detail = resp.json().get("detail", "unknown error")
             logger.error("invite_contact failed %s: %s", resp.status_code, detail)
             return f"error:{detail}"

@@ -505,7 +505,6 @@ def join_session(
         phone=current_user.phone_number or "",
         user_type="host" if is_host else "guest",
         salon_name=session.livekit_room_name,
-        ip=salon_event_service.client_ip(request),
         latitude=body.latitude if body else None,
         longitude=body.longitude if body else None,
         first_spoken_language=current_user.detected_language,

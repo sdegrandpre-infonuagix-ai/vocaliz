@@ -314,3 +314,64 @@ def test_participant_token_allows_updating_own_attributes():
     token = livekit_service.generate_participant_token("salon-x", "user-1")
     claims = pyjwt.decode(token, settings.livekit_api_secret, algorithms=["HS256"])
     assert claims["video"]["canUpdateOwnMetadata"] is True
+
+
+# ─── Public configuration ────────────────────────────────────────────────────
+
+def test_config_is_readable_without_a_token(client):
+    """The sign-in screen reads it, so requiring a token would make it unusable."""
+    assert client.get("/config").status_code == 200
+
+
+def test_sms_is_off_by_default(client):
+    """Text messaging waits on an AWS review. Off is the safe direction: a host never
+    sees a channel that cannot deliver."""
+    assert client.get("/config").json() == {"smsEnabled": False}
+
+
+def test_config_follows_the_setting(client):
+    from src.config import settings
+
+    original = settings.sms_enabled
+    settings.sms_enabled = True
+    try:
+        assert client.get("/config").json()["smsEnabled"] is True
+    finally:
+        settings.sms_enabled = original
+
+
+def test_a_phone_invitation_is_still_accepted_while_the_field_is_hidden(client, db):
+    """The flag governs what is offered, not what is allowed.
+
+    Hiding the field is a client concern; refusing the request would also break the API
+    for anyone testing the path before the review clears.
+    """
+    from unittest.mock import patch
+
+    from src.models.session import SessionModel
+    from src.models.user import User
+    from src.services import sms_service
+    from src.services.jwt_service import issue_token
+
+    user = User(email="flaghost@example.com")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    sess = SessionModel(
+        host_user_id=user.id,
+        livekit_room_name="salon-flag",
+        source_type="url",
+        source_content="c",
+        status="active",
+    )
+    db.add(sess)
+    db.commit()
+    db.refresh(sess)
+
+    with patch.object(sms_service, "send_invitation_sms", return_value=True):
+        response = client.post(
+            f"/sessions/{sess.id}/invitations",
+            json={"guestPhone": "+15145550123"},
+            headers={"Authorization": f"Bearer {issue_token(str(user.id))}"},
+        )
+    assert response.status_code == 201

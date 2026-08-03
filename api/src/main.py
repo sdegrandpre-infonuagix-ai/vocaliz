@@ -5,6 +5,7 @@ from mangum import Mangum
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from src.config import settings
 from src.rate_limit import limiter
 from src.routers import auth, sessions
 from src.routers.admin import router as admin_router
@@ -29,6 +30,17 @@ app.include_router(admin_router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/config")
+def public_config():
+    """What the clients need to know before anyone signs in.
+
+    Deliberately unauthenticated and deliberately tiny: it decides what a page offers,
+    not what it may do. Nothing here is a secret, and requiring a token would mean the
+    sign-in screen could not read it.
+    """
+    return {"smsEnabled": settings.sms_enabled}
 
 
 # AWS Lambda handler (Mangum adapts ASGI ↔ Lambda event)

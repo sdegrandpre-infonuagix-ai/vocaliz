@@ -7,32 +7,15 @@ room, and a failure to note that they left must never block a session from closi
 import logging
 from datetime import datetime, timezone
 
-from fastapi import Request
 from sqlalchemy.orm import Session as DbSession
 
 from src.models.invitation import Invitation
 from src.models.salon_event import SalonEvent
 from src.models.uploaded_data import UploadedData
 from src.models.user import User
-from src.services import summary_service
+from src.services import location_service, summary_service
 
 logger = logging.getLogger(__name__)
-
-
-def client_ip(request: Request) -> str | None:
-    """The caller's address as seen from outside.
-
-    X-Forwarded-For comes first and its *first* entry is the one that matters: API Gateway
-    appends to the list, so the leftmost value is the original client and everything after
-    is infrastructure. request.client is the fallback, and behind the proxy it reports the
-    hop rather than the caller.
-    """
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first[:45]
-    return request.client.host[:45] if request.client else None
 
 
 def record_entry(
@@ -42,7 +25,6 @@ def record_entry(
     phone: str = "",
     user_type: str,
     salon_name: str,
-    ip: str | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
     first_spoken_language: str | None = None,
@@ -55,13 +37,18 @@ def record_entry(
 
     A participant with neither is not recorded at all. The database forbids it, and
     raising here would turn an observation into an obstacle — the point of this module is
-    that failing to note something never keeps anyone out of a room. The entry time is not rewritten on a
-    re-entry — the interesting figure is when the person first arrived, and overwriting it
-    would erase exactly that. A position or an address learned late is still filled in,
-    since the first attempt may have had neither.
+    that failing to note something never keeps anyone out of a room.
+
+    The entry time is not rewritten on a re-entry — the interesting figure is when the
+    person first arrived, and overwriting it would erase exactly that. A position granted
+    late is still filled in, since the first attempt may not have had one.
+
+    A position is encoded to an Open Location Code before it is written — a cell a few
+    kilometres across rather than a point. The precise coordinates never reach the disk.
     """
     email = email or ""
     phone = phone or ""
+    code = location_service.plus_code(latitude, longitude)
     if not email and not phone:
         logger.warning("Refusing to record a participation with no identity in %s", salon_name)
         return
@@ -75,17 +62,16 @@ def record_entry(
                     phone=phone,
                     user_type=user_type,
                     salon_name=salon_name,
-                    client_ip=ip,
-                    gps_latitude=latitude,
-                    gps_longitude=longitude,
+                    plus_code=code,
                     first_spoken_language=first_spoken_language,
                     entered_at=datetime.now(tz=timezone.utc),
                 )
             )
         else:
-            row.client_ip = ip or row.client_ip
-            row.gps_latitude = latitude if latitude is not None else row.gps_latitude
-            row.gps_longitude = longitude if longitude is not None else row.gps_longitude
+            # Filled in late when it was missing. Someone who refused the prompt on
+            # arrival and granted it on re-entry is worth placing; someone who granted it
+            # twice must not have the first reading replaced by a second.
+            row.plus_code = row.plus_code or code
             # Write-once. A later report must not overwrite the first: the column says
             # "first spoken", and a second value would quietly make that false.
             if row.first_spoken_language is None:

@@ -200,7 +200,6 @@ def confirm_guest_join(
             phone=invitation.guest_phone or "",
             user_type="guest",
             salon_name=session.livekit_room_name,
-            ip=salon_event_service.client_ip(request),
             latitude=body.latitude if body else None,
             longitude=body.longitude if body else None,
         )

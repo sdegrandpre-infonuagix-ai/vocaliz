@@ -33,6 +33,7 @@ import { useTranslationMute } from '../hooks/useTranslationMute';
 import { useCaptions } from '../hooks/useCaptions';
 import { addSourceFromUrl, endSession, joinSession, sendHeartbeat } from '../services/sessionsApi';
 import { sendInvitation } from '../services/invitationsApi';
+import { getPublicConfig } from '../services/configApi';
 
 const HEARTBEAT_SECONDS = 30;
 
@@ -51,6 +52,9 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
   const [sourceUrl, setSourceUrl] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+  // Off until the server says otherwise. Text messaging waits on an AWS review, and a
+  // field that produces nothing is worse than no field.
+  const [smsEnabled, setSmsEnabled] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [joinLink, setJoinLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,6 +90,16 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     // change it just made, and clear the saved choice before it could be restored.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driving, setCaptionLang]);
+
+  useEffect(() => {
+    let stale = false;
+    getPublicConfig().then((cfg) => {
+      if (!stale) setSmsEnabled(cfg.smsEnabled);
+    });
+    return () => {
+      stale = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,7 +200,9 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
       // record into memory.
       const [emails, phones] = await Promise.all([contact.getEmails(), contact.getPhones()]);
       const email = emails[0]?.address;
-      const phone = phones[0]?.number;
+      // Only taken when the channel is offered. Filling a field the host cannot see
+      // would send by a route they never chose.
+      const phone = smsEnabled ? phones[0]?.number : undefined;
       if (email) setGuestEmail(email.trim().toLowerCase());
       if (phone) setGuestPhone(phone.trim());
       if (!email && !phone) setNotice(t.room.contactHasNoContact);
@@ -194,11 +210,13 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
       // Declining the picker is not a failure, and neither is a device without contacts.
       // Either way the fields can still be typed by hand.
     }
-  }, [t.room]);
+  }, [t.room, smsEnabled]);
 
   const handleInvite = useCallback(async () => {
     const email = guestEmail.trim().toLowerCase();
-    const phone = guestPhone.trim();
+    // A value left over from before the flag was read must not travel as a channel the
+    // host did not choose.
+    const phone = smsEnabled ? guestPhone.trim() : '';
     if (!token || (!email && !phone)) return;
     setBusy(true);
     setNotice(null);
@@ -235,7 +253,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [token, sessionId, guestEmail, guestPhone, t.room]);
+  }, [token, sessionId, guestEmail, guestPhone, smsEnabled, t.room]);
 
   const handleLeave = useCallback(async () => {
     setBusy(true);
@@ -348,19 +366,23 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
           accessibilityLabel={t.room.inviteInputLabel}
           accessibilityHint={t.room.inviteInputHint}
         />
-        <TextInput
-          style={styles.input}
-          value={guestPhone}
-          onChangeText={setGuestPhone}
-          placeholder="+1 514 555 0123"
-          placeholderTextColor={colors.muted}
-          keyboardType="phone-pad"
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel={t.room.invitePhoneLabel}
-          accessibilityHint={t.room.invitePhoneHint}
-        />
-        <Text style={styles.fieldHint}>{t.room.inviteContactHint}</Text>
+        {smsEnabled ? (
+          <>
+            <TextInput
+              style={styles.input}
+              value={guestPhone}
+              onChangeText={setGuestPhone}
+              placeholder="+1 514 555 0123"
+              placeholderTextColor={colors.muted}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel={t.room.invitePhoneLabel}
+              accessibilityHint={t.room.invitePhoneHint}
+            />
+            <Text style={styles.fieldHint}>{t.room.inviteContactHint}</Text>
+          </>
+        ) : null}
         <Pressable
           style={({ pressed }) => [styles.buttonOutline, pressed && styles.buttonPressed]}
           onPress={handlePickContact}
@@ -373,11 +395,13 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         <Pressable
           style={({ pressed }) => [
             styles.buttonGold,
-            (!guestEmail.trim() && !guestPhone.trim()) || busy ? styles.buttonDisabled : null,
+            (!guestEmail.trim() && !(smsEnabled && guestPhone.trim())) || busy
+              ? styles.buttonDisabled
+              : null,
             pressed && styles.buttonPressed,
           ]}
           onPress={handleInvite}
-          disabled={(!guestEmail.trim() && !guestPhone.trim()) || busy}
+          disabled={(!guestEmail.trim() && !(smsEnabled && guestPhone.trim())) || busy}
           accessibilityRole="button"
           accessibilityLabel={t.room.inviteButton}
         >

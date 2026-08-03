@@ -10,7 +10,7 @@ dependencies = [
     "alembic>=1.16.0",
     "psycopg2-binary>=2.9.0",
     "pydantic>=2.0.0",
-    "email-validator>=2.2.0",  # required by pydantic EmailStr
+    "email-validator>=2.2.0", # required by pydantic EmailStr
     "pydantic-settings>=2.0.0",
     "python-jose[cryptography]>=3.3.0",
     "boto3>=1.38.0",
@@ -22,6 +22,7 @@ dependencies = [
     "httpx>=0.28.0",
     "pypdf>=5.0.0",
     "stripe>=12.0.0",
+    "openlocationcode>=1.0.1",
 ]
 
 [build-system]

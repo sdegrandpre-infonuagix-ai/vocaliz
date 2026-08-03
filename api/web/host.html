@@ -282,11 +282,15 @@
       </div>
       <label for="guest-email" data-i18n="guestEmailLabel">Contact's email address</label>
       <input type="email" id="guest-email" placeholder="friend@example.com" data-i18n-ph="guestEmailPh">
-      <label for="guest-phone" data-i18n="guestPhoneLabel">Mobile number</label>
-      <input type="tel" id="guest-phone" placeholder="+1 514 555 0123" data-i18n-ph="guestPhonePh"
-             inputmode="tel" autocomplete="tel">
-      <div class="field-hint" data-i18n="guestContactHint">
-        One of the two is enough. Give both and the invitation goes out by both.
+      <!-- Hidden by default and revealed by /config: text messaging waits on an AWS
+           review, and a field that produces nothing is worse than no field. -->
+      <div id="phone-field" class="hidden">
+        <label for="guest-phone" data-i18n="guestPhoneLabel">Mobile number</label>
+        <input type="tel" id="guest-phone" placeholder="+1 514 555 0123" data-i18n-ph="guestPhonePh"
+               inputmode="tel" autocomplete="tel">
+        <div class="field-hint" data-i18n="guestContactHint">
+          One of the two is enough. Give both and the invitation goes out by both.
+        </div>
       </div>
       <button class="btn btn-gold" onclick="invite()" data-i18n="generateButton">Generate the link</button>
       <div id="invite-status" class="status"></div>
@@ -787,6 +791,19 @@
       log.scrollTop = log.scrollHeight;
     }
 
+    // Text messaging is offered only once AWS has cleared the account to send. Read at
+    // load rather than compiled in, so enabling it is one API deployment and no client
+    // change at all. A failure leaves the field hidden, which is the safe direction: a
+    // host never sees a channel that cannot deliver.
+    async function loadConfig() {
+      try {
+        var resp = await fetch('/config');
+        if (!resp.ok) return;
+        var cfg = await resp.json();
+        show('phone-field', !!cfg.smsEnabled);
+      } catch (e) { /* stays hidden */ }
+    }
+
     // ── Room ──────────────────────────────────────────────────────────────────
     async function joinRoom() {
       var creds = await api('/sessions/' + sessionId + '/join', { method: 'POST' });
@@ -931,7 +948,11 @@
 
     async function invite() {
       var email = document.getElementById('guest-email').value.trim().toLowerCase();
-      var phone = document.getElementById('guest-phone').value.trim();
+      // Read only when offered. A value left in a hidden field — from a browser autofill,
+      // or from the flag being turned off between two invitations — must not travel as a
+      // channel the host did not choose.
+      var phoneShown = !document.getElementById('phone-field').classList.contains('hidden');
+      var phone = phoneShown ? document.getElementById('guest-phone').value.trim() : '';
       // Checked here so the host reads a sentence rather than a validation error from the
       // API. The server refuses the same case regardless — this is courtesy, not security.
       if (!email && !phone) {
@@ -998,6 +1019,7 @@
     window.addEventListener('pagehide', onPageUnload);
 
     applyLang();
+    loadConfig();
     if (token) signedIn();
   </script>
 </body>

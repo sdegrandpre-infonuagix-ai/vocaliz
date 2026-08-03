@@ -120,17 +120,18 @@ class Advertiser(Base):
 #   target_languages  — WORKS. salon_events.first_spoken_language is populated by the
 #                       agent, and the most frequent value per email is one GROUP BY.
 #
-#   target_countries  — NOT YET. salon_events holds a raw client_ip and, when granted, a
-#   target_regions      latitude and longitude. Neither is a place. Turning an address
-#                       into a country needs a GeoIP database in the image or a lookup
-#                       service; turning coordinates into a subdivision needs reverse
-#                       geocoding. Until one of the two exists, these lists can be
-#                       stored and cannot be applied.
+#   target_countries  — NOT YET. salon_events stores a Plus Code, which is a grid cell
+#   target_regions      and not a political boundary. Naming the country or subdivision
+#                       a cell falls in needs reverse geocoding, which does not exist
+#                       here. These lists can be stored and cannot be applied.
 #
-#   target_radius_km  — PARTLY. The distance can be computed from the coordinates we
-#                       already store, so a circle works for participants who granted
-#                       their position. Everyone else is invisible to it, and the common
-#                       case is refusing the prompt.
+#   target_radius_km  — COARSELY, AND ONLY DOWN TO A FEW KILOMETRES. A participant's
+#                       position is a cell about five and a half kilometres across, so
+#                       the distance available is from the centre of that cell with its
+#                       own size as the error bar. A radius under that cannot mean
+#                       anything, and a restaurant wanting two kilometres will not get
+#                       it. Everyone who declined the location prompt — the common case
+#                       — is invisible to a circle at any radius.
 #
 #   target_keywords   — NOT AT ALL. Nothing in the schema describes what a salon was
 #                       about. Conversations are never transcribed or stored, so the
