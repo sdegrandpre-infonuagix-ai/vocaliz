@@ -91,6 +91,10 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
         <Text style={styles.title} accessibilityRole="header">
           {t.session.title}
         </Text>
+        {/* What the platform is. Repeated here because a host who signed in on a previous
+            run never passes the entry screen again. */}
+        <Text style={styles.whatIs}>{t.whatIsVocaliz}</Text>
+
         <Text style={styles.subtitle}>
           {t.session.subtitle}
         </Text>
@@ -196,6 +200,15 @@ const styles = StyleSheet.create({
     fontSize: typography.subtitleSize,
     color: colors.burgundy,
     marginBottom: spacing.sm,
+  },
+  // The one sentence a first-time reader needs. Muted so it orients without competing with
+  // the action the screen is for.
+  whatIs: {
+    fontSize: typography.captionSize,
+    color: colors.muted,
+    textAlign: 'center',
+    lineHeight: typography.captionSize * 1.5,
+    marginBottom: spacing.md,
   },
   subtitle: {
     fontSize: typography.bodySize,

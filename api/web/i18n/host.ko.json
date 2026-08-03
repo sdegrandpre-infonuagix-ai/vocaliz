@@ -68,5 +68,6 @@
   "srcFileLabel": "또는 문서 (PDF, 텍스트)",
   "srcUrlLabel": "아티클 URL (선택 사항)",
   "startButton": "세션 시작",
-  "verifyButton": "확인"
+  "verifyButton": "확인",
+  "whatIsVocaliz": "Vocaliz는 Salons를 만들기 위한 플랫폼입니다.Salon에서는 사람과 AI 음성 에이전트가 웹 페이지 또는 문서에 대해 함께 토론합니다."
 }

@@ -68,5 +68,6 @@
   "srcFileLabel": "Veya bir belge (PDF, metin)",
   "srcUrlLabel": "Makale URL'si (isteğe bağlı)",
   "startButton": "Oturumu başlat",
-  "verifyButton": "Doğrula"
+  "verifyButton": "Doğrula",
+  "whatIsVocaliz": "Vocaliz, Salons oluşturmak için bir platformdur. Bir Salon'te, insanlar ve bir AI ses temsilcisi bir web sayfasını veya bir belgeyi birlikte tartışır."
 }

@@ -42,5 +42,6 @@
   "readyTitle": "Listo para unirse",
   "retryButton": "Inténtalo de nuevo",
   "soundOffButton": "🔇 El sonido está desactivado: actívalo",
-  "soundOnButton": "🔊 El sonido está activado, apágalo"
+  "soundOnButton": "🔊 El sonido está activado, apágalo",
+  "whatIsVocaliz": "Vocaliz es una plataforma para crear Salons. En un Salon, las personas y un agente de voz de IA debaten juntos sobre una página web o un documento."
 }

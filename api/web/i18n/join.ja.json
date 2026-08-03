@@ -42,5 +42,6 @@
   "readyTitle": "参加準備完了",
   "retryButton": "もう一度やり直してください",
   "soundOffButton": "🔇 サウンドがオフ—オンにする",
-  "soundOnButton": "🔊 サウンドがオンになっている—オフにする"
+  "soundOnButton": "🔊 サウンドがオンになっている—オフにする",
+  "whatIsVocaliz": "VocalizはSalonsを作成するためのプラットフォームです。Salon では、人々と AI 音声エージェントがウェブページやドキュメントについて一緒に話し合います。"
 }

@@ -42,5 +42,6 @@
   "readyTitle": "Katılmaya hazır",
   "retryButton": "Tekrar dene",
   "soundOffButton": "🔇 Ses kapalı — açın",
-  "soundOnButton": "🔊 Ses açık — kapatın"
+  "soundOnButton": "🔊 Ses açık — kapatın",
+  "whatIsVocaliz": "Vocaliz, Salons oluşturmak için bir platformdur. Bir Salon'te, insanlar ve bir AI ses temsilcisi bir web sayfasını veya bir belgeyi birlikte tartışır."
 }

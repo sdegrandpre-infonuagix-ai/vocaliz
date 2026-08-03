@@ -81,6 +81,9 @@ export default function EmailScreen({ navigation }: Props) {
           <TelegraphIcon size={160} />
         </View>
 
+        {/* What the platform is, before the sign-in form asks for anything. */}
+        <Text style={styles.whatIs}>{t.whatIsVocaliz}</Text>
+
         <Text style={styles.subtitle}>
           {t.email.subtitle}
         </Text>
@@ -156,6 +159,15 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginBottom: spacing.xl,
+  },
+  // The one sentence a first-time reader needs. Muted so it orients without competing with
+  // the action the screen is for.
+  whatIs: {
+    fontSize: typography.captionSize,
+    color: colors.muted,
+    textAlign: 'center',
+    lineHeight: typography.captionSize * 1.5,
+    marginBottom: spacing.md,
   },
   subtitle: {
     fontSize: typography.bodySize,

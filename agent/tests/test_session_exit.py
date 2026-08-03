@@ -144,15 +144,57 @@ def test_base_instructions_guest_without_account_identity_described():
 
 # ─── Sponsorship mention ─────────────────────────────────────────────────────
 
-def test_a_salon_opens_in_three_steps_in_order():
-    """Welcome, announcement, then the source. The order is the product decision: an
-    announcement to somebody ungreeted is jarring, and one delivered later interrupts."""
+def _opening_section() -> str:
     section = salon._BASE_INSTRUCTIONS[
         salon._BASE_INSTRUCTIONS.find("HOW A SALON OPENS"):
     ]
     assert section
-    assert section.index("1. WELCOME") < section.index("2. THE ANNOUNCEMENT")
-    assert section.index("2. THE ANNOUNCEMENT") < section.index("3. THE CONVERSATION")
+    return section
+
+
+def test_a_salon_opens_in_four_steps_in_order():
+    """Welcome, what this is, the announcement, then the source. The order is the product
+    decision: an announcement to somebody ungreeted is jarring, one delivered later
+    interrupts, and explaining the platform after the sponsor would introduce Vocaliz to
+    somebody who has already been sold something in its name."""
+    section = _opening_section()
+    steps = ["1. WELCOME", "2. WHAT THIS IS", "3. THE ANNOUNCEMENT", "4. THE CONVERSATION"]
+    positions = [section.index(step) for step in steps]
+    assert positions == sorted(positions)
+
+
+def test_the_opening_says_what_the_platform_is():
+    """A guest is invited by somebody else and may have no idea what they have joined."""
+    section = _opening_section()
+    # Whitespace collapsed: the prompt wraps at eighty columns, so a phrase can straddle a
+    # newline and two spaces of indentation. Asserting on the raw text tests the line breaks
+    # rather than the wording.
+    lowered = " ".join(section.split()).lower()
+    assert "platform for creating salons" in lowered
+    # The three things that make it what it is: a source, other people, and the agent as a
+    # participant rather than an assistant.
+    assert "document" in lowered and "web page" in lowered
+    assert "together" in lowered
+    assert "do not merely assist" in lowered
+
+
+def test_the_explanation_is_per_participant_not_per_salon():
+    """Somebody who joins after the opening never heard it. Modelled on the transcription
+    notice, which had the same problem for the same reason."""
+    section = _opening_section()
+    assert "Once per participant, not once per salon" in section
+
+
+def test_the_invitation_opening_also_explains_the_platform():
+    """The opening triggered by an invitation carries its own instructions, so leaving them
+    alone would have made the explanation depend on how the salon happened to start."""
+    import inspect
+
+    source = inspect.getsource(salon.entrypoint)
+    opening = source[source.find("Open the conversation now"):]
+    assert "what Vocaliz is" in opening
+    assert "platform for creating Salons" in opening
+    assert "discuss a web page or a document together" in opening
 
 
 def test_the_hardcoded_sponsorship_mention_is_gone():

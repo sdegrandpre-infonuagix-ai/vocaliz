@@ -68,5 +68,6 @@
   "srcFileLabel": "Oder ein Dokument (PDF, Text)",
   "srcUrlLabel": "Artikel-URL (optional)",
   "startButton": "Starte die Sitzung",
-  "verifyButton": "Verifizieren"
+  "verifyButton": "Verifizieren",
+  "whatIsVocaliz": "Vocaliz ist eine Plattform zur Erstellung von Salons. In einem Salon diskutieren Personen und ein KI-Sprachagent gemeinsam über eine Webseite oder ein Dokument."
 }

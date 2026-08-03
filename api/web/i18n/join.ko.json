@@ -42,5 +42,6 @@
   "readyTitle": "가입할 준비가 되셨나요?",
   "retryButton": "다시 시도하세요",
   "soundOffButton": "🔇 사운드가 꺼졌습니다. 전원을 켜세요.",
-  "soundOnButton": "🔊 사운드가 켜져 있습니다. 끄세요"
+  "soundOnButton": "🔊 사운드가 켜져 있습니다. 끄세요",
+  "whatIsVocaliz": "Vocaliz는 Salons를 만들기 위한 플랫폼입니다.Salon에서는 사람과 AI 음성 에이전트가 웹 페이지 또는 문서에 대해 함께 토론합니다."
 }

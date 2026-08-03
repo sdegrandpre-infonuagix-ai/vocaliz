@@ -1,6 +1,9 @@
 export type SupportedLanguage = 'fr' | 'en';
 
 export interface Translations {
+  /** What the platform is, in one sentence. Shown before anything is asked of the
+   *  reader: somebody invited by a friend may have no idea what they have opened. */
+  whatIsVocaliz: string;
   email: {
     subtitle: string;
     inputLabel: string;
@@ -87,6 +90,8 @@ export interface Translations {
 }
 
 const fr: Translations = {
+  whatIsVocaliz:
+    "Vocaliz est une plateforme permettant de créer des Salons. Dans un Salon, des gens et un agent vocal IA discutent ensemble d'un site web ou d'un document.",
   email: {
     subtitle: 'Entrez votre adresse courriel pour commencer.',
     inputLabel: 'Adresse courriel',
@@ -177,6 +182,8 @@ const fr: Translations = {
 };
 
 const en: Translations = {
+  whatIsVocaliz:
+    'Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.',
   email: {
     subtitle: 'Enter your email address to get started.',
     inputLabel: 'Email address',

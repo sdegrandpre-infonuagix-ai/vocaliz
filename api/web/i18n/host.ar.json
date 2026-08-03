@@ -68,5 +68,6 @@
   "srcFileLabel": "أو مستند (PDF، نص)",
   "srcUrlLabel": "عنوان URL للمقالة (اختياري)",
   "startButton": "ابدأ الجلسة",
-  "verifyButton": "تحقق"
+  "verifyButton": "تحقق",
+  "whatIsVocaliz": "Vocaliz عبارة عن منصة لإنشاء Salons. في Salon، يناقش الأشخاص ووكيل صوت AI صفحة ويب أو مستند معًا."
 }

@@ -73,6 +73,18 @@
       gap: 20px;
     }
 
+    /* What the platform is. Sized to the cards it sits above and set in the muted tone: it
+       orients a first-time reader without competing with the thing they came to do. */
+    .what-is {
+      width: 100%;
+      max-width: 440px;
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      color: #6b6257;
+      text-align: center;
+    }
+
     .card {
       width: 100%;
       max-width: 440px;
@@ -307,6 +319,13 @@
 
 <main>
 
+  <!-- What the platform is, before anything is asked of the reader. A guest was invited by
+       somebody else and may have no idea what they are joining, which makes this the one
+       sentence they need most. Outside the state cards so it holds in all of them. -->
+  <p class="what-is" data-i18n="whatIsVocaliz">
+    Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.
+  </p>
+
   <!-- State: loading -->
   <div id="v-loading" class="card">
     <div class="card-icon">⏳</div>
@@ -408,6 +427,7 @@
     en: {
       pageTitle: 'Vocaliz — Join the conversation',
       badge: 'No install',
+      whatIsVocaliz: 'Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.',
       loadingTitle: 'Connecting…',
       loadingSub: 'One moment please.',
       readyTitle: 'Ready to join',
@@ -457,6 +477,7 @@
     fr: {
       pageTitle: 'Vocaliz — Rejoindre la conversation',
       badge: 'Sans installation',
+      whatIsVocaliz: "Vocaliz est une plateforme permettant de créer des Salons. Dans un Salon, des gens et un agent vocal IA discutent ensemble d'un site web ou d'un document.",
       loadingTitle: 'Connexion en cours…',
       loadingSub: 'Merci de patienter un instant.',
       readyTitle: 'Prêt à rejoindre',
