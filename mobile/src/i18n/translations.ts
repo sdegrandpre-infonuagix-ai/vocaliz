@@ -59,6 +59,14 @@ export interface Translations {
     leaveButton: string;
     errorConnect: string;
     errorGeneric: string;
+    captionsTitle: string;
+    captionsAsSpoken: string;
+    captionsEmpty: string;
+    captionsNotice: string;
+    captionsLanguageLabel: string;
+    drivingToggle: string;
+    drivingHint: string;
+    drivingExit: string;
   };
   /** Fallbacks used when a request fails without the API supplying a reason. */
   auth: {
@@ -130,6 +138,16 @@ const fr: Translations = {
     leaveButton: 'Quitter la session',
     errorConnect: 'Impossible de rejoindre le salon.',
     errorGeneric: 'Une erreur est survenue.',
+    captionsTitle: 'Sous-titres en direct',
+    captionsAsSpoken: 'Tel que dit',
+    captionsEmpty: 'Rien encore dit.',
+    captionsNotice:
+      'Ce qui se dit dans ce Salon est transcrit et conservé afin de pouvoir être traduit. '
+      + 'Chacun ici peut le lire dans la langue de son choix.',
+    captionsLanguageLabel: 'Langue des sous-titres',
+    drivingToggle: 'Conduite',
+    drivingHint: 'Mode conduite. La conversation continue.\nTouchez l’écran pour revenir.',
+    drivingExit: 'Quitter le mode conduite',
   },
   auth: {
     errorSendCode: "Impossible d'envoyer le code.",
@@ -197,6 +215,16 @@ const en: Translations = {
     leaveButton: 'Leave session',
     errorConnect: 'Unable to join the room.',
     errorGeneric: 'Something went wrong.',
+    captionsTitle: 'Live captions',
+    captionsAsSpoken: 'As spoken',
+    captionsEmpty: 'Nothing said yet.',
+    captionsNotice:
+      'What is said in this Salon is transcribed and kept so it can be translated. '
+      + 'Everyone here can read it in the language they choose.',
+    captionsLanguageLabel: 'Caption language',
+    drivingToggle: 'Driving',
+    drivingHint: 'Driving mode. The conversation continues.\nTap the screen to come back.',
+    drivingExit: 'Leave driving mode',
   },
   auth: {
     errorSendCode: 'Could not send the code.',

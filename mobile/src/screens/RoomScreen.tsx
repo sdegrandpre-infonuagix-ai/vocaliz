@@ -23,10 +23,13 @@ import { AudioSession } from '@livekit/react-native';
 import { Room } from 'livekit-client';
 
 import PoweredBy from '../components/PoweredBy';
+import CaptionsPanel from '../components/CaptionsPanel';
+import DrivingMode from '../components/DrivingMode';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTranslationMute } from '../hooks/useTranslationMute';
+import { useCaptions } from '../hooks/useCaptions';
 import { addSourceFromUrl, endSession, joinSession, sendHeartbeat } from '../services/sessionsApi';
 import { sendInvitation } from '../services/invitationsApi';
 
@@ -49,6 +52,9 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
   const [notice, setNotice] = useState<string | null>(null);
   const [joinLink, setJoinLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Driving mode is a toggle: on, the screen goes black and stays awake; off, the room
+  // comes back exactly as it was. It changes nothing about the conversation itself.
+  const [driving, setDriving] = useState(false);
 
   // Ref rather than state: the heartbeat interval must see the live room without
   // re-subscribing on every render.
@@ -57,6 +63,27 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
   // Mutes the local mic while the agent reads a translation aloud (Story 2.10). This hook
   // existed long before anything created a Room for it — this is its first real caller.
   useTranslationMute(room);
+
+  // Live captions. The chosen language travels to the agent as a participant attribute,
+  // so it knows which languages to translate each turn into.
+  const { captions, language: captionLang, setLanguage: setCaptionLang } = useCaptions(room);
+
+  // Nobody reads while driving, so nothing is translated for them: the empty attribute
+  // tells the agent to stop rendering turns this participant will never see. The choice
+  // itself is untouched and comes back when the mode does.
+  const chosenCaptionLang = useRef('');
+  useEffect(() => {
+    if (driving) {
+      chosenCaptionLang.current = captionLang;
+      if (captionLang) setCaptionLang('');
+    } else if (chosenCaptionLang.current) {
+      setCaptionLang(chosenCaptionLang.current);
+      chosenCaptionLang.current = '';
+    }
+    // captionLang is deliberately absent: including it would re-run this on the very
+    // change it just made, and clear the saved choice before it could be restored.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driving, setCaptionLang]);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,6 +213,10 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     );
   }
 
+  if (driving) {
+    return <DrivingMode onExit={() => setDriving(false)} onLeave={handleLeave} />;
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -204,6 +235,16 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
           </Text>
         </View>
 
+        <Pressable
+          style={({ pressed }) => [styles.buttonOutline, pressed && styles.buttonPressed]}
+          onPress={() => setDriving(true)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: driving }}
+          accessibilityLabel={t.room.drivingToggle}
+        >
+          <Text style={styles.buttonOutlineText}>{t.room.drivingToggle}</Text>
+        </Pressable>
+
         {error ? (
           <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="polite">
             {error}
@@ -212,6 +253,12 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         {notice ? (
           <Text style={styles.noticeText} accessibilityLiveRegion="polite">{notice}</Text>
         ) : null}
+
+        <CaptionsPanel
+          captions={captions}
+          language={captionLang}
+          onLanguageChange={setCaptionLang}
+        />
 
         {/* ── Mid-session source (FR3) ── */}
         <Text style={styles.sectionTitle}>{t.room.sourceSection}</Text>
