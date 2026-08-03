@@ -1,6 +1,7 @@
 /**
  * Email entry screen — first step of OTP registration flow (UX-DR10).
- * Palette: Salon Parisien (UX-DR1). Telegraph icon as the brand mark (UX-DR6).
+ * Palette: Salon Parisien (UX-DR1). The wordmark is the brand mark, as on the site — the
+ * telegraph drawing that used to open this screen belonged to the old name.
  * WCAG AA: contrast ≥ 4.5:1, touch targets ≥ 44×44px (UX-DR7).
  */
 import React, { useState } from 'react';
@@ -13,7 +14,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +21,6 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import PoweredBy from '../components/PoweredBy';
 import LanguageToggle from '../components/LanguageToggle';
-import TelegraphIcon from '../components/TelegraphIcon';
 import Wordmark from '../components/Wordmark';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
@@ -75,11 +74,6 @@ export default function EmailScreen({ navigation }: Props) {
             On the first screen of the app, so the interface language can be settled
             before reading anything else. */}
         <LanguageToggle />
-
-        {/* ── Telegraph icon ── */}
-        <View style={styles.iconContainer} accessibilityElementsHidden>
-          <TelegraphIcon size={160} />
-        </View>
 
         {/* What the platform is, before the sign-in form asks for anything. */}
         <Text style={styles.whatIs}>{t.whatIsVocaliz}</Text>
@@ -156,9 +150,6 @@ const styles = StyleSheet.create({
   // instead of showing ivory above it.
   bar: {
     backgroundColor: colors.burgundy,
-  },
-  iconContainer: {
-    marginBottom: spacing.xl,
   },
   // The one sentence a first-time reader needs. Muted so it orients without competing with
   // the action the screen is for.

@@ -51,6 +51,15 @@
         {
           "contactsPermission": "Vocaliz uses your contacts so you can invite someone without typing their address."
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#7B1528",
+          "resizeMode": "contain",
+          "imageWidth": 260
+        }
       ]
     ],
     "extra": {
