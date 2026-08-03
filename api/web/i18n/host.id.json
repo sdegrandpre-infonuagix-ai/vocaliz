@@ -59,7 +59,7 @@
   "shareLabel": "Biarkan host lain menemukan halaman ini dalam percakapan mereka sendiri",
   "shareLabel2": "Biarkan host lain menemukan halaman ini dalam percakapan mereka sendiri",
   "soundOffButton": "🔇 Suara mati — nyalakan",
-  "soundOnButton": "🔊 Suara menyala",
+  "soundOnButton": "🔊 Suara menyala — matikan",
   "sourceAdded": "Sumber ditambahkan ({type}, {chars} karakter). Agen sudah diberitahu.",
   "sourceNeeded": "Masukkan URL atau pilih dokumen.",
   "sourceSub": "Agen diberitahu segera dan akan memperhitungkannya tanpa mengganggu percakapan.",

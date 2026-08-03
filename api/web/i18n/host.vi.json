@@ -59,7 +59,7 @@
   "shareLabel": "Cho phép các máy chủ khác tìm thấy trang này trong cuộc trò chuyện của riêng họ",
   "shareLabel2": "Cho phép các máy chủ khác tìm thấy trang này trong cuộc trò chuyện của riêng họ",
   "soundOffButton": "🔇 Âm thanh bị tắt - bật nó lên",
-  "soundOnButton": "🔊 Âm thanh đang bật",
+  "soundOnButton": "🔊 Âm thanh đang bật - tắt nó đi",
   "sourceAdded": "Nguồn được thêm vào ({type}, {chars} ký tự). Người đại diện đã được thông báo",
   "sourceNeeded": "Nhập URL hoặc chọn tài liệu.",
   "sourceSub": "Đại lý được thông báo ngay lập tức và sẽ tính đến nó mà không làm gián đoạn cuộc trò chuyện.",

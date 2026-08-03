@@ -59,7 +59,7 @@
   "shareLabel": "Diğer ev sahiplerinin bu sayfayı kendi konuşmalarında bulmasına izin verin",
   "shareLabel2": "Diğer ev sahiplerinin bu sayfayı kendi konuşmalarında bulmasına izin verin",
   "soundOffButton": "🔇 Ses kapalı — açın",
-  "soundOnButton": "🔊 Ses açık",
+  "soundOnButton": "🔊 Ses açık — kapatın",
   "sourceAdded": "Kaynak eklendi ({type}, {chars} karakterler). Temsilciye söylendi.",
   "sourceNeeded": "Bir URL girin veya bir belge seçin.",
   "sourceSub": "Temsilciye derhal söylenir ve sohbeti kesintiye uğratmadan dikkate alır.",

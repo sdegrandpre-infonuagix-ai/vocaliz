@@ -59,7 +59,7 @@
   "shareLabel": "Lass andere Gastgeber diese Seite in ihren eigenen Unterhaltungen finden",
   "shareLabel2": "Lass andere Gastgeber diese Seite in ihren eigenen Unterhaltungen finden",
   "soundOffButton": "🔇 Der Ton ist aus — schalten Sie ihn ein",
-  "soundOnButton": "🔊 Der Ton ist an",
+  "soundOnButton": "🔊 Ton ist an — schalte ihn aus",
   "sourceAdded": "Quelle hinzugefügt ({type}, {chars} Zeichen). Der Agent wurde informiert.",
   "sourceNeeded": "Geben Sie eine URL ein oder wählen Sie ein Dokument aus.",
   "sourceSub": "Der Agent wird sofort informiert und wird dies berücksichtigen, ohne das Gespräch zu unterbrechen.",

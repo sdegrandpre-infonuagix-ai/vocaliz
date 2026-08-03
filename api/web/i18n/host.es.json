@@ -59,7 +59,7 @@
   "shareLabel": "Permita que otros anfitriones encuentren esta página en sus propias conversaciones",
   "shareLabel2": "Permita que otros anfitriones encuentren esta página en sus propias conversaciones",
   "soundOffButton": "🔇 El sonido está desactivado: actívalo",
-  "soundOnButton": "🔊 El sonido está encendido",
+  "soundOnButton": "🔊 El sonido está activado, apágalo",
   "sourceAdded": "Fuente añadida (caracteres {type}, {chars}). Se lo han dicho al agente.",
   "sourceNeeded": "Introduzca una URL o seleccione un documento.",
   "sourceSub": "El agente es informado de inmediato y lo tendrá en cuenta sin interrumpir la conversación.",

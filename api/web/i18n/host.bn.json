@@ -59,7 +59,7 @@
   "shareLabel": "অন্যান্য হোস্ট তাদের নিজস্ব কথোপকথনে এই পৃষ্ঠাটি খুঁজে",
   "shareLabel2": "অন্যান্য হোস্ট তাদের নিজস্ব কথোপকথনে এই পৃষ্ঠাটি খুঁজে",
   "soundOffButton": "🔇 শব্দ বন্ধ - এটি চালু করুন",
-  "soundOnButton": "🔊 শব্দ চালু আছে",
+  "soundOnButton": "🔊 শব্দ চালু আছে - এটি বন্ধ করুন",
   "sourceAdded": "Source added ({type}, {chars} characters). The agent has been told.",
   "sourceNeeded": "একটি ইউআরএল লিখুন বা একটি নথি চয়ন করুন।",
   "sourceSub": "এজেন্টকে অবিলম্বে বলা হয় এবং কথোপকথনে বাধা না দিয়ে এটি বিবেচনায় নেবে।",

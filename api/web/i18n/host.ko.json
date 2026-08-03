@@ -59,7 +59,7 @@
   "shareLabel": "다른 호스트가 직접 대화하면서 이 페이지를 찾을 수 있게 하세요",
   "shareLabel2": "다른 호스트가 직접 대화하면서 이 페이지를 찾을 수 있게 하세요",
   "soundOffButton": "🔇 사운드가 꺼졌습니다. 전원을 켜세요.",
-  "soundOnButton": "🔊 사운드가 켜짐",
+  "soundOnButton": "🔊 사운드가 켜져 있습니다. 끄세요",
   "sourceAdded": "소스가 추가되었습니다 ({type}, {chars} 문자).상담원에게 알렸습니다.",
   "sourceNeeded": "URL을 입력하거나 문서를 선택합니다.",
   "sourceSub": "상담원은 즉시 통보를 받고 대화를 중단하지 않고 이를 고려합니다.",

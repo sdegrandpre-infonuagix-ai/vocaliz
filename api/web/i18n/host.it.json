@@ -59,7 +59,7 @@
   "shareLabel": "Consenti ad altri host di trovare questa pagina nelle loro conversazioni",
   "shareLabel2": "Consenti ad altri host di trovare questa pagina nelle loro conversazioni",
   "soundOffButton": "🔇 L'audio è disattivato: accendilo",
-  "soundOnButton": "🔊 L'audio è attivo",
+  "soundOnButton": "🔊 L'audio è attivo: disattivalo",
   "sourceAdded": "Fonte aggiunta ({type}, {chars} caratteri). L'agente è stato informato.",
   "sourceNeeded": "Inserisci un URL o scegli un documento.",
   "sourceSub": "L'agente viene informato immediatamente e ne terrà conto senza interrompere la conversazione.",

@@ -59,7 +59,7 @@
   "shareLabel": "让其他房东在自己的对话中找到这个页面",
   "shareLabel2": "让其他房东在自己的对话中找到这个页面",
   "soundOffButton": "🔇 声音已关闭 — 将其打开",
-  "soundOnButton": "🔊 声音已开启",
+  "soundOnButton": "🔊 声音已开启 — 把它关掉",
   "sourceAdded": "Source added ({type}, {chars} characters). The agent has been told.",
   "sourceNeeded": "输入 URL 或选择文档。",
   "sourceSub": "代理人会立即被告知，他们将在不中断谈话的情况下将其考虑在内。",
