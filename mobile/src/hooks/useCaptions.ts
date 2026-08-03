@@ -46,6 +46,7 @@ export const CAPTION_LANGUAGES: Array<{ code: string; label: string }> = [
   { code: 'de', label: 'Deutsch' },
   { code: 'it', label: 'Italiano' },
   { code: 'ar', label: 'العربية' },
+  { code: 'fa', label: 'فارسی' },
   { code: 'bn', label: 'বাংলা' },
   { code: 'zh', label: '中文' },
   { code: 'hi', label: 'हिन्दी' },

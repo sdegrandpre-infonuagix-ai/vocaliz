@@ -30,9 +30,15 @@ HERE = pathlib.Path(__file__).parent
 WEB = HERE.parent
 OVERRIDES = HERE / "overrides"
 
-# The languages the live captions offer, minus the two written by hand. Kept in step with
-# CAPTION_LANGS in the pages and CAPTION_LANGUAGES in the mobile app — a language offered
-# for captions but missing here would show an English interface beside translated speech.
+# The interface languages, minus the two written by hand. Mostly the same list as the caption
+# languages, and deliberately no longer identical: Farsi is offered for captions but the
+# interface is not translated into it, so a Farsi reader gets Farsi captions beside an English
+# or French interface. That is a product decision, not drift — do not "fix" it by adding "fa"
+# here without also generating and reviewing two Farsi dictionaries.
+#
+# Everything else must stay in step with CAPTION_LANGS in the pages and CAPTION_LANGUAGES in
+# the mobile app: a caption language whose interface is missing shows English beside
+# translated speech, which is the mismatch above and should be a choice each time.
 TARGETS = [
     "es", "pt", "de", "it", "ar", "bn", "zh", "hi", "id", "ja", "ko", "ru", "tr", "vi",
 ]
