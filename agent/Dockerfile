@@ -9,9 +9,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY pyproject.toml .
 
 # Install dependencies (no virtual env needed inside container)
-RUN uv pip install --system "livekit-agents[xai,silero,turn-detector]>=1.5.0" python-dotenv
+#
+# No turn-detector extra: end-of-turn detection moved to livekit.agents.inference, which
+# runs on LiveKit's service and needs nothing installed here. The extra pulled in
+# transformers and wanted PyTorch — hundreds of megabytes for a model that is no longer
+# loaded.
+RUN uv pip install --system "livekit-agents[xai,silero]>=1.5.0" python-dotenv
 
-# Download model files at build time to avoid cold-start latency
+# Silero VAD is still very much in use (see vad= in agent.py) and is a local model, so it
+# is fetched at build time rather than on every cold start. Deliberately not removed
+# alongside the turn detector: the two are different models with different fates.
 RUN python -c "from livekit.plugins import silero; silero.VAD.load()" || true
 
 # Copy source

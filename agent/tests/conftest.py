@@ -25,14 +25,18 @@ def _build_livekit_stubs() -> None:
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
+    # livekit.agents.inference ── turn detection moved here from the deprecated
+    # livekit.plugins.turn_detector package.
+    inference_mod = _register_stub("livekit.agents.inference", TurnDetector=MagicMock)
+
     # livekit.agents ── Agent base class, function_tool passthrough, etc.
     agents_mod = _register_stub(
         "livekit.agents",
         Agent=_AgentBase,
         AgentSession=MagicMock,
-        RoomInputOptions=MagicMock,
         JobContext=MagicMock,
         function_tool=lambda f: f,  # passthrough — keeps the function callable
+        inference=inference_mod,
         cli=MagicMock(),
         WorkerOptions=MagicMock,
     )
@@ -47,7 +51,10 @@ def _build_livekit_stubs() -> None:
             return self
 
     io_mod = _register_stub("livekit.agents.voice.io", AudioInput=_AudioInputBase)
-    _register_stub("livekit.agents.voice", io=io_mod)
+    # RoomOptions replaced RoomInputOptions/RoomOutputOptions and is not re-exported at
+    # the livekit.agents top level, so agent.py imports it from this submodule.
+    room_io_mod = _register_stub("livekit.agents.voice.room_io", RoomOptions=MagicMock)
+    _register_stub("livekit.agents.voice", io=io_mod, room_io=room_io_mod)
 
     # livekit.rtc ── audio primitives used by the mixer
     class _TrackKind:
@@ -69,17 +76,9 @@ def _build_livekit_stubs() -> None:
     xai_realtime = MagicMock()
     xai_mod = _register_stub("livekit.plugins.xai", realtime=xai_realtime)
     silero_mod = _register_stub("livekit.plugins.silero", VAD=MagicMock())
-    # EOUModel was removed from the real plugin; agent.py now imports the multilingual
-    # submodule, so the stub has to expose it as a package attribute too.
-    td_multilingual = _register_stub(
-        "livekit.plugins.turn_detector.multilingual", MultilingualModel=MagicMock
-    )
-    td_mod = _register_stub(
-        "livekit.plugins.turn_detector", multilingual=td_multilingual
-    )
-    plugins_mod = _register_stub(
-        "livekit.plugins", xai=xai_mod, silero=silero_mod, turn_detector=td_mod
-    )
+    # livekit.plugins.turn_detector is gone from agent.py: it was deprecated, and it never
+    # ran anyway for want of PyTorch. Turn detection now comes from livekit.agents.inference.
+    plugins_mod = _register_stub("livekit.plugins", xai=xai_mod, silero=silero_mod)
 
     # dotenv — just a no-op
     # Accepts override= since agent.py calls load_dotenv(override=True).

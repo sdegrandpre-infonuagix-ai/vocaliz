@@ -12,9 +12,11 @@ from typing import Annotated
 import httpx
 from dotenv import load_dotenv
 from livekit import agents
-from livekit.agents import AgentSession, Agent, RoomInputOptions, function_tool
+from livekit.agents import AgentSession, Agent, function_tool, inference
+# RoomOptions is not re-exported at the livekit.agents top level the way RoomInputOptions
+# was, so it has to be imported from its own module.
+from livekit.agents.voice.room_io import RoomOptions
 from livekit.plugins import xai, silero
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from src.mixed_audio_input import MixedParticipantAudioInput
 
@@ -464,11 +466,22 @@ async def entrypoint(ctx: agents.JobContext):
             model="grok-voice-latest", voice="ara", api_key=xai_key or None
         ),
         vad=silero.VAD.load(),
-        # AgentSession takes `turn_detection`, not `turn_detector`, and EOUModel was
-        # removed from the plugin — MultilingualModel is its replacement, and the right
-        # one here since participants may speak different languages (FR12–FR17).
-        turn_detection=MultilingualModel(),
-        allow_interruptions=True,   # participants can interrupt the agent naturally
+        # The multilingual turn detector that used to sit here never actually ran: it
+        # needs PyTorch, which is not installed, so every turn was decided by silence
+        # alone — the logs showed `source: "vad"` and a null end-of-turn probability for
+        # all of them. Semantic end-of-turn detection was configured but never obtained.
+        #
+        # inference.TurnDetector runs on LiveKit's service with the credentials the agent
+        # already holds, so there is no local model and no PyTorch to install. It costs a
+        # round trip per turn, which is the price of not cutting someone off mid-thought —
+        # and it matters here, where participants may pause while switching language.
+        #
+        # turn_detection and allow_interruptions moved into turn_handling; passing them at
+        # the top level still works but is deprecated.
+        turn_handling={
+            "turn_detection": inference.TurnDetector(),
+            "interruption": {"enabled": True},   # participants can interrupt naturally
+        },
     )
 
     salon_agent = SalonAgent(
@@ -527,10 +540,12 @@ async def entrypoint(ctx: agents.JobContext):
     await agent_session.start(
         room=ctx.room,
         agent=salon_agent,
-        # audio_enabled=False stops RoomIO from installing its own single-participant
+        # audio_input=False stops RoomIO from installing its own single-participant
         # input; ours replaces it below. Everything else about RoomIO — the shared audio
-        # output, transcriptions, disconnect handling — is kept.
-        room_input_options=RoomInputOptions(audio_enabled=False),
+        # output, transcriptions, disconnect handling — is kept. (Formerly
+        # RoomInputOptions(audio_enabled=False); the option classes were merged into
+        # RoomOptions, where False on an input means the same thing.)
+        room_options=RoomOptions(audio_input=False),
     )
 
     # RoomIO hears only the participant it linked to, so the agent was deaf to everyone
