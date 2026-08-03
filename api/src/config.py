@@ -107,6 +107,17 @@ class Settings(BaseSettings):
     # whole abandoned period would be billed the moment the session is finally ended.
     metering_grace_seconds: int = 90
 
+    # ── Administration ────────────────────────────────────────────────────────
+    # Who may read the participation records. Comma-separated, compared without regard
+    # to case. Kept in configuration rather than in a database column on purpose: a
+    # column would mean a way to grant this privilege at runtime, and there is no screen
+    # to review such a grant. Changing this list requires a deploy, which leaves a trace.
+    #
+    # Worth stating plainly: whoever receives mail at one of these addresses can obtain
+    # the full list of participant emails, because authentication is a one-time code sent
+    # to that mailbox. The mailbox is the credential.
+    admin_emails: str = "s.degrandpre@vocaliz.net"
+
     # Stripe billing — set STRIPE_SECRET_KEY in production
     stripe_secret_key: str = "sk_test_placeholder"
 

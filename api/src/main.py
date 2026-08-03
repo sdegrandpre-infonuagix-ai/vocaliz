@@ -7,6 +7,7 @@ from slowapi.errors import RateLimitExceeded
 
 from src.rate_limit import limiter
 from src.routers import auth, sessions
+from src.routers.admin import router as admin_router
 from src.routers.guest_web import router as guest_web_router
 from src.routers.invitations import guest_router, me_router, router as invitations_router
 from src.routers.users import router as users_router
@@ -22,6 +23,7 @@ app.include_router(guest_router)
 app.include_router(me_router)
 app.include_router(users_router)
 app.include_router(guest_web_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")
