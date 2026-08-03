@@ -164,6 +164,8 @@
       padding: 18px 12px 24px;
     }
 
+    .field-hint { font-size: 0.78rem; color: #6b6257; line-height: 1.45; margin-top: 8px; }
+
     .powered a { color: #7B1528; text-decoration: none; }
     .powered a:hover { text-decoration: underline; }
 
@@ -280,6 +282,12 @@
       </div>
       <label for="guest-email" data-i18n="guestEmailLabel">Contact's email address</label>
       <input type="email" id="guest-email" placeholder="friend@example.com" data-i18n-ph="guestEmailPh">
+      <label for="guest-phone" data-i18n="guestPhoneLabel">Mobile number</label>
+      <input type="tel" id="guest-phone" placeholder="+1 514 555 0123" data-i18n-ph="guestPhonePh"
+             inputmode="tel" autocomplete="tel">
+      <div class="field-hint" data-i18n="guestContactHint">
+        One of the two is enough. Give both and the invitation goes out by both.
+      </div>
       <button class="btn btn-gold" onclick="invite()" data-i18n="generateButton">Generate the link</button>
       <div id="invite-status" class="status"></div>
       <div id="invite-link" class="link-box hidden"></div>
@@ -362,6 +370,17 @@
         inviteFailFriend: 'This contact has a Vocaliz account — they also get a notification in '
                         + 'the app. Link generated, but the email could not be sent — send it '
                         + 'yourself, or try again.',
+        guestPhoneLabel: 'Mobile number',
+        guestPhonePh: '+1 514 555 0123',
+        guestContactHint: 'One of the two is enough. Give both and the invitation goes out '
+                        + 'by both.',
+        inviteNoContact: 'Enter an email address or a mobile number.',
+        inviteSmsOk: 'Text message sent to {phone}. The link is below if you would rather '
+                   + 'share it yourself.',
+        inviteSmsFail: 'The text message could not be sent — share the link below yourself.',
+        inviteBoth: 'Link generated for {email}. Email: {emailState}. Text message: {smsState}.',
+        channelSent: 'sent',
+        channelFailed: 'not sent',
         capTitle: 'Live captions',
         capAsSpoken: 'As spoken',
         capEmpty: 'Nothing said yet.',
@@ -429,6 +448,19 @@
         inviteFailFriend: 'Ce contact a un compte Vocaliz — il reçoit aussi une notification dans '
                         + "l'application. Lien généré, mais le courriel n'a pas pu partir — "
                         + 'envoyez-le vous-même, ou réessayez.',
+        guestPhoneLabel: 'Numéro de mobile',
+        guestPhonePh: '+1 514 555 0123',
+        guestContactHint: "L'un des deux suffit. Donnez les deux et l'invitation part par "
+                        + 'les deux.',
+        inviteNoContact: 'Entrez une adresse courriel ou un numéro de mobile.',
+        inviteSmsOk: 'Message texte envoyé au {phone}. Le lien est ci-dessous si vous '
+                   + 'préférez le partager vous-même.',
+        inviteSmsFail: "Le message texte n'a pas pu partir — partagez le lien ci-dessous "
+                     + 'vous-même.',
+        inviteBoth: 'Lien généré pour {email}. Courriel : {emailState}. Message texte : '
+                  + '{smsState}.',
+        channelSent: 'envoyé',
+        channelFailed: 'non envoyé',
         capTitle: 'Sous-titres en direct',
         capAsSpoken: 'Tel que dit',
         capEmpty: 'Rien encore dit.',
@@ -899,11 +931,22 @@
 
     async function invite() {
       var email = document.getElementById('guest-email').value.trim().toLowerCase();
+      var phone = document.getElementById('guest-phone').value.trim();
+      // Checked here so the host reads a sentence rather than a validation error from the
+      // API. The server refuses the same case regardless — this is courtesy, not security.
+      if (!email && !phone) {
+        setStatus('invite-status', 'inviteNoContact', false);
+        return;
+      }
       try {
         var data = await api('/sessions/' + sessionId + '/invitations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ guestEmail: email })
+          // Omitted rather than sent empty: an empty string is not an address, and the
+          // API would have to guess whether it was a channel we meant to use.
+          body: JSON.stringify(Object.assign(
+            {}, email ? { guestEmail: email } : {}, phone ? { guestPhone: phone } : {}
+          ))
         });
         // A link is always returned now, whatever the invitation type.
         lastInvitation = data;
@@ -918,10 +961,23 @@
         // Four whole sentences rather than assembled fragments — word order differs
         // between languages, so concatenating clauses does not survive translation.
         var friend = data.invitationType === 'salon_friend';
-        var key = data.emailSent
-          ? (friend ? 'inviteOkFriend' : 'inviteOk')
-          : (friend ? 'inviteFailFriend' : 'inviteFail');
-        setStatus('invite-status', key, data.emailSent, { email: data.guestEmail });
+        // Reported per channel. A host who gave both must not read "sent" when only one
+        // of the two actually left.
+        if (data.guestPhone && !data.guestEmail) {
+          setStatus('invite-status', data.smsSent ? 'inviteSmsOk' : 'inviteSmsFail',
+                    data.smsSent, { phone: data.guestPhone });
+        } else if (data.guestPhone) {
+          setStatus('invite-status', 'inviteBoth', data.emailSent || data.smsSent, {
+            email: data.guestEmail,
+            emailState: T(data.emailSent ? 'channelSent' : 'channelFailed'),
+            smsState: T(data.smsSent ? 'channelSent' : 'channelFailed')
+          });
+        } else {
+          var key = data.emailSent
+            ? (friend ? 'inviteOkFriend' : 'inviteOk')
+            : (friend ? 'inviteFailFriend' : 'inviteFail');
+          setStatus('invite-status', key, data.emailSent, { email: data.guestEmail });
+        }
       } catch (e) {
         setStatusRaw('invite-status', e.message, false);
       }

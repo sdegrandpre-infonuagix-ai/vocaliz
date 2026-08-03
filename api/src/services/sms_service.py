@@ -63,10 +63,10 @@ def send_invitation_sms(phone: str, join_link: str) -> bool:
                 # Transactional, not promotional: an invitation to a conversation starting
                 # now must not be held back or dropped by carrier promotional filtering.
                 "AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"},
-                "AWS.SNS.SMS.SenderID": {
-                    "DataType": "String",
-                    "StringValue": settings.sns_sender_id,
-                },
+                # No SenderID. Alphabetic sender IDs are not supported in Canada or the
+                # United States, which is where these messages go: carriers there require
+                # a real origination number and ignore — or reject — anything else. What
+                # the recipient sees is the number the account sends from, not a name.
             },
         )
         return True

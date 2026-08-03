@@ -18,13 +18,18 @@ export interface InvitationResult {
   invitationId: string;
   /** 'sms_contact' no longer exists — sign-in moved to email and the API returns 'email_contact'. */
   invitationType: 'salon_friend' | 'email_contact';
+  /** Either may be empty — never both. A guest reached only by text has no address. */
   guestEmail: string;
+  guestPhone: string;
   status: string;
   /** Always present: a join token is minted for every type, members included. */
   joinLink: string;
   /** Whether SES accepted the invitation email. A false here is not an error — the
    *  invitation exists and the link above works over any channel. */
   emailSent: boolean;
+  /** Same for the text message. Reported separately so a host who supplied both is not
+   *  told "sent" when only one of the two actually left. */
+  smsSent: boolean;
   /** The LiveKit identity this guest will join under, known before they connect —
    *  the handle to address a message to this guest rather than to the whole room. */
   participantIdentity: string;
@@ -48,15 +53,26 @@ export async function getMyInvitations(token: string): Promise<PendingInvitation
   return handleResponse<PendingInvitation[]>(res);
 }
 
+/**
+ * Invite someone by email, by text message, or by both.
+ *
+ * One of the two is required. A blank field is omitted rather than sent as an empty
+ * string: '' is not an address, and the API would otherwise have to guess whether it was
+ * a channel the host meant to use.
+ */
 export async function sendInvitation(
   token: string,
   sessionId: string,
-  guestEmail: string,
+  guestEmail?: string,
+  guestPhone?: string,
 ): Promise<InvitationResult> {
   const res = await fetch(`${API_URL}/sessions/${sessionId}/invitations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ guestEmail }),
+    body: JSON.stringify({
+      ...(guestEmail ? { guestEmail } : {}),
+      ...(guestPhone ? { guestPhone } : {}),
+    }),
   });
   return handleResponse<InvitationResult>(res);
 }

@@ -20,7 +20,8 @@
       "package": "ai.infonuagix.salon",
       "permissions": [
         "RECORD_AUDIO",
-        "MODIFY_AUDIO_SETTINGS"
+        "MODIFY_AUDIO_SETTINGS",
+        "READ_CONTACTS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#F8F3E8",
@@ -39,7 +40,13 @@
           "addGeneratedScheme": false
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Vocaliz uses your contacts so you can invite someone without typing their address."
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "http://localhost:8000",

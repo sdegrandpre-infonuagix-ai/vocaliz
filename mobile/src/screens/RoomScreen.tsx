@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Contact } from 'expo-contacts';
 import { AudioSession } from '@livekit/react-native';
 // livekit-client is pulled in by @livekit/react-native, which does not re-export Room;
 // it is declared as a direct dependency so this import is not resting on hoisting.
@@ -49,6 +50,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [joinLink, setJoinLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -165,31 +167,75 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     }
   }, [token, sessionId, sourceUrl, t.room]);
 
+  /**
+   * Fill the fields from the phone's own address book.
+   *
+   * The native picker rather than a list we build: it needs no permission on iOS beyond
+   * the single contact the person chose, it is the interface they already know, and it
+   * spares us reading an entire address book to display it.
+   *
+   * Whatever the contact carries is taken — an address, a number, or both — because
+   * either is enough to invite them and both is better.
+   */
+  const handlePickContact = useCallback(async () => {
+    try {
+      const contact = await Contact.presentPicker();
+      if (!contact) return;
+      // Fetched rather than read off the instance: the picker hands back a handle, and
+      // the details are loaded on demand so choosing a contact does not pull their whole
+      // record into memory.
+      const [emails, phones] = await Promise.all([contact.getEmails(), contact.getPhones()]);
+      const email = emails[0]?.address;
+      const phone = phones[0]?.number;
+      if (email) setGuestEmail(email.trim().toLowerCase());
+      if (phone) setGuestPhone(phone.trim());
+      if (!email && !phone) setNotice(t.room.contactHasNoContact);
+    } catch {
+      // Declining the picker is not a failure, and neither is a device without contacts.
+      // Either way the fields can still be typed by hand.
+    }
+  }, [t.room]);
+
   const handleInvite = useCallback(async () => {
-    if (!token || !guestEmail.trim()) return;
+    const email = guestEmail.trim().toLowerCase();
+    const phone = guestPhone.trim();
+    if (!token || (!email && !phone)) return;
     setBusy(true);
     setNotice(null);
     setJoinLink(null);
     try {
-      const invite = await sendInvitation(token, sessionId, guestEmail.trim().toLowerCase());
+      const invite = await sendInvitation(token, sessionId, email || undefined, phone || undefined);
       setGuestEmail('');
-      // The link comes back for every type, and the email goes out for every type. The
-      // notice reports what actually happened to the email rather than inferring it from
-      // the guest being a member — a member is emailed too, and a send can fail.
+      setGuestPhone('');
+      // The link comes back whatever happens, so it is shown before any verdict on
+      // delivery. Each channel is then reported on its own: a host who supplied both
+      // must not read "sent" when only one of the two actually left.
       setJoinLink(invite.joinLink);
-      setNotice(
-        !invite.emailSent
-          ? t.room.inviteEmailFailed
-          : invite.invitationType === 'salon_friend'
-            ? t.room.inviteInApp
-            : t.room.inviteEmailed,
-      );
+      if (invite.guestPhone && !invite.guestEmail) {
+        setNotice(invite.smsSent ? t.room.inviteTexted : t.room.inviteSmsFailed);
+      } else if (invite.guestPhone) {
+        setNotice(
+          invite.emailSent && invite.smsSent
+            ? t.room.inviteBothSent
+            : invite.emailSent
+              ? t.room.inviteSmsFailed
+              : t.room.inviteEmailFailed,
+        );
+      } else {
+        setNotice(
+          !invite.emailSent
+            ? t.room.inviteEmailFailed
+            : invite.invitationType === 'salon_friend'
+              ? t.room.inviteInApp
+              : t.room.inviteEmailed,
+        );
+      }
     } catch (e: any) {
       setError(e.message ?? t.room.errorGeneric);
     } finally {
       setBusy(false);
     }
-  }, [token, sessionId, guestEmail, t.room]);
+  }, [token, sessionId, guestEmail, guestPhone, t.room]);
 
   const handleLeave = useCallback(async () => {
     setBusy(true);
@@ -302,14 +348,36 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
           accessibilityLabel={t.room.inviteInputLabel}
           accessibilityHint={t.room.inviteInputHint}
         />
+        <TextInput
+          style={styles.input}
+          value={guestPhone}
+          onChangeText={setGuestPhone}
+          placeholder="+1 514 555 0123"
+          placeholderTextColor={colors.muted}
+          keyboardType="phone-pad"
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel={t.room.invitePhoneLabel}
+          accessibilityHint={t.room.invitePhoneHint}
+        />
+        <Text style={styles.fieldHint}>{t.room.inviteContactHint}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.buttonOutline, pressed && styles.buttonPressed]}
+          onPress={handlePickContact}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={t.room.pickContactButton}
+        >
+          <Text style={styles.buttonOutlineText}>{t.room.pickContactButton}</Text>
+        </Pressable>
         <Pressable
           style={({ pressed }) => [
             styles.buttonGold,
-            (!guestEmail.trim() || busy) && styles.buttonDisabled,
+            (!guestEmail.trim() && !guestPhone.trim()) || busy ? styles.buttonDisabled : null,
             pressed && styles.buttonPressed,
           ]}
           onPress={handleInvite}
-          disabled={!guestEmail.trim() || busy}
+          disabled={(!guestEmail.trim() && !guestPhone.trim()) || busy}
           accessibilityRole="button"
           accessibilityLabel={t.room.inviteButton}
         >
@@ -343,6 +411,12 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   connectingText: { fontSize: typography.bodySize, color: colors.charcoal },
+  fieldHint: {
+    fontSize: typography.captionSize,
+    color: colors.muted,
+    lineHeight: 19,
+    marginTop: spacing.sm,
+  },
   container: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,

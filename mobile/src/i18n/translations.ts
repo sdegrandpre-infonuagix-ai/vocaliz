@@ -67,6 +67,14 @@ export interface Translations {
     drivingToggle: string;
     drivingHint: string;
     drivingExit: string;
+    invitePhoneLabel: string;
+    invitePhoneHint: string;
+    inviteContactHint: string;
+    pickContactButton: string;
+    contactHasNoContact: string;
+    inviteTexted: string;
+    inviteSmsFailed: string;
+    inviteBothSent: string;
   };
   /** Fallbacks used when a request fails without the API supplying a reason. */
   auth: {
@@ -148,6 +156,14 @@ const fr: Translations = {
     drivingToggle: 'Conduite',
     drivingHint: 'Mode conduite. La conversation continue.\nTouchez l’écran pour revenir.',
     drivingExit: 'Quitter le mode conduite',
+    invitePhoneLabel: 'Numéro de mobile de l’invité',
+    invitePhoneHint: 'Avec l’indicatif du pays, par exemple +1 514 555 0123.',
+    inviteContactHint: 'L’un des deux suffit. Donnez les deux et l’invitation part par les deux.',
+    pickContactButton: 'Choisir dans mes contacts',
+    contactHasNoContact: 'Ce contact n’a ni adresse courriel ni numéro de mobile.',
+    inviteTexted: 'Message texte envoyé. Le lien est ci-dessous si vous préférez le partager vous-même.',
+    inviteSmsFailed: 'Le message texte n’a pas pu partir — partagez le lien ci-dessous vous-même.',
+    inviteBothSent: 'Invitation envoyée par courriel et par message texte.',
   },
   auth: {
     errorSendCode: "Impossible d'envoyer le code.",
@@ -225,6 +241,14 @@ const en: Translations = {
     drivingToggle: 'Driving',
     drivingHint: 'Driving mode. The conversation continues.\nTap the screen to come back.',
     drivingExit: 'Leave driving mode',
+    invitePhoneLabel: 'Guest mobile number',
+    invitePhoneHint: 'With the country code, for example +1 514 555 0123.',
+    inviteContactHint: 'One of the two is enough. Give both and the invitation goes out by both.',
+    pickContactButton: 'Choose from my contacts',
+    contactHasNoContact: 'That contact has neither an email address nor a mobile number.',
+    inviteTexted: 'Text message sent. The link is below if you would rather share it yourself.',
+    inviteSmsFailed: 'The text message could not be sent — share the link below yourself.',
+    inviteBothSent: 'Invitation sent by email and by text message.',
   },
   auth: {
     errorSendCode: 'Could not send the code.',
