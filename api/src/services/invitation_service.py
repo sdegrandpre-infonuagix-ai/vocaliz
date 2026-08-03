@@ -1,4 +1,4 @@
-"""Voice invitation service — resolves an email to a Salon user or an email contact."""
+"""Voice invitation service — resolves an email to a Vocaliz user or an email contact."""
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -58,7 +58,7 @@ def invite_guest(session_id: str, host_user: User, guest_email: str, db: Session
             # silent return was indistinguishable from a successful send.
             return _build_response(recent, session, email_sent=_try_send(recent))
 
-    # Determine type: registered Salon user or an email-only contact
+    # Determine type: registered Vocaliz user or an email-only contact
     guest_user = db.query(User).filter(User.email == guest_email).first()
     invitation_type = "salon_friend" if guest_user else "email_contact"
 
@@ -260,8 +260,8 @@ def send_followup_email_to_guests(session_id_str: str, db: Session) -> int:
             _send_email(
                 inv.guest_email,
                 bilingual_subject(
-                    "Thanks for taking part in Salon",
-                    "Merci d'avoir participé à Salon",
+                    "Thanks for taking part in Vocaliz",
+                    "Merci d'avoir participé à Vocaliz",
                 ),
                 bilingual_body(
                     "Thank you for taking part in a Salon conversation!\n\n"

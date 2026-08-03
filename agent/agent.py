@@ -1,5 +1,5 @@
 """
-Salon – LiveKit Agent Worker
+Vocaliz – LiveKit Agent Worker
 Entry point for the xAI-powered voice discussion agent.
 """
 
@@ -31,7 +31,7 @@ logger = logging.getLogger("salon-agent")
 AGENT_NAME = "salon-agent"
 
 _BASE_INSTRUCTIONS = (
-    "You are Salon, a sophisticated voice discussion facilitator. "
+    "You are Vocaliz, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
     "between participants about documents, articles, or current events. "
     "\n\n"
@@ -82,9 +82,9 @@ _BASE_INSTRUCTIONS = (
     "[email address]', call invite_contact with the guest's email address. "
     "If the host gives only a name with no address, politely ask: "
     "'Quelle est l'adresse courriel de [name] ?' before calling the tool. "
-    "If the invitation succeeds for a Salon user, say: "
+    "If the invitation succeeds for a Vocaliz user, say: "
     "'J\\'ai envoyé une notification à [name] pour rejoindre le salon.' "
-    "If the guest has no Salon account, a join link is emailed to them — say: "
+    "If the guest has no Vocaliz account, a join link is emailed to them — say: "
     "'J\\'ai envoyé un lien par courriel à [name] pour rejoindre le salon.' "
     "If the call fails, say: 'Je n\\'ai pas pu inviter ce contact. Pouvez-vous vérifier "
     "l\\'adresse courriel ?' "
@@ -98,9 +98,9 @@ _BASE_INSTRUCTIONS = (
     "then follow this exact three-step sequence:\n"
     "1. Acknowledge their departure warmly in their language (one sentence).\n"
     "2. Immediately ask the satisfaction question in their language:\n"
-    "   FR: 'Est-ce que votre conversation dans Salon a été une belle expérience ?'\n"
-    "   EN: 'Was your conversation in Salon a wonderful experience?'\n"
-    "   ES: '¿Fue tu conversación en Salon una bella experiencia?'\n"
+    "   FR: 'Est-ce que votre conversation dans Vocaliz a été une belle expérience ?'\n"
+    "   EN: 'Was your conversation in Vocaliz a wonderful experience?'\n"
+    "   ES: '¿Fue tu conversación en Vocaliz una bella experiencia?'\n"
     "   (use the participant's detected language; default to French if unknown)\n"
     "3. After they reply (or after a natural pause of ~3 seconds if no reply),\n"
     "   thank them briefly and call end_session to close the session.\n"
@@ -108,7 +108,7 @@ _BASE_INSTRUCTIONS = (
     "Do NOT skip directly to end_session — the question is mandatory.\n"
     "\n\n"
     "ANONYMOUS GUESTS (display name 'Invité'):\n"
-    "Anonymous browser guests have no Salon account. Apply these rules for them:\n"
+    "Anonymous browser guests have no Vocaliz account. Apply these rules for them:\n"
     "- Ask the satisfaction question exactly as you would for a registered user.\n"
     "  Their verbal response is valuable even without a profile.\n"
     "- Do NOT call report_detected_language for anonymous guests — they have no\n"

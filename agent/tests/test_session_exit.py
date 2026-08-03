@@ -28,24 +28,24 @@ def test_base_instructions_list_spanish_exit_phrase():
 
 def test_base_instructions_contain_french_satisfaction_question():
     assert (
-        "Est-ce que votre conversation dans Salon a été une belle expérience ?"
+        "Est-ce que votre conversation dans Vocaliz a été une belle expérience ?"
         in salon._BASE_INSTRUCTIONS
     )
 
 
 def test_base_instructions_contain_english_satisfaction_question():
-    assert "Was your conversation in Salon a wonderful experience?" in salon._BASE_INSTRUCTIONS
+    assert "Was your conversation in Vocaliz a wonderful experience?" in salon._BASE_INSTRUCTIONS
 
 
 def test_base_instructions_contain_spanish_satisfaction_question():
-    assert "¿Fue tu conversación en Salon una bella experiencia?" in salon._BASE_INSTRUCTIONS
+    assert "¿Fue tu conversación en Vocaliz una bella experiencia?" in salon._BASE_INSTRUCTIONS
 
 
 def test_base_instructions_satisfaction_question_before_end_session():
     """Satisfaction question step must appear before the end_session call in instructions."""
     instructions = salon._BASE_INSTRUCTIONS
     question_pos = instructions.find(
-        "Est-ce que votre conversation dans Salon a été une belle expérience ?"
+        "Est-ce que votre conversation dans Vocaliz a été une belle expérience ?"
     )
     end_session_pos = instructions.find("end_session")
     assert question_pos != -1

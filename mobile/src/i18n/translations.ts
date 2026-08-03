@@ -125,7 +125,7 @@ const fr: Translations = {
     inviteButton: 'Inviter',
     inviteEmailed: 'Courriel envoyé avec le lien de jonction.',
     inviteInApp:
-      'Courriel envoyé. Ce contact est inscrit dans Salon : il reçoit aussi une notification.',
+      'Courriel envoyé. Ce contact est inscrit dans Vocaliz : il reçoit aussi une notification.',
     inviteEmailFailed: "Le courriel n'a pas pu partir — partagez le lien ci-dessous vous-même.",
     leaveButton: 'Quitter la session',
     errorConnect: 'Impossible de rejoindre le salon.',
@@ -192,7 +192,7 @@ const en: Translations = {
     inviteInputHint: 'The join link is emailed to them',
     inviteButton: 'Invite',
     inviteEmailed: 'Email sent with the join link.',
-    inviteInApp: 'Email sent. This contact has a Salon account: they also get a notification.',
+    inviteInApp: 'Email sent. This contact has a Vocaliz account: they also get a notification.',
     inviteEmailFailed: 'The email could not be sent — share the link below yourself.',
     leaveButton: 'Leave session',
     errorConnect: 'Unable to join the room.',

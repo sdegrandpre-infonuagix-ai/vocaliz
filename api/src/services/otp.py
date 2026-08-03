@@ -98,18 +98,18 @@ def _send_email(email: str, code: str) -> None:
                 "Simple": {
                     "Subject": {
                         "Data": bilingual_subject(
-                            f"Your Salon code: {code}",
-                            f"Votre code Salon : {code}",
+                            f"Your Vocaliz code: {code}",
+                            f"Votre code Vocaliz : {code}",
                         ),
                         "Charset": "UTF-8",
                     },
                     "Body": {
                         "Text": {
                             "Data": bilingual_body(
-                                f"Your Salon code is: {code}\n"
+                                f"Your Vocaliz code is: {code}\n"
                                 f"Valid for {minutes} minutes.\n\n"
                                 "If you did not request this code, ignore this message.",
-                                f"Votre code Salon est : {code}\n"
+                                f"Votre code Vocaliz est : {code}\n"
                                 f"Valable {minutes} minutes.\n\n"
                                 "Si vous n'avez pas demandé ce code, ignorez ce message.",
                             ),
