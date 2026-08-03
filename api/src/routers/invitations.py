@@ -2,7 +2,7 @@
 import uuid as _uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session as DbSession
 
 from src.database import get_db
@@ -11,12 +11,13 @@ from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
 from src.schemas.invitation import (
+    GeoBody,
     GuestJoinResponse,
     InvitationResponse,
     InviteGuestBody,
     PendingInvitationResponse,
 )
-from src.services import invitation_service, livekit_service
+from src.services import invitation_service, livekit_service, salon_event_service
 
 router = APIRouter(prefix="/sessions", tags=["invitations"])
 guest_router = APIRouter(prefix="/invitations", tags=["guest"])
@@ -112,10 +113,10 @@ def guest_join_session(
     # secret, and every route taking an invitation id requires the host's JWT. Other
     # participants can read it, as they can read any identity in the room, and gain
     # nothing by it.
-    anonymous_id = livekit_service.guest_identity(invitation.id)
+    guest_id = livekit_service.guest_identity(invitation.id)
     token = livekit_service.generate_participant_token(
         room_name=session.livekit_room_name,
-        user_id=anonymous_id,
+        user_id=guest_id,
         # Every guest used to carry the same fixed label, which made them addressable but
         # still indistinguishable — on screen and to the agent alike. The label carries a
         # slice of the identity, never the email: that address is between the host and
@@ -129,7 +130,7 @@ def guest_join_session(
         livekitRoomName=session.livekit_room_name,
         livekitUrl=livekit_service._http_url(),
         sessionId=str(session.id),
-        participantIdentity=anonymous_id,
+        participantIdentity=guest_id,
         participantName=livekit_service.guest_display_name(invitation.id),
     )
 
@@ -137,6 +138,8 @@ def guest_join_session(
 @guest_router.post("/guest-join/{join_token}/confirm", status_code=200)
 def confirm_guest_join(
     join_token: str,
+    request: Request,
+    body: GeoBody | None = None,
     db: DbSession = Depends(get_db),
 ):
     """Spend the join token, now that the guest can actually be heard.
@@ -159,6 +162,22 @@ def confirm_guest_join(
     if invitation.status == "pending":
         invitation.status = "accepted"
         db.commit()
+
+    # Recorded here rather than when the credentials were fetched: this is the first
+    # moment the guest is genuinely present — microphone working, able to be heard.
+    session = db.query(SessionModel).filter(
+        SessionModel.id == invitation.session_id,
+    ).first()
+    if session is not None:
+        salon_event_service.record_entry(
+            db,
+            email=invitation.guest_email,
+            user_type="guest",
+            salon_name=session.livekit_room_name,
+            ip=salon_event_service.client_ip(request),
+            latitude=body.latitude if body else None,
+            longitude=body.longitude if body else None,
+        )
 
     return {"status": invitation.status}
 

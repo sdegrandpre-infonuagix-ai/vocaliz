@@ -11,6 +11,16 @@ class InviteGuestBody(BaseModel):
         return v.strip().lower()
 
 
+class GeoBody(BaseModel):
+    """Optional position sent by a page that obtained it from the browser.
+
+    Both fields absent is the ordinary case, not an error: the participant declined the
+    location prompt, or the browser never offered it.
+    """
+    latitude: float | None = None
+    longitude: float | None = None
+
+
 class InvitationResponse(BaseModel):
     invitationId: str
     invitationType: str   # 'salon_friend' | 'email_contact'
