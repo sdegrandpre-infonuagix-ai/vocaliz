@@ -639,8 +639,24 @@
     }
 
     async function leaveRoom() {
-      if (room) await room.disconnect();
+      if (room) {
+        // Released explicitly instead of leaving it to disconnect(): the browser's own
+        // recording indicator is what tells the host they are off the air, and leaving it
+        // lit after they left the Salon is exactly the kind of thing people notice and
+        // distrust. Failure here must not block leaving.
+        try { await room.localParticipant.setMicrophoneEnabled(false); } catch (e) {}
+        await room.disconnect();
+        room = null;
+      }
       try { await api('/sessions/' + sessionId + '/end', { method: 'POST' }); } catch (e) {}
+
+      // The mic row survives in the DOM behind the hidden card, so without this the next
+      // session would open on a green dot and "Micro actif" inherited from the last one.
+      micState = { on: false, denied: false, retried: false };
+      renderMic();
+      show('btn-mic', false);
+      show('btn-sound', false);
+
       show('c-room', false); show('c-source', false); show('c-invite', false);
       show('c-create', true);
     }

@@ -573,6 +573,12 @@
 
       room.on(LivekitClient.RoomEvent.Disconnected, function() {
         room = null;
+        // Reset here rather than in leaveNow() so every way out is covered — the Leave
+        // button, a dropped network, a deleted room. Otherwise the state stays frozen on
+        // "Microphone actif" with the dot still pulsing, asserting something untrue about
+        // a session that no longer exists.
+        micState = { on: false, denied: false, starting: false, retried: false };
+        renderMic();
         readyMode = 'left';
         renderReady();
         showCard('v-ready');
@@ -613,8 +619,14 @@
   }
 
   // ── Leave ─────────────────────────────────────────────────────────────────
-  function leaveNow() {
-    if (room) { room.disconnect(); }
+  async function leaveNow() {
+    if (!room) return;
+    // Released explicitly instead of leaving it to disconnect(): the browser's own
+    // recording indicator is what tells the participant they are off the air, and leaving
+    // it lit after they left the Salon is exactly the kind of thing people notice and
+    // distrust. Failure here must not block leaving.
+    try { await room.localParticipant.setMicrophoneEnabled(false); } catch (e) {}
+    room.disconnect();
   }
 
   // ── Microphone state, reflected instead of asserted ───────────────────────
