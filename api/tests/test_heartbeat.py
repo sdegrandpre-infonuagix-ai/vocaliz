@@ -204,3 +204,72 @@ def test_end_session_without_heartbeats_falls_back_to_created_at(client, db, hos
     db.expire(host_user)
     db.refresh(host_user)
     assert host_user.trial_seconds_used >= 60
+
+
+# ─── Per-session cap ─────────────────────────────────────────────────────────
+
+def test_heartbeat_reports_time_left_in_the_session(client, db, host):
+    """The cap is per session, distinct from the account's trial hour."""
+    from src.config import settings
+
+    host_user, token = host
+    sess = _active_session(db, host_user, "cap-remaining")
+    resp = client.post(
+        f"/sessions/{sess.id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sessionEnded"] is False
+    # A session created moments ago has very nearly the whole cap left.
+    assert settings.max_session_seconds - 5 <= body["secondsRemaining"] <= settings.max_session_seconds
+
+
+def test_heartbeat_closes_a_session_that_reached_the_cap(client, db, host):
+    """Server-side enforcement: the agent is not trusted to stop itself.
+
+    A worker that crashes or loses its connection would otherwise leave the room open and
+    billing, which is exactly what the cap exists to prevent.
+    """
+    from src.config import settings
+
+    host_user, token = host
+    sess = _active_session(db, host_user, "cap-hit")
+    # Backdate creation past the cap.
+    sess.created_at = datetime.now(tz=timezone.utc) - timedelta(
+        seconds=settings.max_session_seconds + 60
+    )
+    db.commit()
+
+    resp = client.post(
+        f"/sessions/{sess.id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sessionEnded"] is True
+    assert body["secondsRemaining"] == 0
+
+    db.expire(sess)
+    db.refresh(sess)
+    assert sess.status == "ended"
+    assert sess.ended_at is not None
+
+
+def test_heartbeat_on_a_capped_session_is_refused_afterwards(client, db, host):
+    """Once closed, further heartbeats get the ordinary ended-session refusal."""
+    from src.config import settings
+
+    host_user, token = host
+    sess = _active_session(db, host_user, "cap-twice")
+    sess.created_at = datetime.now(tz=timezone.utc) - timedelta(
+        seconds=settings.max_session_seconds + 60
+    )
+    db.commit()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client.post(f"/sessions/{sess.id}/heartbeat", json={"seconds": 30}, headers=headers)
+    second = client.post(f"/sessions/{sess.id}/heartbeat", json={"seconds": 30}, headers=headers)
+    assert second.status_code == 409

@@ -457,7 +457,7 @@ def join_session(
 
 
 @router.post("/{session_id}/heartbeat", response_model=HeartbeatResponse)
-def session_heartbeat(
+async def session_heartbeat(
     session_id: str,
     body: HeartbeatBody,
     db: DbSession = Depends(get_db),
@@ -492,11 +492,44 @@ def session_heartbeat(
     if host is not None and seconds > 0:
         host.trial_seconds_used = host.trial_seconds_used + seconds
 
-    session.last_heartbeat_at = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=timezone.utc)
+    session.last_heartbeat_at = now
     db.commit()
 
+    # Per-session cap, enforced here because the heartbeat is the only thing that ticks
+    # reliably while a conversation is live. Doing it server-side rather than trusting the
+    # agent to stop itself matters: a worker that crashes or loses its connection would
+    # otherwise leave the room open and billing.
+    #
+    # Overshoot is bounded by the heartbeat interval — thirty seconds — which is close
+    # enough for a spending guard, and far simpler than a scheduled sweep.
+    started = session.created_at
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    remaining = max(0, settings.max_session_seconds - int((now - started).total_seconds()))
+
+    ended_now = False
+    if remaining == 0:
+        # Deleting the room is what actually stops the agent; finalizing only settles the
+        # accounting. Same order as close_previous_host_sessions, for the same reason.
+        room_name = session.livekit_room_name
+        session_lifecycle.finalize_session(session, db)
+        await livekit_service.delete_room(room_name)
+        ended_now = True
+        logger.info(
+            "Session %s reached the %ds cap and was closed",
+            session.id,
+            settings.max_session_seconds,
+        )
+
+    # Re-read after finalize_session, which may have accrued the closing span.
     used = host.trial_seconds_used if host is not None else 0
-    return HeartbeatResponse(sessionId=str(session.id), trialSecondsUsed=used)
+    return HeartbeatResponse(
+        sessionId=str(session.id),
+        trialSecondsUsed=used,
+        secondsRemaining=remaining,
+        sessionEnded=ended_now,
+    )
 
 
 @router.post("/{session_id}/end", response_model=EndSessionResponse)

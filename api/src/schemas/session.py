@@ -117,3 +117,8 @@ class HeartbeatBody(BaseModel):
 class HeartbeatResponse(BaseModel):
     sessionId: str
     trialSecondsUsed: int
+    # Seconds left before this session hits its own cap — not the account's trial.
+    # Returned so the agent can wind the conversation down instead of being cut off.
+    secondsRemaining: int = 0
+    # True when this very heartbeat is the one that closed the session.
+    sessionEnded: bool = False
