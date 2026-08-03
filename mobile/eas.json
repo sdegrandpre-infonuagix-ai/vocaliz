@@ -4,6 +4,12 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.vocaliz.net",
+        "EXPO_PUBLIC_LIVEKIT_URL": "wss://salon-sojjerdy.livekit.cloud"
+      }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
@@ -12,14 +18,14 @@
       }
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "env": {
-        "APP_VARIANT": "preview",
-        "EXPO_PUBLIC_API_URL": "https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com",
-        "EXPO_PUBLIC_LIVEKIT_URL": "wss://salon-sojjerdy.livekit.cloud"
+        "APP_VARIANT": "preview"
       }
     },
     "production": {
+      "extends": "base",
       "autoIncrement": true,
       "env": {
         "APP_VARIANT": "production"

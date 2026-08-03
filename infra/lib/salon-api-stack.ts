@@ -2,15 +2,29 @@ import * as path from 'path';
 import * as cdk from 'aws-cdk-lib';
 import * as apigw from 'aws-cdk-lib/aws-apigatewayv2';
 import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as rds from 'aws-cdk-lib/aws-rds';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 const API_DIR = path.join(__dirname, '..', '..', 'api');
+
+// The zone is referenced, never created here. Creating it in this stack would tie its
+// lifetime to the stack: a teardown would delete the zone, AWS would hand out different
+// name servers on the next create, and the delegation would have to be set up again at
+// the registrar by hand. Registered at GoDaddy, delegated to these Route 53 servers.
+const DOMAIN_NAME = 'vocaliz.net';
+const HOSTED_ZONE_ID = 'Z0537891WMC5L13KI88P';
+
+// The application answers on a subdomain, leaving the apex free for a marketing site
+// later. Guest join links are built from this, so it ends up printed in emails.
+const APP_DOMAIN = `app.${DOMAIN_NAME}`;
 
 /**
  * Salon REST API: Aurora Serverless v2 + a container-image Lambda behind an HTTP API,
@@ -196,12 +210,51 @@ export class SalonApiStack extends cdk.Stack {
       }),
     );
 
+    // ── Custom domain ─────────────────────────────────────────────────────────
+    const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
+      hostedZoneId: HOSTED_ZONE_ID,
+      zoneName: DOMAIN_NAME,
+    });
+
+    // Regional, in this stack's region, because an HTTP API custom domain terminates TLS
+    // regionally — unlike CloudFront, which would require the certificate in us-east-1.
+    //
+    // DNS validation against the zone above: ACM writes the proof record itself and
+    // renews the same way, so nothing has to be maintained by hand at the registrar. This
+    // only works once the domain is actually delegated to Route 53 — otherwise the
+    // certificate sits in PENDING_VALIDATION and the deployment waits on it for hours.
+    const certificate = new acm.Certificate(this, 'AppCertificate', {
+      domainName: APP_DOMAIN,
+      validation: acm.CertificateValidation.fromDns(zone),
+    });
+
+    const domain = new apigw.DomainName(this, 'AppDomain', {
+      domainName: APP_DOMAIN,
+      certificate,
+    });
+
     // ── HTTP API ──────────────────────────────────────────────────────────────
     const httpApi = new apigw.HttpApi(this, 'HttpApi', {
       apiName: 'salon-api',
       defaultIntegration: new integrations.HttpLambdaIntegration('ApiIntegration', apiFn),
+      defaultDomainMapping: { domainName: domain },
     });
 
+    // An A record, not a CNAME: API Gateway's regional endpoint is reached through an
+    // alias, which Route 53 resolves without an extra lookup and which would also work at
+    // a zone apex if the application ever moves there.
+    new route53.ARecord(this, 'AppAliasRecord', {
+      zone,
+      recordName: 'app',
+      target: route53.RecordTarget.fromAlias(
+        new targets.ApiGatewayv2DomainProperties(
+          domain.regionalDomainName,
+          domain.regionalHostedZoneId,
+        ),
+      ),
+    });
+
+    new cdk.CfnOutput(this, 'AppUrl', { value: `https://${APP_DOMAIN}` });
     new cdk.CfnOutput(this, 'ApiUrl', { value: httpApi.apiEndpoint });
     new cdk.CfnOutput(this, 'DbEndpoint', { value: db.clusterEndpoint.hostname });
     new cdk.CfnOutput(this, 'AppSecretName', { value: appSecret.secretName });
