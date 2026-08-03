@@ -20,7 +20,13 @@
       "Bash(curl -s -m 30 https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com/sessions/__TRACKED_VAR__ -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
       "Bash(curl -s -m 30 \"https://1lhqhzwne3.execute-api.ca-central-1.amazonaws.com/host\" -o /dev/null -w \"  HTTP %{http_code}\\\\n\")",
       "Bash(python -c \"import sys,json; print\\(json.load\\(sys.stdin\\).get\\('joinLink'\\)\\)\")",
-      "Bash(git grep *)"
+      "Bash(git grep *)",
+      "Bash(echo \"tsc exit=$?\")",
+      "Bash(npx cdk *)",
+      "Bash(echo \"synth exit=$?\")",
+      "PowerShell(winget search --id LiveKit --accept-source-agreements 2>&1)",
+      "PowerShell(winget install --id LiveKit.LiveKitCLI --silent --accept-source-agreements --accept-package-agreements --disable-interactivity 2>&1)",
+      "PowerShell($env:PATH = \"$env:LOCALAPPDATA\\\\Microsoft\\\\WinGet\\\\Links;$env:PATH\"; lk --version 2>&1 | Select-Object -First 2; \"--- sous-commandes agent ---\"; lk agent --help 2>&1 | Select-Object -First 22)"
     ]
   }
 }
