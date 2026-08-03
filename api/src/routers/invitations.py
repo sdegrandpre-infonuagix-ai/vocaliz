@@ -63,10 +63,20 @@ def guest_join_session(
     join_token: str,
     db: DbSession = Depends(get_db),
 ):
-    """Redeem a one-time join token for anonymous browser access.
+    """Hand out LiveKit credentials for a join token, without spending it.
 
-    No authentication required. Marks the token as used so it cannot be reused.
-    Returns LiveKit credentials to connect directly from the browser.
+    No authentication required. The token is *not* consumed here — that happens in
+    confirm_guest_join, once the guest's microphone actually works.
+
+    Consuming on this call was the natural reading of "one-time link" and it was wrong in
+    practice. A guest who opened the link inside their mail app's embedded browser, which
+    typically cannot reach a microphone, burned the link on a page they could never speak
+    from: they heard everyone, nobody heard them, and the only way out was to ask the host
+    for a fresh invitation. Reloading, the obvious reflex, made it worse.
+
+    What keeps this from becoming a link anyone can share: the participant identity is
+    derived from the invitation, so two people opening the same link get the same LiveKit
+    identity and the second connection displaces the first. Only one can be in the room.
     """
     now = datetime.now(tz=timezone.utc)
 
@@ -91,10 +101,6 @@ def guest_join_session(
     ).first()
     if not session or session.status != "active":
         raise HTTPException(status_code=410, detail="This session is no longer available.")
-
-    # One-time use: mark token consumed before issuing LiveKit credentials
-    invitation.status = "accepted"
-    db.commit()
 
     # Derived from the invitation instead of random. The old `guest-<8 hex>` was minted
     # here and stored nowhere, so no part of Salon could name a specific guest — messages
@@ -126,6 +132,35 @@ def guest_join_session(
         participantIdentity=anonymous_id,
         participantName=livekit_service.guest_display_name(invitation.id),
     )
+
+
+@guest_router.post("/guest-join/{join_token}/confirm", status_code=200)
+def confirm_guest_join(
+    join_token: str,
+    db: DbSession = Depends(get_db),
+):
+    """Spend the join token, now that the guest can actually be heard.
+
+    Called by the guest page the moment the microphone is obtained. Splitting this from
+    the credential fetch is what lets a guest recover from a browser that refuses the
+    microphone: the link survives the failed attempt and can be reopened elsewhere.
+
+    Idempotent, and never fatal. A guest who is already in the room must not be thrown out
+    by a retry or a lost response, so a token that is already spent answers 200 rather than
+    410 — the caller has nothing useful to do with an error here.
+    """
+    invitation = db.query(Invitation).filter(
+        Invitation.join_token == join_token,
+    ).first()
+
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invalid or unknown link.")
+
+    if invitation.status == "pending":
+        invitation.status = "accepted"
+        db.commit()
+
+    return {"status": invitation.status}
 
 
 # Separate router for /me prefix — registered in main.py

@@ -295,8 +295,7 @@
       leftTitle: 'You have left the Salon',
       leftSub: 'Thank you for taking part!',
       connFailTitle: 'Connection interrupted',
-      connFailSub: 'The connection to the Salon failed. Check your network and try again — '
-                 + 'without reloading the page.',
+      connFailSub: 'The connection to the Salon failed. Check your network and try again.',
       connectedTitle: 'You are in the Salon',
       connectedSub: 'The conversation is under way. Speak freely.',
       errTitle: 'Unable to join',
@@ -314,7 +313,8 @@
       micOff: 'Microphone off',
       micBlocked: 'Microphone blocked — allow it from the icon in the address bar',
       micBlockedStill: 'Still blocked. Allow the microphone in your browser’s site settings, '
-                     + 'then tap the button again — do not reload, this link only works once.',
+                     + 'then tap the button again. If your email app opened this page, reopen '
+                     + 'the link in Safari or Chrome — the link still works.',
       micOffStill: 'Still no microphone. Check that no other app is using it, then tap again.',
       errLinkTitle: 'Link unavailable',
       errLinkDetail: 'This link is invalid, has already been used, or has expired.',
@@ -335,8 +335,7 @@
       leftTitle: 'Vous avez quitté le Salon',
       leftSub: 'Merci pour votre participation !',
       connFailTitle: 'Connexion interrompue',
-      connFailSub: 'La connexion au Salon a échoué. Vérifiez votre réseau puis réessayez — '
-                 + 'sans recharger la page.',
+      connFailSub: 'La connexion au Salon a échoué. Vérifiez votre réseau puis réessayez.',
       connectedTitle: 'Vous êtes dans le Salon',
       connectedSub: 'La conversation est en cours. Parlez librement.',
       errTitle: 'Impossible de rejoindre',
@@ -354,8 +353,9 @@
       micOff: 'Microphone inactif',
       micBlocked: "Microphone bloqué — autorisez-le via l'icône de la barre d'adresse",
       micBlockedStill: 'Toujours bloqué. Autorisez le microphone dans les réglages du site, '
-                     + 'puis retouchez le bouton — ne rechargez pas la page, ce lien ne '
-                     + 'fonctionne qu’une seule fois.',
+                     + 'puis retouchez le bouton. Si cette page s’est ouverte dans votre '
+                     + 'application de courriel, rouvrez le lien dans Safari ou Chrome — il '
+                     + 'reste valide.',
       micOffStill: "Toujours aucun microphone. Vérifiez qu'aucune autre application ne "
                  + "l'utilise, puis retouchez le bouton.",
       errLinkTitle: 'Lien non disponible',
@@ -659,11 +659,29 @@
     try {
       await room.localParticipant.setMicrophoneEnabled(true);
       setMicState(true);
+      spendToken();
     } catch (e) {
       setMicState(false, e, fromUser === true);
     } finally {
       micBtn.disabled = false;
     }
+  }
+
+  // The join token is spent here and nowhere else: only now is the participant actually
+  // able to be heard. Fetching the credentials no longer consumes it, so a browser that
+  // refuses the microphone — an embedded webview in a mail app, typically — leaves the
+  // link usable and the guest can simply reopen it in a real browser.
+  //
+  // Deliberately not awaited and never surfaced: the guest is already in the conversation
+  // by this point, and a failure here must not interrupt them. The worst case is a link
+  // that stays valid slightly longer than it should.
+  var tokenSpent = false;
+
+  function spendToken() {
+    if (tokenSpent || !joinToken) return;
+    tokenSpent = true;
+    fetch('/invitations/guest-join/' + joinToken + '/confirm', { method: 'POST' })
+      .catch(function() { /* best effort */ });
   }
 
   // ── Clean disconnect on browser close / tab close ─────────────────────────

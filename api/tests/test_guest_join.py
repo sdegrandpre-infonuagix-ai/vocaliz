@@ -87,14 +87,54 @@ def test_guest_join_requires_no_authentication(client, db, host, active_session)
 
 # ─── One-time use ─────────────────────────────────────────────────────────────
 
-def test_guest_join_marks_token_as_accepted(client, db, host, active_session):
-    """After a successful join, the invitation status becomes 'accepted'."""
+def test_fetching_credentials_does_not_spend_the_token(client, db, host, active_session):
+    """Opening the page must not burn the link — only a working microphone does.
+
+    This asserted the opposite. Consuming on fetch meant a guest whose browser refused the
+    microphone — an embedded webview in a mail app, typically — had spent their single-use
+    link on a page they could never speak from.
+    """
     host_user, _ = host
     inv = _make_invitation(db, host_user, active_session)
     client.get(f"/invitations/guest-join/{inv.join_token}")
     db.expire(inv)
     db.refresh(inv)
+    assert inv.status == "pending"
+
+
+def test_confirm_spends_the_token(client, db, host, active_session):
+    """The confirm call is what the page makes once the microphone is live."""
+    host_user, _ = host
+    inv = _make_invitation(db, host_user, active_session)
+    client.get(f"/invitations/guest-join/{inv.join_token}")
+    resp = client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
+    assert resp.status_code == 200
+    db.expire(inv)
+    db.refresh(inv)
     assert inv.status == "accepted"
+
+    # And the link is spent for good.
+    assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 410
+
+
+def test_confirm_is_idempotent(client, db, host, active_session):
+    """A retry or a duplicated call must not throw a connected guest out."""
+    host_user, _ = host
+    inv = _make_invitation(db, host_user, active_session)
+    client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
+    resp = client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "accepted"
+
+
+def test_link_survives_a_failed_microphone(client, db, host, active_session):
+    """The whole point: no confirm, so the link still opens elsewhere."""
+    host_user, _ = host
+    inv = _make_invitation(db, host_user, active_session)
+    # First attempt: page opens, microphone never works, nothing is confirmed.
+    assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 200
+    # Reopened in a real browser — still valid.
+    assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 200
 
 
 def test_guest_join_second_use_returns_410(client, db, host, active_session):
@@ -106,17 +146,19 @@ def test_guest_join_second_use_returns_410(client, db, host, active_session):
     assert "already been used" in resp.json()["detail"]
 
 
-def test_guest_join_concurrent_use_blocked(client, db, host, active_session):
-    """A token that has been used once cannot be redeemed by a second caller."""
+def test_second_fetch_blocked_once_confirmed(client, db, host, active_session):
+    """Reuse is refused after confirmation, not before.
+
+    Between fetch and confirm the link stays open, which is what lets a guest retry in
+    another browser. Two people getting that far at once is bounded elsewhere: the LiveKit
+    identity is derived from the invitation, so the second connection displaces the first.
+    """
     host_user, _ = host
     token = secrets.token_urlsafe(32)
-    inv = _make_invitation(db, host_user, active_session, token=token)
-    # First call succeeds
-    r1 = client.get(f"/invitations/guest-join/{token}")
-    assert r1.status_code == 200
-    # Second call blocked
-    r2 = client.get(f"/invitations/guest-join/{token}")
-    assert r2.status_code == 410
+    _make_invitation(db, host_user, active_session, token=token)
+    assert client.get(f"/invitations/guest-join/{token}").status_code == 200
+    client.post(f"/invitations/guest-join/{token}/confirm")
+    assert client.get(f"/invitations/guest-join/{token}").status_code == 410
 
 
 # ─── Error cases ──────────────────────────────────────────────────────────────
