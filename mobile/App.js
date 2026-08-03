@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { registerGlobals } from '@livekit/react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
@@ -64,13 +65,18 @@ export default function App() {
   }
 
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <LanguageBootstrap />
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
-      </AuthProvider>
-    </LanguageProvider>
+    // The dependency was installed but never mounted, so every SafeAreaView in the app would
+    // have reported zero insets. Needed now that a coloured bar sits at the very top of the
+    // screen: without real insets it slides under the notch and the wordmark meets the clock.
+    <SafeAreaProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <LanguageBootstrap />
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        </AuthProvider>
+      </LanguageProvider>
+    </SafeAreaProvider>
   );
 }

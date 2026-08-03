@@ -14,6 +14,9 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import Wordmark from '../components/Wordmark';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 
@@ -94,7 +97,13 @@ export default function OtpScreen({ navigation, route }: Props) {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar style="dark" />
+      {/* Light content on the burgundy bar, as on the site. */}
+      <StatusBar style="light" />
+
+      <SafeAreaView edges={['top']} style={styles.bar}>
+        <Wordmark />
+      </SafeAreaView>
+
       <View style={styles.container}>
         {/* ── Back button ── */}
         <Pressable
@@ -196,6 +205,8 @@ export default function OtpScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.ivory },
+  // Burgundy behind the inset as well as the bar, so the notch area matches the header.
+  bar: { backgroundColor: colors.burgundy },
   container: {
     flex: 1,
     paddingHorizontal: spacing.xl,

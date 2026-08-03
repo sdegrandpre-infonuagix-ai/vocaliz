@@ -16,9 +16,11 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PoweredBy from '../components/PoweredBy';
 import LanguageToggle from '../components/LanguageToggle';
+import Wordmark from '../components/Wordmark';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -67,7 +69,15 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar style="dark" />
+      {/* Light content on the burgundy bar, as on the site. */}
+      <StatusBar style="light" />
+
+      {/* Outside the ScrollView so the bar reaches both edges and stays put under the
+          keyboard, exactly as the site's header does not scroll away. */}
+      <SafeAreaView edges={['top']} style={styles.bar}>
+        <Wordmark />
+      </SafeAreaView>
+
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -172,6 +182,9 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.ivory },
+  // Burgundy behind the inset as well as the bar, so the notch area matches the header
+  // instead of showing ivory above it.
+  bar: { backgroundColor: colors.burgundy },
   container: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,

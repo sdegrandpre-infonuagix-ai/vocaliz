@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Contact } from 'expo-contacts';
 import { AudioSession } from '@livekit/react-native';
 // livekit-client is pulled in by @livekit/react-native, which does not re-export Room;
@@ -24,6 +25,7 @@ import { AudioSession } from '@livekit/react-native';
 import { Room, RoomEvent } from 'livekit-client';
 
 import PoweredBy from '../components/PoweredBy';
+import Wordmark from '../components/Wordmark';
 import CaptionsPanel from '../components/CaptionsPanel';
 import OpeningCountdown from '../components/OpeningCountdown';
 import DrivingMode from '../components/DrivingMode';
@@ -346,7 +348,15 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar style="dark" />
+      {/* Light content on the burgundy bar, as on the site. */}
+      <StatusBar style="light" />
+
+      {/* Driving mode returns above this, deliberately: it is a deliberately bare black
+          screen, and a burgundy header would defeat the point of it. */}
+      <SafeAreaView edges={['top']} style={styles.bar}>
+        <Wordmark />
+      </SafeAreaView>
+
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title} accessibilityRole="header">
           {t.room.title}
@@ -489,6 +499,8 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.ivory },
+  // Burgundy behind the inset as well as the bar, so the notch matches the header.
+  bar: { backgroundColor: colors.burgundy },
   centered: {
     flex: 1,
     alignItems: 'center',

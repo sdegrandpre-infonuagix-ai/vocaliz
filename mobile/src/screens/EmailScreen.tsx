@@ -16,11 +16,13 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import PoweredBy from '../components/PoweredBy';
 import LanguageToggle from '../components/LanguageToggle';
 import TelegraphIcon from '../components/TelegraphIcon';
+import Wordmark from '../components/Wordmark';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -54,7 +56,17 @@ export default function EmailScreen({ navigation }: Props) {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar style="dark" />
+      {/* Light content on the burgundy bar, as on the site. */}
+      <StatusBar style="light" />
+
+      {/* ── Wordmark ──
+          Outside the ScrollView so the bar reaches both edges and stays put while the
+          keyboard pushes the form. The screen used to open on the word "Salon" set in
+          Playfair, centred on ivory — the old name, in a treatment the site never used. */}
+      <SafeAreaView edges={['top']} style={styles.bar}>
+        <Wordmark />
+      </SafeAreaView>
+
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -69,10 +81,6 @@ export default function EmailScreen({ navigation }: Props) {
           <TelegraphIcon size={160} />
         </View>
 
-        {/* ── Title ── */}
-        <Text style={styles.title} accessibilityRole="header">
-          Salon
-        </Text>
         <Text style={styles.subtitle}>
           {t.email.subtitle}
         </Text>
@@ -141,16 +149,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
     backgroundColor: colors.ivory,
   },
+  // Burgundy behind the inset as well as the bar, so the notch area matches the header
+  // instead of showing ivory above it.
+  bar: {
+    backgroundColor: colors.burgundy,
+  },
   iconContainer: {
     marginBottom: spacing.xl,
-  },
-  title: {
-    fontFamily: typography.titleFamily,
-    fontSize: typography.titleSize,
-    color: colors.burgundy,
-    letterSpacing: 6,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: typography.bodySize,

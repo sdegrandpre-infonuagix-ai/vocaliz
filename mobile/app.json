@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "Salon",
+    "name": "Vocaliz",
     "slug": "salon",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "salon",
+    "scheme": "vocaliz",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "ai.infonuagix.salon",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Salon needs microphone access for voice conversations.",
-        "NSCameraUsageDescription": "Salon may use the camera for future features.",
+        "NSMicrophoneUsageDescription": "Vocaliz needs microphone access for voice conversations.",
+        "NSCameraUsageDescription": "Vocaliz may use the camera for future features.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
