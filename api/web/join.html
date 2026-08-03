@@ -1214,8 +1214,44 @@
   function spendToken() {
     if (tokenSpent || !joinToken) return;
     tokenSpent = true;
-    fetch('/invitations/guest-join/' + joinToken + '/confirm', { method: 'POST' })
-      .catch(function() { /* best effort */ });
+    fetch('/invitations/guest-join/' + joinToken + '/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device: deviceType() })
+    }).catch(function() { /* best effort */ });
+  }
+
+  // What kind of device this is, as one of the categories the API accepts. Sent rather than
+  // left to the server because the header cannot answer it: Safari on iPadOS reports itself
+  // as "Macintosh; Intel Mac OS X" with nothing to distinguish it from a real Mac. What does
+  // distinguish them is touch — a Mac reports maxTouchPoints of 0 — and only the browser can
+  // see that.
+  //
+  // A category, never the user agent itself. The header carries browser build, engine version
+  // and often the exact model, which together identify somebody across sessions; the shape of
+  // their screen does not.
+  function deviceType() {
+    try {
+      var ua = (navigator.userAgent || '').toLowerCase();
+      var touch = navigator.maxTouchPoints || 0;
+
+      if (/ipad/.test(ua)) return 'ipad';
+      if (/iphone|ipod/.test(ua)) return 'iphone';
+      // The iPad pretending to be a Mac. A desktop Safari with a touch screen does not
+      // exist, so more than one touch point on a Mac header means iPadOS.
+      if (/macintosh|mac os/.test(ua)) return touch > 1 ? 'ipad' : 'mac';
+      if (/android/.test(ua)) return /mobile/.test(ua) ? 'android-phone' : 'android-tablet';
+      if (/windows phone/.test(ua)) return 'phone';
+      if (/windows/.test(ua)) return 'windows';
+      if (/cros/.test(ua)) return 'chromeos';
+      if (/linux/.test(ua)) return 'linux';
+      if (/tablet/.test(ua)) return 'tablet';
+      if (/mobile/.test(ua)) return 'phone';
+      return '';
+    } catch (e) {
+      // A category is worth nothing at the cost of joining a salon.
+      return '';
+    }
   }
 
   // ── Clean disconnect on browser close / tab close ─────────────────────────

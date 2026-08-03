@@ -19,6 +19,7 @@ from src.schemas.invitation import (
     PendingInvitationResponse,
 )
 from src.services import (
+    device_service,
     invitation_service,
     livekit_service,
     salon_event_service,
@@ -214,6 +215,11 @@ def confirm_guest_join(
             salon_name=session.livekit_room_name,
             latitude=body.latitude if body else None,
             longitude=body.longitude if body else None,
+            # The client's own answer when it gave one, the header only as a fallback: an iPad
+            # cannot be told from a Mac by the header alone.
+            device_type=device_service.resolve(
+                body.device if body else None, request.headers.get("user-agent")
+            ),
         )
 
     return {"status": invitation.status}

@@ -41,6 +41,7 @@ from src.schemas.invitation import GeoBody, InviteGuestBody
 from src.services import (
     ad_auction_service,
     content_service,
+    device_service,
     invitation_service,
     jwt_service,
     livekit_service,
@@ -597,6 +598,11 @@ def join_session(
         latitude=body.latitude if body else None,
         longitude=body.longitude if body else None,
         first_spoken_language=current_user.detected_language,
+        # The client's own answer when it gave one, the header only as a fallback: an iPad
+        # cannot be told from a Mac by the header alone.
+        device_type=device_service.resolve(
+            body.device if body else None, request.headers.get("user-agent")
+        ),
     )
 
     token = livekit_service.generate_participant_token(

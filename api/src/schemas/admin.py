@@ -20,6 +20,12 @@ class ParticipantRecord(BaseModel):
     # Every distinct first-heard language across their salons. Empty when the agent
     # never reported one — a short session, or a participant who never spoke.
     languages: list[str]
+    # Every kind of device they have been seen on — "iphone", "windows", "android-tablet" —
+    # and never the User-Agent header behind it. Empty for somebody who only ever joined by
+    # telephone, who has no device in this sense, and for participations recorded before the
+    # column existed. A list rather than one value: hosting from a laptop and joining from a
+    # phone are both true of the same person.
+    devices: list[str] = []
 
 
 class ParticipantsResponse(BaseModel):

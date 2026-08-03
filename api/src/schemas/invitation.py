@@ -70,6 +70,11 @@ class GeoBody(BaseModel):
     """
     latitude: float | None = None
     longitude: float | None = None
+    # What kind of device the client believes it is. Sent by the page rather than derived from
+    # the User-Agent header because only the browser can tell an iPad from a Mac — iPadOS
+    # Safari reports itself as a Macintosh and the header holds nothing to separate them.
+    # Validated against a closed vocabulary server-side; an unknown value becomes absent.
+    device: str | None = None
 
 
 class InvitationResponse(BaseModel):

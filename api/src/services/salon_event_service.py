@@ -13,7 +13,7 @@ from src.models.invitation import Invitation
 from src.models.salon_event import SalonEvent
 from src.models.uploaded_data import UploadedData
 from src.models.user import User
-from src.services import location_service, summary_service
+from src.services import device_service, location_service, summary_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ def record_entry(
     latitude: float | None = None,
     longitude: float | None = None,
     first_spoken_language: str | None = None,
+    device_type: str = "",
 ) -> None:
     """Note that someone joined a salon.
 
@@ -45,6 +46,10 @@ def record_entry(
 
     A position is encoded to an Open Location Code before it is written — a cell a few
     kilometres across rather than a point. The precise coordinates never reach the disk.
+
+    The device type is a category from a closed set, never the User-Agent header behind it,
+    and it is written once for the same reason as the language: the interesting device is the
+    one somebody arrived on. See device_service.
     """
     email = email or ""
     phone = phone or ""
@@ -63,6 +68,7 @@ def record_entry(
                     user_type=user_type,
                     salon_name=salon_name,
                     plus_code=code,
+                    device_type=device_service.normalise(device_type),
                     first_spoken_language=first_spoken_language,
                     entered_at=datetime.now(tz=timezone.utc),
                 )
@@ -72,6 +78,9 @@ def record_entry(
             # arrival and granted it on re-entry is worth placing; someone who granted it
             # twice must not have the first reading replaced by a second.
             row.plus_code = row.plus_code or code
+            # Filled in late when it was missing, and never replaced: somebody who rejoins from
+            # a second device does not retroactively change the one they arrived on.
+            row.device_type = row.device_type or device_service.normalise(device_type)
             # Write-once. A later report must not overwrite the first: the column says
             # "first spoken", and a second value would quietly make that false.
             if row.first_spoken_language is None:

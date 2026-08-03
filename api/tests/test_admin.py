@@ -30,7 +30,9 @@ def ordinary(db):
     return _user(db, "someone@example.com")
 
 
-def _event(db, email, salon, *, user_type="host", entered=NOW, language=None):
+def _event(
+    db, email, salon, *, user_type="host", entered=NOW, language=None, device=""
+):
     db.add(
         SalonEvent(
             email=email,
@@ -38,6 +40,7 @@ def _event(db, email, salon, *, user_type="host", entered=NOW, language=None):
             salon_name=salon,
             entered_at=entered,
             first_spoken_language=language,
+            device_type=device,
         )
     )
     db.commit()
@@ -170,3 +173,42 @@ def test_limit_is_bounded(client, admin):
     """No caller can ask for an unbounded export in one request."""
     _, token = admin
     assert client.get("/admin/participants?limit=5000", headers=_auth(token)).status_code == 422
+
+
+# ─── Devices ─────────────────────────────────────────────────────────────────
+
+def test_devices_are_collected_across_salons(client, admin, db):
+    """Hosting from a laptop and joining from a phone are both true of the same person, so this
+    is a list and not the most recent one."""
+    _, token = admin
+    _event(db, "alice@example.com", "salon-a", device="mac")
+    _event(db, "alice@example.com", "salon-b", device="iphone")
+    body = client.get("/admin/participants", headers=_auth(token)).json()
+    assert body["participants"][0]["devices"] == ["iphone", "mac"]
+
+
+def test_a_participation_with_no_device_adds_nothing(client, admin, db):
+    """Somebody who joined by telephone has no device in this sense, and a blank must not
+    surface as an empty entry in the list."""
+    _, token = admin
+    _event(db, "alice@example.com", "salon-a", device="windows")
+    _event(db, "alice@example.com", "salon-b", device="")
+    body = client.get("/admin/participants", headers=_auth(token)).json()
+    assert body["participants"][0]["devices"] == ["windows"]
+
+
+def test_a_person_seen_on_one_device_twice_lists_it_once(client, admin, db):
+    _, token = admin
+    _event(db, "alice@example.com", "salon-a", device="ipad")
+    _event(db, "alice@example.com", "salon-b", device="ipad")
+    body = client.get("/admin/participants", headers=_auth(token)).json()
+    assert body["participants"][0]["devices"] == ["ipad"]
+
+
+def test_devices_are_absent_rather_than_missing_for_older_rows(client, admin, db):
+    """Everything recorded before the column existed reads as empty, and the field is still
+    present so a caller never has to test for its absence."""
+    _, token = admin
+    _event(db, "alice@example.com", "salon-a")
+    body = client.get("/admin/participants", headers=_auth(token)).json()
+    assert body["participants"][0]["devices"] == []

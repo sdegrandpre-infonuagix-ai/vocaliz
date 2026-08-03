@@ -75,6 +75,7 @@ def list_participants(
     # emails, so their cost follows the page and not the size of the table.
     types: dict[tuple[str, str], set[str]] = {}
     languages: dict[tuple[str, str], set[str]] = {}
+    devices: dict[tuple[str, str], set[str]] = {}
     if people:
         # Filtered on the pair itself, not on each column separately: two independent
         # IN clauses match combinations that are not on this page — harmless here, since
@@ -95,6 +96,15 @@ def list_participants(
             .distinct()
         ):
             languages.setdefault((email, phone), set()).add(language)
+        # Every device a person has been seen on, not the last one: somebody who hosts from a
+        # laptop and joins from a phone is both, and keeping only one would answer a question
+        # nobody asked.
+        for email, phone, device in (
+            db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.device_type)
+            .filter(on_page, SalonEvent.device_type != "")
+            .distinct()
+        ):
+            devices.setdefault((email, phone), set()).add(device)
 
     # Who read what, and how much of it. Not the addresses themselves: writing the list
     # to CloudWatch would copy the personal data into a second store with its own
@@ -119,6 +129,7 @@ def list_participants(
                 firstSeen=row.first_seen,
                 lastSeen=row.last_seen,
                 languages=sorted(languages.get((row.email, row.phone), set())),
+                devices=sorted(devices.get((row.email, row.phone), set())),
             )
             for row in grouped
         ],

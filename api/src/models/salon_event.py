@@ -58,6 +58,21 @@ class SalonEvent(Base):
     # would be holding personal data against a plan rather than against a use.
     plus_code: Mapped[str] = mapped_column(String(16), nullable=False, default="")
 
+    # What kind of device this person joined from, as one of a closed set of categories —
+    # "iphone", "android-tablet", "windows" — and never the User-Agent header it came from.
+    # The header carries browser build, engine version and often the exact model, which
+    # together identify somebody across sessions better than anything else here; a category
+    # answers what the interface should assume and nothing about who.
+    #
+    # On the participation rather than the account, for the same reason as the language above:
+    # the same person joins from a laptop at work and a phone on the train, and an account-level
+    # column would keep only the last of those and call it a fact about them.
+    #
+    # Empty when nothing could be determined — a telephone participant has no device at all in
+    # this sense. See device_service for why the classification comes from the browser rather
+    # than from the header: Safari on iPad reports itself as a Macintosh.
+    device_type: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+
     # BCP-47 code for the first language this person was heard speaking *in this salon* —
     # not the language of the interface they clicked through, and not a property of the
     # person. Someone may hold one conversation in French and the next in English, which

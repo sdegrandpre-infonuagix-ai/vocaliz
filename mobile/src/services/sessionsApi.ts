@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { deviceType } from './deviceType';
 
 const API_URL: string =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? 'http://localhost:8000';
@@ -111,7 +112,14 @@ export async function joinSession(
 ): Promise<JoinSessionResponse> {
   const res = await fetch(`${API_URL}/sessions/${sessionId}/join`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    // Sent by the client rather than derived from the User-Agent header: this app's requests
+    // carry no browser header worth reading, and even on the web the header cannot tell an
+    // iPad from a Mac.
+    body: JSON.stringify({ device: deviceType() }),
   });
   return handleResponse<JoinSessionResponse>(res);
 }
