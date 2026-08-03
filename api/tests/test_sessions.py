@@ -391,3 +391,39 @@ def test_a_room_holds_a_host_two_guests_and_the_agent():
     from src.config import settings
 
     assert settings.livekit_room_max_participants == 4
+
+
+# ─── The front-end pages revalidate cheaply ──────────────────────────────────
+
+def test_a_page_carries_an_etag_and_forbids_blind_reuse(client):
+    """no-cache means "revalidate before use", not "do not keep". It is only useful paired with
+    a validator the server actually compares."""
+    r = client.get("/host")
+    assert r.status_code == 200
+    assert r.headers.get("etag")
+    assert "no-cache" in r.headers.get("cache-control", "")
+
+
+def test_an_unchanged_page_answers_304_with_no_body(client):
+    """FileResponse sends an ETag and never reads If-None-Match — it is built without a request.
+    Before this the browser revalidated on every load and got the full 64 KB back every time."""
+    first = client.get("/host")
+    again = client.get("/host", headers={"If-None-Match": first.headers["etag"]})
+    assert again.status_code == 304
+    assert again.content == b""
+    assert again.headers.get("etag") == first.headers["etag"]
+
+
+def test_a_stale_etag_gets_the_page(client):
+    """The case that matters after a deployment: the browser's copy is out of date and must be
+    replaced, not revalidated into place."""
+    r = client.get("/host", headers={"If-None-Match": '"something-else"'})
+    assert r.status_code == 200
+    assert b"VOCALIZ" in r.content
+
+
+def test_the_guest_page_revalidates_the_same_way(client):
+    first = client.get("/join/whatever")
+    assert first.headers.get("etag")
+    again = client.get("/join/whatever", headers={"If-None-Match": first.headers["etag"]})
+    assert again.status_code == 304
