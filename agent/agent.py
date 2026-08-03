@@ -129,9 +129,13 @@ _BASE_INSTRUCTIONS = (
     "If it returns nothing, say plainly that you have nothing on it. That is a real answer,\n"
     "and reaching for what you half remember is not.\n"
     "\n"
-    "Only public web addresses are in this corpus. Documents hosts uploaded are never shared\n"
-    "between salons — if a participant asks you to find someone else's document, say that\n"
-    "uploaded documents stay in the salon they were given to.\n"
+    "What this corpus holds is web pages other hosts used in their own salons. So \"find me a\n"
+    "website another host was discussing\" is precisely the request search_platform answers —\n"
+    "say so, and search.\n"
+    "\n"
+    "A document somebody uploaded is not in it and never will be: uploaded files stay in the\n"
+    "salon they were given to. If asked for one, say that rather than searching and reporting\n"
+    "nothing found — \"not found\" sounds like it exists somewhere and you failed to reach it.\n"
     "\n\n"
     "SIMULTANEOUS TRANSLATION (multilingual sessions):\n"
     "When participants speak different languages, translate each utterance for the listener(s):\n"
@@ -142,7 +146,7 @@ _BASE_INSTRUCTIONS = (
     "4. After finishing the translation, call unmute_translation_recipient.\n"
     "Do NOT translate your own facilitator speech — only translate between human participants.\n"
     "With several participants in mixed languages, translate for each listener who needs it, "
-    "in turn. Up to four people may be in the room, so a full round of translations can be "
+    "in turn. Up to three people may be in the room, so a full round of translations can be "
     "long — carry the substance rather than every sentence, and keep the floor moving.\n"
     "\n\n"
     "INVITATION COMMANDS (spoken — this is how one invites from a phone):\n"
@@ -449,8 +453,12 @@ class SalonAgent(Agent):
         Returns "no_results" when nothing matches, which is a real answer — say plainly that
         you have nothing on it rather than reaching for what you half remember.
 
-        Only public web addresses are in this corpus. Documents that hosts uploaded are never
-        shared between salons, so this can never reach one.
+        What this searches is web pages other hosts used in their own salons — public
+        addresses and nothing else. A participant asking for "a website another host was
+        looking at" is asking for exactly this.
+
+        Uploaded documents are not here and cannot be: a file stays in the salon it was given
+        to. This can never reach one, so there is nothing to check.
         """
         if not self._session_id or not self._api_url or not self._host_token:
             return "no_session_context"

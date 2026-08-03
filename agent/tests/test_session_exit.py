@@ -311,14 +311,26 @@ def test_instructions_require_attribution():
     assert "Name the publisher and the date" in section
 
 
+def test_instructions_lead_with_what_can_be_found():
+    """The natural request is positive — "find me a website another host used" — so the
+    prompt says that first. Leading with the prohibition teaches the model what it cannot do
+    before what it can, and a model that has learned a refusal reaches for it."""
+    section = salon._BASE_INSTRUCTIONS[
+        salon._BASE_INSTRUCTIONS.find("ASKING BEYOND THIS SALON"):
+    ]
+    assert "web pages other hosts used in their own salons" in section
+    assert section.index("is precisely the request") < section.index("is not in it")
+
+
 def test_instructions_state_that_uploaded_documents_never_travel():
     """The agent will be asked. It must answer with the rule rather than searching and
     reporting nothing found, which sounds like the document merely could not be located."""
     section = salon._BASE_INSTRUCTIONS[
         salon._BASE_INSTRUCTIONS.find("ASKING BEYOND THIS SALON"):
     ]
-    assert "never shared" in section
-    assert "stay in the salon they were given to" in section
+    # Matched on fragments that do not straddle a line break in the prompt.
+    assert "uploaded files stay in the" in section
+    assert "sounds like it exists somewhere" in section
 
 
 def test_no_results_is_a_real_answer():
@@ -340,4 +352,4 @@ def test_corpus_tools_refuse_without_session_context():
 def test_translation_guidance_no_longer_assumes_three_people():
     """The room now holds a host, three guests and the agent."""
     assert "3-way session" not in salon._BASE_INSTRUCTIONS
-    assert "Up to four people may be in the room" in salon._BASE_INSTRUCTIONS
+    assert "Up to three people may be in the room" in salon._BASE_INSTRUCTIONS

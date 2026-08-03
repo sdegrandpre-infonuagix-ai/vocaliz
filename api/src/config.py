@@ -69,13 +69,14 @@ class Settings(BaseSettings):
     livekit_api_secret: str  # required — set LIVEKIT_API_SECRET env var
 
     # Session settings
-    # A host, three guests and the agent. Two guests more than before.
+    # A host, two guests and the agent. One guest more than before, and deliberately not
+    # more than that.
     #
-    # Worth knowing what gets worse rather than discovering it: caption attribution. The
-    # realtime model hears every participant mixed into one stream, so who spoke is taken
-    # from LiveKit's active-speaker detection — right when one person talks, a guess when two
-    # overlap. Four humans overlap more often than two.
-    livekit_room_max_participants: int = 5
+    # The limit is not technical. Caption attribution is: the realtime model hears every
+    # participant mixed into one stream, so who spoke comes from LiveKit's active-speaker
+    # detection — right when one person talks, a guess when two overlap. Three humans already
+    # overlap; four would make the transcript unreliable often enough to notice.
+    livekit_room_max_participants: int = 4
     livekit_room_empty_timeout: int = 300   # 5 min (auto-close if no one joins)
 
     # Invitation join links sent via SMS to non-registered contacts
