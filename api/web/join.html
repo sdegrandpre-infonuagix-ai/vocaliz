@@ -302,12 +302,12 @@
       display:flex; flex-direction:column; gap:10px;
     }
     .cap-line { border-left:2px solid rgba(201,168,106,.45); padding:2px 0 2px 12px; }
-    .cap-who { font-size:12px; letter-spacing:.04em; text-transform:uppercase; opacity:.65; }
-    .cap-text { font-size:15px; line-height:1.5; }
+    .cap-who { font-size:0.75em; letter-spacing:.04em; text-transform:uppercase; opacity:.65; }
+    .cap-text { font-size:0.94em; line-height:1.5; }
     /* The spoken words, kept under the translation. A translation with no original is a
        claim the reader cannot check — and the check matters most when it reads oddly. */
-    .cap-src { font-size:13px; line-height:1.45; opacity:.5; font-style:italic; margin-top:2px; }
-    .cap-empty { font-size:14px; opacity:.55; }
+    .cap-src { font-size:0.81em; line-height:1.45; opacity:.5; font-style:italic; margin-top:2px; }
+    .cap-empty { font-size:0.88em; opacity:.55; }
     .cap-notice { font-size:12.5px; line-height:1.5; opacity:.62; margin-top:12px; }
   </style>
 </head>
@@ -1595,8 +1595,9 @@
   function applyCaptionSize() {
     var log = document.getElementById('cap-log');
     if (!log) return;
-    // One scale on the container: em-based children follow it, so the speaker label and the
-    // original-language line keep their proportion to the text they belong to.
+    // One scale on the container. This only works because the caption children are sized in
+    // em: they were in px, which ignores a parent's font-size outright, so these buttons
+    // changed nothing at all until that was fixed.
     log.style.fontSize = capScale + '%';
     var at = CAP_STEPS.indexOf(capScale);
     var smaller = document.getElementById('cap-smaller');

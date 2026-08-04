@@ -138,3 +138,52 @@ def test_an_unknown_key_yields_the_key_rather_than_nothing(page):
     out = subprocess.run(["node", "-e", harness], capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, out.stderr
     assert out.stdout == "somethingNobodyDefined"
+
+
+# ─── Caption size ────────────────────────────────────────────────────────────
+#
+# The buttons set a font-size on the caption container and every child kept its own px, which
+# ignores a parent's font-size outright. They changed nothing at all, and looked correct: the
+# code was there, the state was stored, the value round-tripped to the account. Only the
+# rendered result was wrong, and nothing was checking it.
+
+@pytest.mark.parametrize("page", PAGES)
+def test_the_caption_children_scale_with_their_container(page):
+    """Every caption element sized in em, not px. One absolute size among them is enough to
+    make the size buttons partly inert, which is harder to notice than wholly inert."""
+    source = _source(page)
+    start = source.index(".cap-line")
+    block = source[start : source.index("</style>", start)]
+    absolute = re.findall(r"(\.cap-[a-z]+)\s*\{[^}]*font-size:\s*[\d.]+px", block)
+    # cap-notice is deliberately excluded: it is a statement about the room rather than part of
+    # the transcript, so it does not follow the reading size.
+    offenders = [c for c in absolute if c != ".cap-notice"]
+    assert not offenders, f"{page}: absolute caption sizes {offenders}"
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_the_scale_is_applied_to_the_container(page):
+    """The container is what carries the scale; a rule that set it on each line would have to
+    know their proportions to each other."""
+    source = _source(page)
+    assert "log.style.fontSize = capScale + '%'" in source
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_the_steps_are_whole_percentages(page):
+    """Integers, because the stored value is compared against this list and a float read back
+    from a database is not reliably the float in it."""
+    source = _source(page)
+    steps = source[source.index("var CAP_STEPS = ["):]
+    steps = steps[: steps.index("]")]
+    assert "." not in steps, f"{page}: fractional caption steps in {steps}"
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_the_stored_size_is_applied_before_the_first_click(page):
+    """Without this the reader's choice only took effect the next time they pressed a button."""
+    source = _source(page)
+    start = source.index("function initCaptions()")
+    # A window rather than a brace scan: the two pages indent their top level differently, and
+    # matching on indentation is how the first version of this test failed on one of them.
+    assert "applyCaptionSize()" in source[start : start + 700]

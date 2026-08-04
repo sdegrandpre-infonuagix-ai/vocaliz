@@ -1118,8 +1118,14 @@ def confirm_ad_delivered(
 
 
 def _host_session(session_id: str, db: DbSession, current_user: User) -> SessionModel:
+    # Imported inside the function, as every other handler in this module does. There is no
+    # module-level `uuid` here, and assuming one produced a NameError on the first click of a
+    # button that had passed every test — the tests patch this module's dependencies but never
+    # exercise a real request through these two endpoints.
+    import uuid as _uuid
+
     try:
-        session_uuid = uuid.UUID(session_id)
+        session_uuid = _uuid.UUID(session_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Session not found.")
     session = db.query(SessionModel).filter(
