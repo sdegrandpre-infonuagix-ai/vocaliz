@@ -357,3 +357,46 @@ def test_all_three_places_agree_on_the_identity(client, db, session, host):
     recorded = db.query(SalonEvent).one().participant_identity
 
     assert handed == recorded == str(guest.id)
+
+
+def test_a_folded_participation_keeps_its_salon(db, session, host):
+    """The behaviour migration 038 repairs, asserted at the level that matters: a registered
+    person's guest participation belongs to them, not to an invitation.
+
+    Going forward this is automatic — identity_for returns the account UUID — so a row written
+    today already lands where the migration would have put it, and no salon is lost.
+    """
+    from src.models.salon_event import SalonEvent
+    from src.services import livekit_service, salon_event_service
+
+    host_user, _ = host
+    guest = User(email="folded@example.com")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    invitation = _invitation(
+        db, session, host_user, guest_user_id=guest.id, token="t-fold", kind="salon_friend"
+    )
+
+    # As host of their own salon.
+    salon_event_service.record_entry(
+        db,
+        participant_identity=str(guest.id),
+        email=guest.email,
+        user_type="host",
+        salon_name="salon-of-their-own",
+    )
+    # And as an invited guest of somebody else's.
+    salon_event_service.record_entry(
+        db,
+        participant_identity=livekit_service.identity_for(invitation),
+        email=guest.email,
+        user_type="guest",
+        salon_name=session.livekit_room_name,
+    )
+
+    rows = db.query(SalonEvent).all()
+    assert len(rows) == 2, "two salons, so two participations"
+    # One identity across both, which is what makes the report show one line.
+    assert {r.participant_identity for r in rows} == {str(guest.id)}
+    assert {r.user_type for r in rows} == {"host", "guest"}
