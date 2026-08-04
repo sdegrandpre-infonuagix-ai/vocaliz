@@ -493,9 +493,9 @@
       <select id="cap-lang" onchange="setCaptionLang(this.value)"
               aria-label="Caption language"></select>
       <div class="cap-size">
-        <button onclick="stepCaptionSize(-1)" id="cap-smaller" data-i18n-title="capSmaller"
+        <button onclick="stepCaptionSize(-1)" id="cap-smaller" data-i18n-aria="capSmaller"
                 aria-label="Smaller captions">A&minus;</button>
-        <button onclick="stepCaptionSize(1)" id="cap-bigger" data-i18n-title="capBigger"
+        <button onclick="stepCaptionSize(1)" id="cap-bigger" data-i18n-aria="capBigger"
                 aria-label="Larger captions">A+</button>
       </div>
     </div>
@@ -613,6 +613,8 @@
       countdownNow: 'Vocaliz is starting…',
       billboardLabel: 'Being discussed',
       capTitle: 'Live captions',
+      capSmaller: 'Smaller captions',
+      capBigger: 'Larger captions',
       capAsSpoken: 'As spoken',
       capEmpty: 'Nothing said yet.',
       capNotice: 'What is said in this Salon is transcribed and stored so it can be '
@@ -677,6 +679,8 @@
       countdownNow: 'Vocaliz commence…',
       billboardLabel: 'On en parle',
       capTitle: 'Sous-titres en direct',
+      capSmaller: 'Réduire les sous-titres',
+      capBigger: 'Agrandir les sous-titres',
       capAsSpoken: 'Tel que dit',
       capEmpty: 'Rien encore dit.',
       capNotice: 'Ce qui se dit dans ce Salon est transcrit et conservé afin de pouvoir '
@@ -963,6 +967,21 @@
     var nodes = document.querySelectorAll('[data-i18n]');
     for (var i = 0; i < nodes.length; i++) {
       nodes[i].textContent = T(nodes[i].getAttribute('data-i18n'));
+    }
+
+    // Accessible names, which a screen reader announces and nobody sees. Left untranslated
+    // they would read out English to somebody using the interface in Thai — and the caption
+    // size controls exist for people who have trouble reading the screen.
+    var labels = document.querySelectorAll('[data-i18n-aria]');
+    for (var a = 0; a < labels.length; a++) {
+      labels[a].setAttribute('aria-label', T(labels[a].getAttribute('data-i18n-aria')));
+    }
+
+    // This page had no placeholder pass at all, so a data-i18n-ph attribute on it was inert —
+    // which the account form's email field discovered the moment it was added.
+    var phs = document.querySelectorAll('[data-i18n-ph]');
+    for (var j = 0; j < phs.length; j++) {
+      phs[j].placeholder = T(phs[j].getAttribute('data-i18n-ph'));
     }
 
     var langSelect = document.getElementById('lang-select');
