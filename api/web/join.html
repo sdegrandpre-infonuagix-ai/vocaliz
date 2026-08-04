@@ -1199,8 +1199,27 @@
   // audible media anyway — starting muted means the stream always attaches, and the
   // toggle, being a click, satisfies the gesture requirement when sound is turned on.
   var SOUND_KEY = 'vocaliz.soundOn';
-  var soundOn = false;
-  try { soundOn = localStorage.getItem(SOUND_KEY) === '1'; } catch (e) { }
+  // Muted by default on a computer, audible by default on a phone.
+  //
+  // That asymmetry was the instruction and the code contradicted it: soundOn was false for
+  // everyone. A desktop or laptop is often in an office where sound arriving unannounced is
+  // unwelcome, so it waits to be asked. A phone already has a volume control and a mute switch
+  // in the person's hand — muting it again in software means a mobile participant hears nothing
+  // and has no idea why.
+  //
+  // A stored choice wins over both: somebody who turned it off meant it.
+  var soundOn = (function () {
+    try {
+      var stored = localStorage.getItem(SOUND_KEY);
+      if (stored === '1') return true;
+      if (stored === '0') return false;
+    } catch (e) { }
+    // deviceType() is the same classification the report is built from, so "phone" here and
+    // "phone" there mean one thing.
+    var kind = deviceType();
+    return kind === 'iphone' || kind === 'ipad' || kind === 'android-phone'
+      || kind === 'android-tablet' || kind === 'phone' || kind === 'tablet';
+  })();
 
   // Every attached element, so the toggle reaches tracks that arrived before it was
   // flipped as well as after.
@@ -1265,7 +1284,37 @@
   }
 
   // ── Join the LiveKit room ──────────────────────────────────────────────────
+  // Ask for the microphone while the click is still warm.
+  //
+  // iOS Safari grants getUserMedia only inside the activation window a user gesture opens, and
+  // the room join spends that window: two network round trips and a WebRTC handshake stand
+  // between the click and the moment LiveKit asks. Safari then refuses with NotAllowedError even
+  // though somebody did click — and only the first time, because once the permission is granted
+  // for the origin it is remembered. So it works for anyone who has used the site before and
+  // fails for every new visitor on an iPhone, which is the worst possible shape for a defect.
+  //
+  // Called first, awaited before anything else, and the tracks are stopped immediately: the
+  // point is the permission, not the stream. LiveKit opens its own a moment later and now finds
+  // the permission already there.
+  //
+  // Failure is deliberately not fatal. Somebody who refuses the microphone can still join and
+  // listen, and the "enable microphone" button is a direct gesture that works where this did
+  // not.
+  async function warmUpMicrophone() {
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(function (track) { track.stop(); });
+      return true;
+    } catch (e) {
+      console.warn('Vocaliz: microphone not granted up front', e);
+      return false;
+    }
+  }
+
   async function joinNow() {
+    // First, before any await that would spend the gesture. See warmUpMicrophone.
+    await warmUpMicrophone();
+
     document.getElementById('btn-join').disabled = true;
     try {
       room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });

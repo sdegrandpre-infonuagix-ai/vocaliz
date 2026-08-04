@@ -187,3 +187,79 @@ def test_the_stored_size_is_applied_before_the_first_click(page):
     # A window rather than a brace scan: the two pages indent their top level differently, and
     # matching on indentation is how the first version of this test failed on one of them.
     assert "applyCaptionSize()" in source[start : start + 700]
+
+
+# ─── The microphone, and the gesture Safari insists on ───────────────────────
+#
+# Eight hosts reached a room and none was ever heard, seven of them on phones. Two causes, both
+# readable in the page: the microphone was asked for long after the click that authorised it, and
+# sound was muted by default on mobile too.
+
+@pytest.mark.parametrize("page", PAGES)
+def test_the_microphone_is_asked_for_while_the_click_is_still_warm(page):
+    """iOS Safari grants getUserMedia only inside the activation window a gesture opens. Two
+    network round trips and a WebRTC handshake used to stand in between, so Safari refused —
+    and only on somebody's first visit, which is the worst possible shape for a defect."""
+    source = _source(page)
+    assert "async function warmUpMicrophone()" in source
+    assert "navigator.mediaDevices.getUserMedia({ audio: true })" in source
+
+
+@pytest.mark.parametrize(
+    "page,handler",
+    [("host.html", "async function createSession()"), ("join.html", "async function joinNow()")],
+)
+def test_nothing_is_awaited_before_the_microphone(page, handler):
+    """The whole point of the fix is the order. An await placed above this line would spend the
+    gesture again and put the defect back without changing a visible thing."""
+    source = _source(page)
+    body = source[source.index(handler):]
+    warm = body.index("await warmUpMicrophone()")
+    # Positions, not a word search: the comment above the call says "await" itself, and a test
+    # that reads its own explanation proves nothing.
+    for blocking in ("await api(", "await fetch(", "await room."):
+        at = body.find(blocking)
+        if at != -1:
+            assert warm < at, f"{page}: {blocking} runs before the microphone is asked for"
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_the_permission_is_kept_and_the_stream_is_not(page):
+    """It is the permission that matters, not the audio: LiveKit opens its own track a moment
+    later. Holding this one would leave the recording indicator lit for no reason."""
+    source = _source(page)
+    warm = source[source.index("async function warmUpMicrophone()"):]
+    warm = warm[: warm.index("\n}") if "\n}" in warm[:2000] else 1500]
+    assert "track.stop()" in warm
+
+
+# ─── Sound, and the instruction the code contradicted ────────────────────────
+
+@pytest.mark.parametrize("page", PAGES)
+def test_sound_is_not_muted_for_everyone(page):
+    """It was `var soundOn = false` unconditionally, so a mobile host heard nothing and had no
+    idea why — against an explicit instruction that mobile should follow the device volume."""
+    source = _source(page)
+    assert "var soundOn = false;" not in source
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_the_default_depends_on_the_device(page):
+    source = _source(page)
+    block = source[source.index("var soundOn = (function ()"):]
+    block = block[: block.index("})();")]
+    # The same categories the report is built from, so "phone" means one thing in both places.
+    for kind in ("iphone", "android-phone", "tablet"):
+        assert kind in block, f"{page}: {kind} not considered"
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_a_stored_choice_beats_the_device_default(page):
+    """Somebody who turned sound off meant it, on a phone as much as on a laptop. The toggle
+    writes '0' as well as '1' precisely so that "off on purpose" is distinguishable from "never
+    chose"."""
+    source = _source(page)
+    block = source[source.index("var soundOn = (function ()"):]
+    block = block[: block.index("})();")]
+    assert "stored === '1'" in block and "stored === '0'" in block
+    assert "SOUND_KEY, soundOn ? '1' : '0'" in source
