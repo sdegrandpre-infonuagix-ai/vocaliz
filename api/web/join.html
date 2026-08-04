@@ -64,7 +64,9 @@
 
     /* With the button present the language switch is no longer the element pushed to the
        end, so its own auto margin has to go or the two fight for the same space. */
-    .btn-account + .lang { margin-left: 8px; }
+    /* Both the offer and the console button carry the auto margin, and exactly one of the
+       two is ever shown. The language switch keeps its own, so the free space splits between
+       them and both sit toward the right — where the agent says the button is. */
 
     /* Language switch — pushed to the far end of the header bar. */
     .lang { margin-left: auto; display: flex; gap: 4px; }
@@ -323,6 +325,12 @@
   <button id="btn-account" class="btn-account" onclick="openAccount()"
           data-i18n="createAccount" style="display:none">Create an account</button>
 
+  <!-- Replaces the offer above once the account exists, in the same place. Somebody who has
+       just signed up is a host who has not hosted yet, and the console is where they would
+       start their own Salon. -->
+  <button id="btn-console" class="btn-account" onclick="openConsole()"
+          data-i18n="openConsole" style="display:none">Host console</button>
+
   <div class="lang">
     <!-- Sixteen languages, so a select rather than a row of buttons. English and
          French are inline in this file and switch instantly; the other fourteen are
@@ -535,6 +543,8 @@
     en: {
       pageTitle: 'Vocaliz — Join the conversation',
       badge: 'No install',
+      openConsole: 'Host console',
+      consoleLeaves: 'Opening the console will end your participation in this Salon. Continue?',
       createAccount: 'Create an account',
       accountTitle: 'Create an account',
       accountSub: 'Your reading language and your caption language are kept, so you do not set them again.',
@@ -595,6 +605,8 @@
     fr: {
       pageTitle: 'Vocaliz — Rejoindre la conversation',
       badge: 'Sans installation',
+      openConsole: 'Console hôte',
+      consoleLeaves: 'Ouvrir la console mettra fin à votre participation à ce Salon. Continuer ?',
       createAccount: 'Créer un compte',
       accountTitle: 'Créer un compte',
       accountSub: 'Votre langue de lecture et votre langue de sous-titres sont conservées, vous ne les choisirez plus.',
@@ -1493,11 +1505,33 @@
 
       acctStatus('accountDone', true);
       document.getElementById('btn-account').style.display = 'none';
+      // Same slot, top right. Somebody who has just signed up is a host who has not hosted
+      // yet, and the console is where they would open their own Salon.
+      document.getElementById('btn-console').style.display = '';
       // Left on screen for a moment so the confirmation is read, then back to the room.
       setTimeout(closeAccount, 2500);
     } catch (e) {
       acctStatus(null, false, e.message || T('accountFailed'));
     }
+  }
+
+  // Over to the host console, already signed in.
+  //
+  // The token this page just obtained is handed over through sessionStorage under the key the
+  // console reads. Both pages are the same origin and this is the same tab, so it survives the
+  // navigation — which spares somebody who authenticated ten seconds ago from doing it again.
+  //
+  // Leaving the page disconnects the room, which the unload handler already does. Confirmed
+  // first when the conversation is still running: switching screens is not worth walking out
+  // of a conversation somebody is still in without being asked.
+  function openConsole() {
+    if (room && !confirm(T('consoleLeaves'))) return;
+    try {
+      if (accountToken) sessionStorage.setItem('salon_host_jwt', accountToken);
+    } catch (e) {
+      // Private mode refuses storage; the console will simply ask them to sign in.
+    }
+    window.location.href = '/host';
   }
 
   // ── Clean disconnect on browser close / tab close ─────────────────────────
