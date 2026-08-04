@@ -472,6 +472,14 @@
         </div>
       </div>
       <button class="btn btn-gold" onclick="invite()" data-i18n="generateButton">Generate the link</button>
+      <!-- For a guest the host has no way to write to. Same one-time link, addressed to
+           nobody: nothing is sent, and the host passes it on however they like. -->
+      <button class="btn btn-outline" onclick="inviteAnonymously()" data-i18n="anonButton">
+        Link without an email address
+      </button>
+      <div class="field-hint" data-i18n="anonHint">
+        Works once, like any invitation. Nobody is emailed — copy it and share it yourself.
+      </div>
       <div id="invite-status" class="status"></div>
       <div id="invite-link" class="link-box hidden"></div>
       <button class="btn btn-outline hidden" id="btn-copy" onclick="copyLink()" data-i18n="copyButton">
@@ -530,6 +538,9 @@
         sendButton: 'Send by email',
         errHttp: 'Error {code}',
         codeSent: 'Code sent to {email}.',
+        anonButton: 'Link without an email address',
+        anonHint: 'Works once, like any invitation. Nobody is emailed — copy it and share it yourself.',
+        anonReady: 'Link ready. Copy it and give it to your guest.',
         whatIsVocaliz: 'Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.',
         salonEnded: 'The Salon has ended. You can open a new one.',
         roomSub: 'Salon {room} — source: {source}',
@@ -621,6 +632,9 @@
         sendButton: 'Envoyer par courriel',
         errHttp: 'Erreur {code}',
         codeSent: 'Code envoyé à {email}.',
+        anonButton: 'Lien sans adresse courriel',
+        anonHint: "Fonctionne une seule fois, comme toute invitation. Personne n'est contacté — copiez-le et transmettez-le vous-même.",
+        anonReady: 'Lien prêt. Copiez-le et donnez-le à votre invité.',
         whatIsVocaliz: "Vocaliz est une plateforme permettant de créer des Salons. Dans un Salon, des gens et un agent vocal IA discutent ensemble d'un site web ou d'un document.",
         salonEnded: 'Le Salon est terminé. Vous pouvez en ouvrir un nouveau.',
         roomSub: 'Salon {room} — source : {source}',
@@ -1593,6 +1607,31 @@
         setStatus('invite-status', 'emailSentTo', true, { email: lastInvitation.guestEmail });
       } catch (e) {
         setStatus('invite-status', 'sendFailed', false, { error: e.message });
+      }
+    }
+
+    // A link addressed to nobody, for a guest the host has no way to write to.
+    //
+    // Its own function rather than an empty submission of the one above: that one refuses a
+    // request with neither channel, and the refusal is worth keeping — somebody who meant to
+    // type an address and left the field blank should be told, not handed a link to a
+    // stranger. Nothing is sent, so no "send by email" button appears with it.
+    async function inviteAnonymously() {
+      try {
+        var data = await api('/sessions/' + sessionId + '/invitations/anonymous', {
+          method: 'POST'
+        });
+        lastInvitation = data;
+        var box = document.getElementById('invite-link');
+        box.textContent = data.joinLink;
+        box.classList.remove('hidden');
+        show('btn-copy', true);
+        // Deliberately hidden: there is no address to send it to, and offering the button
+        // would promise a channel that does not exist for this invitation.
+        show('btn-send', false);
+        setStatus('invite-status', 'anonReady', true);
+      } catch (e) {
+        setStatusRaw('invite-status', e.message, false);
       }
     }
 

@@ -43,6 +43,29 @@
       white-space: nowrap;
     }
 
+    /* The account offer, in the header where the agent says it will be. Gold on burgundy:
+       the same badge treatment the site uses for a role label, since this is an invitation
+       rather than the main thing to do on this screen. */
+    .btn-account {
+      margin-left: auto;
+      background: #C9A84C;
+      color: #2C2C2C;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-account:hover { opacity: 0.9; }
+
+    /* With the button present the language switch is no longer the element pushed to the
+       end, so its own auto margin has to go or the two fight for the same space. */
+    .btn-account + .lang { margin-left: 8px; }
+
     /* Language switch — pushed to the far end of the header bar. */
     .lang { margin-left: auto; display: flex; gap: 4px; }
 
@@ -294,6 +317,12 @@
 <header>
   <h1>Vocaliz</h1>
   <span class="badge-no-install" data-i18n="badge">No install</span>
+  <!-- Hidden until the guest is actually in the Salon: an account is worth offering to
+       somebody having a conversation, not to somebody still trying to join one. Also hidden
+       for a guest who already signed in during this visit. -->
+  <button id="btn-account" class="btn-account" onclick="openAccount()"
+          data-i18n="createAccount" style="display:none">Create an account</button>
+
   <div class="lang">
     <!-- Sixteen languages, so a select rather than a row of buttons. English and
          French are inline in this file and switch instantly; the other fourteen are
@@ -400,6 +429,29 @@
   </div>
 
   <!-- State: connected -->
+  <!-- Account creation, offered in the Salon and again by the agent on the way out.
+       Deliberately the ordinary sign-in flow: /auth/otp/request creates the account if the
+       address is new, so there is no second kind of registration to keep in step. -->
+  <div id="v-account" class="card" style="display:none">
+    <div class="card-title" data-i18n="accountTitle">Create an account</div>
+    <div class="card-sub" data-i18n="accountSub">
+      Your reading language and your caption language are kept, so you do not set them again.
+    </div>
+    <input type="email" id="acct-email" placeholder="you@example.com" data-i18n-ph="emailPh"
+           autocomplete="email" inputmode="email">
+    <button class="btn btn-primary" id="acct-send" onclick="requestAccountCode()"
+            data-i18n="accountSend">Send me a code</button>
+    <div id="acct-code-row" style="display:none">
+      <input type="text" id="acct-code" inputmode="numeric" maxlength="6" placeholder="123456">
+      <button class="btn btn-primary" onclick="verifyAccountCode()"
+              data-i18n="accountVerify">Verify</button>
+    </div>
+    <div id="acct-status" class="status"></div>
+    <button class="btn btn-outline" onclick="closeAccount()" data-i18n="accountLater">
+      Not now
+    </button>
+  </div>
+
   <div id="v-connected" class="card" style="display:none">
     <div class="card-icon">🟢</div>
     <div class="card-title" data-i18n="connectedTitle">You are in the Salon</div>
@@ -483,6 +535,16 @@
     en: {
       pageTitle: 'Vocaliz — Join the conversation',
       badge: 'No install',
+      createAccount: 'Create an account',
+      accountTitle: 'Create an account',
+      accountSub: 'Your reading language and your caption language are kept, so you do not set them again.',
+      accountSend: 'Send me a code',
+      accountVerify: 'Verify',
+      accountLater: 'Not now',
+      accountCodeSent: 'Code sent. Check your email.',
+      accountBadEmail: 'That does not look like an email address.',
+      accountDone: 'Account created. Your languages are saved.',
+      accountFailed: 'That did not work. Please try again.',
       whatIsVocaliz: 'Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.',
       loadingTitle: 'Connecting…',
       loadingSub: 'One moment please.',
@@ -533,6 +595,16 @@
     fr: {
       pageTitle: 'Vocaliz — Rejoindre la conversation',
       badge: 'Sans installation',
+      createAccount: 'Créer un compte',
+      accountTitle: 'Créer un compte',
+      accountSub: 'Votre langue de lecture et votre langue de sous-titres sont conservées, vous ne les choisirez plus.',
+      accountSend: 'Envoyez-moi un code',
+      accountVerify: 'Vérifier',
+      accountLater: 'Plus tard',
+      accountCodeSent: 'Code envoyé. Consultez votre courriel.',
+      accountBadEmail: "Cela ne ressemble pas à une adresse courriel.",
+      accountDone: 'Compte créé. Vos langues sont enregistrées.',
+      accountFailed: "Cela n'a pas fonctionné. Réessayez.",
       whatIsVocaliz: "Vocaliz est une plateforme permettant de créer des Salons. Dans un Salon, des gens et un agent vocal IA discutent ensemble d'un site web ou d'un document.",
       loadingTitle: 'Connexion en cours…',
       loadingSub: 'Merci de patienter un instant.',
@@ -941,7 +1013,7 @@
 
   // ── View helpers ──────────────────────────────────────────────────────────
   function showCard(id) {
-    ['v-loading', 'v-ready', 'v-connected', 'v-error'].forEach(function(v) {
+    ['v-loading', 'v-ready', 'v-connected', 'v-error', 'v-account'].forEach(function(v) {
       document.getElementById(v).style.display = 'none';
     });
     document.getElementById(id).style.display = '';
@@ -1205,6 +1277,10 @@
       }
 
       showCard('v-connected');
+      // Offered only now. An account is worth proposing to somebody having a conversation,
+      // not to somebody still trying to join one — and never to a guest who signed in during
+      // this visit, who has one already.
+      if (!accountToken) document.getElementById('btn-account').style.display = '';
       showBtn('btn-leave');
       // Its own visibility: a setting has to stay on screen next to Leave.
       document.getElementById('btn-sound').style.display = '';
@@ -1327,6 +1403,90 @@
     } catch (e) {
       // A category is worth nothing at the cost of joining a salon.
       return '';
+    }
+  }
+
+  // ── Creating an account from inside the Salon ──────────────────────────────
+  // Offered by the button in the header and again by the agent on the way out. There is no
+  // separate registration: /auth/otp/request creates the account when the address is new, so
+  // this is the ordinary sign-in flow reached from an unusual place.
+  //
+  // The whole point is the two language choices. A guest who spent a conversation reading
+  // Ukrainian captions should not set that again next time, and until now those choices lived
+  // only in this browser's local storage.
+  var accountToken = null;
+
+  function openAccount() {
+    showCard('v-account');
+    var field = document.getElementById('acct-email');
+    if (field) field.focus();
+  }
+
+  // Back to the conversation, which never stopped: the room stays connected throughout, so
+  // this only puts the card away.
+  function closeAccount() {
+    showCard('v-connected');
+  }
+
+  function acctStatus(key, ok, raw) {
+    var el = document.getElementById('acct-status');
+    el.textContent = raw !== undefined ? raw : T(key);
+    el.className = 'status ' + (ok ? 'ok' : 'err');
+  }
+
+  async function requestAccountCode() {
+    var email = (document.getElementById('acct-email').value || '').trim().toLowerCase();
+    if (!email || email.indexOf('@') < 1) { acctStatus('accountBadEmail', false); return; }
+    try {
+      var resp = await fetch('/auth/otp/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      });
+      if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).detail);
+      document.getElementById('acct-code-row').style.display = '';
+      document.getElementById('acct-code').focus();
+      acctStatus('accountCodeSent', true);
+    } catch (e) {
+      acctStatus(null, false, e.message || T('accountFailed'));
+    }
+  }
+
+  async function verifyAccountCode() {
+    var email = (document.getElementById('acct-email').value || '').trim().toLowerCase();
+    var code = (document.getElementById('acct-code').value || '').trim();
+    try {
+      var resp = await fetch('/auth/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, code: code })
+      });
+      var data = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) throw new Error(data.detail);
+      accountToken = data.token;
+
+      // The reason the account exists. Sent after verification rather than with it, because
+      // the preferences endpoint needs the token this call just produced.
+      //
+      // captionLang is sent as-is including the empty string: "as spoken" is a choice, and
+      // dropping it would leave the new account looking like it had never chosen.
+      await fetch('/me/preferences', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + accountToken
+        },
+        body: JSON.stringify({ interfaceLanguage: lang, captionLanguage: captionLang })
+      }).catch(function () {
+        // The account exists either way; the preferences can be set again from any screen.
+      });
+
+      acctStatus('accountDone', true);
+      document.getElementById('btn-account').style.display = 'none';
+      // Left on screen for a moment so the confirmation is read, then back to the room.
+      setTimeout(closeAccount, 2500);
+    } catch (e) {
+      acctStatus(null, false, e.message || T('accountFailed'));
     }
   }
 

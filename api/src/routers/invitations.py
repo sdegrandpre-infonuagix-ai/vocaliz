@@ -30,6 +30,27 @@ router = APIRouter(prefix="/sessions", tags=["invitations"])
 guest_router = APIRouter(prefix="/invitations", tags=["guest"])
 
 
+@router.post(
+    "/{session_id}/invitations/anonymous",
+    response_model=InvitationResponse,
+    status_code=201,
+)
+def create_anonymous_invitation(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A join link with nobody's address on it, for the host to pass on by hand.
+
+    Separate from the addressed endpoint rather than an empty body on it: that one refuses a
+    request with neither channel, and the refusal is worth keeping. Somebody who meant to type
+    an address and left the field blank should be told, not handed a link to a stranger.
+    """
+    return invitation_service.invite_anonymously(
+        session_id=session_id, host_user=current_user, db=db
+    )
+
+
 @router.post("/{session_id}/invitations", response_model=InvitationResponse, status_code=201)
 async def create_invitation(
     session_id: str,

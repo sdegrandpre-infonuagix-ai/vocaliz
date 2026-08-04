@@ -1,6 +1,7 @@
 """Voice invitation service — resolves an email to a Vocaliz user or an email contact."""
 import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import boto3
@@ -422,3 +423,53 @@ def _send_invitation_email(to_address: str, join_link: str, phone_pin: str = "")
             "chaque participant puisse lire la conversation dans la langue de son choix.",
         ),
     )
+
+
+def invite_anonymously(session_id: str, host_user: User, db: Session) -> dict:
+    """A join link addressed to nobody, for a host who has no way to reach their guest.
+
+    Every other invitation is built around a channel — an address to mail, a number to text.
+    This one has neither and is not sent anywhere: the host copies it and passes it on however
+    they like, in a chat, over a shoulder, out loud.
+
+    Single-use is not special handling here. Every join token is spent once, at the moment the
+    guest's microphone works, and a spent token answers 410 — see guest_join_session. What
+    makes this link no more shareable than the others is that the participant identity is
+    derived from the invitation, so a second person opening it displaces the first.
+
+    No telephone PIN is claimed, and that is the one real difference. Codes come from a finite
+    pool of six digits and a PIN reaches a guest only by text message; reserving one for a link
+    with no number to send it to would spend a scarce code on a channel that cannot be used.
+    """
+    session_uuid = uuid.UUID(str(session_id))
+    session = db.query(SessionModel).filter(SessionModel.id == session_uuid).first()
+    if session is None or session.host_user_id != host_user.id:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if session.status != "active":
+        raise HTTPException(status_code=409, detail="This session is no longer active.")
+
+    invitation = Invitation(
+        session_id=session_uuid,
+        host_user_id=host_user.id,
+        # Empty rather than NULL for both: these are the same columns the addressed
+        # invitations use, invite_guest normalises a missing number to "" the same way, and
+        # the response schema types them as strings.
+        guest_email="",
+        guest_phone="",
+        guest_user_id=None,
+        invitation_type="anonymous_link",
+        join_token=secrets.token_urlsafe(32),
+        phone_pin=None,
+        status="pending",
+        expires_at=datetime.now(tz=timezone.utc) + timedelta(hours=24),
+    )
+    db.add(invitation)
+    db.commit()
+    db.refresh(invitation)
+
+    logger.info(
+        "Anonymous invitation %s created for session %s", invitation.id, session_id
+    )
+    # Nothing was sent, and both channels say so rather than reporting a success nobody asked
+    # for: the host sharing it by hand is the delivery.
+    return _build_response(invitation, session, sent=(False, False))
