@@ -605,6 +605,9 @@ def join_session(
         device_type=device_service.resolve(
             body.device if body else None, request.headers.get("user-agent")
         ),
+        # The browser's own locale region. Validated in the service, so anything that is not
+        # two letters is dropped rather than stored.
+        country=body.country if body else None,
     )
 
     token = livekit_service.generate_participant_token(

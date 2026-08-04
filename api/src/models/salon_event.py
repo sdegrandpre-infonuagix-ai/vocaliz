@@ -73,6 +73,16 @@ class SalonEvent(Base):
     # than from the header: Safari on iPad reports itself as a Macintosh.
     device_type: Mapped[str] = mapped_column(String(20), nullable=False, default="")
 
+    # Two-letter country, from the browser's own locale — the region subtag of
+    # navigator.language, so "fr-CA" gives CA. Self-reported and easily wrong: somebody
+    # travelling, or running an English system in Montreal, reports whatever their device says.
+    #
+    # That ceiling is deliberate. Nothing here collects a position — no page asks the browser
+    # for one — and the API is not behind CloudFront, so no viewer-country header arrives. The
+    # alternatives were a GeoIP service on an address this schema pointedly does not keep, or
+    # nothing at all.
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default="")
+
     # BCP-47 code for the first language this person was heard speaking *in this salon* —
     # not the language of the interface they clicked through, and not a property of the
     # person. Someone may hold one conversation in French and the next in English, which

@@ -1,0 +1,177 @@
+"""The hourly participant report.
+
+Eight columns, and two of them are weaker than they look. The tests below pin exactly how
+weak, because a report that overstates its own precision is worse than no report: somebody
+would make a decision on it.
+
+  Pays      the browser's locale region, self-reported by the device.
+  Secondes  metered time on the account, not the sum of the participations listed beside it.
+"""
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from src.models.salon_event import SalonEvent
+from src.models.user import User
+from src.services import participant_report
+
+NOW = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
+
+
+def _event(db, email, salon, **kw):
+    db.add(
+        SalonEvent(
+            email=email,
+            user_type=kw.pop("role", "host"),
+            salon_name=salon,
+            entered_at=kw.pop("entered", NOW),
+            first_spoken_language=kw.pop("language", None),
+            device_type=kw.pop("device", ""),
+            country=kw.pop("country", ""),
+        )
+    )
+    db.commit()
+
+
+# ─── What is in it ───────────────────────────────────────────────────────────
+
+def test_the_eight_columns_asked_for_are_all_there(db):
+    _event(db, "a@example.com", "salon-a")
+    row = participant_report.collect(db)[0]
+    assert list(row.keys()) == participant_report.COLUMNS
+    assert participant_report.COLUMNS == [
+        "Contact",
+        "Rôle",
+        "Salons",
+        "Langue",
+        "Appareil",
+        "Pays",
+        "Vu en dernier",
+        "Secondes cumulées",
+    ]
+
+
+def test_one_row_per_person_across_their_salons(db):
+    _event(db, "a@example.com", "salon-a")
+    _event(db, "a@example.com", "salon-b", role="guest")
+    rows = participant_report.collect(db)
+    assert len(rows) == 1
+    assert rows[0]["Salons"] == 2
+    assert rows[0]["Rôle"] == "guest + host"
+
+
+def test_devices_and_countries_accumulate(db):
+    """Somebody who hosts from a laptop and joins from a phone is both, and a report that kept
+    only the last would answer a question nobody asked."""
+    _event(db, "a@example.com", "salon-a", device="windows", country="CA")
+    _event(db, "a@example.com", "salon-b", device="iphone", country="FR")
+    row = participant_report.collect(db)[0]
+    assert row["Appareil"] == "iphone, windows"
+    assert row["Pays"] == "CA, FR"
+
+
+def test_the_most_recent_person_comes_first(db):
+    _event(db, "old@example.com", "salon-a", entered=NOW)
+    _event(db, "new@example.com", "salon-b", entered=NOW + timedelta(hours=2))
+    assert participant_report.collect(db)[0]["Contact"] == "new@example.com"
+
+
+def test_absent_values_read_as_absent_not_as_zero(db):
+    """A dash, never a zero or a blank. Zero seconds would claim somebody held conversations of
+    no length, which is a different statement from having no account at all."""
+    _event(db, "a@example.com", "salon-a")
+    row = participant_report.collect(db)[0]
+    assert row["Langue"] == "—"
+    assert row["Appareil"] == "—"
+    assert row["Pays"] == "—"
+    assert row["Secondes cumulées"] == "—"
+
+
+# ─── The metered time, and what it is not ────────────────────────────────────
+
+def test_seconds_come_from_the_account(db):
+    user = User(email="a@example.com", trial_seconds_used=600, billed_seconds=120)
+    db.add(user)
+    db.commit()
+    _event(db, "a@example.com", "salon-a")
+    assert participant_report.collect(db)[0]["Secondes cumulées"] == 720
+
+
+def test_a_guest_with_no_account_has_no_seconds(db):
+    """Metered time is a property of an account. A guest who never registered has none, and
+    inventing a zero would make them look like somebody who talked for no time."""
+    _event(db, "guest@example.com", "salon-a", role="guest")
+    assert participant_report.collect(db)[0]["Secondes cumulées"] == "—"
+
+
+def test_the_caveats_travel_with_the_report(db):
+    """Both weak columns are named in the body. A reader who takes "Pays" for a measured
+    location, or the seconds for the sum of these salons, would be wrong — and the report is
+    the only place that can tell them."""
+    _event(db, "a@example.com", "salon-a")
+    text = participant_report.as_text(participant_report.collect(db))
+    assert "region du navigateur" in text
+    assert "sur le COMPTE" in text
+
+
+# ─── Rendering ───────────────────────────────────────────────────────────────
+
+def test_an_empty_report_says_so_rather_than_showing_a_bare_table(db):
+    assert "Aucune participation" in participant_report.as_text([])
+    assert "Aucune participation" in participant_report.as_html([])
+
+
+def test_the_html_escapes_what_strangers_supplied(db):
+    """These addresses come from anybody who signs up. One landing unescaped in the
+    administrator's mail client is an injection into their own inbox."""
+    _event(db, "<script>alert(1)</script>@example.com", "salon-a")
+    rendered = participant_report.as_html(participant_report.collect(db))
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;" in rendered
+
+
+def test_the_text_table_lines_up(db):
+    _event(db, "short@example.com", "salon-a")
+    _event(db, "a-much-longer-address@example.com", "salon-b")
+    lines = participant_report.as_text(participant_report.collect(db)).split("\n")
+    header, rule = lines[2], lines[3]
+    assert len(rule) == len(header), "the rule must match the header it underlines"
+
+
+# ─── Sending ─────────────────────────────────────────────────────────────────
+
+def test_sending_reaches_ses_with_both_parts(db):
+    _event(db, "a@example.com", "salon-a")
+    client = MagicMock()
+    with patch("boto3.client", return_value=client):
+        result = participant_report.send(db, "admin@example.com")
+    assert result == {"status": "ok", "contacts": 1}
+    body = client.send_email.call_args.kwargs["Message"]["Body"]
+    # Both parts, because a mail client that refuses the markup must still get the table.
+    assert "Text" in body and "Html" in body
+    assert client.send_email.call_args.kwargs["Destination"]["ToAddresses"] == [
+        "admin@example.com"
+    ]
+
+
+def test_a_failed_send_is_reported_rather_than_raised(db):
+    """This runs on a schedule with nobody watching. An exception would surface as a Lambda
+    error and tell nobody anything useful; a status can be read in the logs."""
+    _event(db, "a@example.com", "salon-a")
+    client = MagicMock()
+    client.send_email.side_effect = RuntimeError("SES said no")
+    with patch("boto3.client", return_value=client):
+        result = participant_report.send(db, "admin@example.com")
+    assert result["status"] == "send_failed"
+    assert result["contacts"] == 1
+
+
+def test_the_addresses_never_reach_the_log(db, caplog):
+    """The report is what carries the personal data. Writing it to CloudWatch as well would
+    copy it into a second store with its own retention."""
+    _event(db, "private@example.com", "salon-a")
+    with patch("boto3.client", return_value=MagicMock()):
+        with caplog.at_level("INFO"):
+            participant_report.send(db, "admin@example.com")
+    assert "private@example.com" not in caplog.text

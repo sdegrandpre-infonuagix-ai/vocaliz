@@ -75,6 +75,9 @@ class GeoBody(BaseModel):
     # Safari reports itself as a Macintosh and the header holds nothing to separate them.
     # Validated against a closed vocabulary server-side; an unknown value becomes absent.
     device: str | None = None
+    # Two-letter region from the browser's locale. Coarse on purpose: no position is asked for
+    # and no address is kept, so this is the whole of what is known about where somebody is.
+    country: str | None = None
 
 
 class InvitationResponse(BaseModel):

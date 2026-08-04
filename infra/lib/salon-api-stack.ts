@@ -205,6 +205,28 @@ export class SalonApiStack extends cdk.Stack {
       ],
     });
 
+    // The participant table, mailed hourly to the administrator.
+    //
+    // Hourly rather than on a change: a report is a picture of the whole, and one per new
+    // registration would arrive in bursts and be ignored. Sent even when nothing moved —
+    // an empty hour is information, and a report that only arrives sometimes cannot be
+    // distinguished from one that failed.
+    //
+    // The recipient is in the event rather than in the code, so it can be redirected by
+    // editing this rule instead of deploying the application.
+    new events.Rule(this, 'ParticipantReport', {
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      description: 'Mail the participant table to the administrator',
+      targets: [
+        new eventTargets.LambdaFunction(migrateFn, {
+          event: events.RuleTargetInput.fromObject({
+            action: 'participant_report',
+            recipient: 's.degrandpre@vocaliz.net',
+          }),
+        }),
+      ],
+    });
+
     // Advertising is invoiced daily rather than per broadcast. Stripe takes roughly 2.9% plus
     // thirty cents per transaction, so charging twenty-five cents individually would lose
     // money on every one — the batch is what makes the pricing viable at all.
@@ -239,12 +261,19 @@ export class SalonApiStack extends cdk.Stack {
 
     // OTP emails go out through SES. Scoped to identities in this account/region;
     // the sender itself must be verified in the SES console before DEV_MODE is off.
-    apiFn.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ['ses:SendEmail'],
-        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
-      }),
-    );
+    //
+    // Granted to the scheduled function as well as the API. The hourly participant report is
+    // sent from there, and this permission living only on apiFn would have made it fail
+    // silently — the report catches its own errors, so the only symptom would have been an
+    // email that never arrived.
+    for (const fn of [apiFn, migrateFn]) {
+      fn.addToRolePolicy(
+        new iam.PolicyStatement({
+          actions: ['ses:SendEmail'],
+          resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+        }),
+      );
+    }
 
     // Live captions: each turn of speech is rendered into whatever language the other
     // participants are reading. Amazon Translate has no resource to scope to — a

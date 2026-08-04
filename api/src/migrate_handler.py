@@ -13,6 +13,23 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
+def _participant_report(recipient: str) -> dict:
+    """Mail the participant table to an administrator.
+
+    Invoked hourly by EventBridge, and by hand when somebody wants it now. The recipient is a
+    parameter rather than a constant so a schedule can be pointed elsewhere without a deploy —
+    and defaulted, so an invocation that forgets it still reaches the person who asked for it.
+    """
+    from src.database import SessionLocal
+    from src.services import participant_report
+
+    db = SessionLocal()
+    try:
+        return participant_report.send(db, recipient)
+    finally:
+        db.close()
+
+
 def _reset_trial(email: str) -> dict:
     """Clear a test account's metered time.
 
@@ -107,6 +124,8 @@ def _seed_house_ads() -> dict:
 def handler(event, context):
     """Run `alembic upgrade head`, or a named maintenance action.
 
+    event = {"action": "participant_report"} mails the participant table; EventBridge does
+    this every hour, and the recipient can be overridden with a "recipient" field.
     event = {"action": "reset_trial", "email": "..."} clears metered time for one account.
     event = {"action": "sweep_sessions"} closes sessions past the per-session cap; this is
     what EventBridge invokes every five minutes.
@@ -115,6 +134,10 @@ def handler(event, context):
     Any other event runs migrations.
     """
     action = (event or {}).get("action")
+    if action == "participant_report":
+        return _participant_report(
+            event.get("recipient") or "s.degrandpre@vocaliz.net"
+        )
     if action == "reset_trial":
         result = _reset_trial(event["email"])
         logger.info("reset_trial: %s", result)

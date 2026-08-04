@@ -18,6 +18,17 @@ from src.services import device_service, location_service, summary_service
 logger = logging.getLogger(__name__)
 
 
+def _country(value: str | None) -> str:
+    """A two-letter region code, or nothing.
+
+    Validated rather than trusted: the value comes from a browser locale and reaches us through
+    a request body, so anything that is not two letters is not a country and is dropped instead
+    of stored. Uppercased so a query never has to consider both cases.
+    """
+    code = (value or "").strip().upper()
+    return code if len(code) == 2 and code.isalpha() else ""
+
+
 def record_entry(
     db: DbSession,
     *,
@@ -29,6 +40,7 @@ def record_entry(
     longitude: float | None = None,
     first_spoken_language: str | None = None,
     device_type: str = "",
+    country: str = "",
 ) -> None:
     """Note that someone joined a salon.
 
@@ -69,6 +81,7 @@ def record_entry(
                     salon_name=salon_name,
                     plus_code=code,
                     device_type=device_service.normalise(device_type),
+                    country=_country(country),
                     first_spoken_language=first_spoken_language,
                     entered_at=datetime.now(tz=timezone.utc),
                 )
@@ -81,6 +94,9 @@ def record_entry(
             # Filled in late when it was missing, and never replaced: somebody who rejoins from
             # a second device does not retroactively change the one they arrived on.
             row.device_type = row.device_type or device_service.normalise(device_type)
+            # Filled in late when it was missing, never replaced: one participation, one
+            # place, and the first reading is no less true than the second.
+            row.country = row.country or _country(country)
             # Write-once. A later report must not overwrite the first: the column says
             # "first spoken", and a second value would quietly make that false.
             if row.first_spoken_language is None:

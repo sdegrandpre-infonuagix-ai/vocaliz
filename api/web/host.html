@@ -1381,6 +1381,34 @@
         T(countdownLeft > 0 ? 'countdownWaiting' : 'countdownNow');
     }
 
+    // The country, as coarsely as it can honestly be known.
+    //
+    // Taken from the browser's locale — the region subtag of navigator.language, so "fr-CA"
+    // gives CA. Nothing here asks for a position, and the API is not behind CloudFront, so no
+    // viewer-country header exists either; the alternative was a GeoIP lookup on an address this
+    // system deliberately does not keep.
+    //
+    // Self-reported and easily wrong. Somebody travelling, or running an English system in
+    // Montreal, reports whatever their device says — which is the ceiling of a signal that costs
+    // nothing and asks the participant for nothing.
+    function browserCountry() {
+      try {
+        var tags = (navigator.languages && navigator.languages.length)
+          ? navigator.languages
+          : [navigator.language || ''];
+        for (var i = 0; i < tags.length; i++) {
+          var parts = String(tags[i]).split('-');
+          // The region is the two-letter subtag; a script subtag such as "zh-Hant" is four.
+          for (var j = 1; j < parts.length; j++) {
+            if (/^[A-Za-z]{2}$/.test(parts[j])) return parts[j].toUpperCase();
+          }
+        }
+        return '';
+      } catch (e) {
+        return '';
+      }
+    }
+
     // What kind of device this is, as one of the categories the API accepts. Sent rather than
     // left to the server because the header cannot answer it: Safari on iPadOS reports itself
     // as "Macintosh; Intel Mac OS X" with nothing to distinguish it from a real Mac. What does
@@ -1622,7 +1650,7 @@
       var creds = await api('/sessions/' + sessionId + '/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device: deviceType() })
+        body: JSON.stringify({ device: deviceType(), country: browserCountry() })
       });
       room = new LivekitClient.Room({ dynacast: true });
 
