@@ -328,3 +328,38 @@ def test_the_limits_of_the_measure_travel_with_it(db):
     text = participant_report.as_text(participant_report.collect(db))
     assert "navigateurs" in text
     assert "navigation privee" in text
+
+
+def test_the_device_count_is_hidden_for_anybody_identified(db):
+    """Two accounts signed in on one laptop share a browser token. Attributing its count to
+    either of them would credit salons they never attended — so for anybody with contact details
+    the column is blank, and Salons answers the question instead."""
+    token = "99999999-9999-4999-8999-999999999999"
+    _event(db, "one@example.com", "salon-a", identity="acct-1", token=token)
+    _event(db, "two@example.com", "salon-b", identity="acct-2", token=token)
+    rows = participant_report.collect(db)
+    assert all(r["Salons de cet appareil"] == "—" for r in rows)
+    # Each account still reports its own salons correctly, which is the honest answer for them.
+    assert all(r["Salons"] == 1 for r in rows)
+
+
+def test_the_device_count_still_shows_for_the_anonymous(db):
+    """The case it was built for, and the only one where nothing else can answer."""
+    token = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    _event(db, "", "salon-a", identity="guest-a", role="guest", token=token)
+    _event(db, "", "salon-b", identity="guest-b", role="guest", token=token)
+    assert all(
+        r["Salons de cet appareil"] == 2 for r in participant_report.collect(db)
+    )
+
+
+def test_two_anonymous_visitors_on_one_browser_are_irreducibly_conflated(db):
+    """Stated as a test because it is a limit, not a bug: nothing distinguishes two people who
+    share a browser and give no address. The report says so in its own body."""
+    token = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    _event(db, "", "salon-a", identity="guest-x", role="guest", token=token)
+    _event(db, "", "salon-b", identity="guest-y", role="guest", token=token)
+    rows = participant_report.collect(db)
+    assert len(rows) == 2, "two participations, because the rooms saw two"
+    assert all(r["Salons de cet appareil"] == 2 for r in rows), "one browser, counted once"
+    assert "un meme portable comptent pour un" in participant_report.as_text(rows)

@@ -182,10 +182,20 @@ def collect(db: Session) -> list[dict]:
                 # somebody who tried and was not understood, which is a different problem from
                 # somebody who never tried.
                 "Micro": "oui" if key in heard else "non",
-                # More than one means the same browser came back — the only way to tell a
-                # returning anonymous visitor from a new one. A dash where no token was stored:
+                # Shown only for somebody with no contact details, and that restriction is
+                # the point. A token belongs to a browser, not a person: two accounts signed in
+                # on one laptop share it, so attributing its count to either of them would
+                # claim salons they never attended. For anybody identified, Salons already
+                # answers "did they come back" correctly and this can only mislead.
+                #
+                # For an anonymous participant it is the only signal there is, since every
+                # anonymous invitation mints a fresh identity. A dash where no token was stored:
                 # private browsing, a telephone participant, or a row from before this existed.
-                "Salons de cet appareil": salons_per_token.get(token_of.get(key, ""), "—"),
+                "Salons de cet appareil": (
+                    "—"
+                    if (row.email or row.phone)
+                    else salons_per_token.get(token_of.get(key, ""), "—")
+                ),
             }
         )
     return rows
