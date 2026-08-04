@@ -30,6 +30,14 @@ interface LanguageContextValue {
   language: SupportedLanguage;
   /** Record a language the user picked themselves. Persisted, and final. */
   setLanguage: (code: string) => void;
+  /**
+   * A choice this person made on another device, read back from their account.
+   *
+   * Enters at the same rank as a choice made here, because that is what it is — the account
+   * ranks below the device only for languages that were *inferred*, and this one was picked.
+   * Not written back to the server: it came from there.
+   */
+  adoptSavedLanguage: (code: string) => void;
   /** Offer a language inferred elsewhere — applied only if nothing stronger has spoken. */
   suggestLanguage: (code: string) => void;
   t: Translations;
@@ -38,6 +46,7 @@ interface LanguageContextValue {
 const LanguageContext = createContext<LanguageContextValue>({
   language: DEFAULT_LANGUAGE,
   setLanguage: () => {},
+  adoptSavedLanguage: () => {},
   suggestLanguage: () => {},
   t: TRANSLATIONS[DEFAULT_LANGUAGE],
 });
@@ -103,6 +112,21 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     [applyIfStronger],
   );
 
+  // The same effect as setLanguage minus the trip back to the server, since this value came
+  // from there. Still written to SecureStore: the next launch should not have to wait for a
+  // network round trip to show the right language.
+  const adoptSavedLanguage = useCallback(
+    (code: string) => {
+      const matched = matchLanguage(code);
+      if (!matched) return;
+      applyIfStronger(matched, 'user');
+      SecureStore.setItemAsync(LANGUAGE_KEY, matched).catch(() => {
+        // Best-effort, exactly as above.
+      });
+    },
+    [applyIfStronger],
+  );
+
   // Deliberately not persisted: only a real choice is worth remembering across launches.
   const suggestLanguage = useCallback(
     (code: string) => {
@@ -114,7 +138,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <LanguageContext.Provider
-      value={{ language, setLanguage, suggestLanguage, t: TRANSLATIONS[language] }}
+      value={{
+        language,
+        setLanguage,
+        adoptSavedLanguage,
+        suggestLanguage,
+        t: TRANSLATIONS[language],
+      }}
     >
       {children}
     </LanguageContext.Provider>

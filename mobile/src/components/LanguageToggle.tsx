@@ -11,6 +11,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing, MIN_TOUCH } from '../theme/tokens';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
+import { saveLanguagePreferences } from '../services/userApi';
 import type { SupportedLanguage } from '../i18n/translations';
 
 const OPTIONS: { code: SupportedLanguage; label: string; a11y: string }[] = [
@@ -20,6 +22,22 @@ const OPTIONS: { code: SupportedLanguage; label: string; a11y: string }[] = [
 
 export default function LanguageToggle() {
   const { language, setLanguage } = useLanguage();
+  const { token } = useAuth();
+
+  // The choice is recorded on the account as well as on this device, so it follows the person
+  // to their phone or their laptop. Saved here rather than inside LanguageContext because the
+  // provider sits outside AuthProvider and has no token to send.
+  //
+  // Fire-and-forget: the language has already changed locally, and failing to remember a
+  // preference must not interrupt anything. Before sign-in there is no account, and the device
+  // copy carries the choice until there is one.
+  function choose(code: SupportedLanguage) {
+    setLanguage(code);
+    if (!token) return;
+    saveLanguagePreferences(token, { interfaceLanguage: code }).catch(() => {
+      // Kept on the device regardless.
+    });
+  }
 
   return (
     <View style={styles.row}>
@@ -28,7 +46,7 @@ export default function LanguageToggle() {
         return (
           <Pressable
             key={code}
-            onPress={() => setLanguage(code)}
+            onPress={() => choose(code)}
             style={[styles.button, active && styles.buttonActive]}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}

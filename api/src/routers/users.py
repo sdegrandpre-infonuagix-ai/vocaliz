@@ -8,6 +8,7 @@ from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.user import User
 from src.schemas.user import (
+    LanguagePreferencesBody,
     AddPaymentMethodBody,
     PaymentMethodResponse,
     PreviousPartner,
@@ -24,12 +25,7 @@ router = APIRouter(prefix="/me", tags=["users"])
 @router.get("/profile", response_model=UserProfileResponse)
 def get_my_profile(current_user: User = Depends(get_current_user)) -> UserProfileResponse:
     """Return the authenticated user's profile including their detected language."""
-    return UserProfileResponse(
-        userId=str(current_user.id),
-        email=current_user.email,
-        phoneNumber=current_user.phone_number,
-        detectedLanguage=current_user.detected_language,
-    )
+    return _profile(current_user)
 
 
 @router.get("/trial-status", response_model=TrialStatusResponse)
@@ -104,9 +100,46 @@ def update_language(
     current_user.detected_language = body.language
     db.commit()
     db.refresh(current_user)
+    return _profile(current_user)
+
+
+def _profile(user: User) -> UserProfileResponse:
+    """The profile as every endpoint returns it.
+
+    Written once because it is returned from three places now, and a field added to one copy
+    and forgotten in another is the ordinary way these fall out of step.
+    """
     return UserProfileResponse(
-        userId=str(current_user.id),
-        email=current_user.email,
-        phoneNumber=current_user.phone_number,
-        detectedLanguage=current_user.detected_language,
+        userId=str(user.id),
+        email=user.email,
+        phoneNumber=user.phone_number,
+        detectedLanguage=user.detected_language,
+        interfaceLanguage=user.interface_language,
+        captionLanguage=user.caption_language,
     )
+
+
+@router.patch("/preferences", response_model=UserProfileResponse)
+def update_language_preferences(
+    body: LanguagePreferencesBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserProfileResponse:
+    """Remember which languages this person chose to read in.
+
+    Two separate controls, so each field is applied only when present: sending one must not
+    clear the other. `captionLanguage` accepts the empty string, which is the "as spoken"
+    option and a real choice — distinct from null, which means never chosen and lets the client
+    fall back to the browser or device language.
+
+    Deliberately not merged into PATCH /language: that one records what the agent *heard*, is
+    called by the worker rather than by a person, and conflating a measurement with a
+    preference would make it impossible to tell which had set the value.
+    """
+    if body.interfaceLanguage is not None:
+        current_user.interface_language = body.interfaceLanguage
+    if body.captionLanguage is not None:
+        current_user.caption_language = body.captionLanguage
+    db.commit()
+    db.refresh(current_user)
+    return _profile(current_user)

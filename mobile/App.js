@@ -31,12 +31,17 @@ SplashScreen.preventAutoHideAsync();
  */
 function LanguageBootstrap() {
   const { token } = useAuth();
-  const { suggestLanguage } = useLanguage();
+  const { suggestLanguage, adoptSavedLanguage } = useLanguage();
 
   useEffect(() => {
     if (!token) return;
     getMyProfile(token)
       .then(profile => {
+        // A choice made on another device outranks anything inferred here, so it is applied
+        // first and the detected language below can only fill a gap it left.
+        if (profile.interfaceLanguage) {
+          adoptSavedLanguage(profile.interfaceLanguage);
+        }
         if (profile.detectedLanguage) {
           suggestLanguage(profile.detectedLanguage);
         }
@@ -44,7 +49,7 @@ function LanguageBootstrap() {
       .catch(() => {
         // Profile fetch is best-effort; fall back to default language silently
       });
-  }, [token, suggestLanguage]);
+  }, [token, suggestLanguage, adoptSavedLanguage]);
 
   return null;
 }

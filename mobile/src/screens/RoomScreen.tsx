@@ -38,6 +38,7 @@ import { useOpeningCountdown } from '../hooks/useOpeningCountdown';
 import { addSourceFromUrl, endSession, joinSession, sendHeartbeat } from '../services/sessionsApi';
 import { sendInvitation } from '../services/invitationsApi';
 import { getPublicConfig } from '../services/configApi';
+import { getMyProfile, saveLanguagePreferences } from '../services/userApi';
 
 const HEARTBEAT_SECONDS = 30;
 
@@ -98,6 +99,44 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     // change it just made, and clear the saved choice before it could be restored.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driving, setCaptionLang]);
+
+  // The caption language this person chose, from whichever device they chose it on.
+  //
+  // Applied once. Compared against null rather than falsy because '' is itself a choice here —
+  // "as spoken" — and treating it as "nothing saved" would discard that decision every session.
+  const adoptedCaptionLang = useRef(false);
+  useEffect(() => {
+    if (!token || adoptedCaptionLang.current) return;
+    let stale = false;
+    getMyProfile(token)
+      .then((profile) => {
+        if (stale || adoptedCaptionLang.current) return;
+        adoptedCaptionLang.current = true;
+        if (profile.captionLanguage !== null && profile.captionLanguage !== undefined) {
+          setCaptionLang(profile.captionLanguage);
+        }
+      })
+      .catch(() => {
+        // A profile that will not load costs a preference, not a session.
+      });
+    return () => {
+      stale = true;
+    };
+  }, [token, setCaptionLang]);
+
+  // Only an explicit choice reaches the account. Driving mode clears the language and puts it
+  // back when it exits, and routing that through here would save "as spoken" as a preference —
+  // permanently, if the app were closed while driving.
+  const chooseCaptionLang = useCallback(
+    (next: string) => {
+      setCaptionLang(next);
+      if (!token) return;
+      saveLanguagePreferences(token, { captionLanguage: next }).catch(() => {
+        // Kept on the device regardless.
+      });
+    },
+    [token, setCaptionLang],
+  );
 
   useEffect(() => {
     let stale = false;
@@ -393,7 +432,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         <CaptionsPanel
           captions={captions}
           language={captionLang}
-          onLanguageChange={setCaptionLang}
+          onLanguageChange={chooseCaptionLang}
         />
 
         {/* ── Mid-session source (FR3) ── */}

@@ -7,6 +7,11 @@ class UserProfileResponse(BaseModel):
     # Optional since sign-in moved to email; only set if the user supplied one.
     phoneNumber: str | None = None
     detectedLanguage: str | None = None
+    # The two the person chose, as opposed to the one above, which is what they were heard
+    # speaking. null means never chosen — for captions that differs from "", which means they
+    # chose to read speech as spoken.
+    interfaceLanguage: str | None = None
+    captionLanguage: str | None = None
 
 
 class UpdateLanguageBody(BaseModel):
@@ -17,6 +22,28 @@ class UpdateLanguageBody(BaseModel):
     def language_is_bcp47(cls, v: str) -> str:
         v = v.strip().lower()
         if not v or len(v) > 10 or not v.replace("-", "").isalpha():
+            raise ValueError("language must be a valid BCP-47 code (e.g. 'fr', 'en', 'en-CA')")
+        return v
+
+
+class LanguagePreferencesBody(BaseModel):
+    """Either preference, or both. Absent means "leave this one alone" — the two controls are
+    separate on screen and a request that touched both would let one overwrite the other."""
+
+    interfaceLanguage: str | None = None
+    captionLanguage: str | None = None
+
+    @field_validator("interfaceLanguage", "captionLanguage")
+    @classmethod
+    def looks_like_a_language(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip().lower()
+        # Empty is valid and meaningful for captions: it is the "as spoken" option, which
+        # translates nothing. Rejecting it would make that choice impossible to save.
+        if not v:
+            return ""
+        if len(v) > 10 or not v.replace("-", "").isalpha():
             raise ValueError("language must be a valid BCP-47 code (e.g. 'fr', 'en', 'en-CA')")
         return v
 
