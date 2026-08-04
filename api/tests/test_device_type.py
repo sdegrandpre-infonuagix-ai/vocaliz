@@ -127,6 +127,7 @@ def test_every_category_the_clients_can_send_is_accepted():
 def test_the_category_is_stored_on_the_participation(db, session):
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -140,6 +141,7 @@ def test_the_user_agent_itself_never_reaches_the_row(db, session):
     sitting in a table, and this is what stops one arriving by accident."""
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -154,17 +156,22 @@ def test_no_device_is_an_empty_string_not_null(db, session):
     """A telephone participant has no device in this sense at all, and the sibling columns use
     the same convention: absent is a value that compares."""
     salon_event_service.record_entry(
-        db, email="dev@example.com", user_type="host", salon_name=session.livekit_room_name
+        db,
+        participant_identity="test-identity",
+        email="dev@example.com", user_type="host", salon_name=session.livekit_room_name
     )
     assert db.query(SalonEvent).one().device_type == ""
 
 
 def test_a_device_learned_on_re_entry_is_filled_in(db, session):
     salon_event_service.record_entry(
-        db, email="dev@example.com", user_type="host", salon_name=session.livekit_room_name
+        db,
+        participant_identity="test-identity",
+        email="dev@example.com", user_type="host", salon_name=session.livekit_room_name
     )
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -178,6 +185,7 @@ def test_rejoining_from_another_device_does_not_rewrite_the_first(db, session):
     switches from laptop to phone mid-salon is one participation, not two devices."""
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -185,6 +193,7 @@ def test_rejoining_from_another_device_does_not_rewrite_the_first(db, session):
     )
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -197,6 +206,7 @@ def test_an_unusable_device_never_costs_the_participation(db, session):
     """Same rule as the position: failing to note something must not keep anyone out."""
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,

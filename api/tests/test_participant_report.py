@@ -22,6 +22,10 @@ NOW = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
 def _event(db, email, salon, **kw):
     db.add(
         SalonEvent(
+            # Stable per person by default, which is how a host behaves: they join every
+            # salon as their own account UUID, so their salons aggregate into one line. A test
+            # about several identities passes them explicitly.
+            participant_identity=kw.pop("identity", email),
             email=email,
             user_type=kw.pop("role", "host"),
             salon_name=salon,
@@ -193,6 +197,7 @@ def test_a_microphone_that_worked_once_reads_yes(db):
     """Ever, not currently: somebody who mutes themselves before leaving has still been heard."""
     db.add(
         SalonEvent(
+            participant_identity="a@example.com:salon-a",
             email="a@example.com",
             user_type="host",
             salon_name="salon-a",
@@ -210,6 +215,9 @@ def test_one_working_salon_is_enough_across_several(db):
     _event(db, "a@example.com", "salon-a")
     db.add(
         SalonEvent(
+            # The same identity in a second salon, which is how a host appears: one account,
+            # many rooms.
+            participant_identity="a@example.com",
             email="a@example.com",
             user_type="host",
             salon_name="salon-b",
@@ -227,6 +235,7 @@ def test_the_two_states_are_distinguishable_in_the_report(db):
     _event(db, "silent@example.com", "salon-a")
     db.add(
         SalonEvent(
+            participant_identity="tried@example.com:salon-b",
             email="tried@example.com",
             user_type="host",
             salon_name="salon-b",
@@ -247,3 +256,24 @@ def test_how_to_read_it_travels_with_the_report(db):
     text = participant_report.as_text(participant_report.collect(db))
     assert "jamais essaye" in text
     assert "sans etre entendu" in text
+
+
+def test_a_guest_invited_twice_is_two_lines(db):
+    """The consequence of keying on the identity, stated so it is a decision and not a surprise.
+
+    A guest gets a fresh identity per invitation, so somebody invited to two salons appears
+    twice. That is what the rooms saw: two invitations, two participants, no way to know they
+    were the same person unless they gave an address."""
+    _event(db, "", "salon-a", identity="guest-111", role="guest")
+    _event(db, "", "salon-b", identity="guest-222", role="guest")
+    rows = participant_report.collect(db)
+    assert len(rows) == 2
+
+
+def test_an_anonymous_guest_is_shown_by_their_room_label(db):
+    """Never a bare UUID. The report has to let somebody recognise who a line is about, and the
+    room label is what the other participants actually saw."""
+    _event(db, "", "salon-a", identity="guest-3f2a1b6c-0000-4000-8000-000000000000", role="guest")
+    contact = participant_report.collect(db)[0]["Contact"]
+    assert contact.startswith("Guest ")
+    assert "0000-4000" not in contact

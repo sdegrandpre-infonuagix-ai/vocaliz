@@ -106,6 +106,7 @@ def test_the_precise_coordinates_never_reach_the_row(db, session):
     rest to round on the way out."""
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -122,17 +123,22 @@ def test_the_precise_coordinates_never_reach_the_row(db, session):
 def test_declining_the_prompt_leaves_no_location(db, session):
     """The common case, and not an error."""
     salon_event_service.record_entry(
-        db, email="geo@example.com", user_type="host", salon_name=session.livekit_room_name
+        db,
+        participant_identity="test-identity",
+        email="geo@example.com", user_type="host", salon_name=session.livekit_room_name
     )
     assert db.query(SalonEvent).one().plus_code == ""
 
 
 def test_a_position_granted_on_re_entry_is_filled_in(db, session):
     salon_event_service.record_entry(
-        db, email="geo@example.com", user_type="host", salon_name=session.livekit_room_name
+        db,
+        participant_identity="test-identity",
+        email="geo@example.com", user_type="host", salon_name=session.livekit_room_name
     )
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -147,6 +153,7 @@ def test_a_second_reading_does_not_replace_the_first(db, session):
     has one location, and the last reading is no truer than the first."""
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -156,6 +163,7 @@ def test_a_second_reading_does_not_replace_the_first(db, session):
     first = db.query(SalonEvent).one().plus_code
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
         salon_name=session.livekit_room_name,
@@ -170,6 +178,7 @@ def test_a_second_reading_does_not_replace_the_first(db, session):
 def _entry(db, salon, email, *, language=None, role="guest"):
     salon_event_service.record_entry(
         db,
+        participant_identity="test-identity",
         email=email,
         user_type=role,
         salon_name=salon,

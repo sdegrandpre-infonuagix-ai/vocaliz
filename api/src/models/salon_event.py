@@ -39,10 +39,26 @@ class SalonEvent(Base):
     # Expect this consequence: someone invited by email to one salon and by text to
     # another is two identities here, not one. Reconciling them would need a rule for
     # deciding that an address and a number belong to the same person, and there is none.
-    email: Mapped[str] = mapped_column(String(320), primary_key=True, default="")
-    phone: Mapped[str] = mapped_column(String(16), primary_key=True, default="")
-    user_type: Mapped[str] = mapped_column(String(5), primary_key=True)
+    # The LiveKit identity, which is what the room actually saw. A host joins as their account
+    # UUID, a guest as "guest-<invitation id>", and both exist before the participant connects.
+    #
+    # This is the key because an anonymous invitation has no address and no number: keyed on
+    # those, such a participation could not be stored at all, and was not — anonymous guests
+    # joined salons and appeared nowhere. An identity is present whether or not anybody knows
+    # who the person is, which is exactly the property a key needs here.
+    #
+    # user_type is deliberately no longer part of the key: one identity is one participant in
+    # one salon, and the same identity cannot be both host and guest of it.
+    participant_identity: Mapped[str] = mapped_column(String(200), primary_key=True)
     salon_name: Mapped[str] = mapped_column(String(100), primary_key=True)
+
+    # Who they are, when that is known. Ordinary columns now rather than key material: they say
+    # how to reach somebody, which is a different question from which participant a row is
+    # about. Empty for an anonymous guest, and for a guest reached only by text the email is
+    # empty while the phone is not.
+    email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
+    phone: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    user_type: Mapped[str] = mapped_column(String(5), nullable=False)
 
     # Where they were, to the nearest cell of an Open Location Code grid — six digits by
     # default, about five and a half kilometres across. Encoded at ingestion, so the
@@ -121,5 +137,9 @@ class SalonEvent(Base):
 
     __table_args__ = (
         CheckConstraint("user_type IN ('host', 'guest')", name="ck_salon_events_user_type"),
-        CheckConstraint("email <> '' OR phone <> ''", name="ck_salon_events_identified"),
+        # A participation must be attached to somebody who was in the room. Weaker than the
+        # old rule about contact details, and stronger about presence.
+        CheckConstraint(
+            "participant_identity <> ''", name="ck_salon_events_identified"
+        ),
     )

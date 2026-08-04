@@ -141,16 +141,27 @@ def test_confirming_twice_does_not_throw_the_guest_out(client, session, host):
     assert client.post(f"/invitations/guest-join/{join_token}/confirm").status_code == 200
 
 
-def test_an_anonymous_guest_records_no_participation(client, session, host, db):
-    """There is nobody to attribute it to. salon_events is keyed on an address or a number,
-    and inventing a placeholder would put a person who does not exist in the host's list —
-    worse than an absence, because it would be counted."""
+def test_an_anonymous_guest_is_recorded_under_their_room_identity(client, session, host, db):
+    """This asserted the opposite until the key changed, and the old behaviour was the defect.
+
+    salon_events was keyed on an address or a number, so a guest with neither could not be
+    stored: anonymous guests joined salons, spoke, left, and appeared in no report. The key is
+    now the LiveKit identity, which exists for everybody whether or not anyone knows who they
+    are — so the participation is recorded, with no contact details, which is the truth.
+    """
     from src.models.salon_event import SalonEvent
 
     _, token = host
-    join_token = _create(client, session, token).json()["joinLink"].rsplit("/", 1)[-1]
+    body = _create(client, session, token).json()
+    join_token = body["joinLink"].rsplit("/", 1)[-1]
     client.post(f"/invitations/guest-join/{join_token}/confirm")
-    assert db.query(SalonEvent).count() == 0
+
+    row = db.query(SalonEvent).one()
+    assert row.participant_identity == body["participantIdentity"]
+    assert row.email == "" and row.phone == ""
+    assert row.user_type == "guest"
+    # Reaching the confirm endpoint is itself the evidence that the microphone worked.
+    assert row.microphone_enabled is True
 
 
 # ─── Who may make one ────────────────────────────────────────────────────────

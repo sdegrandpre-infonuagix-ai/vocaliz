@@ -22,11 +22,11 @@ import logging
 import boto3
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy.sql.expression import tuple_
 
 from src.config import settings
 from src.models.salon_event import SalonEvent
 from src.models.user import User
+from src.services import livekit_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,19 @@ COLUMNS = [
 ]
 
 
+def _label(identity: str) -> str:
+    """A readable name for somebody with no contact details.
+
+    Guests join as "guest-<invitation id>", and the room shows them a short label derived from
+    that same id — so the report can show what the other participants saw rather than a UUID
+    nobody can place. Anything else is returned as-is: a reconstructed "legacy:" identity is
+    more useful shown than hidden.
+    """
+    if identity.startswith("guest-"):
+        return livekit_service.guest_display_name(identity[len("guest-"):])
+    return identity
+
+
 def collect(db: Session) -> list[dict]:
     """One row per person, newest first.
 
@@ -51,63 +64,71 @@ def collect(db: Session) -> list[dict]:
     """
     grouped = (
         db.query(
-            SalonEvent.email,
-            SalonEvent.phone,
+            SalonEvent.participant_identity,
+            func.max(SalonEvent.email).label("email"),
+            func.max(SalonEvent.phone).label("phone"),
             func.count(func.distinct(SalonEvent.salon_name)).label("salons"),
             func.max(SalonEvent.entered_at).label("last_seen"),
         )
-        .group_by(SalonEvent.email, SalonEvent.phone)
+        .group_by(SalonEvent.participant_identity)
         .order_by(func.max(SalonEvent.entered_at).desc())
         .all()
     )
     if not grouped:
         return []
 
-    people = [(row.email, row.phone) for row in grouped]
-    on_page = tuple_(SalonEvent.email, SalonEvent.phone).in_(people)
+    # Grouped on the LiveKit identity, not on the contact details. That is what puts anonymous
+    # guests in the report at all: they have no address, and grouping on one would fold every
+    # one of them into a single empty row.
+    #
+    # A consequence to expect: a host has one identity — their account UUID — so their salons
+    # still aggregate into one line. A guest gets a fresh identity per invitation, so somebody
+    # invited to three salons appears three times. That is what the rooms saw.
+    people = [row.participant_identity for row in grouped]
+    on_page = SalonEvent.participant_identity.in_(people)
 
     # Three small lookups instead of aggregating arrays in SQL, restricted to the people in the
     # report so their cost follows the report and not the size of the table.
-    roles: dict[tuple[str, str], set[str]] = {}
-    languages: dict[tuple[str, str], set[str]] = {}
-    devices: dict[tuple[str, str], set[str]] = {}
-    heard: set[tuple[str, str]] = set()
-    countries: dict[tuple[str, str], set[str]] = {}
+    roles: dict[str, set[str]] = {}
+    languages: dict[str, set[str]] = {}
+    devices: dict[str, set[str]] = {}
+    heard: set[str] = set()
+    countries: dict[str, set[str]] = {}
 
-    for email, phone, role in (
-        db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.user_type)
+    for identity, value in (
+        db.query(SalonEvent.participant_identity, SalonEvent.user_type)
         .filter(on_page)
         .distinct()
     ):
-        roles.setdefault((email, phone), set()).add(role)
-    for email, phone, language in (
-        db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.first_spoken_language)
+        roles.setdefault(identity, set()).add(value)
+    for identity, value in (
+        db.query(SalonEvent.participant_identity, SalonEvent.first_spoken_language)
         .filter(on_page, SalonEvent.first_spoken_language.isnot(None))
         .distinct()
     ):
-        languages.setdefault((email, phone), set()).add(language)
-    for email, phone, device in (
-        db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.device_type)
+        languages.setdefault(identity, set()).add(value)
+    for identity, value in (
+        db.query(SalonEvent.participant_identity, SalonEvent.device_type)
         .filter(on_page, SalonEvent.device_type != "")
         .distinct()
     ):
-        devices.setdefault((email, phone), set()).add(device)
-    for email, phone in (
-        db.query(SalonEvent.email, SalonEvent.phone)
+        devices.setdefault(identity, set()).add(value)
+    for (identity,) in (
+        db.query(SalonEvent.participant_identity)
         .filter(on_page, SalonEvent.microphone_enabled.is_(True))
         .distinct()
     ):
-        heard.add((email, phone))
-    for email, phone, country in (
-        db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.country)
+        heard.add(identity)
+    for identity, value in (
+        db.query(SalonEvent.participant_identity, SalonEvent.country)
         .filter(on_page, SalonEvent.country != "")
         .distinct()
     ):
-        countries.setdefault((email, phone), set()).add(country)
+        countries.setdefault(identity, set()).add(value)
 
     # Metered time lives on the account, so it is looked up by address and is simply absent for
     # a guest who never registered. Matched on email only: an account is an address here.
-    addresses = [e for e, _ in people if e]
+    addresses = [row.email for row in grouped if row.email]
     seconds: dict[str, int] = {}
     if addresses:
         for email, trial, billed in db.query(
@@ -117,10 +138,13 @@ def collect(db: Session) -> list[dict]:
 
     rows = []
     for row in grouped:
-        key = (row.email, row.phone)
+        key = row.participant_identity
         rows.append(
             {
-                "Contact": row.email or row.phone,
+                # An address when there is one, a number when there is not, and otherwise the
+                # room label this identity wore — "Guest 3F2A". Never a bare UUID: the point of
+                # the report is that somebody can recognise who a line is about.
+                "Contact": row.email or row.phone or _label(key),
                 "Rôle": " + ".join(sorted(roles.get(key, set()))) or "—",
                 "Salons": row.salons,
                 "Langue": ", ".join(sorted(languages.get(key, set()))) or "—",

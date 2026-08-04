@@ -228,8 +228,13 @@ def confirm_guest_join(
     if session is not None:
         salon_event_service.record_entry(
             db,
-            # Whichever half the host supplied. A guest invited by text alone has no
-            # address, and an empty string is a complete identity here, not a gap.
+            # Derived from the invitation, exactly as this guest's LiveKit token is. It is what
+            # lets an anonymous guest be recorded at all: they have no address, and while the
+            # key demanded one such a participation was refused and they appeared nowhere.
+            participant_identity=livekit_service.guest_identity(invitation.id),
+            # Whichever half the host supplied, when there is one. Now an attribute of the row
+            # rather than part of its key — it says how to reach somebody, not which
+            # participant this is.
             email=invitation.guest_email or "",
             phone=invitation.guest_phone or "",
             user_type="guest",

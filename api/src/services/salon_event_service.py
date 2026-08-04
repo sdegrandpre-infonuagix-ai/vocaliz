@@ -32,6 +32,7 @@ def _country(value: str | None) -> str:
 def record_entry(
     db: DbSession,
     *,
+    participant_identity: str,
     email: str = "",
     phone: str = "",
     user_type: str,
@@ -45,7 +46,7 @@ def record_entry(
 ) -> None:
     """Note that someone joined a salon.
 
-    Keyed on (email, phone, user_type, salon_name), so re-entering the same salon updates
+    Keyed on (participant_identity, salon_name), so re-entering the same salon updates
     the existing row instead of adding a second one. The absent half of the identity is an
     empty string, never None: it is part of a primary key, which cannot hold NULL.
 
@@ -64,18 +65,23 @@ def record_entry(
     and it is written once for the same reason as the language: the interesting device is the
     one somebody arrived on. See device_service.
     """
+    identity = (participant_identity or "").strip()
     email = email or ""
     phone = phone or ""
     code = location_service.plus_code(latitude, longitude)
-    if not email and not phone:
+    if not identity:
+        # An address is no longer required — an anonymous guest has none, and refusing them is
+        # what made them invisible. An identity is: without one there is no participant to
+        # attribute anything to.
         logger.warning("Refusing to record a participation with no identity in %s", salon_name)
         return
 
     try:
-        row = db.get(SalonEvent, (email, phone, user_type, salon_name))
+        row = db.get(SalonEvent, (identity, salon_name))
         if row is None:
             db.add(
                 SalonEvent(
+                    participant_identity=identity,
                     email=email,
                     phone=phone,
                     user_type=user_type,
@@ -109,6 +115,11 @@ def record_entry(
                 row.first_spoken_language = first_spoken_language
             # Coming back reopens the participation: an exit time left over from the
             # previous visit would claim they are gone while they are talking.
+            # Filled in late when they were missing: an anonymous guest who creates an
+            # account mid-salon becomes reachable, and the row should say so. Never replaced —
+            # one participation belongs to one person.
+            row.email = row.email or email
+            row.phone = row.phone or phone
             row.exited_at = None
         db.commit()
     except Exception:  # noqa: BLE001

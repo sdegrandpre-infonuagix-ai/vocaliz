@@ -35,6 +35,9 @@ def _event(
 ):
     db.add(
         SalonEvent(
+            # One row per LiveKit identity per salon. Derived from the address and the
+            # salon so each fixture row is distinct without every test naming one.
+            participant_identity=f"{email}:{salon}",
             email=email,
             user_type=user_type,
             salon_name=salon,

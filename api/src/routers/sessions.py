@@ -593,6 +593,9 @@ def join_session(
     # confirm — their presence only becomes real once the microphone works.
     salon_event_service.record_entry(
         db,
+        # The same value the LiveKit token is minted with a few lines below. One identity from
+        # one source, so the row and the room agree about who this is.
+        participant_identity=str(current_user.id),
         email=current_user.email or "",
         phone=current_user.phone_number or "",
         user_type="host" if is_host else "guest",
@@ -1245,6 +1248,7 @@ def report_microphone_working(
     session = _host_session(session_id, db, current_user)
     salon_event_service.record_entry(
         db,
+        participant_identity=str(current_user.id),
         email=current_user.email or "",
         phone=current_user.phone_number or "",
         user_type="host",

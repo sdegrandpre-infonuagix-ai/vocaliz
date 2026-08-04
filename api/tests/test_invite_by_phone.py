@@ -149,7 +149,9 @@ def test_the_text_carries_the_transcription_notice_in_both_languages(client):
 
 def test_a_guest_with_only_a_number_is_recorded(db, session):
     salon_event_service.record_entry(
-        db, phone=PHONE, user_type="guest", salon_name=session.livekit_room_name
+        db,
+        participant_identity="test-identity",
+        phone=PHONE, user_type="guest", salon_name=session.livekit_room_name
     )
     row = db.query(SalonEvent).one()
     assert row.phone == PHONE
@@ -157,31 +159,71 @@ def test_a_guest_with_only_a_number_is_recorded(db, session):
 
 
 def test_a_participation_with_no_identity_is_refused(db, session):
-    """Not raised — refused. Failing to note something must never keep anyone out."""
+    """Not raised — refused. Failing to note something must never keep anyone out.
+
+    "Identity" now means the LiveKit identity, not an address. A participation with neither an
+    email nor a number is perfectly valid — that is an anonymous guest — but one with nothing
+    to attribute it to is not.
+    """
     salon_event_service.record_entry(
-        db, user_type="guest", salon_name=session.livekit_room_name
+        db,
+        participant_identity="",
+        email="someone@example.com",
+        user_type="guest",
+        salon_name=session.livekit_room_name,
     )
     assert db.query(SalonEvent).count() == 0
 
 
-def test_email_and_phone_are_different_people(db, session):
-    """Deliberate: nothing can decide that an address and a number are the same person."""
+def test_two_identities_are_two_participants(db, session):
+    """What separates participants is the identity the room saw, not the channel they were
+    reached by. Two invitations are two identities and therefore two rows — which is what
+    happened in the room, whether one was emailed and the other texted or not."""
     salon_event_service.record_entry(
-        db, email="a@example.com", user_type="guest", salon_name=session.livekit_room_name
+        db,
+        participant_identity="guest-one",
+        email="a@example.com", user_type="guest", salon_name=session.livekit_room_name
     )
     salon_event_service.record_entry(
-        db, phone=PHONE, user_type="guest", salon_name=session.livekit_room_name
+        db,
+        participant_identity="guest-two",
+        phone=PHONE, user_type="guest", salon_name=session.livekit_room_name
     )
     assert db.query(SalonEvent).count() == 2
+
+
+def test_one_identity_rejoining_is_one_participant(db, session):
+    """The other half of the same rule, and the reason the key changed: re-entering a salon
+    updates the row instead of adding a second. Previously an address supplied on the second
+    call and not the first would have created a new row."""
+    salon_event_service.record_entry(
+        db,
+        participant_identity="guest-one",
+        user_type="guest", salon_name=session.livekit_room_name
+    )
+    salon_event_service.record_entry(
+        db,
+        participant_identity="guest-one",
+        email="learned@example.com",
+        user_type="guest", salon_name=session.livekit_room_name
+    )
+    rows = db.query(SalonEvent).all()
+    assert len(rows) == 1
+    # An anonymous guest who signs up mid-salon becomes reachable, and the row says so.
+    assert rows[0].email == "learned@example.com"
 
 
 def test_first_salon_matches_on_the_half_we_hold(db, session):
     """An empty email must not match every other participant who also lacks one."""
     salon_event_service.record_entry(
-        db, phone=PHONE, user_type="guest", salon_name="salon-elsewhere"
+        db,
+        participant_identity="test-identity",
+        phone=PHONE, user_type="guest", salon_name="salon-elsewhere"
     )
     salon_event_service.record_entry(
-        db, phone="+15145559999", user_type="guest", salon_name=session.livekit_room_name
+        db,
+        participant_identity="test-identity",
+        phone="+15145559999", user_type="guest", salon_name=session.livekit_room_name
     )
     invitation = Invitation(
         session_id=session.id,
