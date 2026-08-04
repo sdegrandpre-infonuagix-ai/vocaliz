@@ -41,7 +41,7 @@ def _event(db, email, salon, **kw):
 
 # ─── What is in it ───────────────────────────────────────────────────────────
 
-def test_the_columns_are_the_eight_asked_for_plus_two_diagnostics(db):
+def test_the_columns_are_the_eight_asked_for_plus_three(db):
     """Eight were requested. Two more were added deliberately, and both answer a question that
     had no answer:
 
@@ -49,6 +49,8 @@ def test_the_columns_are_the_eight_asked_for_plus_two_diagnostics(db):
                                was not heard — the open question about the first real users.
       Salons de cet appareil   separates a returning anonymous visitor from a new one, which an
                                invitation-derived identity cannot do on its own.
+      Identité                 the row's key, and the only thing that tells two anonymous
+                               guests apart — "Contact" reads the same for both.
 
     Pinned here so the additions stay visible rather than being something a reader has to
     notice."""
@@ -57,6 +59,7 @@ def test_the_columns_are_the_eight_asked_for_plus_two_diagnostics(db):
     assert list(row.keys()) == participant_report.COLUMNS
     assert participant_report.COLUMNS == [
         "Contact",
+        "Identité",
         "Rôle",
         "Salons",
         "Langue",

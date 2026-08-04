@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 
 COLUMNS = [
     "Contact",
+    # The LiveKit identity, which is also the row's key. Shown because "Contact" cannot always
+    # tell two lines apart: an anonymous guest has no address, and two of them read the same at
+    # a glance. This is the value that distinguishes them, and the one to quote when asking
+    # LiveKit about a room.
+    "Identité",
     "Rôle",
     "Salons",
     "Langue",
@@ -169,6 +174,7 @@ def collect(db: Session) -> list[dict]:
                 # room label this identity wore — "Guest 3F2A". Never a bare UUID: the point of
                 # the report is that somebody can recognise who a line is about.
                 "Contact": row.email or row.phone or _label(key),
+                "Identité": key,
                 "Rôle": " + ".join(sorted(roles.get(key, set()))) or "—",
                 "Salons": row.salons,
                 "Langue": ", ".join(sorted(languages.get(key, set()))) or "—",

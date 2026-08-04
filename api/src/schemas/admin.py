@@ -7,9 +7,14 @@ from pydantic import BaseModel
 class ParticipantRecord(BaseModel):
     """One person, summarised across every salon they took part in."""
 
-    # Whichever half of the identity this person is known by. Both are returned so a
-    # caller can tell an unknown address from a guest who was only ever texted — one
-    # combined "contact" field would hide which channel it is.
+    # The LiveKit identity, which is the participation's key and what these rows are grouped
+    # on. Returned because an address cannot always tell two participants apart — an anonymous
+    # guest has none, so grouping on contact details folded every one of them into a single
+    # line, and tracing one person's rows meant deducing rather than reading.
+    participantIdentity: str = ""
+    # Whichever half of the identity this person is known by, when they are known at all. Both
+    # are returned so a caller can tell an unknown address from a guest who was only ever
+    # texted — one combined "contact" field would hide which channel it is.
     email: str = ""
     phone: str = ""
     # Someone can be a host in one salon and a guest in another, so this is a list.

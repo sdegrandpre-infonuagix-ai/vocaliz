@@ -31,13 +31,15 @@ def ordinary(db):
 
 
 def _event(
-    db, email, salon, *, user_type="host", entered=NOW, language=None, device=""
+    db, email, salon, *, user_type="host", entered=NOW, language=None, device="",
+    identity=None,
 ):
     db.add(
         SalonEvent(
-            # One row per LiveKit identity per salon. Derived from the address and the
-            # salon so each fixture row is distinct without every test naming one.
-            participant_identity=f"{email}:{salon}",
+            # Stable per person by default, which is how a host behaves: they join every salon
+            # as their own account UUID, so their salons aggregate into one entry. A test about
+            # several identities — two anonymous guests, say — passes them explicitly.
+            participant_identity=identity if identity is not None else email,
             email=email,
             user_type=user_type,
             salon_name=salon,
@@ -215,3 +217,37 @@ def test_devices_are_absent_rather_than_missing_for_older_rows(client, admin, db
     _event(db, "alice@example.com", "salon-a")
     body = client.get("/admin/participants", headers=_auth(token)).json()
     assert body["participants"][0]["devices"] == []
+
+
+# ─── Grouped on the identity, not on the contact ─────────────────────────────
+
+def test_two_anonymous_guests_are_two_entries(client, admin, db):
+    """The defect this grouping fixes. Both have no address and no number, so grouping on
+    contact details folded every anonymous guest in the system into one line labelled with
+    nothing — and the more of them there were, the more wrong it got."""
+    _, token = admin
+    _event(db, "", "salon-a", identity="guest-aaa", user_type="guest")
+    _event(db, "", "salon-b", identity="guest-bbb", user_type="guest")
+    body = client.get("/admin/participants", headers=_auth(token)).json()
+    assert body["total"] == 2
+    assert {p["participantIdentity"] for p in body["participants"]} == {"guest-aaa", "guest-bbb"}
+
+
+def test_the_identity_is_returned(client, admin, db):
+    """Returned so one person's rows can be traced by reading rather than by deduction — which
+    is how the duplicate identity in production had to be found."""
+    _, token = admin
+    _event(db, "alice@example.com", "salon-a", identity="acct-1")
+    body = client.get("/admin/participants", headers=_auth(token)).json()
+    assert body["participants"][0]["participantIdentity"] == "acct-1"
+
+
+def test_the_total_counts_what_the_page_groups_on(client, admin, db):
+    """Otherwise "returned of total" compares two different things and a truncated list looks
+    complete, or a complete one looks truncated."""
+    _, token = admin
+    _event(db, "", "salon-a", identity="guest-1", user_type="guest")
+    _event(db, "", "salon-b", identity="guest-2", user_type="guest")
+    _event(db, "alice@example.com", "salon-c", identity="acct-1")
+    body = client.get("/admin/participants", headers=_auth(token)).json()
+    assert body["total"] == 3 == body["returned"]

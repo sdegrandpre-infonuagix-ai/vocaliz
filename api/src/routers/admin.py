@@ -46,23 +46,30 @@ def list_participants(
     The aggregation uses count/min/max, which behave the same on Postgres and on the
     SQLite the tests run against; array_agg would not.
     """
-    # Grouped on the pair, because identity is now two columns and a guest reached only
-    # by text has no address at all. Grouping on email alone would collapse every one of
-    # them into a single row keyed on the empty string.
+    # Counted on the same thing the page groups on, or "returned of total" compares two
+    # different quantities: a truncated list would look complete, or a complete one truncated.
+    #
+    # Contact details cannot serve here. Two anonymous guests share an empty address and an
+    # empty number, so counting distinct pairs reported one participant where there were two —
+    # and the more anonymous guests arrived, the further off it got.
     total = (
-        db.query(func.count(func.distinct(SalonEvent.email + "|" + SalonEvent.phone))).scalar()
-        or 0
+        db.query(func.count(func.distinct(SalonEvent.participant_identity))).scalar() or 0
     )
 
+    # Grouped on the LiveKit identity rather than on contact details, and that matters as soon
+    # as anonymous guests exist: they have neither an address nor a number, so grouping on those
+    # folded every one of them into a single line labelled with nothing. The identity is present
+    # for everybody, whether or not anyone knows who they are.
     grouped = (
         db.query(
-            SalonEvent.email,
-            SalonEvent.phone,
+            SalonEvent.participant_identity,
+            func.max(SalonEvent.email).label("email"),
+            func.max(SalonEvent.phone).label("phone"),
             func.count(func.distinct(SalonEvent.salon_name)).label("salons"),
             func.min(SalonEvent.entered_at).label("first_seen"),
             func.max(SalonEvent.entered_at).label("last_seen"),
         )
-        .group_by(SalonEvent.email, SalonEvent.phone)
+        .group_by(SalonEvent.participant_identity)
         # Most recent first: the useful end of the list when it grows.
         .order_by(func.max(SalonEvent.entered_at).desc())
         .limit(limit)
@@ -70,41 +77,37 @@ def list_participants(
         .all()
     )
 
-    people = [(row.email, row.phone) for row in grouped]
+    people = [row.participant_identity for row in grouped]
     # Two small lookups instead of aggregating arrays in SQL. Restricted to the page's
     # emails, so their cost follows the page and not the size of the table.
-    types: dict[tuple[str, str], set[str]] = {}
-    languages: dict[tuple[str, str], set[str]] = {}
-    devices: dict[tuple[str, str], set[str]] = {}
+    types: dict[str, set[str]] = {}
+    languages: dict[str, set[str]] = {}
+    devices: dict[str, set[str]] = {}
     if people:
-        # Filtered on the pair itself, not on each column separately: two independent
-        # IN clauses match combinations that are not on this page — harmless here, since
-        # the results are keyed by pair and the extras are never read, but it reads as if
-        # it were exact when it is not.
-        on_page = tuple_(SalonEvent.email, SalonEvent.phone).in_(people)
-        for email, phone, user_type in (
-            db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.user_type)
+        # One column now, so the old caveat about two independent IN clauses matching
+        # combinations that are not on this page no longer applies: an identity is exact.
+        on_page = SalonEvent.participant_identity.in_(people)
+        for identity, user_type in (
+            db.query(SalonEvent.participant_identity, SalonEvent.user_type)
             .filter(on_page)
             .distinct()
         ):
-            types.setdefault((email, phone), set()).add(user_type)
-        for email, phone, language in (
-            db.query(
-                SalonEvent.email, SalonEvent.phone, SalonEvent.first_spoken_language
-            )
+            types.setdefault(identity, set()).add(user_type)
+        for identity, language in (
+            db.query(SalonEvent.participant_identity, SalonEvent.first_spoken_language)
             .filter(on_page, SalonEvent.first_spoken_language.isnot(None))
             .distinct()
         ):
-            languages.setdefault((email, phone), set()).add(language)
+            languages.setdefault(identity, set()).add(language)
         # Every device a person has been seen on, not the last one: somebody who hosts from a
         # laptop and joins from a phone is both, and keeping only one would answer a question
         # nobody asked.
-        for email, phone, device in (
-            db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.device_type)
+        for identity, device in (
+            db.query(SalonEvent.participant_identity, SalonEvent.device_type)
             .filter(on_page, SalonEvent.device_type != "")
             .distinct()
         ):
-            devices.setdefault((email, phone), set()).add(device)
+            devices.setdefault(identity, set()).add(device)
 
     # Who read what, and how much of it. Not the addresses themselves: writing the list
     # to CloudWatch would copy the personal data into a second store with its own
@@ -122,14 +125,15 @@ def list_participants(
         returned=len(grouped),
         participants=[
             ParticipantRecord(
+                participantIdentity=row.participant_identity,
                 email=row.email,
                 phone=row.phone,
-                userTypes=sorted(types.get((row.email, row.phone), set())),
+                userTypes=sorted(types.get(row.participant_identity, set())),
                 salonCount=row.salons,
                 firstSeen=row.first_seen,
                 lastSeen=row.last_seen,
-                languages=sorted(languages.get((row.email, row.phone), set())),
-                devices=sorted(devices.get((row.email, row.phone), set())),
+                languages=sorted(languages.get(row.participant_identity, set())),
+                devices=sorted(devices.get(row.participant_identity, set())),
             )
             for row in grouped
         ],
