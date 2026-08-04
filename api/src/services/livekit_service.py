@@ -148,6 +148,28 @@ async def delete_room(room_name: str) -> bool:
     return False
 
 
+def identity_for(invitation) -> str:
+    """The identity this invited participant will actually join under.
+
+    One function because three places have to agree: the token minted for the guest, the value
+    handed to the host so they can address that guest, and the participation row. If any of the
+    three computed it differently, the host would hold a handle that names nobody.
+
+    An invitation linked to an account joins under that account's UUID, not under an
+    invitation-derived identity. Without this, one registered person had two identities — their
+    account UUID when they joined through the app, and "guest-<invitation>" when they clicked the
+    emailed link — which showed up as two rows for one human in the participant report, and
+    three more if they were invited three times.
+
+    The display name is deliberately untouched. Anonymity between participants is carried by that
+    label, not by the identity, so a registered guest is still shown as "Guest 3F2A" while being
+    one countable person behind the scenes.
+    """
+    if getattr(invitation, "guest_user_id", None):
+        return str(invitation.guest_user_id)
+    return guest_identity(invitation.id)
+
+
 def guest_identity(invitation_id) -> str:
     """The LiveKit participant identity an invited guest joins under.
 

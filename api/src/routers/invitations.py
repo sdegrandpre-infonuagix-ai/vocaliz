@@ -170,7 +170,7 @@ def guest_join_session(
     # secret, and every route taking an invitation id requires the host's JWT. Other
     # participants can read it, as they can read any identity in the room, and gain
     # nothing by it.
-    guest_id = livekit_service.guest_identity(invitation.id)
+    guest_id = livekit_service.identity_for(invitation)
     token = livekit_service.generate_participant_token(
         room_name=session.livekit_room_name,
         user_id=guest_id,
@@ -231,7 +231,7 @@ def confirm_guest_join(
             # Derived from the invitation, exactly as this guest's LiveKit token is. It is what
             # lets an anonymous guest be recorded at all: they have no address, and while the
             # key demanded one such a participation was refused and they appeared nowhere.
-            participant_identity=livekit_service.guest_identity(invitation.id),
+            participant_identity=livekit_service.identity_for(invitation),
             # Whichever half the host supplied, when there is one. Now an attribute of the row
             # rather than part of its key — it says how to reach somebody, not which
             # participant this is.

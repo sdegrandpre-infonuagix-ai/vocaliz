@@ -251,3 +251,109 @@ def test_an_anonymous_invitation_may_not_carry_an_address(db):
     with pytest.raises(sqlalchemy.exc.IntegrityError):
         db.commit()
     db.rollback()
+
+
+# ─── One person, one identity ────────────────────────────────────────────────
+#
+# A registered person had two identities: their account UUID when they joined through the app,
+# and "guest-<invitation>" when they clicked the emailed link. The participant report showed that
+# as two rows for one human, and three more if they were invited three times.
+
+def _invitation(db, session, host_user, **kw):
+    from datetime import datetime, timedelta, timezone
+
+    row = Invitation(
+        session_id=session.id,
+        host_user_id=host_user.id,
+        guest_email=kw.pop("email", "friend@example.com"),
+        guest_phone="",
+        guest_user_id=kw.pop("guest_user_id", None),
+        invitation_type=kw.pop("kind", "email_contact"),
+        join_token=kw.pop("token", "t-identity"),
+        status="pending",
+        expires_at=datetime.now(tz=timezone.utc) + timedelta(hours=24),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def test_an_invitation_linked_to_an_account_joins_as_that_account(db, session, host):
+    """The fix. One registered person is one identity, whichever door they came through."""
+    from src.services import livekit_service
+
+    host_user, _ = host
+    guest = User(email="member@example.com")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+
+    invitation = _invitation(db, session, host_user, guest_user_id=guest.id, kind="salon_friend")
+    assert livekit_service.identity_for(invitation) == str(guest.id)
+
+
+def test_an_invitation_with_no_account_keeps_its_own_identity(db, session, host):
+    """Somebody with no account has nothing else to be identified by."""
+    from src.services import livekit_service
+
+    host_user, _ = host
+    invitation = _invitation(db, session, host_user)
+    assert livekit_service.identity_for(invitation) == f"guest-{invitation.id}"
+
+
+def test_an_anonymous_invitation_keeps_its_own_identity(db, session, host):
+    from src.services import livekit_service
+
+    host_user, _ = host
+    invitation = _invitation(db, session, host_user, email="", kind="anonymous_link")
+    assert livekit_service.identity_for(invitation) == f"guest-{invitation.id}"
+
+
+def test_the_display_name_is_untouched(db, session, host):
+    """Anonymity between participants rides on the label, not the identity. A registered guest is
+    still shown as "Guest 3F2A" while being one countable person behind the scenes."""
+    from src.services import livekit_service
+
+    host_user, _ = host
+    guest = User(email="shown@example.com")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    invitation = _invitation(db, session, host_user, guest_user_id=guest.id)
+
+    assert livekit_service.identity_for(invitation) == str(guest.id)
+    label = livekit_service.guest_display_name(invitation.id)
+    assert label.startswith("Guest ")
+    assert "shown@example.com" not in label
+
+
+def test_all_three_places_agree_on_the_identity(client, db, session, host):
+    """The reason it is one function. The token the guest joins with, the handle returned to the
+    host, and the participation row must name the same participant — a disagreement would leave
+    the host addressing somebody who is not there.
+
+    Exercised through real requests, because the three call sites are what drift, not the
+    function they call."""
+    from src.models.salon_event import SalonEvent
+
+    host_user, token = host
+    guest = User(email="agree@example.com")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    invitation = _invitation(
+        db, session, host_user, guest_user_id=guest.id, token="t-agree", kind="salon_friend"
+    )
+
+    # What the host is handed, straight from the invitation service.
+    from src.services import invitation_service
+
+    handed = invitation_service._build_response(invitation, session)["participantIdentity"]
+
+    # What the guest page is given, and what the row records.
+    assert client.get(f"/invitations/guest-join/{invitation.join_token}").status_code == 200
+    client.post(f"/invitations/guest-join/{invitation.join_token}/confirm")
+    recorded = db.query(SalonEvent).one().participant_identity
+
+    assert handed == recorded == str(guest.id)

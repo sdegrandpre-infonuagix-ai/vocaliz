@@ -186,7 +186,7 @@ def _build_response(
         "smsSent": sent[1],
         # Handed back at creation time, so the host holds the guest's future room identity
         # before the guest has opened the link.
-        "participantIdentity": livekit_service.guest_identity(invitation.id),
+        "participantIdentity": livekit_service.identity_for(invitation),
         # And the label that identity will wear in the room, so the host can tell which
         # "Guest XXXX" is the person they invited — the mapping to an email exists only
         # here, for the host, and is never published to the other participants.
