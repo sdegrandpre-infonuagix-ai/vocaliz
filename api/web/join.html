@@ -1259,6 +1259,11 @@
         renderReady();
         showCard('v-ready');
         showBtn(null);
+        // Deliberately left on screen. The agent offers an account on the way out — "the
+        // button is at the top right" — and the conversation ends a moment later. Hiding it
+        // with the room would point the offer at something that is no longer there, and this
+        // is exactly when somebody has had the idea put to them.
+        if (!accountToken) document.getElementById('btn-account').style.display = '';
       });
 
       await room.connect(creds.livekitUrl, creds.participantToken);
@@ -1417,15 +1422,20 @@
   var accountToken = null;
 
   function openAccount() {
+    // Remembered before switching: after leaving, the card behind this one is the farewell,
+    // not the room.
+    accountReturnCard = readyMode === 'left' ? 'v-ready' : 'v-connected';
     showCard('v-account');
     var field = document.getElementById('acct-email');
     if (field) field.focus();
   }
 
-  // Back to the conversation, which never stopped: the room stays connected throughout, so
-  // this only puts the card away.
+  // Where the card was opened from, so closing it goes back there. Hardcoding the room card
+  // would show a live conversation to somebody who had already left.
+  var accountReturnCard = 'v-connected';
+
   function closeAccount() {
-    showCard('v-connected');
+    showCard(accountReturnCard);
   }
 
   function acctStatus(key, ok, raw) {
