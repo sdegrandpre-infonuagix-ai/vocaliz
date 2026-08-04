@@ -36,7 +36,11 @@ def _event(db, email, salon, **kw):
 
 # ─── What is in it ───────────────────────────────────────────────────────────
 
-def test_the_eight_columns_asked_for_are_all_there(db):
+def test_the_columns_are_the_eight_asked_for_plus_the_microphone(db):
+    """Eight were requested. "Micro" is a ninth, added deliberately: it is the measurement that
+    separates a host who never tried to speak from one who tried and was not heard, which was
+    the open question about the first real users. Pinned here so the addition is visible rather
+    than something a reader has to notice."""
     _event(db, "a@example.com", "salon-a")
     row = participant_report.collect(db)[0]
     assert list(row.keys()) == participant_report.COLUMNS
@@ -49,6 +53,7 @@ def test_the_eight_columns_asked_for_are_all_there(db):
         "Pays",
         "Vu en dernier",
         "Secondes cumulées",
+        "Micro",
     ]
 
 
@@ -175,3 +180,70 @@ def test_the_addresses_never_reach_the_log(db, caplog):
         with caplog.at_level("INFO"):
             participant_report.send(db, "admin@example.com")
     assert "private@example.com" not in caplog.text
+
+
+# ─── The microphone, and the question it answers ─────────────────────────────
+
+def test_a_microphone_that_never_worked_reads_no(db):
+    _event(db, "a@example.com", "salon-a")
+    assert participant_report.collect(db)[0]["Micro"] == "non"
+
+
+def test_a_microphone_that_worked_once_reads_yes(db):
+    """Ever, not currently: somebody who mutes themselves before leaving has still been heard."""
+    db.add(
+        SalonEvent(
+            email="a@example.com",
+            user_type="host",
+            salon_name="salon-a",
+            entered_at=NOW,
+            microphone_enabled=True,
+        )
+    )
+    db.commit()
+    assert participant_report.collect(db)[0]["Micro"] == "oui"
+
+
+def test_one_working_salon_is_enough_across_several(db):
+    """Aggregated like the devices: a host whose microphone worked in one salon and failed in
+    another has a microphone that works, and the failure is about that salon."""
+    _event(db, "a@example.com", "salon-a")
+    db.add(
+        SalonEvent(
+            email="a@example.com",
+            user_type="host",
+            salon_name="salon-b",
+            entered_at=NOW,
+            microphone_enabled=True,
+        )
+    )
+    db.commit()
+    assert participant_report.collect(db)[0]["Micro"] == "oui"
+
+
+def test_the_two_states_are_distinguishable_in_the_report(db):
+    """The whole point. Both rows have no language; only the microphone column separates
+    "never tried" from "tried and was not heard"."""
+    _event(db, "silent@example.com", "salon-a")
+    db.add(
+        SalonEvent(
+            email="tried@example.com",
+            user_type="host",
+            salon_name="salon-b",
+            entered_at=NOW + timedelta(hours=1),
+            microphone_enabled=True,
+        )
+    )
+    db.commit()
+    rows = {r["Contact"]: r for r in participant_report.collect(db)}
+    assert rows["silent@example.com"]["Langue"] == "—"
+    assert rows["tried@example.com"]["Langue"] == "—"
+    assert rows["silent@example.com"]["Micro"] == "non"
+    assert rows["tried@example.com"]["Micro"] == "oui"
+
+
+def test_how_to_read_it_travels_with_the_report(db):
+    _event(db, "a@example.com", "salon-a")
+    text = participant_report.as_text(participant_report.collect(db))
+    assert "jamais essaye" in text
+    assert "sans etre entendu" in text

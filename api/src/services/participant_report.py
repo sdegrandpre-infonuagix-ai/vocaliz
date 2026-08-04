@@ -39,6 +39,7 @@ COLUMNS = [
     "Pays",
     "Vu en dernier",
     "Secondes cumulées",
+    "Micro",
 ]
 
 
@@ -70,6 +71,7 @@ def collect(db: Session) -> list[dict]:
     roles: dict[tuple[str, str], set[str]] = {}
     languages: dict[tuple[str, str], set[str]] = {}
     devices: dict[tuple[str, str], set[str]] = {}
+    heard: set[tuple[str, str]] = set()
     countries: dict[tuple[str, str], set[str]] = {}
 
     for email, phone, role in (
@@ -90,6 +92,12 @@ def collect(db: Session) -> list[dict]:
         .distinct()
     ):
         devices.setdefault((email, phone), set()).add(device)
+    for email, phone in (
+        db.query(SalonEvent.email, SalonEvent.phone)
+        .filter(on_page, SalonEvent.microphone_enabled.is_(True))
+        .distinct()
+    ):
+        heard.add((email, phone))
     for email, phone, country in (
         db.query(SalonEvent.email, SalonEvent.phone, SalonEvent.country)
         .filter(on_page, SalonEvent.country != "")
@@ -122,12 +130,18 @@ def collect(db: Session) -> list[dict]:
                 # A dash rather than a zero when there is no account: zero would claim somebody
                 # held conversations of no length, which is a different statement.
                 "Secondes cumulées": seconds.get(row.email, "—") if row.email else "—",
+                # Read against Langue: a microphone that worked with no language heard is
+                # somebody who tried and was not understood, which is a different problem from
+                # somebody who never tried.
+                "Micro": "oui" if key in heard else "non",
             }
         )
     return rows
 
 
 _CAVEAT_TEXT = (
+    "Micro : le microphone a fonctionne au moins une fois. Non + aucune langue = jamais essaye ; "
+    "oui + aucune langue = a essaye sans etre entendu.\n"
     "Pays : region du navigateur, declaree par l'appareil. Rien ne collecte de position.\n"
     "Secondes cumulees : temps mesure sur le COMPTE, pas la somme de ces participations. "
     "Absent pour un invite sans compte, et plus bas que la realite si l'essai a ete remis a zero."

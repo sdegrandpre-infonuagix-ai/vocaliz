@@ -2,7 +2,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session as DbSession
 
 from src.database import get_db
@@ -1220,3 +1220,35 @@ async def connect_agent(
     session.agent_muted = False
     db.commit()
     return AgentStateResponse(present=True, muted=False)
+
+
+@router.post("/{session_id}/microphone", status_code=204)
+def report_microphone_working(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The host's microphone is working. Reported by the page, which is the only party to know.
+
+    A guest needs no equivalent: their page calls guest-join/confirm from the same
+    microphone-success branch and nowhere else, so reaching that endpoint is already the
+    evidence. A host obtains credentials before touching their microphone, so the two moments
+    are separate and only they can report the second.
+
+    Recorded because two states looked identical and needed opposite responses: somebody who
+    never tried to speak, and somebody who tried and was not heard. Read with
+    first_spoken_language, this separates them.
+
+    204 and never an error: this is an observation about a conversation, and failing to record
+    one must not interrupt it.
+    """
+    session = _host_session(session_id, db, current_user)
+    salon_event_service.record_entry(
+        db,
+        email=current_user.email or "",
+        phone=current_user.phone_number or "",
+        user_type="host",
+        salon_name=session.livekit_room_name,
+        microphone_enabled=True,
+    )
+    return Response(status_code=204)

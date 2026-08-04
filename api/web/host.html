@@ -1719,6 +1719,12 @@
         await room.localParticipant.setMicrophoneEnabled(true);
         micState = { on: true, denied: false, retried: false };
         show('btn-mic', false);
+        // Reported because two states looked identical in the data: a host who never tried to
+        // speak, and one who tried and was not heard. Fire-and-forget — an observation about a
+        // conversation must not interrupt it.
+        if (sessionId) {
+          api('/sessions/' + sessionId + '/microphone', { method: 'POST' }).catch(function () { });
+        }
       } catch (micErr) {
         var denied = micErr && (micErr.name === 'NotAllowedError'
           || /permission|denied/i.test(micErr.message || ''));

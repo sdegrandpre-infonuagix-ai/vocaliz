@@ -41,6 +41,7 @@ def record_entry(
     first_spoken_language: str | None = None,
     device_type: str = "",
     country: str = "",
+    microphone_enabled: bool = False,
 ) -> None:
     """Note that someone joined a salon.
 
@@ -82,6 +83,7 @@ def record_entry(
                     plus_code=code,
                     device_type=device_service.normalise(device_type),
                     country=_country(country),
+                    microphone_enabled=microphone_enabled,
                     first_spoken_language=first_spoken_language,
                     entered_at=datetime.now(tz=timezone.utc),
                 )
@@ -97,6 +99,10 @@ def record_entry(
             # Filled in late when it was missing, never replaced: one participation, one
             # place, and the first reading is no less true than the second.
             row.country = row.country or _country(country)
+            # Only ever set, never cleared: a microphone that worked once worked, and a
+            # later call that happens not to mention it must not erase that.
+            if microphone_enabled:
+                row.microphone_enabled = True
             # Write-once. A later report must not overwrite the first: the column says
             # "first spoken", and a second value would quietly make that false.
             if row.first_spoken_language is None:

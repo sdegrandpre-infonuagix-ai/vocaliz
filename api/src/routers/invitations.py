@@ -244,6 +244,9 @@ def confirm_guest_join(
             # The browser's own locale region. Validated in the service, so anything that is
             # not two letters is dropped rather than stored.
             country=body.country if body else None,
+            # This endpoint is called from the guest page's microphone-success branch and
+            # nowhere else, so reaching it *is* the evidence. See its docstring.
+            microphone_enabled=True,
         )
 
     return {"status": invitation.status}

@@ -83,6 +83,18 @@ class SalonEvent(Base):
     # nothing at all.
     country: Mapped[str] = mapped_column(String(2), nullable=False, default="")
 
+    # Whether this participant's microphone ever worked. Reported by the client, which is the
+    # only party that knows: the browser either granted the permission or refused it.
+    #
+    # Read together with first_spoken_language it separates two states that were previously
+    # identical — somebody who never tried to speak, and somebody who tried and was not heard.
+    # With real users those need opposite responses, and nothing distinguished them.
+    #
+    # Write-once and true-only: the fact worth keeping is that it worked at some point, not
+    # whether it was still on at the end. Somebody who mutes themselves before leaving has
+    # still been heard.
+    microphone_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # BCP-47 code for the first language this person was heard speaking *in this salon* —
     # not the language of the interface they clicked through, and not a property of the
     # person. Someone may hold one conversation in French and the next in English, which
