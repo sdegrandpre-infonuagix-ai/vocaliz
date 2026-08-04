@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +10,24 @@ from src.database import Base
 
 class Invitation(Base):
     __tablename__ = "invitations"
+
+    # Declared here as well as in the migration, and that is the whole lesson of this
+    # constraint. It lived only in migration 016, so the test database — built from these
+    # models — never had it, and the first thing to violate it did so in production: an
+    # anonymous invitation, which carries no address by design, met a rule demanding one.
+    #
+    # Each kind of invitation states its own shape. An anonymous link must have neither
+    # channel, so it cannot quietly carry an address while claiming not to; every other kind
+    # must have at least one, so a host who typed nothing is refused rather than handed a link
+    # addressed to no one.
+    __table_args__ = (
+        CheckConstraint(
+            "(invitation_type = 'anonymous_link' AND guest_email = '' AND guest_phone = '')"
+            " OR (invitation_type <> 'anonymous_link'"
+            " AND (guest_email <> '' OR guest_phone <> ''))",
+            name="ck_invitations_contact",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(

@@ -191,3 +191,52 @@ def test_an_empty_addressed_invitation_is_still_refused(client, session, host):
     _, token = host
     resp = client.post(f"/sessions/{session.id}/invitations", json={}, headers=_auth(token))
     assert resp.status_code == 422
+
+
+# ─── The database rule itself ────────────────────────────────────────────────
+#
+# These exist because the constraint was invisible to the tests. It lived only in migration
+# 016 and not on the model, so the test database never had it and an anonymous invitation —
+# which carries no address by design — met the rule demanding one for the first time in
+# production, as a 500 the moment a host clicked the button.
+
+def test_an_addressed_invitation_still_needs_a_way_to_reach_someone(db):
+    """The rule the original constraint existed for, and it must survive the change: a host who
+    typed nothing gets a refusal, not a link addressed to nobody."""
+    import sqlalchemy
+
+    row = Invitation(
+        session_id=uuid.uuid4(),
+        host_user_id=uuid.uuid4(),
+        guest_email="",
+        guest_phone="",
+        invitation_type="email_contact",
+        join_token="t-addressed-empty",
+        status="pending",
+        expires_at=__import__("datetime").datetime.now(),
+    )
+    db.add(row)
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        db.commit()
+    db.rollback()
+
+
+def test_an_anonymous_invitation_may_not_carry_an_address(db):
+    """Narrower rather than weaker. An anonymous link with an address in it would be addressed
+    while claiming not to be, and nothing downstream would know which it was."""
+    import sqlalchemy
+
+    row = Invitation(
+        session_id=uuid.uuid4(),
+        host_user_id=uuid.uuid4(),
+        guest_email="someone@example.com",
+        guest_phone="",
+        invitation_type="anonymous_link",
+        join_token="t-anon-addressed",
+        status="pending",
+        expires_at=__import__("datetime").datetime.now(),
+    )
+    db.add(row)
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        db.commit()
+    db.rollback()
