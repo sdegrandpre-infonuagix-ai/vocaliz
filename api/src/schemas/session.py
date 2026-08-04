@@ -209,3 +209,20 @@ class TranscriptResponse(BaseModel):
     # mid-salon, when a request in flight may answer after the newer one.
     language: str | None = None
     utterances: list[dict]
+
+
+class AgentStateResponse(BaseModel):
+    """What the host toggle should show.
+
+    Two independent facts, not one tri-state: an agent can be present and listening, present
+    and paused, or absent. Collapsing them into a single value would make "absent" and
+    "paused" indistinguishable to a control that has to offer different actions for each.
+    """
+
+    present: bool
+    muted: bool
+
+
+class AgentMuteBody(BaseModel):
+    muted: bool
+

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import CheckConstraint, DateTime, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +10,16 @@ from src.database import Base
 
 class User(Base):
     __tablename__ = "users"
+
+    # Declared alongside the migration, not only in it: a constraint that lives only in a
+    # migration is invisible to the test database, which is built from these models. That gap
+    # let an anonymous invitation meet an unmet CHECK for the first time in production.
+    __table_args__ = (
+        CheckConstraint(
+            "caption_scale IS NULL OR (caption_scale BETWEEN 50 AND 300)",
+            name="ck_users_caption_scale",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -53,6 +63,14 @@ class User(Base):
     # collapsed NULL and "" could not offer a default without overriding a decision.
     interface_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
     caption_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # How large this person reads their captions, as a whole percentage — 85, 100, 120. Not a
+    # multiplier: the client compares the stored value against a fixed list of steps, and 1.2
+    # read back from a database is not reliably the 1.2 in that list.
+    #
+    # NULL means never chosen, so the device keeps whatever size it already had rather than
+    # jumping on first sign-in.
+    caption_scale: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Stripe billing
     stripe_customer_id: Mapped[str | None] = mapped_column(String(50), nullable=True)

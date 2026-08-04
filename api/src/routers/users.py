@@ -116,6 +116,7 @@ def _profile(user: User) -> UserProfileResponse:
         detectedLanguage=user.detected_language,
         interfaceLanguage=user.interface_language,
         captionLanguage=user.caption_language,
+        captionScale=user.caption_scale,
     )
 
 
@@ -140,6 +141,8 @@ def update_language_preferences(
         current_user.interface_language = body.interfaceLanguage
     if body.captionLanguage is not None:
         current_user.caption_language = body.captionLanguage
+    if body.captionScale is not None:
+        current_user.caption_scale = body.captionScale
     db.commit()
     db.refresh(current_user)
     return _profile(current_user)

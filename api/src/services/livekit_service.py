@@ -84,6 +84,10 @@ async def dispatch_agent(room_name: str, *, session_id: str, host_token: str) ->
         )
 
 
+# LiveKit labels every participant with a kind; 4 is AGENT. Matched on the kind rather than on
+# the identity because an agent identity is minted per job and is not knowable in advance.
+_AGENT_KIND = 4
+
 DELETE_ROOM_ATTEMPTS = 3
 DELETE_ROOM_BACKOFF_SECONDS = 0.4
 
@@ -242,3 +246,69 @@ def generate_participant_token(
 
 def new_room_name() -> str:
     return f"salon-{uuid.uuid4().hex[:12]}"
+
+
+async def agent_is_present(room_name: str) -> bool:
+    """Whether a voice agent is currently in the room.
+
+    Read from LiveKit rather than tracked in our own column, deliberately. The agent can leave
+    for reasons nothing here initiated — its worker dies, the job crashes, the room hiccups —
+    and a flag we maintained would then describe a room we were no longer looking at. The
+    toggle has to show what is true, not what was last requested.
+    """
+    try:
+        async with lk_api.LiveKitAPI(
+            _http_url(), settings.livekit_api_key, settings.livekit_api_secret
+        ) as client:
+            listed = await client.room.list_participants(
+                lk_api.ListParticipantsRequest(room=room_name)
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not list participants of %s: %s", room_name, exc)
+        return False
+    return any(p.kind == _AGENT_KIND for p in listed.participants)
+
+
+async def remove_agent(room_name: str) -> bool:
+    """Take the voice agent out of the room and stop it coming back on its own.
+
+    Two steps, and both are needed. Removing the participant ends the conversation the agent is
+    in; deleting the dispatch is what stops LiveKit sending it straight back, which is what an
+    explicit dispatch is designed to do.
+
+    Returns whether an agent was actually removed, so a host toggling a room that already has
+    none is told the truth rather than shown a success.
+    """
+    removed = False
+    try:
+        async with lk_api.LiveKitAPI(
+            _http_url(), settings.livekit_api_key, settings.livekit_api_secret
+        ) as client:
+            # Dispatch first: removing the participant while the dispatch still stands invites
+            # a race where the worker rejoins between the two calls.
+            try:
+                dispatches = await client.agent_dispatch.list_dispatch(room_name=room_name)
+                for dispatch in dispatches:
+                    await client.agent_dispatch.delete_dispatch(dispatch.id, room_name)
+            except Exception as exc:  # noqa: BLE001
+                # A dispatch that cannot be deleted is worth knowing about, but the participant
+                # removal below is what the host actually asked for.
+                logger.warning("Could not delete dispatches for %s: %s", room_name, exc)
+
+            listed = await client.room.list_participants(
+                lk_api.ListParticipantsRequest(room=room_name)
+            )
+            for participant in listed.participants:
+                if participant.kind != _AGENT_KIND:
+                    continue
+                await client.room.remove_participant(
+                    lk_api.RoomParticipantIdentity(
+                        room=room_name, identity=participant.identity
+                    )
+                )
+                removed = True
+                logger.info("Removed agent %s from %s", participant.identity, room_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Could not remove the agent from %s: %s", room_name, exc, exc_info=True)
+        return False
+    return removed

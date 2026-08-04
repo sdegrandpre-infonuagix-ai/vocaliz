@@ -231,6 +231,16 @@
 
     /* ── Live captions ──────────────────────────────────────────────────────── */
     .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    /* Caption size, chosen by the reader. Applied as a scale on the container rather than a
+       size on each line, so the speaker label and the original-language line move with the
+       text instead of drifting out of proportion with it. */
+    .cap-size { display:flex; gap:4px; align-items:center; }
+    .cap-size button {
+      width:30px; min-height:30px; padding:0; border-radius:6px; cursor:pointer;
+      border:1px solid #C4BAA8; background:#fff; color:#2C2C2C;
+      font-size:15px; font-weight:700; line-height:1;
+    }
+    .cap-size button:disabled { opacity:.4; cursor:default; }
     .cap-head select {
       width:auto; min-width:150px; margin:0; padding:8px 10px; font-size:14px;
     }
@@ -410,6 +420,19 @@
         <div class="countdown-n" id="countdown-n">15</div>
         <div class="countdown-label" id="countdown-label"></div>
       </div>
+      <!-- The agent, under the host's hand. Two controls rather than one, because they are
+           not interchangeable: pausing keeps everything it knows, removing it does not. -->
+      <div class="row">
+        <button class="btn btn-outline" id="btn-agent-mute" onclick="toggleAgentMute()"
+                data-i18n="agentPause">Pause the agent</button>
+        <button class="btn btn-outline" id="btn-agent-presence" onclick="toggleAgentPresence()"
+                data-i18n="agentRemove">Remove the agent</button>
+      </div>
+      <div id="room-status" class="status"></div>
+      <div class="field-hint" id="agent-hint" data-i18n="agentHintPresent">
+        Pausing keeps everything it has heard. Removing it starts a new agent that remembers
+        nothing of this conversation.
+      </div>
       <div class="row">
         <button class="btn btn-outline" onclick="leaveRoom()" data-i18n="leaveButton">Leave</button>
       </div>
@@ -421,6 +444,12 @@
         <div class="card-title" data-i18n="capTitle">Live captions</div>
         <select id="cap-lang" onchange="setCaptionLang(this.value)"
                 aria-label="Caption language"></select>
+        <div class="cap-size">
+          <button onclick="stepCaptionSize(-1)" id="cap-smaller" data-i18n-title="capSmaller"
+                  aria-label="Smaller captions">A&minus;</button>
+          <button onclick="stepCaptionSize(1)" id="cap-bigger" data-i18n-title="capBigger"
+                  aria-label="Larger captions">A+</button>
+        </div>
       </div>
       <div id="cap-log"><div class="cap-empty" data-i18n="capEmpty">Nothing said yet.</div></div>
       <div class="cap-notice" data-i18n="capNotice">
@@ -538,6 +567,13 @@
         sendButton: 'Send by email',
         errHttp: 'Error {code}',
         codeSent: 'Code sent to {email}.',
+        agentPause: 'Pause the agent',
+        agentResume: 'Resume the agent',
+        agentRemove: 'Remove the agent',
+        agentRestore: 'Bring an agent back',
+        agentHintPresent: 'Pausing keeps everything it has heard. Removing it starts a new agent that remembers nothing of this conversation.',
+        agentHintAbsent: 'No agent in this Salon. A new one will read the source again and know nothing of what has been said.',
+        agentRemoveWarning: 'Removing the agent erases what it has heard. A new one would start over. Continue?',
         anonButton: 'Link without an email address',
         anonHint: 'Works once, like any invitation. Nobody is emailed — copy it and share it yourself.',
         anonReady: 'Link ready. Copy it and give it to your guest.',
@@ -632,6 +668,13 @@
         sendButton: 'Envoyer par courriel',
         errHttp: 'Erreur {code}',
         codeSent: 'Code envoyé à {email}.',
+        agentPause: "Mettre l'agent en pause",
+        agentResume: "Réactiver l'agent",
+        agentRemove: "Retirer l'agent",
+        agentRestore: 'Faire revenir un agent',
+        agentHintPresent: "La pause conserve tout ce qu'il a entendu. Le retirer démarre un nouvel agent qui ne se souvient de rien de cette conversation.",
+        agentHintAbsent: "Aucun agent dans ce Salon. Un nouveau relira la source et ne saura rien de ce qui s'est dit.",
+        agentRemoveWarning: "Retirer l'agent efface ce qu'il a entendu. Un nouveau repartirait de zéro. Continuer ?",
         anonButton: 'Lien sans adresse courriel',
         anonHint: "Fonctionne une seule fois, comme toute invitation. Personne n'est contacté — copiez-le et transmettez-le vous-même.",
         anonReady: 'Lien prêt. Copiez-le et donnez-le à votre invité.',
@@ -976,6 +1019,11 @@
     //
     // Only after sign-in, because before it there is no account to ask. Until then the browser
     // value stands, which is why it is still written on every change.
+    // The same channel as the two languages: one endpoint, one guard against echoing back.
+    function rememberCaptionScale(percent) {
+      rememberLanguages({ captionScale: percent });
+    }
+
     async function adoptSavedLanguages() {
       adoptingSaved = true;
       try {
@@ -993,6 +1041,9 @@
           var sel = document.getElementById('cap-lang');
           if (sel) sel.value = me.captionLanguage;
         }
+        // null means never chosen, and this device's own size stands. Only a real saved value
+        // overrides it.
+        if (me.captionScale) adoptCaptionScale(me.captionScale);
       } catch (e) {
         // A profile that will not load costs a preference, not a session.
         console.warn('Vocaliz: could not read the saved languages', e);
@@ -1074,6 +1125,9 @@
 
     function initCaptions() {
       var sel = document.getElementById('cap-lang');
+      // Applied before the early return: a panel already built still needs the stored size
+      // put back, and without this the reader's choice only took effect on their next click.
+      applyCaptionSize();
       if (!sel || sel.options.length) return;
       for (var i = 0; i < CAPTION_LANGS.length; i++) {
         var opt = document.createElement('option');
@@ -1346,6 +1400,114 @@
         // A category is worth nothing at the cost of joining a salon.
         return '';
       }
+    }
+
+    // ── The agent, under the host's hand ──────────────────────────────────────
+    // Two states rather than one tri-state control. An agent can be present and listening,
+    // present and paused, or gone — and "gone" and "paused" need different buttons because
+    // they are undone differently.
+    var agentState = { present: true, muted: false };
+
+    function renderAgent() {
+      var mute = document.getElementById('btn-agent-mute');
+      var presence = document.getElementById('btn-agent-presence');
+      if (!mute || !presence) return;
+
+      // Nothing to pause when there is nobody there.
+      mute.disabled = !agentState.present;
+      mute.textContent = T(agentState.muted ? 'agentResume' : 'agentPause');
+      presence.textContent = T(agentState.present ? 'agentRemove' : 'agentRestore');
+      document.getElementById('agent-hint').textContent =
+        T(agentState.present ? 'agentHintPresent' : 'agentHintAbsent');
+    }
+
+    async function readAgentState() {
+      if (!sessionId) return;
+      try {
+        agentState = await api('/sessions/' + sessionId + '/agent');
+        renderAgent();
+      } catch (e) {
+        // The controls keep whatever they were showing. A state that cannot be read is not a
+        // reason to tell the host something untrue about their agent.
+        console.warn('Vocaliz: could not read the agent state', e);
+      }
+    }
+
+    async function toggleAgentMute() {
+      var next = !agentState.muted;
+      try {
+        agentState = await api('/sessions/' + sessionId + '/agent/mute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ muted: next })
+        });
+      } catch (e) {
+        setStatusRaw('room-status', e.message, false);
+      }
+      renderAgent();
+    }
+
+    async function toggleAgentPresence() {
+      // Asked before removing, never before bringing one back. What is lost is the
+      // conversation the agent has been part of, and a host who has not been told that will
+      // discover it by the agent asking a question it was answered ten minutes ago.
+      if (agentState.present && !confirm(T('agentRemoveWarning'))) return;
+      var path = agentState.present ? '/agent/disconnect' : '/agent/connect';
+      try {
+        agentState = await api('/sessions/' + sessionId + path, { method: 'POST' });
+      } catch (e) {
+        setStatusRaw('room-status', e.message, false);
+      }
+      renderAgent();
+    }
+
+    // Caption size, chosen by the reader and remembered on their account.
+    //
+    // Someone reading the conversation rather than hearing it spends the whole salon in this
+    // panel, and the default is a guess about eyesight. It follows the person the way their two
+    // language choices do, so a size set on a laptop is still right on a phone.
+    //
+    // Whole percentages, not multipliers: the stored value is compared against this list, and a
+    // float read back from a database is not reliably the float in it.
+    var CAP_SIZE_KEY = 'vocaliz.capScale';
+    var CAP_STEPS = [85, 100, 120, 145, 175];
+    var capScale = 100;
+    try {
+      var stored = parseInt(localStorage.getItem(CAP_SIZE_KEY), 10);
+      if (CAP_STEPS.indexOf(stored) !== -1) capScale = stored;
+    } catch (e) { }
+
+    function applyCaptionSize() {
+      var log = document.getElementById('cap-log');
+      if (!log) return;
+      // One scale on the container: em-based children follow it, so the speaker label and the
+      // original-language line keep their proportion to the text they belong to.
+      log.style.fontSize = capScale + '%';
+      var at = CAP_STEPS.indexOf(capScale);
+      var smaller = document.getElementById('cap-smaller');
+      var bigger = document.getElementById('cap-bigger');
+      if (smaller) smaller.disabled = at <= 0;
+      if (bigger) bigger.disabled = at >= CAP_STEPS.length - 1;
+    }
+
+    function stepCaptionSize(direction) {
+      var at = CAP_STEPS.indexOf(capScale) + direction;
+      if (at < 0 || at >= CAP_STEPS.length) return;
+      capScale = CAP_STEPS[at];
+      // Written locally as well as to the account: local answers instantly and works before
+      // sign-in, where there is no account to write to.
+      try { localStorage.setItem(CAP_SIZE_KEY, String(capScale)); } catch (e) { }
+      applyCaptionSize();
+      rememberCaptionScale(capScale);
+    }
+
+    // Adopting a saved size must not send it straight back, and a size that only exists on this
+    // device must not be silently promoted to the account.
+    function adoptCaptionScale(percent) {
+      if (CAP_STEPS.indexOf(percent) === -1) return;
+      capScale = percent;
+      try { localStorage.setItem(CAP_SIZE_KEY, String(percent)); } catch (e) { }
+      applyCaptionSize();
     }
 
     // ── Billboard ───────────────────────────────────────────────────────────────

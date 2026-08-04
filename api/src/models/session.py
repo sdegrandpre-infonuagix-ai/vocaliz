@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,6 +29,15 @@ class SessionModel(Base):
     # the summariser was unreachable — the agent then falls back to the truncation.
     source_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+
+    # Whether the host has paused the voice agent. Paused means it stays in the room and keeps
+    # everything it knows, but neither hears nor speaks — as opposed to removing it, which ends
+    # the job and starts the next one with no memory of the conversation.
+    #
+    # Recorded because there is nothing else to ask. Presence is read from LiveKit, which knows
+    # who is in a room; mute lives inside the running agent, so a host who reloads the page
+    # would otherwise be shown a listening agent that is not listening.
+    agent_muted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

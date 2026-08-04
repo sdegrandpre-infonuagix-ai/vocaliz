@@ -1154,7 +1154,22 @@ async def entrypoint(ctx: agents.JobContext):
             msg = json.loads(bytes(packet.data).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             return
-        if isinstance(msg, dict) and msg.get("action") == "session_ended":
+        if isinstance(msg, dict) and msg.get("action") == "agent_mute":
+            # A pause, not a departure. Both directions are cut: muting only the output would
+            # leave the agent listening to a conversation the host believes is private, which
+            # is the opposite of what they asked for. Everything it knows survives — that is
+            # the whole difference between pausing and being removed.
+            muted = bool(msg.get("muted"))
+            try:
+                agent_session.input.set_audio_enabled(not muted)
+                agent_session.output.set_audio_enabled(not muted)
+                if muted:
+                    # Mid-sentence when the host presses pause, most likely.
+                    agent_session.interrupt()
+                logger.info("Agent %s by the host", "paused" if muted else "resumed")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Could not %s: %s", "pause" if muted else "resume", exc)
+        elif isinstance(msg, dict) and msg.get("action") == "session_ended":
             # Published by the API just before it deletes the room. A third way of learning
             # the conversation is over, alongside end_session and the heartbeat flag — and the
             # only one that arrives when the host ends a salon the agent had no part in.

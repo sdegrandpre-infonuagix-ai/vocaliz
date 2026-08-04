@@ -12,6 +12,8 @@ class UserProfileResponse(BaseModel):
     # chose to read speech as spoken.
     interfaceLanguage: str | None = None
     captionLanguage: str | None = None
+    # A whole percentage — 85, 100, 120 — not a multiplier. null means never chosen.
+    captionScale: int | None = None
 
 
 class UpdateLanguageBody(BaseModel):
@@ -32,6 +34,19 @@ class LanguagePreferencesBody(BaseModel):
 
     interfaceLanguage: str | None = None
     captionLanguage: str | None = None
+    captionScale: int | None = None
+
+    @field_validator("captionScale")
+    @classmethod
+    def within_reading_range(cls, v: int | None) -> int | None:
+        """Bounded rather than free. A percentage outside a readable range is a bug in a
+        caller, and storing it would leave somebody with a caption panel they cannot use and
+        no obvious way back."""
+        if v is None:
+            return None
+        if not 50 <= v <= 300:
+            raise ValueError("captionScale must be a percentage between 50 and 300")
+        return v
 
     @field_validator("interfaceLanguage", "captionLanguage")
     @classmethod

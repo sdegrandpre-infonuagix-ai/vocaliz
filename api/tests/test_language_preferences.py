@@ -150,3 +150,68 @@ def test_a_refused_value_changes_nothing(client, person, db):
     _patch(client, auth, interfaceLanguage="!!!")
     db.refresh(user)
     assert user.interface_language == "ro"
+
+
+# ─── Caption size ────────────────────────────────────────────────────────────
+#
+# Stored as a whole percentage rather than a multiplier. The client compares the stored value
+# against a fixed list of steps, and a float read back from a database is not reliably the
+# float in that list.
+
+def test_the_caption_size_is_remembered(client, person, db):
+    user, auth = person
+    assert _patch(client, auth, captionScale=145).status_code == 200
+    db.refresh(user)
+    assert user.caption_scale == 145
+
+
+def test_never_chosen_leaves_the_device_alone(client, person):
+    """null rather than a default, so first sign-in does not jump somebody to a size they
+    never asked for — the device keeps whatever it had."""
+    _, auth = person
+    assert client.get("/me/profile", headers=auth).json()["captionScale"] is None
+
+
+def test_a_size_survives_the_round_trip(client, person):
+    _, auth = person
+    _patch(client, auth, captionScale=85)
+    assert client.get("/me/profile", headers=auth).json()["captionScale"] == 85
+
+
+def test_a_size_does_not_disturb_the_languages(client, person, db):
+    user, auth = person
+    _patch(client, auth, interfaceLanguage="uk", captionLanguage="")
+    _patch(client, auth, captionScale=175)
+    db.refresh(user)
+    assert user.interface_language == "uk"
+    assert user.caption_language == "", "as-spoken was collateral damage"
+    assert user.caption_scale == 175
+
+
+@pytest.mark.parametrize("bad", [0, 10, 400, -100])
+def test_an_unreadable_size_is_refused(client, person, bad):
+    """Bounded on purpose: a percentage outside a readable range would leave somebody with a
+    caption panel they cannot use and no obvious way back."""
+    _, auth = person
+    assert _patch(client, auth, captionScale=bad).status_code == 422
+
+
+def test_a_refused_size_changes_nothing(client, person, db):
+    user, auth = person
+    _patch(client, auth, captionScale=120)
+    _patch(client, auth, captionScale=9999)
+    db.refresh(user)
+    assert user.caption_scale == 120
+
+
+def test_the_database_refuses_what_the_schema_would_have(client, person, db):
+    """The CHECK is declared on the model as well as in the migration. A constraint that lives
+    only in a migration is invisible to this test database, which is how an unmet CHECK reached
+    production earlier tonight."""
+    import sqlalchemy
+
+    user, _ = person
+    user.caption_scale = 5000
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        db.commit()
+    db.rollback()

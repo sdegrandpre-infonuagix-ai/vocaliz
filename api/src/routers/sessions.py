@@ -16,6 +16,8 @@ from src.models.session_source import SessionSource
 from src.models.user import User
 from src.models.invitation import Invitation
 from src.schemas.session import (
+    AgentMuteBody,
+    AgentStateResponse,
     BillingChargeSummary,
     EndSessionBody,
     EndSessionResponse,
@@ -1100,3 +1102,112 @@ def confirm_ad_delivered(
         return {"delivered": False, "reason": "nothing_reserved"}
 
     return {"delivered": ad_auction_service.mark_delivered(db, broadcast)}
+
+
+# ── The voice agent, under the host's control ────────────────────────────────
+#
+# Two different things, offered separately because they are not interchangeable.
+#
+# Pausing stops the agent hearing and speaking while it stays in the room, so it keeps
+# everything it knows: who is present, what has been said, which language each person speaks.
+# It is what a host wants for "let us talk among ourselves for a minute".
+#
+# Removing ends the job. The agent's memory of the conversation goes with it — nothing is read
+# back on restart — so the next one arrives knowing only the source. That is what a host wants
+# when the agent has gone wrong and should start over.
+
+
+def _host_session(session_id: str, db: DbSession, current_user: User) -> SessionModel:
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_uuid,
+        SessionModel.host_user_id == current_user.id,
+    ).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    return session
+
+
+@router.get("/{session_id}/agent", response_model=AgentStateResponse)
+async def get_agent_state(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Whether the agent is in the room, and whether it is listening.
+
+    Presence comes from LiveKit rather than from a column: it is the authority on who is in a
+    room, and an agent can leave for reasons nothing here initiated. Mute has no such authority
+    to consult — it lives inside the running agent — so it is the one thing recorded.
+    """
+    session = _host_session(session_id, db, current_user)
+    return AgentStateResponse(
+        present=await livekit_service.agent_is_present(session.livekit_room_name),
+        muted=session.agent_muted,
+    )
+
+
+@router.post("/{session_id}/agent/mute", response_model=AgentStateResponse)
+async def set_agent_muted(
+    session_id: str,
+    body: AgentMuteBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Pause or resume the agent without taking it out of the room.
+
+    The agent does the muting itself, on a message: only it can stop its own input, and doing
+    it from here by muting its published track would silence its voice while leaving it
+    listening — half a pause, and the wrong half.
+    """
+    session = _host_session(session_id, db, current_user)
+    session.agent_muted = body.muted
+    db.commit()
+    await livekit_service.notify_room(
+        session.livekit_room_name, {"action": "agent_mute", "muted": body.muted}
+    )
+    logger.info("Agent %s in session %s", "muted" if body.muted else "unmuted", session.id)
+    return AgentStateResponse(present=True, muted=body.muted)
+
+
+@router.post("/{session_id}/agent/disconnect", response_model=AgentStateResponse)
+async def disconnect_agent(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Take the agent out. Its memory of the conversation goes with it."""
+    session = _host_session(session_id, db, current_user)
+    await livekit_service.remove_agent(session.livekit_room_name)
+    # A removed agent is not a paused one. Leaving the flag set would bring the next agent back
+    # already silent, which is not what "reconnect" means to the host who asked for it.
+    session.agent_muted = False
+    db.commit()
+    return AgentStateResponse(present=False, muted=False)
+
+
+@router.post("/{session_id}/agent/connect", response_model=AgentStateResponse)
+async def connect_agent(
+    session_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send a fresh agent in.
+
+    A new job with a new context: it reads the sources again and knows nothing of what was
+    said. The host asked for a restart, and this is what a restart is.
+    """
+    session = _host_session(session_id, db, current_user)
+    if session.status != "active":
+        raise HTTPException(status_code=409, detail="This session is no longer active.")
+    await livekit_service.dispatch_agent(
+        session.livekit_room_name,
+        session_id=str(session.id),
+        host_token=jwt_service.issue_token(str(current_user.id)),
+    )
+    session.agent_muted = False
+    db.commit()
+    return AgentStateResponse(present=True, muted=False)

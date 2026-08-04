@@ -282,6 +282,16 @@
 
     /* ── Live captions ──────────────────────────────────────────────────────── */
     .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    /* Caption size, chosen by the reader. Applied as a scale on the container rather than a
+       size on each line, so the speaker label and the original-language line move with the
+       text instead of drifting out of proportion with it. */
+    .cap-size { display:flex; gap:4px; align-items:center; }
+    .cap-size button {
+      width:30px; min-height:30px; padding:0; border-radius:6px; cursor:pointer;
+      border:1px solid #C4BAA8; background:#fff; color:#2C2C2C;
+      font-size:15px; font-weight:700; line-height:1;
+    }
+    .cap-size button:disabled { opacity:.4; cursor:default; }
     .cap-head select {
       width:auto; min-width:150px; margin:0; padding:8px 10px; font-size:14px;
     }
@@ -482,6 +492,12 @@
       <div class="card-title" data-i18n="capTitle">Live captions</div>
       <select id="cap-lang" onchange="setCaptionLang(this.value)"
               aria-label="Caption language"></select>
+      <div class="cap-size">
+        <button onclick="stepCaptionSize(-1)" id="cap-smaller" data-i18n-title="capSmaller"
+                aria-label="Smaller captions">A&minus;</button>
+        <button onclick="stepCaptionSize(1)" id="cap-bigger" data-i18n-title="capBigger"
+                aria-label="Larger captions">A+</button>
+      </div>
     </div>
     <div id="cap-log"><div class="cap-empty" data-i18n="capEmpty">Nothing said yet.</div></div>
     <div class="cap-notice" data-i18n="capNotice">
@@ -798,6 +814,9 @@
 
     function initCaptions() {
       var sel = document.getElementById('cap-lang');
+      // Applied before the early return: a panel already built still needs the stored size
+      // put back, and without this the reader's choice only took effect on their next click.
+      applyCaptionSize();
       if (!sel || sel.options.length) return;
       for (var i = 0; i < CAPTION_LANGS.length; i++) {
         var opt = document.createElement('option');
@@ -1498,7 +1517,11 @@
           'Content-Type': 'application/json',
           Authorization: 'Bearer ' + accountToken
         },
-        body: JSON.stringify({ interfaceLanguage: lang, captionLanguage: captionLang })
+        body: JSON.stringify({
+          interfaceLanguage: lang,
+          captionLanguage: captionLang,
+          captionScale: capScale
+        })
       }).catch(function () {
         // The account exists either way; the preferences can be set again from any screen.
       });
@@ -1532,6 +1555,59 @@
       // Private mode refuses storage; the console will simply ask them to sign in.
     }
     window.location.href = '/host';
+  }
+
+  // Caption size, chosen by the reader and remembered on their account.
+  //
+  // Someone reading the conversation rather than hearing it spends the whole salon in this
+  // panel, and the default is a guess about eyesight. It follows the person the way their two
+  // language choices do, so a size set on a laptop is still right on a phone.
+  //
+  // Whole percentages, not multipliers: the stored value is compared against this list, and a
+  // float read back from a database is not reliably the float in it.
+  var CAP_SIZE_KEY = 'vocaliz.capScale';
+  var CAP_STEPS = [85, 100, 120, 145, 175];
+  var capScale = 100;
+  try {
+    var stored = parseInt(localStorage.getItem(CAP_SIZE_KEY), 10);
+    if (CAP_STEPS.indexOf(stored) !== -1) capScale = stored;
+  } catch (e) { }
+
+  function applyCaptionSize() {
+    var log = document.getElementById('cap-log');
+    if (!log) return;
+    // One scale on the container: em-based children follow it, so the speaker label and the
+    // original-language line keep their proportion to the text they belong to.
+    log.style.fontSize = capScale + '%';
+    var at = CAP_STEPS.indexOf(capScale);
+    var smaller = document.getElementById('cap-smaller');
+    var bigger = document.getElementById('cap-bigger');
+    if (smaller) smaller.disabled = at <= 0;
+    if (bigger) bigger.disabled = at >= CAP_STEPS.length - 1;
+  }
+
+  function stepCaptionSize(direction) {
+    var at = CAP_STEPS.indexOf(capScale) + direction;
+    if (at < 0 || at >= CAP_STEPS.length) return;
+    capScale = CAP_STEPS[at];
+    // Written locally as well as to the account: local answers instantly and works before
+    // sign-in, where there is no account to write to.
+    try { localStorage.setItem(CAP_SIZE_KEY, String(capScale)); } catch (e) { }
+    applyCaptionSize();
+    rememberCaptionScale(capScale);
+  }
+
+  // Adopting a saved size must not send it straight back, and a size that only exists on this
+  // device must not be silently promoted to the account.
+  // A guest has no account until they create one, so there is nothing to write to. The size
+  // travels with the sign-up instead, along with the two languages — see verifyAccountCode.
+  function rememberCaptionScale() { }
+
+  function adoptCaptionScale(percent) {
+    if (CAP_STEPS.indexOf(percent) === -1) return;
+    capScale = percent;
+    try { localStorage.setItem(CAP_SIZE_KEY, String(percent)); } catch (e) { }
+    applyCaptionSize();
   }
 
   // ── Clean disconnect on browser close / tab close ─────────────────────────
