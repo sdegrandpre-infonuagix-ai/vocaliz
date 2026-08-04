@@ -5,6 +5,7 @@ conversation: a failure to note that someone arrived must never keep them out of
 room, and a failure to note that they left must never block a session from closing.
 """
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session as DbSession
@@ -16,6 +17,23 @@ from src.models.user import User
 from src.services import device_service, location_service, summary_service
 
 logger = logging.getLogger(__name__)
+
+
+def _token(value: str | None) -> str:
+    """A browser-supplied token, kept only if it looks like the UUID the client should send.
+
+    Validated because it arrives in a request body and lands in an indexed column: anything
+    else is not a token and is dropped rather than stored, which also stops the column becoming
+    a place to put arbitrary text.
+    """
+    token = (value or "").strip().lower()
+    if len(token) != 36:
+        return ""
+    try:
+        uuid.UUID(token)
+    except ValueError:
+        return ""
+    return token
 
 
 def _country(value: str | None) -> str:
@@ -43,6 +61,7 @@ def record_entry(
     device_type: str = "",
     country: str = "",
     microphone_enabled: bool = False,
+    device_token: str = "",
 ) -> None:
     """Note that someone joined a salon.
 
@@ -90,6 +109,7 @@ def record_entry(
                     device_type=device_service.normalise(device_type),
                     country=_country(country),
                     microphone_enabled=microphone_enabled,
+                    device_token=_token(device_token),
                     first_spoken_language=first_spoken_language,
                     entered_at=datetime.now(tz=timezone.utc),
                 )
@@ -109,6 +129,9 @@ def record_entry(
             # later call that happens not to mention it must not erase that.
             if microphone_enabled:
                 row.microphone_enabled = True
+            # Filled in late, never replaced: one participation came from one browser, and a
+            # later call from another would be a different participation.
+            row.device_token = row.device_token or _token(device_token)
             # Write-once. A later report must not overwrite the first: the column says
             # "first spoken", and a second value would quietly make that false.
             if row.first_spoken_language is None:

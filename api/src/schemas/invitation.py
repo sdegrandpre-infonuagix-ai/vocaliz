@@ -78,6 +78,9 @@ class GeoBody(BaseModel):
     # Two-letter region from the browser's locale. Coarse on purpose: no position is asked for
     # and no address is kept, so this is the whole of what is known about where somebody is.
     country: str | None = None
+    # A random UUID this browser keeps, so a returning device is recognisable. Not an identity:
+    # it says "the same browser", never who is holding it.
+    deviceToken: str | None = None
 
 
 class InvitationResponse(BaseModel):

@@ -40,6 +40,7 @@ COLUMNS = [
     "Vu en dernier",
     "Secondes cumulées",
     "Micro",
+    "Salons de cet appareil",
 ]
 
 
@@ -93,6 +94,7 @@ def collect(db: Session) -> list[dict]:
     languages: dict[str, set[str]] = {}
     devices: dict[str, set[str]] = {}
     heard: set[str] = set()
+    token_of: dict[str, str] = {}
     countries: dict[str, set[str]] = {}
 
     for identity, value in (
@@ -120,6 +122,12 @@ def collect(db: Session) -> list[dict]:
     ):
         heard.add(identity)
     for identity, value in (
+        db.query(SalonEvent.participant_identity, SalonEvent.device_token)
+        .filter(on_page, SalonEvent.device_token != "")
+        .distinct()
+    ):
+        token_of[identity] = value
+    for identity, value in (
         db.query(SalonEvent.participant_identity, SalonEvent.country)
         .filter(on_page, SalonEvent.country != "")
         .distinct()
@@ -135,6 +143,22 @@ def collect(db: Session) -> list[dict]:
             User.email, User.trial_seconds_used, User.billed_seconds
         ).filter(User.email.in_(addresses)):
             seconds[email] = (trial or 0) + (billed or 0)
+
+    # How many salons each browser has been in. The whole point of the token: an anonymous
+    # invitation mints a fresh identity every visit, so without this a returning visitor and a
+    # new one are indistinguishable. Counted across the table rather than within this report —
+    # a device that came back last week still came back.
+    salons_per_token: dict[str, int] = {}
+    if token_of:
+        for token, count in (
+            db.query(
+                SalonEvent.device_token,
+                func.count(func.distinct(SalonEvent.salon_name)),
+            )
+            .filter(SalonEvent.device_token.in_(set(token_of.values())))
+            .group_by(SalonEvent.device_token)
+        ):
+            salons_per_token[token] = count
 
     rows = []
     for row in grouped:
@@ -158,12 +182,19 @@ def collect(db: Session) -> list[dict]:
                 # somebody who tried and was not understood, which is a different problem from
                 # somebody who never tried.
                 "Micro": "oui" if key in heard else "non",
+                # More than one means the same browser came back — the only way to tell a
+                # returning anonymous visitor from a new one. A dash where no token was stored:
+                # private browsing, a telephone participant, or a row from before this existed.
+                "Salons de cet appareil": salons_per_token.get(token_of.get(key, ""), "—"),
             }
         )
     return rows
 
 
 _CAVEAT_TEXT = (
+    "Salons de cet appareil : plus de 1 = le meme navigateur est revenu. Mesure des navigateurs, "
+    "pas des personnes — navigation privee, cache vide ou deuxieme navigateur comptent comme un "
+    "appareil neuf, et deux personnes sur un meme portable comptent pour une.\n"
     "Micro : le microphone a fonctionne au moins une fois. Non + aucune langue = jamais essaye ; "
     "oui + aucune langue = a essaye sans etre entendu.\n"
     "Pays : region du navigateur, declaree par l'appareil. Rien ne collecte de position.\n"

@@ -1424,8 +1424,46 @@
     fetch('/invitations/guest-join/' + joinToken + '/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device: deviceType(), country: browserCountry() })
+      body: JSON.stringify({
+      device: deviceType(),
+      country: browserCountry(),
+      deviceToken: deviceToken()
+    })
     }).catch(function() { /* best effort */ });
+  }
+
+  // A random token this browser keeps, so a device that comes back is recognisable as the same
+  // one. It answers the only question that had no answer: an anonymous invitation mints a fresh
+  // identity every visit, so one person returning five times looked like five people.
+  //
+  // Not a MAC address — no browser has ever exposed one, and phones randomise theirs per Wi-Fi
+  // network for exactly this reason. Not a fingerprint either: probing canvas and fonts would
+  // work without asking, which is why it carries a heavier legal regime than a value the person
+  // can delete. This is a first-party random UUID, shared with no other site, and clearing site
+  // data ends it.
+  //
+  // Fails open. Private browsing refuses storage, and a device that cannot be recognised is a
+  // worse outcome than no participation at all — so an unreadable store means no token, never an
+  // error.
+  var DEVICE_TOKEN_KEY = 'vocaliz.deviceToken';
+
+  function deviceToken() {
+    try {
+      var existing = localStorage.getItem(DEVICE_TOKEN_KEY);
+      if (existing && existing.length === 36) return existing;
+      var minted = (crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        // Older Safari has getRandomValues without randomUUID. Built from the same entropy
+        // rather than from Math.random, which is not random enough to be an identifier.
+        : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, function (c) {
+            return (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4))))
+              .toString(16);
+          });
+      localStorage.setItem(DEVICE_TOKEN_KEY, minted);
+      return minted;
+    } catch (e) {
+      return '';
+    }
   }
 
   // The country, as coarsely as it can honestly be known.

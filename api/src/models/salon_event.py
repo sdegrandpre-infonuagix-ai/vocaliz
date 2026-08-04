@@ -111,6 +111,21 @@ class SalonEvent(Base):
     # still been heard.
     microphone_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # A random UUID the browser keeps and sends back, so a device that returns is recognisable
+    # as the same one. It answers a question nothing else could: an anonymous invitation mints a
+    # fresh identity every visit, so one person coming five times looked like five people.
+    #
+    # Not a MAC address — no browser exposes one, and phones randomise theirs per network for
+    # exactly this reason. Not a fingerprint either: probing canvas and fonts would work without
+    # consent, which is why it carries a heavier legal regime than a value the person can delete.
+    #
+    # What it measures is a browser, not a human. Private browsing, cleared storage and a second
+    # browser on one phone each read as a new device; two people sharing a laptop read as one.
+    # Anywhere this is counted, that has to be said.
+    device_token: Mapped[str] = mapped_column(
+        String(36), nullable=False, default="", index=True
+    )
+
     # BCP-47 code for the first language this person was heard speaking *in this salon* —
     # not the language of the interface they clicked through, and not a property of the
     # person. Someone may hold one conversation in French and the next in English, which

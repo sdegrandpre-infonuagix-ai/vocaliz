@@ -213,3 +213,56 @@ def test_an_unusable_device_never_costs_the_participation(db, session):
         device_type="nonsense",
     )
     assert db.query(SalonEvent).count() == 1
+
+
+# ─── The device token, and what it refuses ───────────────────────────────────
+#
+# It lands in an indexed column and arrives in a request body, so it is validated rather than
+# trusted. Anything that is not the UUID a client should send is not a token.
+
+def test_a_uuid_is_kept(db, session):
+    token = "66666666-6666-4666-8666-666666666666"
+    salon_event_service.record_entry(
+        db,
+        participant_identity="test-identity",
+        email="dev@example.com",
+        user_type="host",
+        salon_name=session.livekit_room_name,
+        device_token=token,
+    )
+    assert db.query(SalonEvent).one().device_token == token
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["", "not-a-uuid", "<script>alert(1)</script>", "1" * 36, "a" * 200],
+)
+def test_anything_that_is_not_a_uuid_is_dropped(db, session, bad):
+    """Dropped rather than stored: this column is indexed and queried by value, and it must not
+    become a place to put arbitrary text."""
+    salon_event_service.record_entry(
+        db,
+        participant_identity="test-identity",
+        email="dev@example.com",
+        user_type="host",
+        salon_name=session.livekit_room_name,
+        device_token=bad,
+    )
+    assert db.query(SalonEvent).one().device_token == ""
+
+
+def test_a_token_is_not_replaced_on_re_entry(db, session):
+    """One participation came from one browser. A later call from another would be a different
+    participation, not a correction of this one."""
+    first = "77777777-7777-4777-8777-777777777777"
+    second = "88888888-8888-4888-8888-888888888888"
+    for token in (first, second):
+        salon_event_service.record_entry(
+            db,
+            participant_identity="test-identity",
+            email="dev@example.com",
+            user_type="host",
+            salon_name=session.livekit_room_name,
+            device_token=token,
+        )
+    assert db.query(SalonEvent).one().device_token == first

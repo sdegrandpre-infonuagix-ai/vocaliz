@@ -32,6 +32,7 @@ def _event(db, email, salon, **kw):
             entered_at=kw.pop("entered", NOW),
             first_spoken_language=kw.pop("language", None),
             device_type=kw.pop("device", ""),
+            device_token=kw.pop("token", ""),
             country=kw.pop("country", ""),
         )
     )
@@ -40,11 +41,17 @@ def _event(db, email, salon, **kw):
 
 # ─── What is in it ───────────────────────────────────────────────────────────
 
-def test_the_columns_are_the_eight_asked_for_plus_the_microphone(db):
-    """Eight were requested. "Micro" is a ninth, added deliberately: it is the measurement that
-    separates a host who never tried to speak from one who tried and was not heard, which was
-    the open question about the first real users. Pinned here so the addition is visible rather
-    than something a reader has to notice."""
+def test_the_columns_are_the_eight_asked_for_plus_two_diagnostics(db):
+    """Eight were requested. Two more were added deliberately, and both answer a question that
+    had no answer:
+
+      Micro                    separates a host who never tried to speak from one who tried and
+                               was not heard — the open question about the first real users.
+      Salons de cet appareil   separates a returning anonymous visitor from a new one, which an
+                               invitation-derived identity cannot do on its own.
+
+    Pinned here so the additions stay visible rather than being something a reader has to
+    notice."""
     _event(db, "a@example.com", "salon-a")
     row = participant_report.collect(db)[0]
     assert list(row.keys()) == participant_report.COLUMNS
@@ -58,6 +65,7 @@ def test_the_columns_are_the_eight_asked_for_plus_the_microphone(db):
         "Vu en dernier",
         "Secondes cumulées",
         "Micro",
+        "Salons de cet appareil",
     ]
 
 
@@ -277,3 +285,46 @@ def test_an_anonymous_guest_is_shown_by_their_room_label(db):
     contact = participant_report.collect(db)[0]["Contact"]
     assert contact.startswith("Guest ")
     assert "0000-4000" not in contact
+
+
+# ─── The returning device ────────────────────────────────────────────────────
+#
+# An anonymous invitation mints a fresh identity every visit, so one person coming back five
+# times looked like five people. A random token the browser keeps is what separates them.
+
+def test_a_device_seen_once_reads_one(db):
+    _event(db, "", "salon-a", identity="guest-1", role="guest", token="11111111-1111-4111-8111-111111111111")
+    assert participant_report.collect(db)[0]["Salons de cet appareil"] == 1
+
+
+def test_the_same_browser_returning_is_visible(db):
+    """Two invitations, two identities, one browser. Without the token these are two strangers;
+    with it, they are one visitor who came back."""
+    token = "22222222-2222-4222-8222-222222222222"
+    _event(db, "", "salon-a", identity="guest-1", role="guest", token=token)
+    _event(db, "", "salon-b", identity="guest-2", role="guest", token=token)
+    rows = participant_report.collect(db)
+    assert len(rows) == 2, "still two participations, which is what the rooms saw"
+    assert all(r["Salons de cet appareil"] == 2 for r in rows)
+
+
+def test_two_browsers_are_not_conflated(db):
+    _event(db, "", "salon-a", identity="guest-1", role="guest", token="33333333-3333-4333-8333-333333333333")
+    _event(db, "", "salon-b", identity="guest-2", role="guest", token="44444444-4444-4444-8444-444444444444")
+    assert all(r["Salons de cet appareil"] == 1 for r in participant_report.collect(db))
+
+
+def test_no_token_reads_as_absent_not_as_one(db):
+    """Private browsing refuses storage, and a telephone participant has no browser at all.
+    A 1 there would claim a device was recognised when none was."""
+    _event(db, "", "salon-a", identity="guest-1", role="guest")
+    assert participant_report.collect(db)[0]["Salons de cet appareil"] == "—"
+
+
+def test_the_limits_of_the_measure_travel_with_it(db):
+    """Somebody reading "3" must know it means three visits from one browser, not from one
+    person. The report is the only place that can say so."""
+    _event(db, "", "salon-a", identity="guest-1", role="guest", token="55555555-5555-4555-8555-555555555555")
+    text = participant_report.as_text(participant_report.collect(db))
+    assert "navigateurs" in text
+    assert "navigation privee" in text
