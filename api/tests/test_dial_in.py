@@ -157,12 +157,17 @@ def test_the_call_page_is_served(client):
     assert "text/html" in resp.headers["content-type"]
 
 
-def test_the_call_page_offers_nothing_a_telephone_lacks(client):
-    """No transcript, no language picker, no caption controls. A simulation richer than the
-    thing it stands in for tests something else."""
+def test_the_caller_is_offered_nothing_a_telephone_lacks(client):
+    """No transcript, no language picker, no controls — for the caller.
+
+    Scoped to the dialer rather than the page. The page also carries the clerk's desk, which
+    has captions by design; asserting on the whole document would forbid the very thing the
+    other half exists to show. A simulation richer than the thing it stands in for tests
+    something else, and the thing being simulated here is a telephone."""
     body = client.get("/call").text
-    for absent in ("cap-log", "cap-lang", "caption"):
-        assert absent not in body, f"/call offers {absent}, which a telephone has not"
+    caller = body[body.index('id="dialer"') : body.index("</header>")]
+    for absent in ("cap-log", "cap-lang", "caption", "textarea"):
+        assert absent not in caller, f"the caller is offered {absent}, which a telephone has not"
 
 
 def test_the_call_page_asks_for_the_microphone_inside_the_click(client):

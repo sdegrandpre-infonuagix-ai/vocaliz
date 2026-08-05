@@ -340,6 +340,45 @@ export class SalonApiStack extends cdk.Stack {
       ),
     });
 
+    // ── The bare domain ───────────────────────────────────────────────────────
+    // vocaliz.net serves the same API as app.vocaliz.net. Somebody told "call Vocaliz" types
+    // the name they were given, not a subdomain, and a browser answering nothing at the apex
+    // is indistinguishable from a product that does not exist.
+    //
+    // A second certificate rather than a subject alternative name on the first. Adding a SAN
+    // replaces the certificate, and the working domain depends on it — a rebuild of something
+    // that is serving traffic, to add something that is not, is the wrong trade.
+    const apexCertificate = new acm.Certificate(this, 'ApexCertificate', {
+      domainName: DOMAIN_NAME,
+      validation: acm.CertificateValidation.fromDns(zone),
+    });
+
+    const apexDomain = new apigw.DomainName(this, 'ApexDomain', {
+      domainName: DOMAIN_NAME,
+      certificate: apexCertificate,
+    });
+
+    // Mapped explicitly: defaultDomainMapping above takes one domain, and a second one has to
+    // be attached to the same API rather than to a second API that would drift from it.
+    new apigw.ApiMapping(this, 'ApexMapping', {
+      api: httpApi,
+      domainName: apexDomain,
+    });
+
+    // No recordName, so this is the zone apex. A CNAME is not allowed there at all; the alias
+    // is what makes the bare domain reachable, which is the reason the app record is an A
+    // record too.
+    new route53.ARecord(this, 'ApexAliasRecord', {
+      zone,
+      target: route53.RecordTarget.fromAlias(
+        new targets.ApiGatewayv2DomainProperties(
+          apexDomain.regionalDomainName,
+          apexDomain.regionalHostedZoneId,
+        ),
+      ),
+    });
+
+    new cdk.CfnOutput(this, 'SiteUrl', { value: `https://${DOMAIN_NAME}` });
     new cdk.CfnOutput(this, 'AppUrl', { value: `https://${APP_DOMAIN}` });
     new cdk.CfnOutput(this, 'ApiUrl', { value: httpApi.apiEndpoint });
     new cdk.CfnOutput(this, 'DbEndpoint', { value: db.clusterEndpoint.hostname });

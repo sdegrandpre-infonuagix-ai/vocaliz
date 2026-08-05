@@ -78,17 +78,29 @@ def host_console_page(request: Request):
     return _page(request, "host.html")
 
 
+@router.get("/", include_in_schema=False)
 @router.get("/call", include_in_schema=False)
-def call_page(request: Request):
-    """The telephone, simulated in a browser.
+def landing_page(request: Request):
+    """The front door: place a call at the top, watch the desk below.
 
-    There is no SIP trunk and no dispatch rule, so nobody can dial a Salon today. This is the
-    same door opened from a browser: a six-digit code, a call button, and audio in both
-    directions with nothing else — no transcript, no language picker, no controls. A caller on
-    a real line has none of those, and a simulation that offered them would be testing
-    something other than the thing being simulated.
+    Both sides of the hotel scenario on one page, because they only make sense together — a
+    caller with nobody reading, or a desk with nobody calling, each looks like half a product.
+
+    The call is real. There is no SIP trunk and no dispatch rule, so nobody can dial a Salon
+    today; this is the same door opened from a browser, and it goes through the same six-digit
+    code, the same pool and the same invitation a telephone will use.
+
+    The desk joins the Salon for real and offers nothing to press. Read-only is about the
+    controls, not the presence: the clerk is in the room and hearing it, the captions arrive on
+    the same data channel the console reads, and no microphone is ever enabled. Answering
+    happens in the console — a panel that looked like it could answer would be the worst kind
+    of lie in front of somebody with a caller waiting.
+
+    Two paths for one page: / is where somebody arrives, /call is what a host writes down for
+    a guest to type. Serving the same file rather than redirecting keeps them the same page
+    rather than two that drift.
     """
-    return _page(request, "call.html")
+    return _page(request, "index.html")
 
 
 @router.get("/report", include_in_schema=False)

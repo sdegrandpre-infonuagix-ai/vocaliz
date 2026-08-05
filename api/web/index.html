@@ -1,0 +1,404 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vocaliz</title>
+
+<style>
+  :root {
+    --burgundy: #7B1528; --gold: #C9A84C; --paper: #F8F3E8; --ink: #2C2C2C;
+    --muted: #6b6257; --line: #e6ded0;
+    --content: 1100px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper); color: var(--ink); line-height: 1.5;
+  }
+  .wrap { max-width: var(--content); margin: 0 auto; padding: 0 20px; }
+
+  /* ── The call, centred at the top ─────────────────────────────────────────
+     It is the first thing on the page because it is the first thing that happens:
+     somebody rings, and everything below is the answer to that. */
+  header { text-align: center; padding: 48px 20px 40px; }
+  .wordmark { font-size: 2rem; font-weight: 700; color: var(--burgundy); }
+  .tagline { font-size: .95rem; color: var(--muted); margin-top: 10px; }
+
+  .dialer { max-width: 340px; margin: 30px auto 0; }
+  .code {
+    width: 100%; font-size: 1.8rem; letter-spacing: .45em; text-align: center; text-indent: .45em;
+    padding: 13px 10px; border: 1px solid #cfc4b2; border-radius: 12px;
+    font-family: inherit; background: #fff; color: var(--ink);
+  }
+  .btn {
+    width: 100%; min-height: 52px; margin-top: 12px; border: 0; border-radius: 12px;
+    cursor: pointer; font-family: inherit; font-size: 1.02rem; font-weight: 600;
+  }
+  .btn-call { background: var(--gold); color: var(--ink); }
+  .btn-hang { background: var(--burgundy); color: var(--paper); }
+  .btn-quiet { background: transparent; color: var(--burgundy); border: 1px solid var(--burgundy); }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .status { margin-top: 12px; font-size: .88rem; min-height: 1.25em; }
+  .status.bad { color: #9b2226; }
+
+  .live-dot {
+    width: 11px; height: 11px; border-radius: 50%; background: var(--burgundy);
+    display: inline-block; margin-right: 8px; animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+  /* ── The clerk's side ─────────────────────────────────────────────────────── */
+  .section { border-top: 1px solid var(--line); padding: 36px 0 60px; }
+  h2 { font-size: 1.05rem; font-weight: 600; }
+  .sub { font-size: .88rem; color: var(--muted); margin-top: 6px; }
+
+  /* Read-only, and it has to look it. A panel that resembles the console invites somebody to
+     try to answer from here, and the caller would never hear them. */
+  .badge {
+    display: inline-block; font-size: .72rem; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  .panel {
+    margin-top: 18px; background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px;
+  }
+  .signin { max-width: 340px; }
+  .signin input {
+    width: 100%; padding: 11px 12px; border: 1px solid #cfc4b2; border-radius: 10px;
+    font-family: inherit; font-size: .98rem; margin-top: 8px; background: #fff; color: var(--ink);
+  }
+  label { font-size: .82rem; color: var(--muted); }
+
+  .roomline { font-size: .92rem; font-weight: 600; }
+  .cap-head { display: flex; align-items: baseline; gap: 10px; margin-top: 18px; }
+  .cap-title { font-size: .95rem; font-weight: 600; }
+
+  /* The same shapes as the console's caption panel, deliberately. This is a Salon being read,
+     not a summary of one, and a clerk who has seen the console should recognise it. */
+  .log { margin-top: 12px; max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  .cap-line { border-left: 2px solid rgba(201,168,106,.45); padding: 2px 0 2px 12px; }
+  .cap-who { font-size: .75em; letter-spacing: .04em; text-transform: uppercase; opacity: .65; }
+  /* Bounded in characters, like the console: the eye reaches the end of a long line and
+     cannot find the start of the next. */
+  .cap-text { font-size: .94em; line-height: 1.5; max-width: 65ch; }
+  /* The spoken words, kept under the translation. A translation with no original is a claim
+     the reader cannot check — and the check matters most when it reads oddly. */
+  .cap-src { font-size: .81em; line-height: 1.45; opacity: .5; font-style: italic; margin-top: 2px; max-width: 65ch; }
+  .cap-empty, .empty { font-size: .88em; opacity: .55; }
+  .cap-notice { font-size: .78rem; color: var(--muted); margin-top: 14px; }
+  .hidden { display: none; }
+</style>
+
+<header>
+  <div class="wordmark">Vocaliz</div>
+  <div class="tagline">
+    A caller speaks their language. The front desk reads it in theirs, and answers through Vocaliz.
+  </div>
+
+  <div class="dialer" id="dialer">
+    <input id="code" class="code" inputmode="numeric" autocomplete="off" maxlength="6"
+           placeholder="000000" aria-label="Six-digit code">
+    <button class="btn btn-call" id="btn-call" onclick="placeCall()">Call Vocaliz</button>
+    <div class="status" id="call-status" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="dialer hidden" id="incall">
+    <div style="font-weight:600"><span class="live-dot"></span><span>On the line</span></div>
+    <div class="status">Speak normally. Vocaliz answers in your language.</div>
+    <button class="btn btn-hang" onclick="hangUp()">Hang up</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="section">
+    <h2>What the front-desk clerk sees<span class="badge" id="badge">Read only</span></h2>
+    <div class="sub">
+      The caller's words, as they are said, translated into the clerk's language. Answering is
+      done in the console — this page only watches.
+    </div>
+
+    <!-- Signed out ─────────────────────────────────────────────────────────── -->
+    <div class="panel signin" id="signin">
+      <label for="email">Clerk email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="clerk@hotel.com">
+      <button class="btn btn-quiet" id="btn-code" onclick="requestCode()">Send me a code</button>
+      <div id="code-row" class="hidden">
+        <label for="otp" style="display:block;margin-top:12px">Code</label>
+        <input id="otp" inputmode="numeric" maxlength="6" placeholder="000000">
+        <button class="btn btn-quiet" onclick="verifyCode()">Show the desk</button>
+      </div>
+      <div class="status" id="signin-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- Signed in ──────────────────────────────────────────────────────────── -->
+    <div class="panel hidden" id="desk">
+      <div class="roomline" id="roomline"></div>
+      <div class="cap-head"><div class="cap-title">Live captions</div></div>
+      <div class="log" id="log"><div class="cap-empty">Nothing said yet.</div></div>
+      <div class="cap-notice">
+        What is said in this Salon is transcribed and stored so it can be translated.
+      </div>
+      <button class="btn btn-quiet" style="margin-top:16px" onclick="location.href='/host'">
+        Open the console to answer
+      </button>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script>
+  // ── The caller ──────────────────────────────────────────────────────────────
+  var room = null;
+
+  function say(id, message, bad) {
+    var el = document.getElementById(id);
+    el.textContent = message || '';
+    el.className = 'status' + (bad ? ' bad' : '');
+  }
+
+  async function placeCall() {
+    var code = (document.getElementById('code').value || '').replace(/\D/g, '');
+    if (code.length !== 6) { say('call-status', 'Six digits.', true); return; }
+
+    var button = document.getElementById('btn-call');
+    button.disabled = true;
+
+    // Asked for inside the activation window the click opened. iOS Safari grants
+    // getUserMedia only there, and a network round trip in between is exactly how the host
+    // console used to lose the permission on somebody's first visit.
+    var warmed = null;
+    try {
+      warmed = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      say('call-status', 'Vocaliz needs your microphone to place the call.', true);
+      button.disabled = false;
+      return;
+    }
+    // The permission is what mattered; LiveKit opens its own track a moment later, and
+    // holding this one would leave the recording indicator lit for no reason.
+    warmed.getTracks().forEach(function (t) { t.stop(); });
+
+    say('call-status', 'Calling…');
+    try {
+      var resp = await fetch('/invitations/dial/' + code, { method: 'POST' });
+      var body = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) throw new Error(body.detail || ('Error ' + resp.status));
+
+      room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+      // Audio out, unconditionally. A caller has no sound toggle to discover, and a silent
+      // line is indistinguishable from a call that never connected.
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, function (track) {
+        if (track.kind === 'audio') track.attach().play().catch(function () { });
+      });
+      room.on(LivekitClient.RoomEvent.Disconnected, function () { endCall('Call ended.'); });
+
+      await room.connect(body.livekitUrl, body.participantToken);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+      document.getElementById('dialer').className = 'dialer hidden';
+      document.getElementById('incall').className = 'dialer';
+    } catch (e) {
+      say('call-status', e.message, true);
+      button.disabled = false;
+    }
+  }
+
+  async function hangUp() {
+    if (room) { try { await room.disconnect(); } catch (e) { } }
+    endCall('Call ended.');
+  }
+
+  function endCall(message) {
+    room = null;
+    document.getElementById('incall').className = 'dialer hidden';
+    document.getElementById('dialer').className = 'dialer';
+    document.getElementById('btn-call').disabled = false;
+    say('call-status', message);
+  }
+
+  document.getElementById('code').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') placeCall();
+  });
+
+  // ── The desk ────────────────────────────────────────────────────────────────
+  // A real connection to the Salon, with nothing to press.
+  //
+  // Read-only means no controls, not no presence: the clerk is in the room, hearing it, and
+  // the captions arrive on the same data channel the console reads. What this page does not
+  // have is a microphone, a language picker, a pause button or a place to type — answering
+  // happens in the console, and a panel that looked like it could answer would be the worst
+  // kind of lie for somebody with a caller waiting.
+  var token = '';
+  var sessionId = '';
+  var deskRoom = null;
+  var turns = [];
+
+  async function api(path, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (token) options.headers['Authorization'] = 'Bearer ' + token;
+    var resp = await fetch(path, options);
+    var body = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(body.detail || ('Error ' + resp.status));
+    return body;
+  }
+
+  async function requestCode() {
+    var email = (document.getElementById('email').value || '').trim();
+    if (!email) { say('signin-status', 'An email address, please.', true); return; }
+    try {
+      await api('/auth/otp/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      });
+      document.getElementById('code-row').className = '';
+      say('signin-status', 'Code sent. It expires in ten minutes.');
+    } catch (e) {
+      say('signin-status', e.message, true);
+    }
+  }
+
+  async function verifyCode() {
+    var email = (document.getElementById('email').value || '').trim();
+    var code = (document.getElementById('otp').value || '').replace(/\D/g, '');
+    if (code.length !== 6) { say('signin-status', 'Six digits.', true); return; }
+    try {
+      var auth = await api('/auth/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, code: code })
+      });
+      token = auth.token;
+      await openDesk();
+    } catch (e) {
+      token = '';
+      say('signin-status', e.message, true);
+    }
+  }
+
+  async function openDesk() {
+    var history = await api('/sessions');
+    var active = (history.sessions || []).filter(function (s) {
+      return s.status === 'active' && s.role === 'host';
+    });
+    if (!active.length) {
+      say('signin-status', 'No Salon is open. Start one in the console and it appears here.', true);
+      return;
+    }
+    sessionId = active[0].sessionId;
+
+    // What came before this page was opened. The data channel carries turns from now on and
+    // knows nothing of the ones already spoken, so a desk opened mid-call would start blank
+    // in front of a clerk who needs precisely what was already said.
+    try {
+      var history_page = await api('/sessions/' + sessionId + '/utterances?lang=' +
+        encodeURIComponent(readingLanguage()));
+      turns = history_page.utterances || [];
+    } catch (e) {
+      turns = [];
+    }
+
+    var creds = await api('/sessions/' + sessionId + '/join', { method: 'POST' });
+
+    deskRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+
+    deskRoom.on(LivekitClient.RoomEvent.TrackSubscribed, function (track) {
+      if (track.kind === 'audio') track.attach().play().catch(function () { });
+    });
+    deskRoom.on(LivekitClient.RoomEvent.DataReceived, onDeskData);
+    deskRoom.on(LivekitClient.RoomEvent.Disconnected, function () {
+      document.getElementById('roomline').textContent = 'The Salon has ended.';
+    });
+
+    await deskRoom.connect(creds.livekitUrl, creds.participantToken);
+    // The reading language, published the way the console publishes it, so the agent
+    // translates each turn for this desk without being told anything else about it.
+    try {
+      deskRoom.localParticipant.setAttributes({ caption_lang: readingLanguage() });
+    } catch (e) { }
+    // No microphone is ever enabled here. It is the one line that makes this read-only in the
+    // room rather than merely on screen.
+
+    document.getElementById('signin').className = 'panel signin hidden';
+    document.getElementById('desk').className = 'panel';
+    document.getElementById('roomline').innerHTML =
+      '<span class="live-dot"></span>Open — ' + escapeText(active[0].sourceUrl || 'no source');
+    render();
+  }
+
+  function onDeskData(payload, participant, kind, topic) {
+    if (topic !== 'captions') return;
+    var msg;
+    try { msg = JSON.parse(new TextDecoder().decode(payload)); } catch (e) { return; }
+    if (!msg || msg.type !== 'caption') return;
+    // One row per turn. The agent may retry a turn, and a desk showing the same sentence
+    // twice reads as the caller having said it twice.
+    for (var i = 0; i < turns.length; i++) {
+      if (turns[i].sequence === msg.sequence) return;
+    }
+    var lang = readingLanguage();
+    turns.push({
+      sequence: msg.sequence,
+      speaker: msg.speaker,
+      role: msg.role,
+      text: (msg.translations && msg.translations[lang]) || msg.text,
+      originalText: msg.text
+    });
+    render();
+  }
+
+  function escapeText(value) {
+    var span = document.createElement('span');
+    span.textContent = value;
+    return span.innerHTML;
+  }
+
+  // The clerk reads in whatever their browser is set to. No picker: this page has no controls
+  // at all, and one that changed only what this panel showed would be a setting the console
+  // knew nothing about.
+  function readingLanguage() {
+    return (navigator.language || 'en').split('-')[0];
+  }
+
+  function render() {
+    var log = document.getElementById('log');
+    log.innerHTML = '';
+    if (!turns.length) {
+      var blank = document.createElement('div');
+      blank.className = 'cap-empty';
+      blank.textContent = 'Nothing said yet.';
+      log.appendChild(blank);
+      return;
+    }
+    turns.forEach(function (u) {
+      var row = document.createElement('div');
+      row.className = 'cap-line';
+
+      var who = document.createElement('div');
+      who.className = 'cap-who';
+      who.textContent = u.speaker || u.role || '';
+      row.appendChild(who);
+
+      var said = document.createElement('div');
+      said.className = 'cap-text';
+      // `text` is already rendered in the requested language; `originalText` is what was
+      // actually said. textContent, never innerHTML: this is speech transcribed from
+      // strangers on a line.
+      said.textContent = u.text || '';
+      row.appendChild(said);
+
+      // The original under the translation. A translation with no source is a claim the
+      // reader cannot check, and the check matters most when it reads oddly.
+      if (u.originalText && u.originalText !== u.text) {
+        var orig = document.createElement('div');
+        orig.className = 'cap-src';
+        orig.textContent = u.originalText;
+        row.appendChild(orig);
+      }
+      log.appendChild(row);
+    });
+    log.scrollTop = log.scrollHeight;
+  }
+</script>
