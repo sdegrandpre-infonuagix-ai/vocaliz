@@ -47,9 +47,21 @@ def claim(db: DbSession) -> str | None:
     now = datetime.now(tz=timezone.utc)
 
     try:
+        # Free in the pool *and* not still held by a pending invitation. The two can disagree:
+        # a code returned to the pool while its invitation was left pending is free here and
+        # spoken for there, and handing it out breaks the partial unique index on an INSERT
+        # the caller has no way to anticipate — a 500 on inviting somebody.
+        #
+        # The lifecycle now closes those invitations, so this should find nothing. It stays
+        # because the failure it prevents is not proportionate to its cost: the pool hands out
+        # its oldest free code first, so one stale row does not fail one invitation, it fails
+        # every invitation in the system until somebody notices.
+        held = db.query(Invitation.phone_pin).filter(
+            Invitation.status == "pending", Invitation.phone_pin.isnot(None)
+        )
         free = (
             db.query(CodeAvailable)
-            .filter(CodeAvailable.available.is_(True))
+            .filter(CodeAvailable.available.is_(True), CodeAvailable.code.notin_(held))
             .order_by(CodeAvailable.created_at)
             .first()
         )

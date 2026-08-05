@@ -199,3 +199,91 @@ def test_every_digit_is_accepted(db):
     db.add(CodeAvailable(code="678900", available=True))
     db.commit()
     assert db.query(CodeAvailable).count() == 2
+
+
+# ─── The code a pending invitation still holds ────────────────────────────────
+#
+# The outage this section exists for: ending a salon returned its telephone codes to the pool
+# without closing the invitations that carried them. A pending invitation holds its code under
+# a partial unique index, so the pool was offering a code that was still spoken for.
+#
+# It did not fail one invitation. The pool hands out its oldest free code first, so the same
+# poisoned value came back on every claim and every invitation in the system answered 500 —
+# for hosts with no connection to the salon that left the row behind.
+
+def test_a_code_still_held_by_a_pending_invitation_is_not_handed_out(db, salon):
+    """The claim itself. Free in the pool and owned by a pending row is the exact state that
+    produced the IntegrityError, and a claim must see the second half."""
+    _invitation(db, salon, "111111", status="pending")
+    db.add(CodeAvailable(code="111111", available=True))
+    db.commit()
+
+    assert salon_code_service.claim(db) != "111111"
+
+
+def test_the_stale_code_does_not_merely_move_down_the_queue(db, salon):
+    """It is the *oldest* free code that gets handed out, which is what made one bad row a
+    permanent outage rather than a single failure. Claiming repeatedly must never reach it."""
+    _invitation(db, salon, "222222", status="pending")
+    db.add(CodeAvailable(code="222222", available=True))
+    db.commit()
+
+    assert all(salon_code_service.claim(db) != "222222" for _ in range(5))
+
+
+def test_a_code_held_by_a_closed_invitation_is_reusable(db, salon):
+    """The guard must not overreach. An accepted or expired invitation holds nothing — the
+    index says so — and refusing its code would drain the pool one salon at a time."""
+    _invitation(db, salon, "333333", status="expired")
+    db.add(CodeAvailable(code="333333", available=True))
+    db.commit()
+
+    assert salon_code_service.claim(db) == "333333"
+
+
+def test_two_pending_invitations_cannot_share_a_code(db, salon):
+    """The index itself, which was invisible to every test until it was declared on the model.
+    Without this the service guard above could be removed and nothing would notice.
+
+    The second row is built by hand rather than through the helper: that one derives the join
+    token from the code, so a shared code would collide on the token first and this test would
+    pass without the index existing at all."""
+    _invitation(db, salon, "444444", status="pending")
+    db.add(
+        Invitation(
+            session_id=salon.id,
+            host_user_id=salon.host_user_id,
+            guest_email="other@example.com",
+            guest_phone="",
+            invitation_type="email_contact",
+            join_token="a-different-token",
+            phone_pin="444444",
+            status="pending",
+            expires_at=datetime.now(tz=timezone.utc) + timedelta(hours=24),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+
+def test_a_closed_invitation_does_not_reserve_its_code_forever(db, salon):
+    """The index is partial, and that is the half a plain unique index would get wrong. A code
+    is reusable once its invitation is closed; forbidding that would retire six digits per
+    guest ever invited."""
+    _invitation(db, salon, "555555", status="accepted")
+    db.add(
+        Invitation(
+            session_id=salon.id,
+            host_user_id=salon.host_user_id,
+            guest_email="later@example.com",
+            guest_phone="",
+            invitation_type="email_contact",
+            join_token="a-later-token",
+            phone_pin="555555",
+            status="pending",
+            expires_at=datetime.now(tz=timezone.utc) + timedelta(hours=24),
+        )
+    )
+    db.commit()   # must not raise
+    assert db.query(Invitation).filter(Invitation.phone_pin == "555555").count() == 2

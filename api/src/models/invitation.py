@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +26,22 @@ class Invitation(Base):
             " OR (invitation_type <> 'anonymous_link'"
             " AND (guest_email <> '' OR guest_phone <> ''))",
             name="ck_invitations_contact",
+        ),
+        # Two open invitations must never share a telephone code: the caller would reach
+        # whichever room the dispatcher happened to match. Partial, so the code is reusable
+        # once the invitation is accepted or expired.
+        #
+        # Declared here as well as in migration 022 because the test database is built from
+        # these models. While it lived only in the migration, no test could see it — and the
+        # code that violated it shipped and took every invitation in production down with a
+        # 500. Both dialects are named so the test database enforces the real rule rather
+        # than a stricter one that would fail on invitations legitimately reusing a code.
+        Index(
+            "uq_invitations_phone_pin_pending",
+            "phone_pin",
+            unique=True,
+            postgresql_where=text("status = 'pending' AND phone_pin IS NOT NULL"),
+            sqlite_where=text("status = 'pending' AND phone_pin IS NOT NULL"),
         ),
     )
 

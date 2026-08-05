@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session as DbSession
 
 from src.config import settings
+from src.models.invitation import Invitation
 from src.models.session import SessionModel
 from src.models.user import User
 from src.services import (
@@ -78,6 +79,23 @@ def finalize_session(
     # when a guest shuts their tab, so the end of the session is the only moment their
     # departure is reliably known.
     salon_event_service.record_salon_exit(db, session.livekit_room_name, enjoyed=enjoyed)
+
+    # Closed before the codes go back, and that order is the whole point.
+    #
+    # A pending invitation holds its code under a partial unique index — one pending row per
+    # code. Releasing the code without closing the invitation put a free code in the pool that
+    # a pending row still owned, so the next host to invite anybody was handed it and their
+    # INSERT violated the index. Worse than a one-off: the pool hands out its oldest free code
+    # first, so the same poisoned value came back every time and *every* invitation in the
+    # system failed with a 500 from then on.
+    expired = (
+        db.query(Invitation)
+        .filter(Invitation.session_id == session.id, Invitation.status == "pending")
+        .update({Invitation.status: "expired"}, synchronize_session=False)
+    )
+    if expired:
+        db.commit()
+        logger.info("Expired %d unused invitation(s) for salon %s", expired, session.id)
 
     # Back to the pool. Without this a code stays pointed at a conversation that is
     # over, and someone dialling an old code would be placed in an empty room.
