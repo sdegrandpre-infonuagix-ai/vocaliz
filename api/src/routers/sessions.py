@@ -99,6 +99,19 @@ async def _publish_to_corpus(
         logger.warning("Could not publish %s to the shared corpus", url, exc_info=True)
 
 
+
+def _is_front_desk(session: SessionModel, db: DbSession) -> bool:
+    """Whether this Salon was opened by somebody ringing the front page.
+
+    The desk's own Salons, started from the console, are ordinary discussions — so owning it
+    is not enough. A call has no source: nobody chose a document, they just rang.
+    """
+    if session.source_type != "none":
+        return False
+    host = db.query(User).filter(User.id == session.host_user_id).first()
+    return host is not None and host.email == settings.front_desk_email
+
+
 @router.post("", response_model=SessionResponse, status_code=201)
 async def create_session(
     source_url: Optional[str] = Form(None),
@@ -536,6 +549,7 @@ def get_session(
         agentMuted=session.agent_muted,
         hostIdentity=str(session.host_user_id),
         agentLanguage=session.agent_language,
+        frontDesk=_is_front_desk(session, db),
     )
 
 

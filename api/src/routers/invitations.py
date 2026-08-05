@@ -410,6 +410,11 @@ async def call_the_desk(
         agent_language=(
             language if voice_languages.is_supported(language) else FOLLOW_THE_SPEAKER
         ),
+        # Not paused, unlike every other Salon. Pausing exists so a host decides when their
+        # Salon begins — but a caller is not a host, there is no button in front of them, and
+        # nobody else is in the room yet to press one. An agent that joined this Salon in
+        # silence would leave somebody who just rang listening to nothing at all.
+        agent_muted=False,
     )
     db.add(session)
     db.commit()

@@ -1086,6 +1086,7 @@ async def entrypoint(ctx: agents.JobContext):
     # end with the agent speaking whatever any participant types.
     host_identity = ""
     forced_language = "auto"
+    front_desk = False
 
     if session_id and api_url and host_token:
         detail = await _fetch_session_detail(api_url, session_id, host_token)
@@ -1107,6 +1108,7 @@ async def entrypoint(ctx: agents.JobContext):
             # "auto" means follow each speaker, which is every other Salon's behaviour and
             # what these instructions already describe at length. Anything else overrides it.
             forced_language = str(detail.get("agentLanguage") or "auto")
+            front_desk = bool(detail.get("frontDesk"))
 
     # The key is passed explicitly rather than left to the plugin's env lookup: the job
     # runs in a subprocess, and a missing key there surfaces only as an opaque 400 on the
@@ -1197,6 +1199,28 @@ async def entrypoint(ctx: agents.JobContext):
         agent alone, or with guests already present, and a greeting that assumed either one
         would be wrong half the time.
         """
+        if front_desk:
+            # Answering a call, not opening a discussion. The four-step opening — welcome,
+            # what Vocaliz is, the sponsor, the source — describes a Salon somebody chose to
+            # join around a document. Somebody who just rang a hotel wants to know who picked
+            # up and whether a human is coming, and nothing else.
+            agent_session.generate_reply(
+                instructions=(
+                    "Say exactly this, in the caller's own language, and nothing more. Do not "
+                    "add a greeting of your own, do not describe the platform, do not mention "
+                    "a sponsor, and do not ask what they would like to discuss:\n"
+                    "---\n"
+                    "Hello. I am the Vocaliz voice agent. I help the human call agent by "
+                    "translating our conversation into their language, word for word. The "
+                    "human call agent has been sent an email with a link to join this "
+                    "conversation; I will let you know when they connect.\n"
+                    "---\n"
+                    "Then wait. Answer what they ask, and say nothing else unprompted."
+                )
+            )
+            logger.info("Answered a front-desk call (session %s)", session_id)
+            return
+
         agent_session.generate_reply(
             instructions=(
                 "Open the conversation now, without waiting to be spoken to. Greet "
@@ -1217,10 +1241,10 @@ async def entrypoint(ctx: agents.JobContext):
     # reply of its own.
     opening = OpeningGate(_speak_the_opening, label=f"session {session_id}")
     if not starts_paused:
-        # This salon was activated before the agent got here, so its opening belongs to a
-        # conversation already in progress. Without this, the host's next pause and resume
-        # would be answered with a welcome to a room that has been talking for ten minutes.
-        opening.settle()
+        # Opens on arrival. A Salon starts with its agent listening, so there is no button
+        # coming and nothing to wait for — waiting would be silence the host cannot end.
+        opening.schedule(0)
+
 
     async def _drop_pending_opening() -> None:
         # A room that empties before the opening is spoken leaves nobody to greet.
@@ -1365,6 +1389,34 @@ async def entrypoint(ctx: agents.JobContext):
             asyncio.create_task(salon_agent.end_session())
 
     ctx.room.on("participant_disconnected", _on_participant_disconnected)
+
+    def _on_participant_connected(participant) -> None:
+        """Tell the caller when the human they were promised arrives.
+
+        Only on a front-desk call, and only for the desk itself. The opening ends with "I will
+        let you know when they connect", and a promise a product makes out loud is one it has
+        to keep — a caller who was told to expect a signal and never gets one assumes the line
+        is dead.
+
+        Guests joining an ordinary Salon are greeted by the standing instructions instead;
+        announcing every arrival there would interrupt a conversation to state the obvious.
+        """
+        if not front_desk or paused["value"]:
+            return
+        if not host_identity or getattr(participant, "identity", "") != host_identity:
+            return
+        try:
+            agent_session.generate_reply(
+                instructions=(
+                    "The human call agent has just joined. Tell the caller so, in one short "
+                    "sentence, in their own language — this is the signal you promised them. "
+                    "Then carry on."
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not announce the desk joining: %s", exc)
+
+    ctx.room.on("participant_connected", _on_participant_connected)
 
     await agent_session.start(
         room=ctx.room,

@@ -38,12 +38,16 @@ class SessionModel(Base):
     # who is in a room; mute lives inside the running agent, so a host who reloads the page
     # would otherwise be shown a listening agent that is not listening.
     #
-    # True on a brand-new session: the agent joins paused and stays silent until the host
-    # activates it. A salon that opened by itself started talking before its host was ready
-    # to be talked to, and a countdown only moved the problem to a fixed number of seconds
-    # later. Activation is now the host's, so the conversation begins when they decide.
+    # False on a brand-new session: the agent joins listening and opens the conversation
+    # itself.
+    #
+    # It defaulted to True for a few hours, so a host had to press activate before anything
+    # happened. That was tried and reversed: a Salon that says nothing until a button is found
+    # reads as broken, and the button was the first thing anybody had to learn. Pausing is
+    # still there for a host who wants a private moment — it is a control, not a starting
+    # gate.
     agent_muted: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=text("true")
+        Boolean, nullable=False, default=False, server_default=text("false")
     )
     # The language the agent must speak, whatever it hears. "auto" — the default — means
     # follow each speaker, which is what every Salon did before this existed.

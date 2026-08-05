@@ -81,6 +81,13 @@ class SessionDetailResponse(BaseModel):
     # like agentMuted: a Salon rung from the front page carries the caller's choice, and an
     # agent that ignored it would answer a Persian speaker in whatever it guessed instead.
     agentLanguage: str = "auto"
+    # True when this Salon was opened by somebody ringing the front page.
+    #
+    # Computed from who owns it rather than stored: a column would have to be written at
+    # creation and would then be one more thing that can disagree with reality. The agent
+    # reads this to know it is answering a call rather than facilitating a discussion — two
+    # different jobs that happen to share a room.
+    frontDesk: bool = False
 
 
 class JoinSessionResponse(BaseModel):

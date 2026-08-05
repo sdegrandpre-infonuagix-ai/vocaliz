@@ -280,12 +280,11 @@ def test_no_countdown_survives_anywhere_in_the_page(page):
         assert leftover not in source, f"{page}: {leftover} still present"
 
 
-def test_the_agent_control_is_what_starts_a_salon():
-    """The host page carries the button. It is the only way a Salon begins now, so it must
-    open in the state that offers activation rather than the one that offers a pause."""
+def test_the_console_opens_showing_a_listening_agent():
+    """A Salon starts with its agent listening — the paused default was tried for an afternoon
+    and reversed. The control has to match the common case, or it flips on every page load."""
     source = _source("host.html")
-    assert "var agentState = { present: true, muted: true }" in source
-    assert 'data-i18n="agentResume"' in source
+    assert "var agentState = { present: true, muted: false }" in source
 
 
 def test_the_activate_wording_fits_a_first_press():

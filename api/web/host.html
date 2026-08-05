@@ -1803,10 +1803,9 @@
     // Two states rather than one tri-state control. An agent can be present and listening,
     // present and paused, or gone — and "gone" and "paused" need different buttons because
     // they are undone differently.
-    // Paused is what a salon starts as, and this is what the buttons show until the API is
-    // read. Guessing "listening" would flash the wrong control on every page load and, worse,
-    // tell the host their agent is hearing them when it is not.
-    var agentState = { present: true, muted: true };
+    // Listening is what a Salon starts as, and this is what the buttons show until the API
+    // answers. It matches the common case, so the control does not flip on every page load.
+    var agentState = { present: true, muted: false };
 
     function renderAgent() {
       var mute = document.getElementById('btn-agent-mute');
