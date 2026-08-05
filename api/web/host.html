@@ -397,6 +397,20 @@
       </div>
       <div id="login-status" class="status"></div>
     </div>
+    <!-- A Salon that outlived the page. Shown instead of the create form, because creating
+         from here would end it and disconnect whoever is already inside. -->
+    <div class="card hidden" id="c-resume">
+      <div class="card-title" data-i18n="resumeTitle">A Salon of yours is still open</div>
+      <div class="card-sub" id="resume-line"></div>
+      <button class="btn btn-primary" onclick="resumeSession()" data-i18n="resumeButton">
+        Go back in
+      </button>
+      <button class="btn btn-outline" onclick="startInstead()" data-i18n="resumeDiscard">
+        Start a new one instead — this ends the open Salon
+      </button>
+      <div id="resume-status" class="status"></div>
+    </div>
+
     <!-- Step 2: create a session -->
     <div id="c-create" class="card hidden">
       <div class="card-title" data-i18n="createTitle">New session</div>
@@ -623,6 +637,11 @@
         privateHintOff: 'Everyone hears you.',
         privateHintOn: 'Only Vocaliz hears you. Tell it what to say and it will say it, in each person’s language.',
         privateFailed: 'Could not change who hears you. Nothing was altered.',
+        resumeTitle: 'A Salon of yours is still open',
+        resumeOpen: 'It is running now, on {source}. Anyone you invited is still in it.',
+        resumeNoSource: 'no source',
+        resumeButton: 'Go back in',
+        resumeDiscard: 'Start a new one instead — this ends the open Salon',
         invitePin: 'By telephone: {pin}',
         agentPause: 'Pause the agent',
         // Also the button that starts a Salon, since one begins with its agent paused. Worded
@@ -743,6 +762,11 @@
         privateHintOff: 'Tout le monde vous entend.',
         privateHintOn: 'Seul Vocaliz vous entend. Dites-lui quoi dire et il le dira, dans la langue de chacun.',
         privateFailed: 'Impossible de changer qui vous entend. Rien n’a été modifié.',
+        resumeTitle: 'Un de vos Salons est encore ouvert',
+        resumeOpen: 'Il tourne en ce moment, sur {source}. Les gens que vous avez invités y sont toujours.',
+        resumeNoSource: 'aucune source',
+        resumeButton: 'Y retourner',
+        resumeDiscard: 'En ouvrir un nouveau — ceci met fin au Salon ouvert',
         invitePin: 'Par téléphone : {pin}',
         agentPause: "Mettre l'agent en pause",
         agentResume: "Activer l'agent",
@@ -1090,12 +1114,71 @@
       }
     }
 
-    // No resume flow: POST /sessions closes any session this host still has open and
-    // deletes its room, so a stale agent can never be inherited by a new session.
-    function signedIn() {
+    // A Salon survives a reload; this page did not, and that cost somebody their guests.
+    //
+    // sessionId was set only at creation, so reloading left a host with a live Salon they
+    // could not see and a create form they could. Creating from there ends the previous
+    // Salon and deletes its room — POST /sessions does that deliberately, so a stale agent
+    // is never inherited — and the guests already in it are disconnected without warning.
+    // Reported as "he added a URL and it ended my session as a guest", which is exactly what
+    // it looks like from the other side.
+    //
+    // The Salon is not rejoined automatically. Entering it needs a microphone, and asking for
+    // one on page load spends a permission nobody granted by arriving. The button provides
+    // the gesture, which is also what iOS Safari requires.
+    async function signedIn() {
       show('c-login', false);
-      show('c-create', true);
       adoptSavedLanguages();
+
+      var open = null;
+      try {
+        var history = await api('/sessions');
+        open = (history.sessions || []).filter(function (s) {
+          return s.status === 'active' && s.role === 'host';
+        })[0] || null;
+      } catch (e) {
+        // A history that cannot be read is no reason to hide the create form. The worst case
+        // is the behaviour this page had all along.
+        open = null;
+      }
+
+      if (!open) {
+        show('c-create', true);
+        return;
+      }
+
+      pendingSession = open;
+      show('c-resume', true);
+      document.getElementById('resume-line').textContent =
+        T('resumeOpen', { source: open.sourceUrl || T('resumeNoSource') });
+    }
+
+    var pendingSession = null;
+
+    // Back into the Salon that was already running, rather than a new one on top of it.
+    async function resumeSession() {
+      if (!pendingSession) return;
+      // First, and before any await: iOS Safari grants the microphone only inside the
+      // activation window this click opened.
+      await warmUpMicrophone();
+
+      sessionId = pendingSession.sessionId;
+      salonOver = false;
+      show('c-resume', false);
+      try {
+        await joinRoom();
+      } catch (e) {
+        setStatusRaw('resume-status', e.message, false);
+        show('c-resume', true);
+      }
+    }
+
+    // Deliberately explicit, and deliberately not the first thing offered. Ending a Salon is
+    // what the host means when they want a new one, but they should be the one saying so.
+    function startInstead() {
+      pendingSession = null;
+      show('c-resume', false);
+      show('c-create', true);
     }
 
     // What this person chose last time, from whichever device they chose it on.

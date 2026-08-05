@@ -372,3 +372,57 @@ def test_the_session_is_restarted_while_the_button_still_says_listening():
 def test_a_browser_without_a_recogniser_says_so():
     """Firefox has never shipped it. Saying so is kinder than a button that does nothing."""
     assert "dictateUnsupported" in _source("host.html")
+
+
+# ─── A Salon that outlives the page ──────────────────────────────────────────
+#
+# Reported from a live session: "he added a URL and it ended my session as a guest". The host
+# console set sessionId only at creation, so a reload left a host with a running Salon they
+# could not see and a create form they could. Creating from there ends the previous Salon and
+# deletes its room — POST /sessions does that deliberately — and the guests already inside are
+# disconnected with no warning to anybody.
+
+def test_the_console_looks_for_a_salon_it_already_has():
+    """Without this the page cannot know it is standing in front of a live Salon."""
+    source = _source("host.html")
+    block = source[source.index("async function signedIn()"):]
+    block = block[: block.index("var pendingSession")]
+    assert "api('/sessions')" in block
+    assert "'active'" in block and "'host'" in block
+
+
+def test_an_open_salon_is_offered_before_a_new_one():
+    """The create form is what destroys it. Showing both at once would make the destructive
+    option the familiar one."""
+    source = _source("host.html")
+    block = source[source.index("async function signedIn()"):]
+    block = block[: block.index("var pendingSession")]
+    resume = block.index("show('c-resume', true)")
+    # The only create-form reveal in this function is the early return for "no Salon open".
+    assert block.index("show('c-create', true)") < block.index("if (!open)") + 200
+    assert resume > 0
+
+
+def test_ending_the_open_salon_is_spelled_out():
+    """A host who wants a new Salon usually does mean to end the old one — but they should be
+    the one saying so, in a sentence that says what it costs."""
+    source = _source("host.html")
+    assert "this ends the open Salon" in source
+
+
+def test_rejoining_asks_for_the_microphone_inside_the_click():
+    """Entering a Salon needs a microphone. Asking on page load spends a permission nobody
+    granted by arriving, and iOS Safari refuses it outside the gesture anyway."""
+    source = _source("host.html")
+    block = source[source.index("async function resumeSession()"):]
+    block = block[: block.index("function startInstead")]
+    assert block.index("warmUpMicrophone()") < block.index("joinRoom()")
+
+
+def test_a_history_that_cannot_be_read_still_lets_the_host_work():
+    """The worst case has to be the behaviour the page had all along, not a console that
+    refuses to do anything because one request failed."""
+    source = _source("host.html")
+    block = source[source.index("async function signedIn()"):]
+    block = block[: block.index("var pendingSession")]
+    assert "catch" in block and "open = null" in block
