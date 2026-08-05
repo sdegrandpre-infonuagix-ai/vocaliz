@@ -151,13 +151,41 @@ async def close_expired_sessions(db: DbSession) -> list[str]:
 
     Returns the ids closed, so the caller can log what it did rather than only how much.
     """
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(seconds=settings.max_session_seconds)
+    now = datetime.now(tz=timezone.utc)
+    cutoff = now - timedelta(seconds=settings.max_session_seconds)
 
     expired = (
         db.query(SessionModel)
         .filter(SessionModel.status == "active", SessionModel.created_at < cutoff)
         .all()
     )
+
+    # A call nobody answered has a shorter fuse than a conversation.
+    #
+    # Ringing the front desk opens a Salon and mails the desk an invitation. If nobody clicks
+    # it, the caller sits alone with an agent for the full ten minutes — realtime-model time
+    # billed for a call that was never picked up. Five minutes is long enough for somebody to
+    # notice an email and short enough that an unanswered call is not the most expensive kind.
+    #
+    # "Answered" is the invitation no longer being pending, which is what clicking the link
+    # does. Deliberately not "somebody is in the room": the caller is in the room, and a check
+    # on occupancy would find the Salon busy precisely when it is most abandoned.
+    unanswered_cutoff = now - timedelta(seconds=settings.unanswered_call_seconds)
+    unanswered = (
+        db.query(SessionModel)
+        .join(Invitation, Invitation.session_id == SessionModel.id)
+        .filter(
+            SessionModel.status == "active",
+            SessionModel.created_at < unanswered_cutoff,
+            Invitation.guest_email == settings.front_desk_email,
+            Invitation.status == "pending",
+        )
+        .all()
+    )
+    # Merged on id rather than concatenated: a Salon old enough to be in both lists would
+    # otherwise be finalised twice, and the second pass would bill a session already closed.
+    seen = {session.id for session in expired}
+    expired.extend(session for session in unanswered if session.id not in seen)
 
     closed: list[str] = []
     for session in expired:

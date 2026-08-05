@@ -172,3 +172,99 @@ def test_the_handler_action_reports_what_it_closed(db, host):
 
     assert result["status"] == "ok"
     assert result["closed"] == 1
+
+
+# ─── A call nobody answered ───────────────────────────────────────────────────
+#
+# Ringing the front desk opens a Salon and mails the desk an invitation. If nobody clicks it,
+# the caller sits alone with an agent for the full ten-minute cap — realtime-model time billed
+# for a call that was never picked up.
+
+def _desk_call(db, *, age_seconds: int, answered: bool):
+    """A Salon opened by the front page, with the desk's invitation in the given state."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.config import settings as cfg
+    from src.models.invitation import Invitation
+    from src.models.session import SessionModel
+    from src.models.user import User
+
+    desk = db.query(User).filter(User.email == cfg.front_desk_email).first()
+    if desk is None:
+        desk = User(email=cfg.front_desk_email)
+        db.add(desk)
+        db.commit()
+        db.refresh(desk)
+
+    born = datetime.now(tz=timezone.utc) - timedelta(seconds=age_seconds)
+    salon = SessionModel(
+        host_user_id=desk.id,
+        livekit_room_name=f"salon-desk-{age_seconds}-{answered}",
+        source_type="none",
+        source_content="",
+        status="active",
+        created_at=born,
+    )
+    db.add(salon)
+    db.commit()
+    db.refresh(salon)
+
+    db.add(
+        Invitation(
+            session_id=salon.id,
+            host_user_id=desk.id,
+            guest_email=cfg.front_desk_email,
+            guest_phone="",
+            invitation_type="email_contact",
+            join_token=f"tok-desk-{age_seconds}-{answered}",
+            status="accepted" if answered else "pending",
+            expires_at=datetime.now(tz=timezone.utc) + timedelta(hours=24),
+        )
+    )
+    db.commit()
+    return salon
+
+
+@pytest.mark.asyncio
+async def test_an_unanswered_call_is_given_up_on_before_the_cap(db):
+    """Five minutes, not ten. Nobody clicked the link, so nobody is coming."""
+    salon = _desk_call(db, age_seconds=settings.unanswered_call_seconds + 5, answered=False)
+    with patch.object(
+        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+    ):
+        closed = await session_lifecycle.close_expired_sessions(db)
+    assert str(salon.id) in closed
+
+
+@pytest.mark.asyncio
+async def test_an_answered_call_keeps_the_full_cap(db):
+    """Somebody picked up. It is a conversation now, and a conversation gets ten minutes."""
+    salon = _desk_call(db, age_seconds=settings.unanswered_call_seconds + 5, answered=True)
+    with patch.object(
+        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+    ):
+        closed = await session_lifecycle.close_expired_sessions(db)
+    assert str(salon.id) not in closed
+
+
+@pytest.mark.asyncio
+async def test_a_call_still_ringing_is_left_alone(db):
+    """Under five minutes is somebody who has not read their email yet."""
+    salon = _desk_call(db, age_seconds=30, answered=False)
+    with patch.object(
+        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+    ):
+        closed = await session_lifecycle.close_expired_sessions(db)
+    assert str(salon.id) not in closed
+
+
+@pytest.mark.asyncio
+async def test_a_salon_in_both_lists_is_closed_once(db):
+    """Old enough for the cap and unanswered as well. Finalising twice would bill a session
+    that had already been settled."""
+    salon = _desk_call(db, age_seconds=settings.max_session_seconds + 60, answered=False)
+    with patch.object(
+        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+    ):
+        closed = await session_lifecycle.close_expired_sessions(db)
+    assert closed.count(str(salon.id)) == 1

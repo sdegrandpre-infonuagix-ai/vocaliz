@@ -122,6 +122,15 @@ class Settings(BaseSettings):
     # minute. Ten minutes while the product is being tested.
     max_session_seconds: int = 600
 
+    # How long a call to the front desk rings before it is given up on.
+    #
+    # Ringing opens a Salon and mails the desk an invitation. Nobody clicking it means nobody
+    # answered, and the caller would otherwise sit alone with an agent for the full cap above —
+    # realtime-model time billed for a call that was never picked up. Five minutes is long
+    # enough to notice an email and short enough that the unanswered case is not the most
+    # expensive one.
+    unanswered_call_seconds: int = 300
+
     # Upper bound on the span billed after the last heartbeat when a session ends.
     # Heartbeats arrive every 30 s, so a gap beyond this means the session was already
     # dead — a closed laptop, a killed app, a crashed worker. Without this clamp the
