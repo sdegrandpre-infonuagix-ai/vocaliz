@@ -5,9 +5,11 @@ codebase — the seventy interface languages come from Amazon Translate and are 
 not speaking — so a version invented from memory would look plausible and offer callers a
 voice the model cannot produce.
 
-Source: docs.x.ai/developers/model-capabilities/audio/text-to-speech.
+Source: docs.x.ai/developers/model-capabilities/audio/speech-to-speech, which is the page
+for what the agent runs. Persian is the one entry that comes from testing instead.
 """
 from src.services.voice_languages import (
+    DOCUMENTED_TAGS,
     FOLLOW_THE_SPEAKER,
     VOICE_LANGUAGES,
     is_supported,
@@ -15,9 +17,31 @@ from src.services.voice_languages import (
 
 
 def test_the_documented_count():
-    """Twenty entries plus auto-detect. A list that has quietly grown or shrunk is a list
-    somebody edited from memory."""
-    assert len(VOICE_LANGUAGES) == 21
+    """Twenty entries plus auto-detect, exactly as xAI publishes them. A documented list that
+    has quietly grown or shrunk is a list somebody edited from memory."""
+    assert len(DOCUMENTED_TAGS) == 21
+    assert DOCUMENTED_TAGS <= {tag for tag, _ in VOICE_LANGUAGES}
+
+
+def test_persian_is_offered_although_it_is_not_documented():
+    """Added on the strength of the model having been tried in it. The docs say it converses
+    in languages beyond the list "with varying degrees of accuracy"; Persian is one of them."""
+    assert is_supported("fa")
+    assert "fa" not in DOCUMENTED_TAGS
+
+
+def test_turkish_was_documented_all_along():
+    """Named beside Persian in the same request, and already on the list. Worth pinning so a
+    later reader does not go looking for how it was added."""
+    assert is_supported("tr")
+    assert "tr" in DOCUMENTED_TAGS
+
+
+def test_the_two_provenances_stay_distinguishable():
+    """Vendor promise and our own testing are not the same kind of claim. Once they are one
+    undifferentiated list, nobody can tell which entries to re-check when the docs change."""
+    offered = {tag for tag, _ in VOICE_LANGUAGES}
+    assert offered - DOCUMENTED_TAGS == {"fa"}
 
 
 def test_auto_is_first_and_is_the_default():

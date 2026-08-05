@@ -43,7 +43,24 @@ VOICE_LANGUAGES: list[tuple[str, str]] = [
     ("es-ES", "Español (España)"),
     ("tr", "Türkçe"),
     ("vi", "Tiếng Việt"),
+    # Not in the documentation, and here because it was tried. The docs say the model
+    # "is also capable of conversing in additional languages beyond those listed above, with
+    # varying degrees of accuracy" — Persian is one of them, confirmed by testing rather than
+    # by xAI. Kept apart from the twenty in DOCUMENTED_TAGS below so that the distinction
+    # survives: these two provenances are not the same kind of claim, and a later reader
+    # should be able to tell which entries carry a vendor's promise and which carry ours.
+    ("fa", "فارسی"),
 ]
+
+# The twenty xAI documents, as a set on their own. Nothing reads this to decide what to offer
+# — VOICE_LANGUAGES is what the pickers are built from — but it is what makes the sentence
+# above checkable instead of merely written down.
+DOCUMENTED_TAGS = frozenset(
+    {
+        "auto", "en", "ar-EG", "ar-SA", "ar-AE", "bn", "zh", "fr", "de", "hi", "id",
+        "it", "ja", "ko", "pt-BR", "pt-PT", "ru", "es-MX", "es-ES", "tr", "vi",
+    }
+)
 
 # Membership test, built once. The tags are compared exactly, never truncated at the hyphen:
 # truncating is what would collapse three Arabics into one and pick a voice from the wrong
