@@ -255,3 +255,40 @@ def test_persian_reaches_the_footer(client):
     xAI's twenty."""
     tags = [e["tag"] for e in client.get("/voice-languages").json()["languages"]]
     assert "fa" in tags
+
+
+# ─── The green light ─────────────────────────────────────────────────────────
+
+def test_the_caller_sees_when_a_human_arrives(client):
+    """The agent says it out loud — "I will let you know when they connect". This is the same
+    fact for somebody watching rather than listening."""
+    body = client.get("/").text
+    assert 'id="presence-dot"' in body
+    assert "ParticipantConnected" in body
+
+
+def test_the_light_ignores_the_agent(client):
+    """The agent is a participant too, so a count would go green the instant the call
+    connected — announcing the very thing the caller is waiting to stop waiting for."""
+    body = client.get("/").text
+    block = body[body.index("function renderPresence"):]
+    block = block[: block.index("async function hangUp")]
+    assert "!== 'agent'" in block
+
+
+def test_the_clerk_arrives_muted_on_a_call_only(client):
+    """A clerk has a transcript to catch up on, and reading it while a caller hears them
+    breathe is the wrong order. An ordinary Salon is a discussion its host started and wants
+    to be in — arriving muted there would be a puzzle, not a courtesy."""
+    body = client.get("/host").text
+    assert "detail.frontDesk" in body
+    assert "setMicrophoneEnabled(false)" in body
+
+
+def test_the_microphone_is_still_asked_for_before_being_closed(client):
+    """The permission has to be captured inside the gesture that opened the room. Skipping the
+    request and simply never enabling it would leave the clerk unable to unmute at all."""
+    body = client.get("/host").text
+    block = body[body.index("await retryMic();"):]
+    block = block[: block.index("catch (e)")]
+    assert block.index("retryMic()") < block.index("setMicrophoneEnabled(false)")

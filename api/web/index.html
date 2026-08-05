@@ -54,6 +54,16 @@
   .status { margin-top: 12px; font-size: .88rem; min-height: 1.25em; }
   .status.bad { color: #9b2226; }
 
+  /* Whether a human has joined. Grey until one does, green when one has.
+     A caller was told "I will let you know when they connect"; the agent says it out loud and
+     this is the same fact for somebody watching rather than listening. */
+  .presence { margin-top: 14px; font-size: .86rem; color: var(--muted); }
+  .presence-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: #c9c1b4;
+    display: inline-block; margin-right: 8px; vertical-align: middle;
+  }
+  .presence-dot.on { background: #4a8f3a; }
+
   .live-dot {
     width: 11px; height: 11px; border-radius: 50%; background: var(--burgundy);
     display: inline-block; margin-right: 8px; animation: pulse 1.6s ease-in-out infinite;
@@ -155,6 +165,9 @@
   <div class="dialer hidden" id="incall">
     <div style="font-weight:600"><span class="live-dot"></span><span>On the line</span></div>
     <div class="status">Speak normally. Vocaliz answers in your language, and the desk has been told you are here.</div>
+    <div class="presence" id="presence">
+      <span class="presence-dot" id="presence-dot"></span><span id="presence-label">Waiting for the front desk</span>
+    </div>
     <button class="btn btn-quiet" id="btn-sound-live" onclick="toggleSound()"
             aria-pressed="false">🔊 Sound on — turn it off</button>
     <button class="btn btn-hang" onclick="hangUp()">Hang up</button>
@@ -348,6 +361,10 @@
         player.play().catch(function () { });
       });
       room.on(LivekitClient.RoomEvent.Disconnected, function () { endCall('Call ended.'); });
+      // The agent is a participant too, so counting participants would light this the moment
+      // the call connects. Only a human arriving means somebody is coming.
+      room.on(LivekitClient.RoomEvent.ParticipantConnected, renderPresence);
+      room.on(LivekitClient.RoomEvent.ParticipantDisconnected, renderPresence);
 
       await room.connect(body.livekitUrl, body.participantToken);
       await room.localParticipant.setMicrophoneEnabled(true);
@@ -358,6 +375,25 @@
       say('call-status', e.message, true);
       button.disabled = false;
     }
+  }
+
+  // Green when a human is in the room, grey while only the agent is.
+  //
+  // The agent's identity is "agent", which is what makes this answerable at all: a count of
+  // participants would go green the instant the call connected, and the light would be
+  // announcing the very thing the caller is waiting to stop waiting for.
+  function renderPresence() {
+    var dot = document.getElementById('presence-dot');
+    var label = document.getElementById('presence-label');
+    if (!dot || !room) return;
+    var humans = 0;
+    room.remoteParticipants.forEach(function (p) {
+      if (p.identity !== 'agent') humans += 1;
+    });
+    dot.className = humans > 0 ? 'presence-dot on' : 'presence-dot';
+    label.textContent = humans > 0
+      ? 'The front desk has joined'
+      : 'Waiting for the front desk';
   }
 
   async function hangUp() {

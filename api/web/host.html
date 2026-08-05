@@ -642,6 +642,7 @@
         resumeNoSource: 'no source',
         resumeButton: 'Go back in',
         resumeDiscard: 'Start a new one instead — this ends the open Salon',
+        deskArrivesMuted: 'Your microphone is off so you can read first. Turn it on when you are ready to answer.',
         invitePin: 'By telephone: {pin}',
         agentPause: 'Pause the agent',
         // Also the button that starts a Salon, since one begins with its agent paused. Worded
@@ -767,6 +768,7 @@
         resumeNoSource: 'aucune source',
         resumeButton: 'Y retourner',
         resumeDiscard: 'En ouvrir un nouveau — ceci met fin au Salon ouvert',
+        deskArrivesMuted: "Votre micro est fermé pour vous laisser lire d'abord. Ouvrez-le quand vous êtes prêt à répondre.",
         invitePin: 'Par téléphone : {pin}',
         agentPause: "Mettre l'agent en pause",
         agentResume: "Activer l'agent",
@@ -2079,6 +2081,31 @@
       // Reported separately from the connection: a refused microphone still leaves a
       // usable session (you can hear), so it must not read as a failed connection.
       await retryMic();
+
+      // A clerk answering a call arrives silent, on purpose.
+      //
+      // They have a conversation to catch up on: the transcript above is already there,
+      // translated, and reading it while a caller hears them breathe is the wrong order.
+      // The microphone is still asked for first — the permission has to be captured inside
+      // the gesture that opened this — and then closed. Unmuting is one press.
+      //
+      // Only for a call. An ordinary Salon is a discussion its host started and wants to be
+      // in; arriving muted there would be a puzzle, not a courtesy.
+      try {
+        var detail = await api('/sessions/' + sessionId);
+        if (detail.frontDesk) {
+          await room.localParticipant.setMicrophoneEnabled(false);
+          micState = { on: false, denied: false, starting: false, retried: false };
+          renderMic();
+          show('btn-mic', true);
+          setStatus('room-status', 'deskArrivesMuted', true);
+        }
+      } catch (e) {
+        // A detail that cannot be read leaves the microphone as retryMic left it. Being
+        // audible when you expected to be silent is the safer of the two failures here: the
+        // caller hears you rather than being met with nothing.
+        console.warn('Vocaliz: could not read the session kind', e);
+      }
 
       // Only when the host has already asked for sound. Starting audio for someone who
       // left it off would be doing the one thing they did not ask for.
