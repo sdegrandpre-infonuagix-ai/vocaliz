@@ -87,10 +87,11 @@ def test_no_telephone_code_is_reserved(client, session, host, db):
         Invitation.id == uuid.UUID(body["invitationId"])
     ).one()
     assert row.phone_pin is None
-    # Asserted on the row rather than the response: InvitationResponse does not declare
-    # phonePin, so FastAPI strips it from every invitation — see the note in _build_response,
-    # which claims the opposite. Unrelated to this feature and left alone.
-    assert "phonePin" not in body
+    # And reported as absent rather than omitted. The field used to be missing from
+    # InvitationResponse entirely, so FastAPI stripped it from every invitation and the host
+    # could not read a code that had been minted, reserved and mailed to the guest. It is
+    # declared now, which makes an empty string the honest answer here: no code was issued.
+    assert body["phonePin"] == ""
 
 
 def test_the_guest_still_gets_a_name_to_wear(client, session, host):

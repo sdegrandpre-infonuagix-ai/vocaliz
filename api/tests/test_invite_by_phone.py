@@ -245,3 +245,43 @@ def test_first_salon_matches_on_the_half_we_hold(db, session):
         salon_name=session.livekit_room_name,
         participant_identity=f"guest-{invitation.id}",
     )
+
+
+# ─── The code the host has to read aloud ──────────────────────────────────────
+#
+# Built by the service since migration 022 and absent from InvitationResponse until now, so
+# FastAPI dropped it on the way out. The code was minted, reserved and mailed to the guest, and
+# the one person who might have to say it out loud — the host — could not see it. That matters
+# more now that /call exists: dialling in is the only door for somebody with no link.
+
+def test_the_host_can_read_the_telephone_code(client, host, session):
+    """The whole point of returning it. A guest who calls rather than clicks has no link to
+    read from, and the host is the only person who can tell them the number."""
+    _, token = host
+    resp = client.post(
+        f"/sessions/{session.id}/invitations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"guestEmail": "dial@example.com"},
+    )
+    assert resp.status_code == 201
+    pin = resp.json()["phonePin"]
+    assert pin and pin.isdigit() and len(pin) == 6
+
+
+def test_the_code_the_host_reads_is_the_code_that_works(client, host, session, db):
+    """Two codes for one invitation — one shown, one stored — would send a caller to a Salon
+    that does not answer, and the host would have no way to know why."""
+    from src.models.invitation import Invitation
+    import uuid as _uuid
+
+    _, token = host
+    body = client.post(
+        f"/sessions/{session.id}/invitations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"guestEmail": "dial2@example.com"},
+    ).json()
+
+    row = db.query(Invitation).filter(
+        Invitation.id == _uuid.UUID(body["invitationId"])
+    ).one()
+    assert body["phonePin"] == row.phone_pin

@@ -100,6 +100,13 @@ class InvitationResponse(BaseModel):
     # costs convenience rather than the invitation.
     emailSent: bool = False
     smsSent: bool = False
+    # The six digits this guest types to reach the Salon without a link.
+    #
+    # Built by the service since migration 022 and absent from this model until now, so
+    # FastAPI dropped it on the way out: the code was minted, reserved and mailed, and the one
+    # person who might have to read it aloud — the host — could not see it. Empty when the pool
+    # could not issue one, which costs the telephone door and never the invitation.
+    phonePin: str = ""
     # The LiveKit identity this guest will join under, known before they connect. This is
     # what makes a guest addressable: without it the only handle was a random string
     # minted at join time and recorded nowhere.
