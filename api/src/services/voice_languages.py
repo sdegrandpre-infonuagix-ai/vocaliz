@@ -1,8 +1,9 @@
 """The languages the voice model speaks, as its own documentation lists them.
 
-From docs.x.ai/developers/model-capabilities/audio/text-to-speech. Twenty entries plus
-auto-detect, and seven of the twenty are regional variants: three Arabics, two Portugueses,
-two Spanishes. That is the part worth keeping — a caller in Cairo and a caller in Riyadh are
+From docs.x.ai/developers/model-capabilities/audio/speech-to-speech — the page for what this
+agent actually runs, checked against the text-to-speech page, which lists the same twenty and
+adds `auto`. Seven of the twenty are regional variants: three Arabics, two Portugueses, two
+Spanishes. That is the part worth keeping — a caller in Cairo and a caller in Riyadh are
 both "Arabic" to a language column and are not the same voice, and pt-BR read to somebody in
 Lisbon is noticeably wrong.
 
