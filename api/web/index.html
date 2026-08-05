@@ -97,15 +97,16 @@
   </div>
 
   <div class="dialer" id="dialer">
-    <input id="code" class="code" inputmode="numeric" autocomplete="off" maxlength="6"
-           placeholder="000000" aria-label="Six-digit code">
+    <!-- One button, nothing to type. Somebody who has never heard of Vocaliz should be in a
+         room with an agent one press after arriving; a code would mean they had to have been
+         given one, which is the opposite of ringing a front desk. -->
     <button class="btn btn-call" id="btn-call" onclick="placeCall()">Call Vocaliz</button>
     <div class="status" id="call-status" role="status" aria-live="polite"></div>
   </div>
 
   <div class="dialer hidden" id="incall">
     <div style="font-weight:600"><span class="live-dot"></span><span>On the line</span></div>
-    <div class="status">Speak normally. Vocaliz answers in your language.</div>
+    <div class="status">Speak normally. Vocaliz answers in your language, and the desk has been told you are here.</div>
     <button class="btn btn-hang" onclick="hangUp()">Hang up</button>
   </div>
 </header>
@@ -158,15 +159,12 @@
   }
 
   async function placeCall() {
-    var code = (document.getElementById('code').value || '').replace(/\D/g, '');
-    if (code.length !== 6) { say('call-status', 'Six digits.', true); return; }
-
     var button = document.getElementById('btn-call');
     button.disabled = true;
 
-    // Asked for inside the activation window the click opened. iOS Safari grants
-    // getUserMedia only there, and a network round trip in between is exactly how the host
-    // console used to lose the permission on somebody's first visit.
+    // Asked for inside the activation window the click opened, before anything else. iOS
+    // Safari grants getUserMedia only there, and a network round trip in between is exactly
+    // how the host console used to lose the permission on somebody's first visit.
     var warmed = null;
     try {
       warmed = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -179,9 +177,11 @@
     // holding this one would leave the recording indicator lit for no reason.
     warmed.getTracks().forEach(function (t) { t.stop(); });
 
-    say('call-status', 'Calling…');
+    say('call-status', 'Ringing…');
     try {
-      var resp = await fetch('/invitations/dial/' + code, { method: 'POST' });
+      // Opens the Salon, puts this caller in it, and mails the desk. One request, because a
+      // caller who has to wait through three is a caller who hangs up.
+      var resp = await fetch('/invitations/call-the-desk', { method: 'POST' });
       var body = await resp.json().catch(function () { return {}; });
       if (!resp.ok) throw new Error(body.detail || ('Error ' + resp.status));
 
@@ -216,10 +216,6 @@
     document.getElementById('btn-call').disabled = false;
     say('call-status', message);
   }
-
-  document.getElementById('code').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') placeCall();
-  });
 
   // ── The desk ────────────────────────────────────────────────────────────────
   // A real connection to the Salon, with nothing to press.

@@ -1,9 +1,11 @@
 """Invitations router — voice-triggered guest invitations."""
+import uuid as _uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session as DbSession
 
+from src.config import settings
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.invitation import Invitation
@@ -16,8 +18,10 @@ from src.schemas.invitation import (
     InviteGuestBody,
     PendingInvitationResponse,
 )
+from src.rate_limit import limiter
 from src.services import (
     device_service,
+    jwt_service,
     invitation_service,
     livekit_service,
     salon_code_service,
@@ -351,6 +355,96 @@ def dial_in(code: str, db: DbSession = Depends(get_db)):
     return GuestJoinResponse(
         participantToken=token,
         livekitRoomName=session.livekit_room_name,
+        livekitUrl=livekit_service._http_url(),
+        sessionId=str(session.id),
+        participantIdentity=caller_id,
+        participantName=livekit_service.guest_display_name(invitation.id),
+    )
+
+
+@guest_router.post("/call-the-desk", response_model=GuestJoinResponse)
+@limiter.limit(f"{settings.front_desk_calls_per_hour}/hour")
+async def call_the_desk(request: Request, db: DbSession = Depends(get_db)):
+    """Ring the front desk from the front page, with no account and no code.
+
+    A Salon is opened in the desk's name, the caller is put into it, and the desk is mailed
+    the invitation. That is the whole of a telephone call, minus the telephone: somebody who
+    has never heard of Vocaliz presses one button and is in a room with an agent, and the
+    person who answers finds out by email.
+
+    Public, and therefore rate-limited across everybody rather than per address — there is no
+    address. The limit is deliberately low: the endpoint creates a Salon and sends an email
+    with no authentication at all, which is exactly the shape somebody automates, and the
+    failure it prevents is a thousand Salons and a thousand emails arriving overnight.
+
+    Two invitations, not one. The caller's is anonymous and never sent anywhere; it exists to
+    give them an identity the room can name and the report can count. The desk's is addressed
+    and mailed, which is what tells a human that somebody is waiting.
+    """
+    desk = db.query(User).filter(User.email == settings.front_desk_email).first()
+    if desk is None:
+        # Not created on the fly. An account minted by an anonymous request would be an
+        # account anybody could mint, and the desk address is the one that reads the reports.
+        raise HTTPException(status_code=503, detail="The desk is not available.")
+
+    room_name = livekit_service.new_room_name()
+    await livekit_service.create_room(room_name)
+
+    session = SessionModel(
+        host_user_id=desk.id,
+        livekit_room_name=room_name,
+        # No source. A caller rings about whatever they are ringing about, and a Salon built
+        # around a document would have the agent open on a subject nobody chose.
+        source_type="none",
+        source_content="",
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    await livekit_service.dispatch_agent(
+        room_name,
+        session_id=str(session.id),
+        host_token=jwt_service.issue_token(str(desk.id)),
+    )
+
+    caller = invitation_service.invite_anonymously(
+        session_id=str(session.id), host_user=desk, db=db
+    )
+    # Mailed, which is the point of this one. A failure to send is logged inside the service
+    # and costs the notification, never the call — the caller is already in the room.
+    invitation_service.invite_guest(
+        session_id=str(session.id),
+        host_user=desk,
+        guest_email=settings.front_desk_email,
+        guest_phone="",
+        db=db,
+    )
+
+    invitation = db.query(Invitation).filter(
+        Invitation.id == _uuid.UUID(caller["invitationId"]),
+    ).one()
+    caller_id = livekit_service.identity_for(invitation)
+
+    salon_event_service.record_entry(
+        db,
+        participant_identity=caller_id,
+        user_type="guest",
+        salon_name=room_name,
+        latitude=None,
+        longitude=None,
+        first_spoken_language="",
+        device_type="telephone",
+    )
+
+    return GuestJoinResponse(
+        participantToken=livekit_service.generate_participant_token(
+            room_name=room_name,
+            user_id=caller_id,
+            display_name=livekit_service.guest_display_name(invitation.id),
+            can_publish=True,
+        ),
+        livekitRoomName=room_name,
         livekitUrl=livekit_service._http_url(),
         sessionId=str(session.id),
         participantIdentity=caller_id,

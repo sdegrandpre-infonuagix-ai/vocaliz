@@ -162,6 +162,22 @@ class Settings(BaseSettings):
     # to that mailbox. The mailbox is the credential.
     admin_emails: str = "s.degrandpre@vocaliz.net"
 
+    # Who answers a call placed from the front page.
+    #
+    # "Call Vocaliz" opens a Salon owned by this address and mails it the invitation, so the
+    # desk is reachable by somebody who has no account, no link and no code. A setting rather
+    # than a constant because the desk is a role, not a person — the address changes when
+    # somebody else is on shift, and that should not be a deploy.
+    front_desk_email: str = "s.degrandpre@vocaliz.net"
+
+    # How many calls the front page will place in an hour, across everybody.
+    #
+    # The endpoint is public: it creates a Salon and sends an email with no authentication at
+    # all, which is precisely the shape somebody automates. The cap is deliberately low —
+    # a real desk fields a handful of calls an hour, and the failure this prevents is a
+    # thousand Salons and a thousand emails arriving overnight.
+    front_desk_calls_per_hour: int = 20
+
     # Stripe billing — set STRIPE_SECRET_KEY in production
     stripe_secret_key: str = "sk_test_placeholder"
 

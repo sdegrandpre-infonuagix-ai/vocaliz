@@ -170,10 +170,108 @@ def test_the_caller_is_offered_nothing_a_telephone_lacks(client):
         assert absent not in caller, f"the caller is offered {absent}, which a telephone has not"
 
 
-def test_the_call_page_asks_for_the_microphone_inside_the_click(client):
-    """iOS Safari grants getUserMedia only in the activation window a gesture opens. Two
-    network round trips in between is how the host console lost the permission on somebody's
-    first visit."""
-    body = client.get("/call").text
-    warm = body.index("getUserMedia")
-    assert warm < body.index("fetch('/invitations/dial/")
+# The page's own microphone timing is asserted in test_landing_page, which owns that page.
+# It rings the desk directly now; this endpoint remains the door for somebody holding a code,
+# which is what a real dialled call will present.
+
+
+# ─── Ringing the desk from the front page ─────────────────────────────────────
+#
+# No account, no link, no code: one button opens a Salon in the desk's name, puts the caller
+# in it, and mails the desk that somebody is waiting. It is a telephone call minus the
+# telephone, and it is public — which is the whole reason these tests exist.
+
+from unittest.mock import AsyncMock, patch  # noqa: E402
+
+from src.config import settings  # noqa: E402
+
+
+@pytest.fixture
+def desk(db):
+    user = User(email=settings.front_desk_email)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def _ring(client):
+    with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
+        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
+    ):
+        return client.post("/invitations/call-the-desk")
+
+
+def test_one_press_puts_the_caller_in_a_room(client, desk):
+    resp = _ring(client)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["participantToken"] and body["livekitRoomName"]
+
+
+def test_the_salon_belongs_to_the_desk(client, desk, db):
+    """Owned by the address that answers, so signing in at the console offers to rejoin it.
+    A Salon owned by nobody could not be answered at all."""
+    body = _ring(client).json()
+    session = db.query(SessionModel).filter(
+        SessionModel.livekit_room_name == body["livekitRoomName"]
+    ).one()
+    assert session.host_user_id == desk.id
+
+
+def test_the_desk_is_told_somebody_is_waiting(client, desk, db):
+    """The email is the whole notification. Without it a caller sits in a room nobody knows
+    about, listening to an agent, until the cap ends the Salon."""
+    from src.models.invitation import Invitation
+
+    body = _ring(client).json()
+    session = db.query(SessionModel).filter(
+        SessionModel.livekit_room_name == body["livekitRoomName"]
+    ).one()
+    addressed = db.query(Invitation).filter(
+        Invitation.session_id == session.id,
+        Invitation.guest_email == settings.front_desk_email,
+    ).all()
+    assert len(addressed) == 1
+
+
+def test_the_caller_gets_an_identity_of_their_own(client, desk, db):
+    """Anonymous and never sent anywhere. It exists so the room can name this person and the
+    report can count them — without it a caller is an unattributable voice."""
+    from src.models.invitation import Invitation
+
+    body = _ring(client).json()
+    session = db.query(SessionModel).filter(
+        SessionModel.livekit_room_name == body["livekitRoomName"]
+    ).one()
+    anonymous = db.query(Invitation).filter(
+        Invitation.session_id == session.id,
+        Invitation.invitation_type == "anonymous_link",
+    ).all()
+    assert len(anonymous) == 1
+    assert body["participantIdentity"]
+
+
+def test_the_caller_is_recorded_as_having_no_screen(client, desk, db):
+    body = _ring(client).json()
+    row = db.query(SalonEvent).filter(
+        SalonEvent.salon_name == body["livekitRoomName"]
+    ).first()
+    assert row is not None and row.device_type == "telephone"
+
+
+def test_an_agent_is_dispatched(client, desk):
+    """A caller who reaches a room with nobody in it has reached nothing. The desk may take a
+    minute to read its email; the agent is what answers meanwhile."""
+    with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
+        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
+    ) as dispatched:
+        client.post("/invitations/call-the-desk")
+    assert dispatched.await_count == 1
+
+
+def test_without_a_desk_account_nothing_is_created(client, db):
+    """The account is not minted on the fly: one an anonymous request could create is one
+    anybody could create, and this address is the one that reads the reports."""
+    assert _ring(client).status_code == 503
+    assert db.query(SessionModel).count() == 0

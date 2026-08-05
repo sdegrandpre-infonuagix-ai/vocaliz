@@ -36,16 +36,20 @@ def test_the_call_is_the_first_thing_on_the_page(client):
     assert body.index("Call Vocaliz") < body.index("front-desk clerk")
 
 
-def test_the_call_goes_through_the_real_six_digit_door(client):
-    """The same pool, reservation and invitation a telephone will use. A shortcut written for
-    the simulation would leave the parts that matter later untested now."""
-    assert "/invitations/dial/" in client.get("/").text
+def test_the_button_rings_the_desk_with_nothing_to_type(client):
+    """Somebody who has never heard of Vocaliz should be in a room one press after arriving.
+    A code would mean they had to have been given one, which is the opposite of ringing a
+    front desk."""
+    body = client.get("/").text
+    assert "/invitations/call-the-desk" in body
+    caller = body[body.index('id="dialer"') : body.index("</header>")]
+    assert "<input" not in caller, "the caller is asked to type something"
 
 
 def test_the_microphone_is_asked_for_inside_the_click(client):
     """iOS Safari grants getUserMedia only in the activation window a gesture opens."""
     body = client.get("/").text
-    assert body.index("getUserMedia") < body.index("fetch('/invitations/dial/")
+    assert body.index("getUserMedia") < body.index("fetch('/invitations/call-the-desk")
 
 
 # ─── The desk, and what read-only has to mean ─────────────────────────────────
