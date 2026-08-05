@@ -31,6 +31,11 @@ KNOWN = frozenset(
         "phone",
         "tablet",
         "desktop",
+        # Somebody on a line, with no screen at all: no captions, no controls, nothing but the
+        # voice. Distinct from "phone", which is a handset running a browser and can read
+        # everything. The distinction is what tells anyone reading the report that a silent
+        # participant may simply have had nothing to look at.
+        "telephone",
     }
 )
 

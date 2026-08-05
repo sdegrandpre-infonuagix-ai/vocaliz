@@ -1,0 +1,174 @@
+"""Joining a Salon by six-digit code, the way somebody on a telephone would.
+
+The codes have existed since migration 022 — minted for every invitation, reserved in a pool,
+released when the Salon ends — and nothing could redeem one. There is no SIP trunk and no
+dispatch rule, so the telephone leg they were built for does not exist; /call is the same door
+opened from a browser.
+
+Deliberately the same lookup a dialled call will use. What is exercised here is what the
+telephone will exercise later, so this is a rehearsal rather than a stand-in.
+"""
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from src.models.invitation import Invitation
+from src.models.salon_event import SalonEvent
+from src.models.session import SessionModel
+from src.models.user import User
+from src.services import salon_code_service
+
+
+@pytest.fixture
+def salon(db):
+    host = User(email="dialhost@example.com")
+    db.add(host)
+    db.commit()
+    db.refresh(host)
+    session = SessionModel(
+        host_user_id=host.id,
+        livekit_room_name="salon-dial",
+        source_type="url",
+        source_content="c",
+        status="active",
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def _invite(db, salon, code, *, token="tok-dial"):
+    row = Invitation(
+        session_id=salon.id,
+        host_user_id=salon.host_user_id,
+        guest_email="caller@example.com",
+        guest_phone="",
+        invitation_type="email_contact",
+        join_token=token,
+        phone_pin=code,
+        status="pending",
+        expires_at=datetime.now(tz=timezone.utc) + timedelta(hours=24),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+# ─── Placing the call ─────────────────────────────────────────────────────────
+
+def test_a_valid_code_hands_out_credentials(client, db, salon):
+    code = salon_code_service.claim(db)
+    _invite(db, salon, code)
+
+    resp = client.post(f"/invitations/dial/{code}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["livekitRoomName"] == "salon-dial"
+    assert body["participantToken"]
+
+
+def test_an_unknown_code_is_refused(client):
+    assert client.post("/invitations/dial/000000").status_code == 404
+
+
+def test_a_malformed_code_is_refused(client):
+    for value in ("12345", "1234567", "abcdef"):
+        assert client.post(f"/invitations/dial/{value}").status_code == 404
+
+
+def test_a_code_reveals_nothing_about_which_salons_exist(client, db, salon):
+    """One message for an unknown code and for a code whose Salon is over. Two different
+    answers would let anybody sweep the six-digit space and learn which Salons are running."""
+    code = salon_code_service.claim(db)
+    _invite(db, salon, code)
+    salon.status = "ended"
+    db.commit()
+
+    over = client.post(f"/invitations/dial/{code}")
+    unknown = client.post("/invitations/dial/999999")
+    assert over.status_code == unknown.status_code == 404
+    assert over.json()["detail"] == unknown.json()["detail"]
+
+
+def test_an_ended_salon_cannot_be_called(client, db, salon):
+    code = salon_code_service.claim(db)
+    _invite(db, salon, code)
+    salon.status = "ended"
+    db.commit()
+    assert client.post(f"/invitations/dial/{code}").status_code == 404
+
+
+# ─── What a dropped call must not cost ────────────────────────────────────────
+
+def test_the_code_survives_the_call(client, db, salon):
+    """A telephone call drops. Somebody who has to ask their host for a fresh code because
+    the line cut out has been failed by the product, not by the network."""
+    code = salon_code_service.claim(db)
+    _invite(db, salon, code)
+
+    assert client.post(f"/invitations/dial/{code}").status_code == 200
+    assert client.post(f"/invitations/dial/{code}").status_code == 200
+
+
+def test_calling_does_not_spend_the_join_link(client, db, salon):
+    """The link and the code are two ways into the same Salon. Dialling must not consume the
+    one the guest might still need in a browser."""
+    code = salon_code_service.claim(db)
+    invitation = _invite(db, salon, code)
+
+    client.post(f"/invitations/dial/{code}")
+    db.refresh(invitation)
+    assert invitation.status == "pending"
+
+
+# ─── What the report sees ─────────────────────────────────────────────────────
+
+def test_a_caller_is_recorded_as_having_no_screen(client, db, salon):
+    """It is a browser today. What matters to anyone reading the report is that this person
+    had no captions and no controls, and that is true of the simulation exactly as it will be
+    of the call."""
+    code = salon_code_service.claim(db)
+    _invite(db, salon, code)
+    client.post(f"/invitations/dial/{code}")
+
+    row = db.query(SalonEvent).filter(SalonEvent.salon_name == "salon-dial").first()
+    assert row is not None
+    assert row.device_type == "telephone"
+
+
+def test_the_caller_is_the_person_the_code_was_issued_to(client, db, salon):
+    """The code belongs to one invitation, which is what makes a caller identifiable at all —
+    a Salon-wide code would put an anonymous voice in the room."""
+    code = salon_code_service.claim(db)
+    _invite(db, salon, code)
+    client.post(f"/invitations/dial/{code}")
+
+    row = db.query(SalonEvent).filter(SalonEvent.salon_name == "salon-dial").first()
+    assert row.email == "caller@example.com"
+
+
+# ─── The page ─────────────────────────────────────────────────────────────────
+
+def test_the_call_page_is_served(client):
+    resp = client.get("/call")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+
+
+def test_the_call_page_offers_nothing_a_telephone_lacks(client):
+    """No transcript, no language picker, no caption controls. A simulation richer than the
+    thing it stands in for tests something else."""
+    body = client.get("/call").text
+    for absent in ("cap-log", "cap-lang", "caption"):
+        assert absent not in body, f"/call offers {absent}, which a telephone has not"
+
+
+def test_the_call_page_asks_for_the_microphone_inside_the_click(client):
+    """iOS Safari grants getUserMedia only in the activation window a gesture opens. Two
+    network round trips in between is how the host console lost the permission on somebody's
+    first visit."""
+    body = client.get("/call").text
+    warm = body.index("getUserMedia")
+    assert warm < body.index("fetch('/invitations/dial/")

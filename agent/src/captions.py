@@ -45,6 +45,28 @@ def speaker_role(identity: str) -> str:
     return "guest" if identity.startswith("guest-") else "host"
 
 
+# Set by a participant who has told the room they are speaking only to the agent. Their
+# microphone is then subscribable by the agent alone — enforced by the server, not by
+# politeness — and this attribute is how the agent learns that what it hears from them is
+# direction rather than conversation.
+PRIVATE_TO_AGENT_ATTRIBUTE = "private_to_agent"
+
+
+def speaks_only_to_agent(room: rtc.Room, identity: str) -> bool:
+    """Whether this participant has the private toggle on.
+
+    Read at the moment it matters rather than remembered: the toggle is flipped mid-sentence
+    in normal use — a clerk turns it on to dictate and off to talk to the room — and a cached
+    answer would apply the previous state to the current words.
+    """
+    if not identity:
+        return False
+    participant = room.remote_participants.get(identity)
+    if participant is None:
+        return False
+    return (participant.attributes or {}).get(PRIVATE_TO_AGENT_ATTRIBUTE) == "1"
+
+
 def requested_languages(room: rtc.Room) -> list[str]:
     """Every distinct language the people in this room are reading captions in.
 

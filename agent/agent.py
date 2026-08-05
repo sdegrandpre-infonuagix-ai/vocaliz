@@ -18,7 +18,7 @@ from livekit.agents import AgentSession, Agent, function_tool, inference
 from livekit.agents.voice.room_io import RoomOptions
 from livekit.plugins import xai, silero
 
-from src.captions import CaptionPublisher
+from src.captions import CaptionPublisher, speaks_only_to_agent
 from src.mixed_audio_input import MixedParticipantAudioInput
 from src.opening import OpeningGate
 
@@ -101,6 +101,20 @@ _BASE_INSTRUCTIONS = (
     "to returning participants too, and say it even when there is nothing else to say.\n"
     "The written notice on the page cannot be relied on — a participant may have joined\n"
     "by telephone, or never looked at the screen.\n"
+    "\n\n"
+    "SPEAKING ONLY TO YOU (a participant with the private toggle on):\n"
+    "A participant may set their microphone so that you alone can hear it. Nobody else in\n"
+    "the room receives their audio, and nothing they say is transcribed for the others. When\n"
+    "somebody is speaking to you privately, treat what they say as DIRECTION rather than as\n"
+    "a remark in the conversation.\n"
+    "Usually they are telling you what to convey: 'tell him the room is ready at three'.\n"
+    "Say the substance of it to the others, in each person's own language, as though you\n"
+    "were speaking for the person who told you. Do not read their sentence out word for\n"
+    "word, do not name them as the source unless they ask you to, and never repeat the\n"
+    "instruction itself — 'he would like me to tell you' defeats the point of the toggle.\n"
+    "If what they say is plainly meant for you alone — a question about the source, a\n"
+    "correction, an instruction about how to behave — answer or comply quietly and say\n"
+    "nothing to the room.\n"
     "\n\n"
     "HOW A SALON OPENS — four steps, in this order and no other:\n"
     "1. WELCOME. Greet whoever is here, in their language, in a sentence or two.\n"
@@ -1348,6 +1362,18 @@ async def entrypoint(ctx: agents.JobContext):
             # Finals only. The model revises a transcript as it hears more, and the
             # interim versions are half-sentences that were never true.
             if not event.is_final:
+                return
+            # Somebody speaking only to the agent must not be transcribed to the room. The
+            # server already stops anyone else subscribing to their microphone; publishing
+            # their words as a caption would hand back in writing exactly what the toggle
+            # exists to withhold.
+            #
+            # Attribution is the active-speaker heuristic, which is right when one person
+            # talks at a time and can be wrong when two overlap. It is the same attribution
+            # the caption itself is stamped with, so a mistake here mislabels a caption
+            # rather than inventing a new failure — but it is a heuristic guarding a privacy
+            # promise, and that is worth knowing.
+            if speaks_only_to_agent(ctx.room, captions.attributed_speaker()):
                 return
             captions.publish_soon(
                 text=event.transcript,

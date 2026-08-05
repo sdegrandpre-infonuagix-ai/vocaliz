@@ -1,0 +1,149 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Call Vocaliz</title>
+
+<style>
+  :root { --burgundy: #7B1528; --gold: #C9A84C; --paper: #F8F3E8; --ink: #2C2C2C; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper); color: var(--ink);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .phone { width: 100%; max-width: 380px; text-align: center; }
+
+  .wordmark { font-size: 1.6rem; font-weight: 700; color: var(--burgundy); letter-spacing: .01em; }
+  .tagline { font-size: .86rem; color: #6b6257; margin-top: 6px; line-height: 1.5; }
+
+  /* Deliberately the whole interface. A telephone has a keypad and a call button, and the
+     point of this page is to be no richer than the thing it stands in for. */
+  .code {
+    width: 100%; margin-top: 28px;
+    font-size: 2rem; letter-spacing: .5em; text-align: center; text-indent: .5em;
+    padding: 14px 12px; border: 1px solid #cfc4b2; border-radius: 12px;
+    font-family: inherit; background: #fff; color: var(--ink);
+  }
+  .btn {
+    width: 100%; min-height: 54px; margin-top: 14px;
+    border: 0; border-radius: 12px; cursor: pointer;
+    font-family: inherit; font-size: 1.05rem; font-weight: 600;
+  }
+  .btn-call { background: var(--gold); color: var(--ink); }
+  .btn-hang { background: var(--burgundy); color: var(--paper); }
+  .btn:disabled { opacity: .55; cursor: default; }
+
+  .status { margin-top: 16px; font-size: .9rem; min-height: 1.3em; }
+  .status.bad { color: #9b2226; }
+
+  /* On the call. No transcript, no language picker, no controls beyond hanging up — somebody
+     on a telephone line has none of those, and a simulation that offered them would be
+     testing something other than the thing being simulated. */
+  .live-dot {
+    width: 12px; height: 12px; border-radius: 50%; background: var(--burgundy);
+    display: inline-block; margin-right: 8px; animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .live { font-size: 1.05rem; font-weight: 600; margin-top: 30px; }
+  .live-sub { font-size: .84rem; color: #6b6257; margin-top: 8px; line-height: 1.5; }
+  .hidden { display: none; }
+</style>
+
+<div class="phone">
+  <div class="wordmark">Vocaliz</div>
+
+  <section id="dialer">
+    <div class="tagline">
+      Enter the six-digit code your host gave you.<br>
+      You will be heard, and you will hear the room.
+    </div>
+    <input id="code" class="code" inputmode="numeric" autocomplete="off"
+           maxlength="6" placeholder="000000" aria-label="Six-digit code">
+    <button class="btn btn-call" id="btn-call" onclick="placeCall()">Call Vocaliz</button>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section id="incall" class="hidden">
+    <div class="live"><span class="live-dot"></span><span id="live-label">Connected</span></div>
+    <div class="live-sub" id="live-sub">
+      Speak normally. Vocaliz answers in your language.
+    </div>
+    <button class="btn btn-hang" id="btn-hang" onclick="hangUp()">Hang up</button>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script>
+  var room = null;
+
+  function say(message, bad) {
+    var el = document.getElementById('status');
+    el.textContent = message || '';
+    el.className = 'status' + (bad ? ' bad' : '');
+  }
+
+  async function placeCall() {
+    var code = (document.getElementById('code').value || '').replace(/\D/g, '');
+    if (code.length !== 6) { say('Six digits.', true); return; }
+
+    var button = document.getElementById('btn-call');
+    button.disabled = true;
+
+    // The microphone is asked for first, inside the activation window the click opened.
+    // iOS Safari grants getUserMedia only there, and two network round trips in between is
+    // exactly how the host console used to lose the permission on somebody's first visit.
+    var warmed = null;
+    try {
+      warmed = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      say('Vocaliz needs your microphone to place the call.', true);
+      button.disabled = false;
+      return;
+    }
+    // The permission is what mattered; LiveKit opens its own track a moment later, and
+    // holding this one would leave the recording indicator lit for no reason.
+    warmed.getTracks().forEach(function (t) { t.stop(); });
+
+    say('Calling…');
+    try {
+      var resp = await fetch('/invitations/dial/' + code, { method: 'POST' });
+      var body = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) throw new Error(body.detail || ('Error ' + resp.status));
+
+      room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+
+      // Audio out, unconditionally. A caller has no sound toggle to discover, and a silent
+      // line is indistinguishable from a call that never connected.
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, function (track) {
+        if (track.kind === 'audio') track.attach().play().catch(function () { });
+      });
+      room.on(LivekitClient.RoomEvent.Disconnected, function () { endCall('Call ended.'); });
+
+      await room.connect(body.livekitUrl, body.participantToken);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+      document.getElementById('dialer').className = 'hidden';
+      document.getElementById('incall').className = '';
+    } catch (e) {
+      say(e.message, true);
+      button.disabled = false;
+    }
+  }
+
+  async function hangUp() {
+    if (room) { try { await room.disconnect(); } catch (e) { } }
+    endCall('Call ended.');
+  }
+
+  function endCall(message) {
+    room = null;
+    document.getElementById('incall').className = 'hidden';
+    document.getElementById('dialer').className = '';
+    document.getElementById('btn-call').disabled = false;
+    say(message);
+  }
+
+  document.getElementById('code').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') placeCall();
+  });
+</script>

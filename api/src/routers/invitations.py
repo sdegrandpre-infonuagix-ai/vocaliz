@@ -20,6 +20,7 @@ from src.services import (
     device_service,
     invitation_service,
     livekit_service,
+    salon_code_service,
     salon_event_service,
     utterance_service,
 )
@@ -291,3 +292,67 @@ def guest_transcript(
             db, session_id=session.id, language=lang, after=after
         ),
     }
+
+
+@guest_router.post("/dial/{code}", response_model=GuestJoinResponse)
+def dial_in(code: str, db: DbSession = Depends(get_db)):
+    """Join a salon by six-digit code, the way somebody on a telephone would.
+
+    The codes have existed since migration 022 — minted for every invitation, reserved in a
+    pool, released when the salon ends — and until now nothing could redeem one. There is no
+    SIP trunk and no dispatch rule, so the telephone leg the codes were built for does not
+    exist yet; this is the same door, opened from a browser.
+
+    Deliberately the same lookup a dialled call would use, rather than a shortcut written for
+    the simulation. What is exercised here — the pool, the reservation, the invitation behind
+    the code — is what the telephone will exercise later, so the parts that will matter then
+    are the parts being used now.
+
+    The code is not spent. A telephone call drops, and somebody who has to ask their host for
+    a fresh code because the line cut out has been failed by the product, not by the network.
+    It stops working when the salon ends, which is when the code returns to the pool.
+    """
+    invitation = salon_code_service.invitation_for_code(db, code)
+    if invitation is None:
+        # One message for an unknown code and for a code whose salon is over. Distinguishing
+        # them would let anybody sweep the six-digit space and learn which salons exist.
+        raise HTTPException(status_code=404, detail="No Salon is reachable with that code.")
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == invitation.session_id,
+    ).first()
+    if not session or session.status != "active":
+        raise HTTPException(status_code=404, detail="No Salon is reachable with that code.")
+
+    caller_id = livekit_service.identity_for(invitation)
+    token = livekit_service.generate_participant_token(
+        room_name=session.livekit_room_name,
+        user_id=caller_id,
+        display_name=livekit_service.guest_display_name(invitation.id),
+        can_publish=True,
+    )
+
+    # Recorded as a telephone participant. It is a browser today, but what matters to anyone
+    # reading the report is that this person had no screen — no captions, no controls, nothing
+    # but the voice — and that is true of the simulation exactly as it will be of the call.
+    salon_event_service.record_entry(
+        db,
+        participant_identity=caller_id,
+        email=invitation.guest_email or "",
+        phone=invitation.guest_phone or "",
+        user_type="guest",
+        salon_name=session.livekit_room_name,
+        latitude=None,
+        longitude=None,
+        first_spoken_language="",
+        device_type="telephone",
+    )
+
+    return GuestJoinResponse(
+        participantToken=token,
+        livekitRoomName=session.livekit_room_name,
+        livekitUrl=livekit_service._http_url(),
+        sessionId=str(session.id),
+        participantIdentity=caller_id,
+        participantName=livekit_service.guest_display_name(invitation.id),
+    )

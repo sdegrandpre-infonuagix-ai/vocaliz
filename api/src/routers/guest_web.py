@@ -78,6 +78,19 @@ def host_console_page(request: Request):
     return _page(request, "host.html")
 
 
+@router.get("/call", include_in_schema=False)
+def call_page(request: Request):
+    """The telephone, simulated in a browser.
+
+    There is no SIP trunk and no dispatch rule, so nobody can dial a Salon today. This is the
+    same door opened from a browser: a six-digit code, a call button, and audio in both
+    directions with nothing else — no transcript, no language picker, no controls. A caller on
+    a real line has none of those, and a simulation that offered them would be testing
+    something other than the thing being simulated.
+    """
+    return _page(request, "call.html")
+
+
 @router.get("/report", include_in_schema=False)
 def participant_report_page(request: Request):
     """Serve the participant report console.
