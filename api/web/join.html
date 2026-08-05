@@ -7,6 +7,16 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* The reading width of the console, in one place.
+       Tripled from the 440px column it grew up as. That column was sized for a phone held in
+       one hand and kept on a laptop, where it left most of the screen empty beside a form the
+       host reads while doing something else. The cards keep width:100%, so this is a ceiling
+       and not a floor: a phone is unaffected, a wide screen stops wasting itself.
+       The billboard follows the same value rather than a number of its own — a header
+       narrower than the content under it reads as a mistake. */
+    :root { --content: 1320px; }
+
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       background: #F8F3E8;
@@ -104,7 +114,7 @@
        orients a first-time reader without competing with the thing they came to do. */
     .what-is {
       width: 100%;
-      max-width: 440px;
+      max-width: var(--content);
       margin: 0;
       font-size: 0.92rem;
       line-height: 1.5;
@@ -114,7 +124,7 @@
 
     .card {
       width: 100%;
-      max-width: 440px;
+      max-width: var(--content);
       background: #fff;
       border: 1px solid #e2d9cc;
       border-radius: 14px;
@@ -182,7 +192,7 @@
       justify-content: center;
       gap: 8px;
       width: 100%;
-      max-width: 440px;
+      max-width: var(--content);
       padding: 15px 28px;
       border: none;
       border-radius: 10px;
@@ -208,7 +218,7 @@
 
     .info-list {
       width: 100%;
-      max-width: 440px;
+      max-width: var(--content);
       list-style: none;
       display: flex;
       flex-direction: column;
@@ -254,7 +264,7 @@
     .billboard { display: none; background: #2C2C2C; color: #F8F3E8; padding: 9px 16px; }
     .billboard.on { display: block; }
     .billboard-inner {
-      max-width: 900px; margin: 0 auto; display: flex; align-items: center;
+      max-width: var(--content); margin: 0 auto; display: flex; align-items: center;
       gap: 10px; flex-wrap: wrap;
     }
     .billboard-label {
