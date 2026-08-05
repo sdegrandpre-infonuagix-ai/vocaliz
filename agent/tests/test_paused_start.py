@@ -83,3 +83,17 @@ def test_nothing_still_waits_on_an_invitation():
     assert "guest_invited" not in source
     assert "opensInSeconds" not in source
     assert not hasattr(salon, "INVITATION_OPENING_SECONDS")
+
+
+# ─── The voice model is pinned, not aliased ───────────────────────────────────
+
+def test_the_voice_model_is_named_explicitly():
+    """`grok-voice-latest` pointed at think-fast-1.0 and xAI's documentation said it updates to
+    2.0 on 5 August 2026 — the day this was pinned. An alias lets the model change under a
+    running product without a deploy, and a voice, a latency and a price moving on their own is
+    a behaviour change nobody can attribute afterwards."""
+    source = inspect.getsource(salon.entrypoint)
+    assert 'model="grok-voice-think-fast-2.0"' in source
+    # The assignment, not the bare word: the comment above the call names the old alias to
+    # explain why it was abandoned. Sixth time today a test has quoted its own reasoning.
+    assert 'model="grok-voice-latest"' not in source

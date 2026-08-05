@@ -1121,11 +1121,19 @@ async def entrypoint(ctx: agents.JobContext):
     )
 
     agent_session = AgentSession(
-        # Per docs.x.ai speech-to-speech: `grok-voice-latest` is the current alias, and
-        # the plugin still defaults to grok-voice-think-fast-1.0 ("previous generation").
+        # Pinned, not aliased. `grok-voice-latest` pointed at grok-voice-think-fast-1.0 and
+        # xAI's own documentation says it "updates to grok-voice-think-fast-2.0 on August 5,
+        # 2026" — the day this was written. An alias means the model can change under a running
+        # product without a deploy, and a voice, a latency and a price changing on their own is
+        # a behaviour change nobody can attribute afterwards: was it the new model, or was it
+        # one of today's twenty edits?
+        #
+        # 2.0 by choice rather than by a date passing. Moving to a different model is now a
+        # commit, which is where a change of this size belongs.
+        #
         # Voice ids are lowercase — "Ara" is not a valid identifier.
         llm=xai.realtime.RealtimeModel(
-            model="grok-voice-latest", voice="ara", api_key=xai_key or None
+            model="grok-voice-think-fast-2.0", voice="ara", api_key=xai_key or None
         ),
         vad=silero.VAD.load(),
         # The multilingual turn detector that used to sit here never actually ran: it
