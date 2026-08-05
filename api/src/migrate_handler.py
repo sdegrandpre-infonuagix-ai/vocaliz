@@ -13,6 +13,22 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
+def _report(message: str) -> None:
+    """Say what happened, unconditionally.
+
+    print rather than logger, and deliberately. Everything this function does runs on a
+    schedule, so the log is the only record — EventBridge discards return values. And the log
+    is exactly what went missing: alembic's fileConfig used to disable every existing logger,
+    which killed this module's logging for the whole life of a warm container. The sweep and the
+    xAI probe ran every minute and reported nothing, for hours.
+    #
+    That cause is fixed in migrations/env.py. This is here because the failure was silent, and a
+    silent failure in the thing that reports failures deserves a path nothing can reconfigure.
+    Lambda captures stdout whatever the logging module has been told.
+    """
+    print(message, flush=True)
+
+
 def _participant_report(recipient: str) -> dict:
     """Mail the participant table to an administrator.
 
@@ -189,27 +205,27 @@ def handler(event, context):
         )
     if action == "reset_trial":
         result = _reset_trial(event["email"])
-        logger.info("reset_trial: %s", result)
+        _report(f"reset_trial: {result}")
         return result
     if action == "reset_all_trials":
         result = _reset_all_trials()
-        logger.info("reset_all_trials: %s", result)
+        _report(f"reset_all_trials: {result}")
         return result
     if action == "check_xai":
         result = _check_xai()
-        logger.info("check_xai: %s", result)
+        _report(f"check_xai: {result}")
         return result
     if action == "sweep_sessions":
         result = _sweep_expired_sessions()
-        logger.info("sweep_sessions: %s", result)
+        _report(f"sweep_sessions: {result}")
         return result
     if action == "seed_house_ads":
         result = _seed_house_ads()
-        logger.info("seed_house_ads: %s", result)
+        _report(f"seed_house_ads: {result}")
         return result
     if action == "invoice_advertisers":
         result = _invoice_advertisers()
-        logger.info("invoice_advertisers: %s", result)
+        _report(f"invoice_advertisers: {result}")
         return result
 
     # settings resolves DATABASE_URL from the Aurora secret; import after env is in place.

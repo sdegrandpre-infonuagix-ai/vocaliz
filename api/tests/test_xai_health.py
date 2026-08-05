@@ -162,3 +162,43 @@ def test_a_failing_alert_never_breaks_the_monitor(db):
     with patch("src.services.xai_health.boto3") as boto, _probing(False):
         boto.client.side_effect = RuntimeError("SES is down")
         assert xai_health.check(db)["healthy"] is False
+
+
+# ─── Being able to see what the schedule does ─────────────────────────────────
+#
+# The sweep and this probe both run on a schedule, so the log is the only record — EventBridge
+# discards return values. For hours it was no record at all: alembic's fileConfig disables every
+# existing logger by default, which killed this module's logging for the whole life of a warm
+# Lambda container. Both jobs ran every minute and said nothing, and the silence looked exactly
+# like a schedule that was not firing.
+
+def test_alembic_no_longer_silences_everything_else():
+    """The cause. One keyword, and without it every migration blinds the container it ran in."""
+    import pathlib
+
+    env = pathlib.Path(__file__).resolve().parents[1] / "migrations" / "env.py"
+    source = env.read_text(encoding="utf-8")
+    assert "disable_existing_loggers=False" in source
+
+
+def test_the_maintenance_function_reports_through_stdout():
+    """Immune to whatever the logging module has been told. A silent failure in the thing that
+    reports failures deserves a path nothing can reconfigure — and Lambda captures stdout
+    regardless."""
+    import inspect
+
+    from src import migrate_handler
+
+    assert "print(" in inspect.getsource(migrate_handler._report)
+
+
+def test_every_scheduled_action_says_what_it_did():
+    """A scheduled job whose outcome is invisible cannot be trusted, and cannot be debugged
+    either: the return value goes to EventBridge, which throws it away."""
+    import inspect
+
+    from src import migrate_handler
+
+    source = inspect.getsource(migrate_handler.handler)
+    for action in ("check_xai", "sweep_sessions", "invoice_advertisers"):
+        assert f'_report(f"{action}' in source, f"{action} runs silently"
