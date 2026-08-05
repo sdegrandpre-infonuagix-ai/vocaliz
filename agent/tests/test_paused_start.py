@@ -65,12 +65,15 @@ def test_activating_opens_the_conversation():
     assert "if not muted:" in handler
 
 
-def test_a_salon_already_running_settles_the_gate_instead():
-    """Otherwise the host's next pause and resume is answered with a welcome to a room that
-    has been talking for ten minutes."""
+def test_an_unpaused_salon_opens_on_arrival():
+    """A Salon starts with its agent listening, so there is no button coming and nothing to
+    wait for. Waiting would be silence the host cannot end.
+
+    The paused default was tried for an afternoon and reversed; pausing survives as a control
+    rather than a starting gate."""
     source = _entrypoint()
     assert "if not starts_paused:" in source
-    assert "opening.settle()" in source
+    assert "opening.schedule(0)" in source
 
 
 def test_nothing_still_waits_on_an_invitation():

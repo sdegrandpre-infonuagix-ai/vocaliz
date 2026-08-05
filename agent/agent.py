@@ -1384,9 +1384,22 @@ async def entrypoint(ctx: agents.JobContext):
     # always present server-side, so it closes the session when the room empties —
     # otherwise the host keeps an open session they believe they left (FR25).
     def _on_participant_disconnected(_participant) -> None:
-        if len(ctx.room.remote_participants) == 0:
-            logger.info("Last participant left; ending session %s", session_id)
-            asyncio.create_task(salon_agent.end_session())
+        # Any human leaving ends the Salon, not only the last one.
+        #
+        # A room holds two people and the agent. When one of them goes, what is left is one
+        # person and a facilitator with nobody to facilitate between — and on a front-desk
+        # call it is worse than pointless: the caller hangs up and the clerk would be left
+        # talking to an agent about a conversation that is over, billed by the minute.
+        #
+        # The cost is that a genuine disconnection ends the Salon for the person who stayed.
+        # LiveKit fires this only after its own reconnection attempts have failed, so it is a
+        # real departure rather than a blip — but somebody who loses signal for good does take
+        # the other person's Salon with them, and that is the deliberate trade.
+        remaining = len(ctx.room.remote_participants)
+        logger.info(
+            "A participant left session %s; %d human(s) remain", session_id, remaining
+        )
+        asyncio.create_task(salon_agent.end_session())
 
     ctx.room.on("participant_disconnected", _on_participant_disconnected)
 

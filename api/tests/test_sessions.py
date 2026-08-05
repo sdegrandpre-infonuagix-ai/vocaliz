@@ -381,16 +381,17 @@ def test_a_phone_invitation_is_still_accepted_while_the_field_is_hidden(client, 
     assert response.status_code == 201
 
 
-def test_a_room_holds_a_host_two_guests_and_the_agent():
-    """One guest more than before, and deliberately not more.
+def test_a_room_holds_two_people_and_the_agent():
+    """Down from four, and the reduction is what makes the room trustworthy.
 
-    The ceiling is not technical but perceptual: caption attribution comes from active-speaker
-    detection, which guesses when two people overlap. Four humans would make the transcript
-    unreliable often enough to notice.
+    Caption attribution comes from active-speaker detection, which guesses when two people
+    overlap. With two humans there is only ever one other voice to be confused with yours —
+    and for an interpreter that is not a nicety: mistaking who spoke reverses the direction of
+    a translation and says somebody's own words back to them.
     """
     from src.config import settings
 
-    assert settings.livekit_room_max_participants == 4
+    assert settings.livekit_room_max_participants == 3
 
 
 # ─── The front-end pages revalidate cheaply ──────────────────────────────────

@@ -69,14 +69,15 @@ class Settings(BaseSettings):
     livekit_api_secret: str  # required — set LIVEKIT_API_SECRET env var
 
     # Session settings
-    # A host, two guests and the agent. One guest more than before, and deliberately not
-    # more than that.
+    # Two humans and the agent. Down from four, and the reduction is what makes the room
+    # trustworthy rather than merely smaller.
     #
-    # The limit is not technical. Caption attribution is: the realtime model hears every
-    # participant mixed into one stream, so who spoke comes from LiveKit's active-speaker
-    # detection — right when one person talks, a guess when two overlap. Three humans already
-    # overlap; four would make the transcript unreliable often enough to notice.
-    livekit_room_max_participants: int = 4
+    # Caption attribution is the reason. The realtime model hears every participant mixed into
+    # one stream, so who spoke comes from LiveKit's active-speaker detection — right when one
+    # person talks, a guess when two overlap. With two humans there is only ever one other
+    # voice to confuse yours with, and for an interpreter that is not a nicety: mistaking who
+    # spoke reverses the direction of a translation and says somebody's own words back to them.
+    livekit_room_max_participants: int = 3
     # How long an empty room survives before LiveKit closes it — and with it, the agent.
     #
     # Thirty seconds, down from five minutes. This is the setting that actually stops an
