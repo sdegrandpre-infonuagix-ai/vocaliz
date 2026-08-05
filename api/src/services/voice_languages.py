@@ -28,7 +28,12 @@ VOICE_LANGUAGES: list[tuple[str, str]] = [
     ("ar-SA", "العربية (السعودية)"),
     ("ar-AE", "العربية (الإمارات)"),
     ("bn", "বাংলা"),
-    ("zh", "中文"),
+    # xAI calls this one "Chinese (Simplified)", which names a writing system rather than a
+    # spoken language — Mandarin and Cantonese are both written in simplified characters. For
+    # a voice there is only one sensible reading, so the label says Mandarin: a host choosing
+    # "中文" for a Cantonese caller would otherwise get Mandarin and not know why. Cantonese is
+    # not on the list at all.
+    ("zh", "中文（普通话）"),
     ("fr", "Français"),
     ("de", "Deutsch"),
     ("hi", "हिन्दी"),
