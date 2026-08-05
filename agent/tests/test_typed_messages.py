@@ -36,10 +36,28 @@ def _code(block: str) -> str:
 
 # ─── Who may lend the agent its voice ─────────────────────────────────────────
 
-def test_only_the_host_is_spoken_word_for_word():
+def test_only_the_host_is_relayed_in_their_own_words():
     handler = _handler()
     assert "sender == host_identity" in handler
-    assert "agent_session.say(text)" in handler
+    assert "generate_reply" in handler[handler.index("if speaks_aloud:") :]
+
+
+def test_the_relay_is_translated_rather_than_read_out_literally():
+    """say() is text-to-speech and would deliver a French sentence to somebody who speaks only
+    Japanese — which is the whole scenario this exists for. Word for word in substance, in the
+    listener's language."""
+    spoken = _code(_handler())
+    spoken = spoken[spoken.index("if speaks_aloud:") :]
+    assert "agent_session.say(" not in spoken
+    assert "each listener's own language" in _handler()
+
+
+def test_the_relay_adds_nothing_of_its_own():
+    """"He would like me to tell you" defeats the point: the host is lending the voice, not
+    briefing an intermediary."""
+    handler = _handler()
+    assert "Add no greeting, no comment, no preamble" in handler
+    assert "never say that somebody asked you to pass it on" in handler
 
 
 def test_the_host_is_named_by_the_api_not_inferred_from_the_identity():

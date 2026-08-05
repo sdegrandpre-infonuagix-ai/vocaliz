@@ -327,3 +327,48 @@ def test_captions_are_bounded_in_characters_not_pixels(page):
     assert "max-width:65ch" in block.replace(" ", ""), (
         f"{page}: captions are not bounded by a character count"
     )
+
+
+# ─── Dictation ───────────────────────────────────────────────────────────────
+#
+# The clerk's speech becomes text in their own browser and travels as text. Nothing of that
+# voice enters the room, which is what makes the direction of a translation certain: the
+# microphone that dictates and the microphone that talks are two different things, told apart
+# by which control was pressed rather than by guessing who was loudest.
+
+def test_dictation_happens_in_the_browser():
+    """The recogniser is the browser's own. Sending the audio to the room instead would put
+    the clerk's raw voice in the caller's ear and bring the attribution problem back."""
+    source = _source("host.html")
+    assert "window.SpeechRecognition || window.webkitSpeechRecognition" in source
+
+
+def test_only_final_results_are_sent():
+    """An interim transcript is revised as the recogniser hears more. Sending one would have
+    the agent say half a sentence aloud and then correct itself."""
+    source = _source("host.html")
+    block = source[source.index("recogniser.onresult"):]
+    block = block[: block.index("recogniser.onerror")]
+    assert "isFinal" in block
+    assert block.index("isFinal") < block.index("sendTyped()")
+
+
+def test_a_pause_does_not_end_the_dictation():
+    """no-speech fires on any quiet moment. Stopping on it would end the dictation every time
+    the clerk paused to listen to their caller — which is most of the call."""
+    source = _source("host.html")
+    assert "'no-speech'" in source
+
+
+def test_the_session_is_restarted_while_the_button_still_says_listening():
+    """Chrome ends recognition on its own after a stretch of silence. A control that says
+    "listening" and is not is worse than one that never worked."""
+    source = _source("host.html")
+    block = source[source.index("recogniser.onend"):]
+    block = block[: block.index("try {\n        recogniser.start()")]
+    assert "if (dictating)" in block
+
+
+def test_a_browser_without_a_recogniser_says_so():
+    """Firefox has never shipped it. Saying so is kinder than a button that does nothing."""
+    assert "dictateUnsupported" in _source("host.html")

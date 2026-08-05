@@ -486,6 +486,12 @@
                   placeholder="Write to the room and to Vocaliz…"></textarea>
         <button class="btn btn-outline" id="btn-say" onclick="sendTyped()"
                 data-i18n="sayButton">Send</button>
+        <!-- Dictation, and the point is where it happens: in this browser. The words become
+             text here and travel as text, so nothing of this voice ever enters the room. It
+             is also what makes the direction of a translation certain — there is no guessing
+             who spoke when only one person is speaking into this box. -->
+        <button class="btn btn-outline" id="btn-dictate" onclick="toggleDictation()"
+                aria-pressed="false" data-i18n="dictateOff">Dictate</button>
       </div>
       <div class="say-hint" id="say-hint" role="status" aria-live="polite"></div>
     </div>
@@ -605,6 +611,10 @@
         saySent: 'Vocaliz is saying it, word for word.',
         sayFailed: 'Could not send. Your message is still in the box.',
         sayNoRoom: 'Not in the Salon.',
+        dictateOff: 'Dictate',
+        dictateOn: 'Listening — stop',
+        dictateUnsupported: 'This browser cannot dictate. Chrome, Edge and Safari can.',
+        dictateFailed: 'Dictation stopped. Your microphone may be in use elsewhere.',
         privateOff: 'Speak only to Vocaliz',
         privateOn: 'Speaking only to Vocaliz — go back to the room',
         privateHintOff: 'Everyone hears you.',
@@ -720,6 +730,10 @@
         saySent: 'Vocaliz le dit, mot pour mot.',
         sayFailed: 'Envoi impossible. Votre message est resté dans la boîte.',
         sayNoRoom: 'Pas dans le Salon.',
+        dictateOff: 'Dicter',
+        dictateOn: 'À l’écoute — arrêter',
+        dictateUnsupported: 'Ce navigateur ne sait pas dicter. Chrome, Edge et Safari le peuvent.',
+        dictateFailed: 'Dictée interrompue. Votre micro est peut-être utilisé ailleurs.',
         privateOff: 'Parler qu’à Vocaliz',
         privateOn: 'Vous ne parlez qu’à Vocaliz — revenir au Salon',
         privateHintOff: 'Tout le monde vous entend.',
@@ -948,6 +962,7 @@
       renderSound();
       renderAgent();
       renderPrivate();
+      renderDictation();
       // The "As spoken" option and the empty-log line are interface text, so they follow
       // the interface language rather than the caption language.
       var capSel = document.getElementById('cap-lang');
@@ -1567,6 +1582,94 @@
       }
     }
 
+
+
+    // ── Dictation ─────────────────────────────────────────────────────────────
+    // The browser's own recogniser, not the room. Speech becomes text here and is sent as
+    // text, so this voice never reaches the caller and never reaches the agent's ears — only
+    // its reading. That is what makes the relay unambiguous: the microphone that dictates and
+    // the microphone that talks to the room are two different things, declared by which
+    // control you pressed rather than inferred from who was loudest.
+    //
+    // Sent on each final result rather than on a button. Somebody at a front desk has a caller
+    // waiting and a second hand to do something else with; making them press send after every
+    // sentence is the kind of small friction that gets a product abandoned.
+    var recogniser = null;
+    var dictating = false;
+
+    function speechRecognition() {
+      var Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      return Ctor ? new Ctor() : null;
+    }
+
+    function toggleDictation() {
+      if (dictating) { stopDictation(); return; }
+
+      recogniser = speechRecognition();
+      if (!recogniser) {
+        // Firefox has never shipped it. Saying so is kinder than a button that does nothing.
+        setSayHint('dictateUnsupported', false);
+        return;
+      }
+      // The interface language, which is the one the clerk is reading and speaking. The
+      // caller's language is the agent's problem, not the recogniser's.
+      recogniser.lang = lang || 'en';
+      recogniser.continuous = true;
+      recogniser.interimResults = true;
+
+      recogniser.onresult = function (event) {
+        var box = document.getElementById('say-text');
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+          var said = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            // Finals only are sent. An interim transcript is revised as the recogniser hears
+            // more, and sending one would have the agent say half a sentence and then correct
+            // itself out loud.
+            box.value = said.trim();
+            if (box.value) sendTyped();
+          } else {
+            box.value = said;
+          }
+        }
+      };
+      recogniser.onerror = function (event) {
+        // no-speech fires on any quiet moment and means nothing; stopping on it would end a
+        // dictation every time the clerk paused to listen.
+        if (event.error === 'no-speech' || event.error === 'aborted') return;
+        setSayHint('dictateFailed', false);
+        stopDictation();
+      };
+      recogniser.onend = function () {
+        // Chrome ends the session on its own after a stretch of silence. Restarted while the
+        // clerk still believes it is on, because a control that says "listening" and is not
+        // is worse than one that never worked.
+        if (dictating) { try { recogniser.start(); } catch (e) { } }
+      };
+
+      try {
+        recogniser.start();
+      } catch (e) {
+        setSayHint('dictateFailed', false);
+        return;
+      }
+      dictating = true;
+      renderDictation();
+    }
+
+    function stopDictation() {
+      dictating = false;
+      if (recogniser) { try { recogniser.stop(); } catch (e) { } }
+      recogniser = null;
+      renderDictation();
+    }
+
+    function renderDictation() {
+      var button = document.getElementById('btn-dictate');
+      if (!button) return;
+      button.textContent = T(dictating ? 'dictateOn' : 'dictateOff');
+      button.className = dictating ? 'btn btn-primary' : 'btn btn-outline';
+      button.setAttribute('aria-pressed', dictating ? 'true' : 'false');
+    }
 
     // ── Writing to the room ───────────────────────────────────────────────────
     // Published to the agent, which puts the line back on the wire as a caption: translated

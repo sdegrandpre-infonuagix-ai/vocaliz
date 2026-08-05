@@ -1272,7 +1272,21 @@ async def entrypoint(ctx: agents.JobContext):
                 # print the same sentence twice, once as the host and once as the agent.
                 opening.stand_down()
                 try:
-                    agent_session.say(text)
+                    # Not say(), which is literal text-to-speech and would deliver a French
+                    # sentence to somebody who speaks only Japanese. The model repeats it in
+                    # the listener's language instead — word for word in substance, since
+                    # nothing may be added, removed or commented on.
+                    agent_session.generate_reply(
+                        instructions=(
+                            "Say the following to the room, in each listener's own language, "
+                            "and nothing else. You are lending your voice to the person who "
+                            "wrote it: speak as they would, in the first person if that is "
+                            "how it is written. Add no greeting, no comment, no preamble, and "
+                            "never say that somebody asked you to pass it on. If it is "
+                            "already in the listener's language, say it exactly as written.\n"
+                            f"---\n{text}\n---"
+                        )
+                    )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Could not speak the host's typed line: %s", exc)
                     captions.publish_soon(text=text, identity=sender)
