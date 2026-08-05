@@ -218,3 +218,36 @@ def test_a_supported_tag_is_kept_whole(client, db):
         SessionModel.livekit_room_name == resp.json()["livekitRoomName"]
     ).one()
     assert session.agent_language == "pt-PT"
+
+
+# ─── What Vocaliz can be asked to speak ──────────────────────────────────────
+
+def test_the_spoken_languages_are_listed_at_the_foot(client):
+    """It answers a question somebody asks after reading the rest — "will it understand me?"
+    — so it belongs where that question arises rather than above the call button."""
+    body = client.get("/").text
+    assert "<footer>" in body
+    assert body.index("Call Vocaliz") < body.index("<footer>")
+
+
+def test_the_footer_is_built_from_the_same_request_as_the_menu(client):
+    """Two lists built separately eventually disagree, and the one nobody maintains is the
+    one somebody reads before deciding whether to call."""
+    body = client.get("/").text
+    assert "renderSpokenLanguages(body.languages" in body
+
+
+def test_auto_is_not_listed_as_a_language(client):
+    """"Follow the speaker" is a setting. Reading it among the tongues Vocaliz speaks would
+    be an odd thing to find in that list."""
+    body = client.get("/").text
+    block = body[body.index("function renderSpokenLanguages"):]
+    block = block[: block.index("\n  }")]
+    assert "entry.tag === 'auto'" in block
+
+
+def test_persian_reaches_the_footer(client):
+    """Named in the request that asked for this list, and the reason the list is not simply
+    xAI's twenty."""
+    tags = [e["tag"] for e in client.get("/voice-languages").json()["languages"]]
+    assert "fa" in tags

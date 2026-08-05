@@ -96,6 +96,19 @@
   .cap-src { font-size: .81em; line-height: 1.45; opacity: .5; font-style: italic; margin-top: 2px; max-width: 65ch; }
   .cap-empty, .empty { font-size: .88em; opacity: .55; }
   .cap-notice { font-size: .78rem; color: var(--muted); margin-top: 14px; }
+  /* Foot of the page, because it answers a question somebody asks after reading the rest:
+     "will it understand me?" Putting it at the top would answer it before it was asked. */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 26px 0 48px;
+    font-size: .84rem;
+    color: var(--muted);
+  }
+  .langs { margin-top: 10px; line-height: 1.9; }
+  .langs span { white-space: nowrap; }
+  .langs span::after { content: " · "; opacity: .45; }
+  .langs span:last-child::after { content: ""; }
+
   .hidden { display: none; }
 </style>
 
@@ -167,6 +180,12 @@
       </button>
     </div>
   </section>
+
+  <footer>
+    <div>Vocaliz speaks these languages. It understands others too, and answers in whichever
+      one it hears — this is the list you can hold it to.</div>
+    <div class="langs" id="spoken-langs"></div>
+  </footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
@@ -231,6 +250,7 @@
       // a remembered choice that quietly reverts to "auto" is worse than none.
       select.value = voiceLang;
       if (select.value !== voiceLang) { voiceLang = 'auto'; select.value = 'auto'; }
+      renderSpokenLanguages(body.languages || []);
     } catch (e) {
       // The menu stays empty and the call still works: no choice means follow the speaker,
       // which is the behaviour every Salon had before this control existed.
@@ -242,6 +262,24 @@
     voiceLang = event.target.value || 'auto';
     try { localStorage.setItem(LANG_KEY, voiceLang); } catch (e) { }
   });
+
+
+  // The same list as the menu, from the same request, rendered at the foot of the page.
+  // Two lists built separately would eventually disagree, and the one nobody maintains is
+  // always the one somebody reads before deciding whether to call.
+  function renderSpokenLanguages(entries) {
+    var box = document.getElementById('spoken-langs');
+    if (!box) return;
+    box.innerHTML = '';
+    entries.forEach(function (entry) {
+      // "auto" is a setting, not a language. Listing "follow the speaker" among the tongues
+      // Vocaliz speaks would be an odd thing to read.
+      if (entry.tag === 'auto') return;
+      var item = document.createElement('span');
+      item.textContent = entry.label;
+      box.appendChild(item);
+    });
+  }
 
   // ── The caller ──────────────────────────────────────────────────────────────
   var room = null;
