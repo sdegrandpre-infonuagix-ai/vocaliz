@@ -225,6 +225,19 @@
     /* The count is what makes it a popularity list rather than a tag cloud. */
     .billboard-count { color: #a99e91; }
 
+    /* Writing to the room. Sits under the transcript because that is where the answer will
+       appear — a composer placed away from the conversation reads as a separate channel, and
+       this is the same one. */
+    .say-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; }
+    .say-row textarea {
+      flex: 1; min-width: 0; resize: vertical;
+      font-family: inherit; font-size: 0.92rem; line-height: 1.45;
+      padding: 8px 10px; border: 1px solid #d9cfbe; border-radius: 10px;
+      background: #fff; color: #2C2C2C;
+    }
+    .say-row .btn { width: auto; flex: 0 0 auto; margin: 0; align-self: stretch; }
+    .say-hint { font-size: 0.78rem; color: #6b6257; margin-top: 6px; min-height: 1.1em; }
+
     /* ── Live captions ──────────────────────────────────────────────────────── */
     .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     /* Caption size, chosen by the reader. Applied as a scale on the container rather than a
@@ -456,6 +469,18 @@
       <div class="cap-notice" data-i18n="capNotice">
         What is said in this Salon is transcribed and stored so it can be translated.
       </div>
+      <!-- The host lends the agent its words. What is written here is spoken aloud, word
+           for word, in the agent's voice — not handed to the model as something to answer.
+           It reaches a participant who joined by telephone and can read nothing, and it is
+           the only way to say something in a room where speaking is not possible. -->
+      <div class="say-row">
+        <textarea id="say-text" rows="2" maxlength="800"
+                  data-i18n-ph="sayPlaceholder"
+                  placeholder="Write to the room and to Vocaliz…"></textarea>
+        <button class="btn btn-outline" id="btn-say" onclick="sendTyped()"
+                data-i18n="sayButton">Send</button>
+      </div>
+      <div class="say-hint" id="say-hint" role="status" aria-live="polite"></div>
     </div>
 
     <!-- Step 3b: add a source mid-session (host only) -->
@@ -568,6 +593,11 @@
         sendButton: 'Send by email',
         errHttp: 'Error {code}',
         codeSent: 'Code sent to {email}.',
+        sayPlaceholder: 'Write here and Vocaliz says it out loud…',
+        sayButton: 'Send',
+        saySent: 'Vocaliz is saying it, word for word.',
+        sayFailed: 'Could not send. Your message is still in the box.',
+        sayNoRoom: 'Not in the Salon.',
         agentPause: 'Pause the agent',
         // Also the button that starts a Salon, since one begins with its agent paused. Worded
         // to fit both that first press and every later one: "resume" would be a lie the first
@@ -673,6 +703,11 @@
         sendButton: 'Envoyer par courriel',
         errHttp: 'Erreur {code}',
         codeSent: 'Code envoyé à {email}.',
+        sayPlaceholder: 'Écrivez ici et Vocaliz le dira à voix haute…',
+        sayButton: 'Envoyer',
+        saySent: 'Vocaliz le dit, mot pour mot.',
+        sayFailed: 'Envoi impossible. Votre message est resté dans la boîte.',
+        sayNoRoom: 'Pas dans le Salon.',
         agentPause: "Mettre l'agent en pause",
         agentResume: "Activer l'agent",
         agentRemove: "Retirer l'agent",
@@ -1456,6 +1491,47 @@
         // A category is worth nothing at the cost of joining a salon.
         return '';
       }
+    }
+
+
+    // ── Writing to the room ───────────────────────────────────────────────────
+    // Published to the agent, which puts the line back on the wire as a caption: translated
+    // for every reader, stored in the transcript, and shown in the same list as speech. The
+    // alternative — clients broadcasting to each other — would deliver one language to a room
+    // whose entire premise is that nobody has to share one.
+    //
+    // No local echo. The line appears when it comes back as a caption, a second or so later,
+    // which is also the only honest confirmation that it was delivered. An echo that shows up
+    // when nothing left the browser is worse than a short wait.
+    async function sendTyped() {
+      var box = document.getElementById('say-text');
+      var text = (box.value || '').trim();
+      if (!text) return;
+      if (!room) { setSayHint('sayNoRoom', false); return; }
+
+      var button = document.getElementById('btn-say');
+      button.disabled = true;
+      try {
+        await room.localParticipant.publishData(
+          new TextEncoder().encode(JSON.stringify({ action: 'text_message', text: text })),
+          { reliable: true }
+        );
+        box.value = '';
+        setSayHint('saySent', true);
+      } catch (e) {
+        // Kept in the box on failure. Clearing it would lose what somebody wrote because the
+        // network blinked.
+        setSayHint('sayFailed', false);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function setSayHint(key, ok) {
+      var el = document.getElementById('say-hint');
+      if (!el) return;
+      el.textContent = T(key);
+      el.style.color = ok ? '#4a6b3a' : '#9b2226';
     }
 
     // ── The agent, under the host's hand ──────────────────────────────────────

@@ -38,6 +38,12 @@ AGENT_NAME = "salon-agent"
 # threshold and the announcement would never fire.
 ENDING_WARNING_SECONDS = 75
 
+# The longest typed message accepted. A caption is read in a scrolling column beside a live
+# conversation, and a wall of text there is not a message, it is a denial of the panel to
+# everyone else in the room. Cut rather than refused: losing the tail of an overlong message is
+# kinder than losing all of it with an error nobody expected.
+_MAX_TYPED_CHARS = 800
+
 _BASE_INSTRUCTIONS = (
     "You are Vocaliz, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
@@ -1028,6 +1034,9 @@ async def entrypoint(ctx: agents.JobContext):
     # all: joining a room and immediately talking is the one outcome nobody asked for, and it
     # is what the host would get if a failed fetch defaulted the other way.
     starts_paused = True
+    # Empty until the API says otherwise, and empty means nobody. An unreachable API must not
+    # end with the agent speaking whatever any participant types.
+    host_identity = ""
 
     if session_id and api_url and host_token:
         detail = await _fetch_session_detail(api_url, session_id, host_token)
@@ -1041,6 +1050,11 @@ async def entrypoint(ctx: agents.JobContext):
             # under way — a restarted job, or one the host removed and brought back. That
             # room is mid-conversation and must not be rejoined in silence.
             starts_paused = bool(detail.get("agentMuted", True))
+            # Whose typed words this agent will speak in its own voice. Read from the API
+            # rather than guessed from the identity's shape: the old "not prefixed guest- means
+            # host" rule stopped being true when registered guests began joining under their
+            # account id, and an empty value here refuses everybody rather than trusting them.
+            host_identity = str(detail.get("hostIdentity") or "")
 
     # The key is passed explicitly rather than left to the plugin's env lookup: the job
     # runs in a subprocess, and a missing key there surfaces only as an opaque 400 on the
@@ -1158,6 +1172,17 @@ async def entrypoint(ctx: agents.JobContext):
 
     ctx.add_shutdown_callback(_drop_pending_opening)
 
+    # Whether the agent is currently paused, as a fact the handlers can read. set_audio_enabled
+    # has no getter worth trusting for this, and a typed message needs to know: it is delivered
+    # either way, but a paused agent must not answer it.
+    paused = {"value": starts_paused}
+
+    # Assigned further down, once the session has started. Named here so the data handler can
+    # close over it: the handler is registered before that point and would otherwise capture
+    # nothing. It returns early while this is None, which is the same condition that already
+    # guards it — no session id means no captions either.
+    captions: CaptionPublisher | None = None
+
     def _on_data(packet) -> None:
         if not (session_id and api_url and host_token):
             return
@@ -1181,6 +1206,7 @@ async def entrypoint(ctx: agents.JobContext):
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not %s: %s", "pause" if muted else "resume", exc)
                 return
+            paused["value"] = muted
             if not muted:
                 # Every salon starts paused, so the first time this arrives it is the host
                 # opening their salon — not resuming one. Scheduled with no delay rather than
@@ -1194,6 +1220,59 @@ async def entrypoint(ctx: agents.JobContext):
             salon_agent.leave("the API announced the session had ended")
         elif isinstance(msg, dict) and msg.get("action") == "source_added":
             asyncio.create_task(_reload_sources())
+        elif isinstance(msg, dict) and msg.get("action") == "text_message":
+            # Somebody typed instead of speaking — in a noisy room, with a name nobody can
+            # pronounce, or simply preferring to write.
+            #
+            # Routed through the caption publisher rather than broadcast between clients, so a
+            # typed line reaches everyone in the language they are reading, is stored in the
+            # transcript, and appears in the same list as speech. A message that arrived in one
+            # language only, in a product whose whole point is that people need not share one,
+            # would be the odd thing out in its own conversation.
+            text = str(msg.get("text") or "").strip()[:_MAX_TYPED_CHARS]
+            if not text or captions is None:
+                return
+            sender = getattr(getattr(packet, "participant", None), "identity", "") or ""
+
+            # The host's typed line is spoken aloud, word for word, in the agent's voice —
+            # not handed to the model as something to respond to. The host is borrowing the
+            # voice, and a paraphrase would be the agent saying something they did not write.
+            #
+            # Restricted to the host, and to the identity the API names rather than one this
+            # code infers. Anyone able to reach this path can put words in the agent's mouth,
+            # and the room has no way to tell those words from the agent's own.
+            speaks_aloud = bool(host_identity) and sender == host_identity
+
+            if paused["value"]:
+                # Nothing is spoken while paused — the output is off, so a say() here would be
+                # captioned as speech nobody heard. Delivered in writing instead, attributed to
+                # whoever wrote it: pausing stops the agent taking part, it does not stop the
+                # people in the room reaching each other.
+                captions.publish_soon(text=text, identity=sender)
+                logger.info("Typed line delivered in writing; the agent is paused")
+                return
+
+            if speaks_aloud:
+                # No caption published here on purpose. say() adds an assistant turn, which
+                # the conversation_item_added handler already publishes — doing both would
+                # print the same sentence twice, once as the host and once as the agent.
+                opening.stand_down()
+                try:
+                    agent_session.say(text)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Could not speak the host's typed line: %s", exc)
+                    captions.publish_soon(text=text, identity=sender)
+                return
+
+            # A guest's typed line reaches the room in writing and is put to the agent as
+            # something said to it, which is what a guest speaking would have done.
+            captions.publish_soon(text=text, identity=sender)
+            opening.stand_down()
+            try:
+                agent_session.generate_reply(user_input=text)
+            except Exception as exc:  # noqa: BLE001
+                # The line is already delivered. Failing to answer must not also lose it.
+                logger.warning("Could not answer a typed message: %s", exc)
 
     ctx.room.on("data_received", _on_data)
 

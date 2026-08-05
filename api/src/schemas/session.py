@@ -70,6 +70,13 @@ class SessionDetailResponse(BaseModel):
     # errs towards silence: a salon that stays quiet until asked is a smaller failure than one
     # that starts talking over its host.
     agentMuted: bool = True
+    # The LiveKit identity the host joins under, so the agent can tell it is really them.
+    #
+    # Not derived from the identity's shape. The old rule — anything not prefixed "guest-" is
+    # the host — stopped being true when a registered guest began joining under their own
+    # account id, and it now guards something that matters: whose typed words the agent will
+    # speak aloud in its own voice.
+    hostIdentity: str = ""
 
 
 class JoinSessionResponse(BaseModel):
