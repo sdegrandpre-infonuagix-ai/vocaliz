@@ -19,6 +19,8 @@ from src.schemas.invitation import (
     PendingInvitationResponse,
 )
 from src.rate_limit import limiter
+from src.services import voice_languages
+from src.services.voice_languages import FOLLOW_THE_SPEAKER
 from src.services import (
     device_service,
     jwt_service,
@@ -364,7 +366,11 @@ def dial_in(code: str, db: DbSession = Depends(get_db)):
 
 @guest_router.post("/call-the-desk", response_model=GuestJoinResponse)
 @limiter.limit(f"{settings.front_desk_calls_per_hour}/hour")
-async def call_the_desk(request: Request, db: DbSession = Depends(get_db)):
+async def call_the_desk(
+    request: Request,
+    language: str = FOLLOW_THE_SPEAKER,
+    db: DbSession = Depends(get_db),
+):
     """Ring the front desk from the front page, with no account and no code.
 
     A Salon is opened in the desk's name, the caller is put into it, and the desk is mailed
@@ -397,6 +403,13 @@ async def call_the_desk(request: Request, db: DbSession = Depends(get_db)):
         # around a document would have the agent open on a subject nobody chose.
         source_type="none",
         source_content="",
+        # Rejected quietly rather than refused. A caller who picked something the model cannot
+        # speak should still reach the desk; falling back to following them is the behaviour
+        # they would have had by not choosing at all, and it is the closest thing to what they
+        # asked for. Refusing the call over a language would be the worse trade by far.
+        agent_language=(
+            language if voice_languages.is_supported(language) else FOLLOW_THE_SPEAKER
+        ),
     )
     db.add(session)
     db.commit()

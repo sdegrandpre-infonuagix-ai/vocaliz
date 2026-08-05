@@ -535,6 +535,7 @@ def get_session(
         createdAt=session.created_at.isoformat(),
         agentMuted=session.agent_muted,
         hostIdentity=str(session.host_user_id),
+        agentLanguage=session.agent_language,
     )
 
 

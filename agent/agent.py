@@ -283,6 +283,35 @@ _CONTENT_PREVIEW_CHARS = 2500
 _EXTRA_SOURCE_PREVIEW_CHARS = 1000
 
 
+
+def _language_override(tag: str) -> str:
+    """The instruction that pins the agent to one spoken language.
+
+    Appended after the standing instructions rather than woven into them. The detection
+    section is long and says the opposite at length; editing it in place would leave two
+    paragraphs disagreeing, and a model asked to reconcile them picks one at random. Last
+    word wins, and this is the last word.
+
+    Empty for "auto", which is the default and is exactly what the standing instructions
+    already describe — adding a paragraph to say "carry on as written" would only give the
+    model something else to weigh.
+    """
+    if not tag or tag == "auto":
+        return ""
+    return (
+        "\n\n"
+        "FORCED LANGUAGE — this overrides the language section above.\n"
+        f"Speak {tag} and only {tag}, to everyone, for the whole conversation. This holds "
+        "however participants address you: somebody speaking to you in another language is "
+        f"answered in {tag} regardless. Understand every language as before — only what "
+        "comes out of your mouth is fixed.\n"
+        "The tag is BCP-47 and its region matters. pt-BR is not pt-PT, es-MX is not es-ES, "
+        "ar-EG is not ar-SA: use the vocabulary and accent of the variant named, not of the "
+        "language in general.\n"
+        "Do not announce this constraint, do not apologise for it, and never say you have "
+        "been configured — a desk that answers in the language of the house simply does so."
+    )
+
 def _build_instructions(
     source_content: str | None = None,
     source_type: str | None = None,
@@ -378,14 +407,19 @@ class SalonAgent(Agent):
         additional_sources: list[dict] | None = None,
         source_summary: str | None = None,
         room=None,
+        forced_language: str = "auto",
     ) -> None:
+        # Kept so a rebuild after source_added does not quietly drop the constraint. That
+        # path builds fresh instructions from the session detail, and a language held only
+        # in the first build would vanish the moment a host added a link.
+        self._forced_language = forced_language
         instructions = _build_instructions(
             source_content=source_content,
             source_type=source_type,
             source_url=source_url,
             additional_sources=additional_sources,
             source_summary=source_summary,
-        )
+        ) + _language_override(forced_language)
         super().__init__(instructions=instructions)
         self._session_id = session_id
         self._api_url = api_url
@@ -1051,6 +1085,7 @@ async def entrypoint(ctx: agents.JobContext):
     # Empty until the API says otherwise, and empty means nobody. An unreachable API must not
     # end with the agent speaking whatever any participant types.
     host_identity = ""
+    forced_language = "auto"
 
     if session_id and api_url and host_token:
         detail = await _fetch_session_detail(api_url, session_id, host_token)
@@ -1069,6 +1104,9 @@ async def entrypoint(ctx: agents.JobContext):
             # host" rule stopped being true when registered guests began joining under their
             # account id, and an empty value here refuses everybody rather than trusting them.
             host_identity = str(detail.get("hostIdentity") or "")
+            # "auto" means follow each speaker, which is every other Salon's behaviour and
+            # what these instructions already describe at length. Anything else overrides it.
+            forced_language = str(detail.get("agentLanguage") or "auto")
 
     # The key is passed explicitly rather than left to the plugin's env lookup: the job
     # runs in a subprocess, and a missing key there surfaces only as an opaque 400 on the
@@ -1116,6 +1154,7 @@ async def entrypoint(ctx: agents.JobContext):
         additional_sources=additional_sources,
         source_summary=source_summary,
         room=ctx.room,
+        forced_language=forced_language,
     )
 
     # How the agent actually leaves. ctx.shutdown ends the job, which closes the room
@@ -1138,6 +1177,9 @@ async def entrypoint(ctx: agents.JobContext):
                 additional_sources=detail.get("additionalSources") or [],
                 source_summary=detail.get("sourceSummary"),
             )
+            # Re-read rather than remembered: a host may change the language mid-Salon, and
+            # the detail is the only place that knows.
+            + _language_override(str(detail.get("agentLanguage") or "auto"))
         )
         logger.info(
             "Instructions rebuilt after source_added (%d additional sources)",

@@ -77,6 +77,10 @@ class SessionDetailResponse(BaseModel):
     # account id, and it now guards something that matters: whose typed words the agent will
     # speak aloud in its own voice.
     hostIdentity: str = ""
+    # Which language the agent must speak, or "auto" to follow each speaker. Read at start-up
+    # like agentMuted: a Salon rung from the front page carries the caller's choice, and an
+    # agent that ignored it would answer a Persian speaker in whatever it guessed instead.
+    agentLanguage: str = "auto"
 
 
 class JoinSessionResponse(BaseModel):

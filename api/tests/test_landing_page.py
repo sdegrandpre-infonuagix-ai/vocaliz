@@ -120,3 +120,101 @@ def test_a_turn_is_never_shown_twice(client):
     caller having said it twice."""
     body = client.get("/").text
     assert "turns[i].sequence === msg.sequence" in body
+
+
+# ─── The language Vocaliz will speak ─────────────────────────────────────────
+
+def test_the_menu_is_built_from_the_api(client):
+    """A page holding its own copy would offer something the API rejects, and the caller
+    would press call and be refused for a reason nothing on screen could explain."""
+    body = client.get("/").text
+    assert "/voice-languages" in body
+    assert "<option" not in body, "the choices are fetched, not written into the page"
+
+
+def test_the_endpoint_serves_the_frozen_list(client):
+    from src.services.voice_languages import VOICE_LANGUAGES
+
+    body = client.get("/voice-languages").json()
+    assert [e["tag"] for e in body["languages"]] == [tag for tag, _ in VOICE_LANGUAGES]
+
+
+def test_the_endpoint_says_which_entries_xai_documents(client):
+    """Persian is offered on the strength of testing rather than a vendor's promise. Nothing
+    shows the distinction yet; flattening it here would mean it could never be shown."""
+    entries = {e["tag"]: e["documented"] for e in client.get("/voice-languages").json()["languages"]}
+    assert entries["fa"] is False
+    assert entries["tr"] is True
+
+
+def test_the_choice_travels_with_the_call(client):
+    body = client.get("/").text
+    assert "/invitations/call-the-desk?language=" in body
+
+
+def test_the_choice_is_remembered(client):
+    """Somebody who needs Persian needs it every time and should not have to find the menu
+    again on their second call."""
+    assert "localStorage.setItem(LANG_KEY" in client.get("/").text
+
+
+def test_the_remembered_choice_is_applied_after_the_options_exist(client):
+    """Setting a select's value before its options exist silently keeps the first entry, and
+    a remembered choice that quietly reverts to auto is worse than none at all."""
+    body = client.get("/").text
+    block = body[body.index("loadVoiceLanguages"):]
+    block = block[: block.index("})();")]
+    assert block.index("appendChild(option)") < block.index("select.value = voiceLang")
+
+
+def test_an_unreachable_list_does_not_block_the_call(client):
+    """No choice means follow the speaker, which is what every Salon did before this control
+    existed. Refusing to place a call over a menu would be the wrong trade."""
+    body = client.get("/").text
+    block = body[body.index("loadVoiceLanguages"):]
+    block = block[: block.index("})();")]
+    assert "catch" in block and "console.warn" in block
+
+
+def test_an_unsupported_tag_still_reaches_the_desk(client, db):
+    """Asserted on the server, which is what actually decides. A caller who picked something
+    the model cannot speak should still get through — falling back to following them is what
+    they would have had by not choosing."""
+    from unittest.mock import AsyncMock, patch
+
+    from src.config import settings
+    from src.models.session import SessionModel
+    from src.models.user import User
+
+    db.add(User(email=settings.front_desk_email))
+    db.commit()
+    with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
+        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
+    ):
+        resp = client.post("/invitations/call-the-desk?language=klingon")
+    assert resp.status_code == 200
+    session = db.query(SessionModel).filter(
+        SessionModel.livekit_room_name == resp.json()["livekitRoomName"]
+    ).one()
+    assert session.agent_language == "auto"
+
+
+def test_a_supported_tag_is_kept_whole(client, db):
+    """Regions are not truncated at the hyphen: pt-BR is not pt-PT, and collapsing them would
+    pick a voice from the wrong side of an ocean."""
+    from unittest.mock import AsyncMock, patch
+
+    from src.config import settings
+    from src.models.session import SessionModel
+    from src.models.user import User
+
+    db.add(User(email=settings.front_desk_email))
+    db.commit()
+    with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
+        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
+    ):
+        resp = client.post("/invitations/call-the-desk?language=pt-PT")
+    session = db.query(SessionModel).filter(
+        SessionModel.livekit_room_name == resp.json()["livekitRoomName"]
+    ).one()
+    assert session.agent_language == "pt-PT"

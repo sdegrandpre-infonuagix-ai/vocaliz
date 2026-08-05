@@ -4,6 +4,8 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 
+from src.services import voice_languages as voice_languages_service
+
 router = APIRouter(tags=["guest"])
 
 _WEB_DIR = os.path.normpath(
@@ -160,3 +162,27 @@ def interface_dictionary(page: str, language: str):
         # spares every reader in a non-primary language a request per page load.
         headers={"Cache-Control": "public, max-age=3600"},
     )
+
+
+@router.get("/voice-languages", include_in_schema=False)
+def voice_languages():
+    """The languages a Salon's agent can be told to speak.
+
+    Served rather than written into the page so the menu and the validator cannot disagree.
+    A page holding its own copy would offer a language the API rejects, and the caller would
+    press call and be refused for a reason nothing on screen could explain.
+
+    `documented` marks the twenty xAI publishes, as opposed to the ones added because the model
+    was tried in them. Nothing in the interface uses it yet; it is here so that the distinction
+    reaches whoever eventually wants to show it, rather than being flattened on the way out.
+    """
+    return {
+        "languages": [
+            {
+                "tag": tag,
+                "label": label,
+                "documented": tag in voice_languages_service.DOCUMENTED_TAGS,
+            }
+            for tag, label in voice_languages_service.VOICE_LANGUAGES
+        ]
+    }

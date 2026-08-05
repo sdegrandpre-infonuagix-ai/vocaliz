@@ -45,6 +45,16 @@ class SessionModel(Base):
     agent_muted: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
+    # The language the agent must speak, whatever it hears. "auto" — the default — means
+    # follow each speaker, which is what every Salon did before this existed.
+    #
+    # Held on the session rather than on the participant who chose it: a caller picks the
+    # language of the conversation, not of their own line, and an agent answering one person
+    # in Persian and another in Mandarin because they each set a preference would be two
+    # conversations in one room.
+    agent_language: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="auto", server_default=text("'auto'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
