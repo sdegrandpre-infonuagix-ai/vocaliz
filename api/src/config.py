@@ -79,18 +79,19 @@ class Settings(BaseSettings):
     livekit_room_max_participants: int = 4
     # How long an empty room survives before LiveKit closes it — and with it, the agent.
     #
-    # Fifteen seconds, down from five minutes. This is the setting that actually stops an
+    # Thirty seconds, down from five minutes. This is the setting that actually stops an
     # abandoned Salon costing money: the agent holds a live connection to the realtime model
     # for as long as its room exists, and a room nobody is in was costing five more minutes of
     # it every time. LiveKit enforces this itself, at the moment the last participant leaves —
     # no polling, nothing to miss it.
     #
     # The price is paid by a bad connection. Somebody whose phone drops into a tunnel has
-    # fifteen seconds to come back before the Salon is gone, where they used to have five
-    # minutes. That is a real regression for a caller on mobile data, and it is the reason
-    # this is a setting rather than a constant: raise it the moment a dropped call costs more
-    # than the idle minutes it saves.
-    livekit_room_empty_timeout: int = 15
+    # half a minute to come back before the Salon is gone, where they used to have five. That
+    # is still a regression for a caller on mobile data — it was fifteen seconds for an hour,
+    # which left no room at all for a reconnect — and it is the reason this is a setting
+    # rather than a constant: raise it the moment a dropped call costs more than the idle
+    # minutes it saves.
+    livekit_room_empty_timeout: int = 30
 
     # Invitation join links sent via SMS to non-registered contacts
     salon_web_base_url: str = "https://salon.app"
