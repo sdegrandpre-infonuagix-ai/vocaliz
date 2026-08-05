@@ -310,3 +310,20 @@ def test_a_paused_agent_says_so_rather_than_explaining_removal():
     assert "agentHintPaused" in source
     hint = source[source.index("var hint = 'agentHintAbsent'") :][:300]
     assert "agentState.muted ? 'agentHintPaused' : 'agentHintPresent'" in hint
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_captions_are_bounded_in_characters_not_pixels(page):
+    """The cards are three times wider than they were, and a caption stretched across all of
+    it is unreadable in the specific way long lines are.
+
+    ch rather than px because the reader sets their own caption size. A fixed pixel width
+    would cut the characters per line at every step up, turning a control meant to help
+    reading into one that hinders it — the same class of mistake as sizing the caption
+    children in px while scaling their container."""
+    source = _source(page)
+    block = source[source.index(".cap-text"):]
+    block = block[: block.index("</style>")]
+    assert "max-width:65ch" in block.replace(" ", ""), (
+        f"{page}: captions are not bounded by a character count"
+    )

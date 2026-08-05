@@ -299,10 +299,20 @@
     }
     .cap-line { border-left:2px solid rgba(201,168,106,.45); padding:2px 0 2px 12px; }
     .cap-who { font-size:0.75em; letter-spacing:.04em; text-transform:uppercase; opacity:.65; }
-    .cap-text { font-size:0.94em; line-height:1.5; }
+    /* Bounded in characters, not pixels. The cards are three times wider than they were and
+       a caption stretched across all of it is unreadable in the specific way long lines are:
+       the eye reaches the end and cannot find the start of the next one. 65ch renders about
+       seventy characters, inside the 45-to-75 the typographers give.
+       ch rather than px so it follows the reader's own size buttons. Fixed pixels would cut
+       the characters per line at every step up, which would turn a control meant to help
+       reading into one that hinders it. */
+    .cap-text { font-size:0.94em; line-height:1.5; max-width:65ch; }
     /* The spoken words, kept under the translation. A translation with no original is a
        claim the reader cannot check — and the check matters most when it reads oddly. */
-    .cap-src { font-size:0.81em; line-height:1.45; opacity:.5; font-style:italic; margin-top:2px; }
+    .cap-src {
+      font-size:0.81em; line-height:1.45; opacity:.5; font-style:italic;
+      margin-top:2px; max-width:65ch;
+    }
     .cap-empty { font-size:0.88em; opacity:.55; }
     .cap-notice { font-size:12.5px; line-height:1.5; opacity:.62; margin-top:12px; }
   </style>
