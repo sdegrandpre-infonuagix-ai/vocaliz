@@ -21,8 +21,6 @@
   "connectedSub": "Samtalið er í gangi. Talaðu frjálslega.",
   "connectedTitle": "Þú ert í Salon",
   "consoleLeaves": "Með því að opna leikjatölvuna lýkur þátttöku þinni í þessum Salon. Halda áfram?",
-  "countdownNow": "Vocaliz er að byrja...",
-  "countdownWaiting": "áður en Vocaliz opnar samtalið",
   "createAccount": "Búðu til reikning",
   "errConnDetail": "Óvænt villa kom upp.",
   "errConnTitle": "Tengisvilla",
@@ -51,11 +49,11 @@
   "micOn": "Hljóðnemi kveikt",
   "micStarting": "Kveikja á hljóðnemanum...",
   "openConsole": "Gestgjafatölva",
-  "pageTitle": "Vocaliz - Taktu þátt í samtalinu",
+  "pageTitle": "Vocaliz — Taktu þátt í samtalinu",
   "readySub": "Vocaliz þarf aðgang að hljóðnemanum þínum svo þú getir tekið þátt í samtalinu.",
   "readyTitle": "Tilbúinn til að taka þátt",
   "retryButton": "Prófaðu aftur",
   "soundOffButton": "🔇 Hljóðið er slökkt - kveiktu á því",
   "soundOnButton": "🔊 Kveikt er á hljóði - slökkva á því",
-  "whatIsVocaliz": "Vocaliz er vettvangur til að búa til Salons. Í Salon ræða fólk og AI raddfulltrúi um vefsíðu eða skjal saman."
+  "whatIsVocaliz": "Vocaliz er vettvangur til að búa til Salons. Í Salon ræða fólk og AI talmiðlara vefsíðu eða skjal saman."
 }

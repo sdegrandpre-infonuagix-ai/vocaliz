@@ -266,20 +266,6 @@
     /* The count is what makes it a popularity list rather than a tag cloud. */
     .billboard-count { color: #a99e91; }
 
-    /* ── Countdown to the agent speaking ────────────────────────────────────── */
-    .countdown {
-      display: none;
-      text-align: center;
-      padding: 14px 12px;
-      margin-top: 14px;
-      border-radius: 12px;
-      background: #F8F3E8;
-      border: 1px solid #C9A84C;
-    }
-    .countdown.on { display: block; }
-    .countdown-n { font-size: 2.2rem; font-weight: 700; color: #7B1528; line-height: 1.1; }
-    .countdown-label { font-size: 0.82rem; color: #6b6257; margin-top: 4px; }
-
     /* ── Live captions ──────────────────────────────────────────────────────── */
     .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     /* Caption size, chosen by the reader. Applied as a scale on the container rather than a
@@ -479,15 +465,6 @@
       <span id="mic-label">Turning the microphone on…</span>
     </div>
 
-    <!-- Driven by the guest_invited message, which also carries how long to count. The
-         agent waits out the same number, so the counter cannot reach zero while it is
-         still waiting — the most alarming way for this to be wrong. -->
-    <div class="countdown" id="countdown" role="status" aria-live="polite">
-      <div class="countdown-n" id="countdown-n">15</div>
-      <div class="countdown-label" id="countdown-label"></div>
-    </div>
-
-
     <div class="cap-head" style="margin-top:18px">
       <div class="card-title" data-i18n="capTitle">Live captions</div>
       <select id="cap-lang" onchange="setCaptionLang(this.value)"
@@ -609,8 +586,6 @@
       errIncompleteDetail: 'This join link is incomplete.',
       soundOffButton: '\ud83d\udd07  Sound is off — turn it on',
       soundOnButton: '\ud83d\udd0a  Sound is on \u2014 turn it off',
-      countdownWaiting: 'before Vocaliz opens the conversation',
-      countdownNow: 'Vocaliz is starting…',
       billboardLabel: 'Being discussed',
       capTitle: 'Live captions',
       capSmaller: 'Smaller captions',
@@ -675,8 +650,6 @@
       errIncompleteDetail: 'Ce lien de jointure est incomplet.',
       soundOffButton: '\ud83d\udd07  Le son est coupé — activez-le',
       soundOnButton: '\ud83d\udd0a  Le son est actif \u2014 coupez-le',
-      countdownWaiting: 'avant que Vocaliz ouvre la conversation',
-      countdownNow: 'Vocaliz commence…',
       billboardLabel: 'On en parle',
       capTitle: 'Sous-titres en direct',
       capSmaller: 'Réduire les sous-titres',
@@ -910,10 +883,6 @@
       }
       captionLog.push(msg);
       renderCaptions();
-      // Anything transcribed means the wait is over — whether the agent opened on time or
-      // somebody spoke first. A counter still ticking down while words appear above it is
-      // the clearest possible way to look broken.
-      standDownCountdown();
     }
 
     function renderCaptions() {
@@ -992,7 +961,6 @@
     renderMic();
     renderJoinBtn();
     renderSound();
-    if (countdownTimer || countdownLeft) renderCountdown();
     // The "As spoken" option and the empty-log line are interface text, so they follow
     // the interface language rather than the caption language.
     var capSel = document.getElementById('cap-lang');
@@ -1084,13 +1052,6 @@
   }
 
 
-  // ── Countdown to the agent speaking ───────────────────────────────────────
-  // Started by the guest_invited message rather than by the invitation response, so the
-  // counter and the agent are driven by the same event. The message carries the number
-  // of seconds, so nothing here has to agree with a constant kept somewhere else.
-  var countdownTimer = null;
-  var countdownLeft = 0;
-
   function onRoomData(payload, participant, kind, topic) {
     // Captions travel on their own topic; this one has none.
     if (topic) return;
@@ -1105,45 +1066,6 @@
       if (room) { try { room.disconnect(); } catch (e) { } }
       return;
     }
-    if (msg.action !== 'guest_invited') return;
-    startCountdown(parseInt(msg.opensInSeconds, 10) || 15);
-  }
-
-  function startCountdown(seconds) {
-    if (countdownTimer) clearInterval(countdownTimer);
-    countdownLeft = seconds;
-    renderCountdown();
-    countdownTimer = setInterval(function () {
-      countdownLeft -= 1;
-      renderCountdown();
-      // Left on screen at zero rather than removed: the last thing a host read should be
-      // that the agent is starting, not a panel that vanished a moment before it spoke.
-      if (countdownLeft <= 0) {
-        clearInterval(countdownTimer);
-        countdownTimer = null;
-      }
-    }, 1000);
-  }
-
-  // The delay is a maximum, not a promise of silence: if someone speaks at second three,
-  // the agent answers then, and the remaining twelve seconds no longer describe anything.
-  // Shown as the same "starting" state it reaches by counting down, rather than removed —
-  // a panel that vanishes just as the agent speaks reads as a fault.
-  function standDownCountdown() {
-    if (!countdownTimer && countdownLeft <= 0) return;
-    clearInterval(countdownTimer);
-    countdownTimer = null;
-    countdownLeft = 0;
-    renderCountdown();
-  }
-
-  function renderCountdown() {
-    var box = document.getElementById('countdown');
-    if (!box) return;
-    box.className = 'countdown on';
-    document.getElementById('countdown-n').textContent = Math.max(countdownLeft, 0);
-    document.getElementById('countdown-label').textContent =
-      T(countdownLeft > 0 ? 'countdownWaiting' : 'countdownNow');
   }
 
   // ── Billboard ───────────────────────────────────────────────────────────────

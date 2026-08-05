@@ -16,13 +16,11 @@
   "capNotice": "Tai, kas pasakyta šiame Salon, yra transkribuojama ir saugoma, kad būtų galima išversti. Kiekvienas čia gali jį perskaityti savo pasirinkta kalba.",
   "capSmaller": "Mažesnės antraštės",
   "capTitle": "Tiesioginės antraštės",
-  "connFailSub": "Ryšys su “Salon” nepavyko. Patikrinkite savo tinklą ir bandykite dar kartą.",
+  "connFailSub": "Ryšys su Salon nepavyko. Patikrinkite savo tinklą ir bandykite dar kartą.",
   "connFailTitle": "Ryšys nutrauktas",
   "connectedSub": "Pokalbis vyksta. Kalbėkite laisvai.",
   "connectedTitle": "Jūs esate Salon",
   "consoleLeaves": "Atidarę konsolę, baigsite dalyvavimą šiame Salon. Tęsti?",
-  "countdownNow": "Vocaliz pradeda...",
-  "countdownWaiting": "prieš Vocaliz atidarant pokalbį",
   "createAccount": "Sukurti paskyrą",
   "errConnDetail": "Įvyko netikėta klaida.",
   "errConnTitle": "Ryšio klaida",
@@ -36,7 +34,7 @@
   "errTitle": "Nepavyko prisijungti",
   "info1": "Saugus svečių priėjimas — nereikia paskyros",
   "info2": "Nieko nereikia įdiegti - viskas jūsų naršyklėje",
-  "info3": "Garso pokalbis, kurį rengia “Vocaliz AI”",
+  "info3": "Garso pokalbis, kurį organizuoja Vocaliz AI",
   "joinButton": "Prisijunkite prie pokalbio",
   "leaveButton": "Palikite pokalbį",
   "leftSub": "Dėkojame, kad dalyvavote!",
@@ -57,5 +55,5 @@
   "retryButton": "Pabandykite dar kartą",
   "soundOffButton": "🔇 Garsas išjungtas — įjunkite jį",
   "soundOnButton": "🔊 Garsas įjungtas — išjunkite",
-  "whatIsVocaliz": "Vocaliz yra Salons kūrimo platforma. “Salon” žmonės ir AI balso agentas kartu aptaria tinklalapį ar dokumentą."
+  "whatIsVocaliz": "Vocaliz yra platforma, skirta sukurti Salons. Salon žmonės ir AI balso agentas kartu aptaria tinklalapį arba dokumentą."
 }

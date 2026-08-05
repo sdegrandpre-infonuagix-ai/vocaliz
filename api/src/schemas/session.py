@@ -65,6 +65,11 @@ class SessionDetailResponse(BaseModel):
     additionalSources: list[SessionSourceSummary]
     status: str
     createdAt: str
+    # Read by the agent at start-up, which is the only way it can know it is joining a salon
+    # that has not been activated yet. Defaulted to True so an agent talking to an older API
+    # errs towards silence: a salon that stays quiet until asked is a smaller failure than one
+    # that starts talking over its host.
+    agentMuted: bool = True
 
 
 class JoinSessionResponse(BaseModel):

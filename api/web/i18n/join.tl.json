@@ -13,7 +13,7 @@
   "capAsSpoken": "Tulad ng sinasalita",
   "capBigger": "Mas malaking mga caption",
   "capEmpty": "Walang sinabi pa.",
-  "capNotice": "Ang sinasabi sa Salon na ito ay na-transcribe at nakaimbak upang maaari itong isalin. Maaaring basahin ito ng lahat dito sa wikang pinili nila.",
+  "capNotice": "Ang sinasabi sa Salon na ito ay na-transcribe at naka-imbak upang maaari itong isalin. Maaaring basahin ito ng lahat dito sa wikang pinili nila.",
   "capSmaller": "Mas maliit na mga caption",
   "capTitle": "Mga Live na caption",
   "connFailSub": "Nabigo ang koneksyon sa Salon. Suriin ang iyong network at subukang muli.",
@@ -21,8 +21,6 @@
   "connectedSub": "Nagsasagawa ang pag-uusap. Magsalita nang malaya.",
   "connectedTitle": "Ikaw ay nasa Salon",
   "consoleLeaves": "Ang pagbubukas ng console ay tatapusin ang iyong pakikilahok sa Salon na ito. Magpatuloy?",
-  "countdownNow": "Nagsisimula ang Vocaliz...",
-  "countdownWaiting": "bago buksan ng Vocaliz ang pag-uusap",
   "createAccount": "Lumikha ng isang account",
   "errConnDetail": "Isang hindi inaasahang error ang naganap.",
   "errConnTitle": "Error sa koneksyon",
@@ -51,11 +49,11 @@
   "micOn": "Naka-on ang mikropono",
   "micStarting": "Pag-on ng mikropono...",
   "openConsole": "Host console",
-  "pageTitle": "Vocaliz - Sumali sa pag-uusap",
+  "pageTitle": "Vocaliz — Sumali sa pag-uusap",
   "readySub": "Ang Vocaliz ay nangangailangan ng access sa iyong mikropono upang makilahok ka sa pag-uusap.",
   "readyTitle": "Handa nang sumali",
   "retryButton": "Subukan muli",
   "soundOffButton": "🔇 Naka-off ang tunog - buksan ito",
   "soundOnButton": "🔊 Naka-on ang tunog - patayin ito",
-  "whatIsVocaliz": "Ang Vocaliz ay isang platform para sa paglikha ng Salons. Sa isang Salon, tinatalakay ng mga tao at isang ahente ng boses ng AI ang isang web page o isang dokumento nang magkasama."
+  "whatIsVocaliz": "Ang Vocaliz ay isang platform para sa paglikha ng Salons. Sa isang Salon, tinatalakay ng mga tao at isang AI voice agent ang isang web page o isang dokumento nang magkasama."
 }

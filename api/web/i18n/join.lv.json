@@ -13,7 +13,7 @@
   "capAsSpoken": "Kā runāts",
   "capBigger": "Lielāki paraksti",
   "capEmpty": "Pagaidām nekas nav teikts.",
-  "capNotice": "Šajā Salon teiktais tiek pārrakstīts un saglabāts, lai to varētu tulkot. Ikviens šeit var to izlasīt izvēlētajā valodā.",
+  "capNotice": "Tas, kas teikts šajā Salon, tiek pārrakstīts un saglabāts, lai to varētu tulkot. Ikviens šeit var to izlasīt izvēlētajā valodā.",
   "capSmaller": "Mazāki paraksti",
   "capTitle": "Tiešie paraksti",
   "connFailSub": "Savienojums ar Salon neizdevās. Pārbaudiet savu tīklu un mēģiniet vēlreiz.",
@@ -21,8 +21,6 @@
   "connectedSub": "Saruna notiek. Runā brīvi.",
   "connectedTitle": "Jūs atrodaties Salon",
   "consoleLeaves": "Atverot konsoli, tiks pārtraukta jūsu dalība šajā Salon. Turpināt?",
-  "countdownNow": "Vocaliz sāk...",
-  "countdownWaiting": "pirms Vocaliz atver sarunu",
   "createAccount": "Izveidot kontu",
   "errConnDetail": "Radās negaidīta kļūda.",
   "errConnTitle": "Savienojuma kļūda",
@@ -51,11 +49,11 @@
   "micOn": "Ieslēgts mikrofons",
   "micStarting": "Mikrofona ieslēgšana...",
   "openConsole": "Resursdatora konsole",
-  "pageTitle": "Vocaliz — Pievienojieties sarunai",
+  "pageTitle": "Vocaliz — Pievienojies sarunai",
   "readySub": "Vocaliz ir nepieciešama piekļuve mikrofonam, lai jūs varētu piedalīties sarunā.",
   "readyTitle": "Gatavs pievienoties",
   "retryButton": "Mēģiniet vēlreiz",
   "soundOffButton": "🔇 Skaņa ir izslēgta - ieslēdziet to",
   "soundOnButton": "🔊 Skaņa ir ieslēgta - izslēdziet to",
-  "whatIsVocaliz": "Vocaliz ir platforma Salons izveidei. Salon cilvēki un AI balss aģents kopā apspriež tīmekļa lapu vai dokumentu."
+  "whatIsVocaliz": "Vocaliz ir platforma Salons izveidošanai. Programmā Salon cilvēki un AI balss aģents kopā apspriež tīmekļa lapu vai dokumentu."
 }

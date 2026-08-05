@@ -21,8 +21,6 @@
   "connectedSub": "Il-konverżazzjoni għaddejja. Tkellem liberament.",
   "connectedTitle": "Int qiegħed fil-Salon",
   "consoleLeaves": "Il-ftuħ tal-console se jtemm il-parteċipazzjoni tiegħek f'dan Salon. Tkompli?",
-  "countdownNow": "Vocaliz qed jibda...",
-  "countdownWaiting": "qabel ma Vocaliz jiftaħ il-konverżazzjoni",
   "createAccount": "Oħloq kont",
   "errConnDetail": "Seħħ żball mhux mistenni.",
   "errConnTitle": "Żball fil-konnessjoni",
@@ -40,7 +38,7 @@
   "joinButton": "Ingħaqad fil-konverżazzjoni",
   "leaveButton": "Ħalli l-konverżazzjoni",
   "leftSub": "Grazzi talli ħadt sehem!",
-  "leftTitle": "Ħallejt ix-Salon",
+  "leftTitle": "Ħallejt il-Salon",
   "loadingSub": "Mument wieħed jekk jogħġbok.",
   "loadingTitle": "Konnessjoni...",
   "micBlocked": "Mikrofonu mblukkat - ippermettih mill-ikona fil-bar tal-indirizz",
@@ -51,11 +49,11 @@
   "micOn": "Mikrofonu mixgħul",
   "micStarting": "Dawwar il-mikrofonu mixgħul...",
   "openConsole": "Konsola ospitanti",
-  "pageTitle": "Vocaliz - Ingħaqad fil-konverżazzjoni",
+  "pageTitle": "Vocaliz — Ingħaqad mal-konversazzjoni",
   "readySub": "Vocaliz jeħtieġ aċċess għall-mikrofonu tiegħek sabiex tkun tista 'tieħu sehem fil-konverżazzjoni.",
   "readyTitle": "Lesta biex tingħaqad",
   "retryButton": "Ipprova mill-ġdid",
   "soundOffButton": "🔇 Il-ħoss huwa mitfi - ixgħel",
   "soundOnButton": "🔊 Il-ħoss huwa mixgħul - itfi",
-  "whatIsVocaliz": "Vocaliz hija pjattaforma għall-ħolqien ta 'Salons. F'Salon, in-nies u aġent tal-vuċi AI jiddiskutu paġna tal-web jew dokument flimkien."
+  "whatIsVocaliz": "Vocaliz hija pjattaforma għall-ħolqien ta' Salons. F'Salon, in-nies u aġent tal-vuċi tal-AI jiddiskutu paġna tal-web jew dokument flimkien."
 }

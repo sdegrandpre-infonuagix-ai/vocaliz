@@ -1,11 +1,9 @@
 """Invitations router — voice-triggered guest invitations."""
-import uuid as _uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session as DbSession
 
-from src.config import settings
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.invitation import Invitation
@@ -52,7 +50,7 @@ def create_anonymous_invitation(
 
 
 @router.post("/{session_id}/invitations", response_model=InvitationResponse, status_code=201)
-async def create_invitation(
+def create_invitation(
     session_id: str,
     body: InviteGuestBody,
     db: DbSession = Depends(get_db),
@@ -76,27 +74,9 @@ async def create_invitation(
             )
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # Tell the agent a guest is on the way, so it opens the conversation instead of
-    # leaving the host in silence. Sent from here rather than from the client: it must
-    # fire whichever app made the invitation, and whether or not that app is still there
-    # a moment later.
-    #
-    # Best-effort like every other room notification — a lost message costs the automatic
-    # opening, never the invitation.
-    session = db.query(SessionModel).filter(
-        SessionModel.id == _uuid.UUID(str(session_id)),
-    ).first()
-    if session is not None:
-        await livekit_service.notify_room(
-            session.livekit_room_name,
-            {
-                "action": "guest_invited",
-                "invitationId": result["invitationId"],
-                # The clients count down from this and the agent waits it out, so both are
-                # reading one number rather than each trusting their own copy.
-                "opensInSeconds": settings.invitation_opening_seconds,
-            },
-        )
+    # Nothing is announced to the room any more. An invitation used to start a countdown after
+    # which the agent opened the conversation by itself; the host now decides when the agent
+    # speaks, so an invitation is an invitation and no longer a starting pistol.
 
     return result
 

@@ -16,13 +16,11 @@
   "capNotice": "Wat in hierdie Salon gesê word, word getranskribeer en gestoor sodat dit vertaal kan word. Almal hier kan dit lees in die taal wat hulle kies.",
   "capSmaller": "Kleiner onderskrifte",
   "capTitle": "Regstreekse onderskrifte",
-  "connFailSub": "Die verbinding met die Salon het misluk. Kontroleer jou netwerk en probeer weer.",
+  "connFailSub": "Die verbinding met die Salon misluk. Kontroleer jou netwerk en probeer weer.",
   "connFailTitle": "Verbinding onderbreek",
   "connectedSub": "Die gesprek is aan die gang. Praat vrylik.",
   "connectedTitle": "Jy is in die Salon",
   "consoleLeaves": "As u die konsole oopmaak, sal u deelname aan hierdie Salon beëindig. Gaan voort?",
-  "countdownNow": "Vocaliz begin...",
-  "countdownWaiting": "voordat Vocaliz die gesprek oopmaak",
   "createAccount": "Skep 'n rekening",
   "errConnDetail": "'N Onverwagte fout het plaasgevind.",
   "errConnTitle": "Verbindingsfout",
@@ -40,7 +38,7 @@
   "joinButton": "Sluit aan by die gesprek",
   "leaveButton": "Verlaat die gesprek",
   "leftSub": "Dankie dat jy deelgeneem het!",
-  "leftTitle": "U het die Salon verlaat",
+  "leftTitle": "Jy het die Salon verlaat",
   "loadingSub": "Een oomblik asseblief.",
   "loadingTitle": "Verbind...",
   "micBlocked": "Mikrofoon geblokkeer - laat dit toe vanaf die ikoon in die adresbalk",
@@ -57,5 +55,5 @@
   "retryButton": "Probeer weer",
   "soundOffButton": "🔇 Klank is afgeskakel - skakel dit aan",
   "soundOnButton": "🔊 Klank is aan - skakel dit af",
-  "whatIsVocaliz": "Vocaliz is 'n platform vir die skep van Salons. In 'n Salon bespreek mense en 'n AI-stemagent 'n webblad of 'n dokument saam."
+  "whatIsVocaliz": "Vocaliz is 'n platform vir die skep van Salons. In 'n Salon bespreek mense en 'n KI-stemagent 'n webblad of 'n dokument saam."
 }

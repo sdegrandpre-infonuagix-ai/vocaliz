@@ -13,16 +13,14 @@
   "capAsSpoken": "Kot je govorjeno",
   "capBigger": "Večji napisi",
   "capEmpty": "Nič še ni povedano.",
-  "capNotice": "Kar je rečeno v tem Salon, je prepisano in shranjeno, tako da ga je mogoče prevesti. Vsi tukaj jo lahko preberejo v jeziku, ki ga izbere.",
+  "capNotice": "Kar je rečeno v tem Salon, se prepiše in shrani, da ga je mogoče prevesti. Vsi tukaj jo lahko preberejo v jeziku, ki ga izbere.",
   "capSmaller": "Manjši napisi",
   "capTitle": "Napisi v živo",
   "connFailSub": "Povezava z Salon ni uspela. Preverite omrežje in poskusite znova.",
   "connFailTitle": "Povezava prekinjena",
   "connectedSub": "Pogovor je v teku. Govorite svobodno.",
-  "connectedTitle": "Ste v Salon",
+  "connectedTitle": "Nahajate se v Salon",
   "consoleLeaves": "Če odprete konzolo, boste končali sodelovanje v tem Salon. Nadaljujte?",
-  "countdownNow": "Vocaliz se začenja...",
-  "countdownWaiting": "preden Vocaliz odpre pogovor",
   "createAccount": "Ustvarite račun",
   "errConnDetail": "Prišlo je do nepričakovane napake.",
   "errConnTitle": "Napaka povezave",
@@ -57,5 +55,5 @@
   "retryButton": "Poskusite znova",
   "soundOffButton": "🔇 Zvok je izklopljen - vklopite ga",
   "soundOnButton": "🔊 Zvok je vklopljen - izklopite ga",
-  "whatIsVocaliz": "Vocaliz je platforma za ustvarjanje Salons. V Salon ljudje in glasovni agent umetne inteligence skupaj razpravljajo o spletni strani ali dokumentu."
+  "whatIsVocaliz": "Vocaliz je platforma za ustvarjanje Salons. V Salon se ljudje in glasovni agent umetne inteligence skupaj pogovarjajo o spletni strani ali dokumentu."
 }

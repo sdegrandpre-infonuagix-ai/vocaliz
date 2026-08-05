@@ -1,13 +1,15 @@
 """Who opens the conversation, and when the wait stops applying.
 
-The agent used to wait to be spoken to, which left a host who had just sent an invitation
-sitting in silence with nothing to react to. So an invitation now schedules an opening a
-quarter of a minute later.
+The agent used to wait to be spoken to, which left a host sitting in silence with nothing to
+react to. An invitation then scheduled an opening a quarter of a minute later, which merely
+moved the awkwardness: a host still reading was interrupted, and one who was ready had to
+wait out a counter. A salon now starts with the agent paused and opens when the host activates
+it, so the opening is scheduled with no delay at all — the button press *is* the timing.
 
-That delay is a *maximum*, not a promise of silence. Somebody who speaks during the wait has
-already solved the problem the wait existed for, and ignoring them for the remaining twelve
-seconds reads as broken — as does greeting them afterwards as though nothing had been said.
-Speech therefore stands the opening down.
+The delay is kept as a parameter rather than removed. It is what makes speech-before-the-
+opening representable at all, and with it the two orderings this module exists to get right:
+somebody who speaks first has already solved the problem the opening existed for, and both
+ignoring them and greeting them afterwards read as broken. Speech therefore stands it down.
 
 Standing down deliberately generates no reply. The session answers speech on its own, and
 that answer is the first turn — which the standing instructions already order as welcome,
@@ -60,6 +62,20 @@ class OpeningGate:
         # cannot find a gate that is waiting with no timer to cancel.
         self._timer = asyncio.ensure_future(self._open_after(delay))
         return True
+
+    def settle(self) -> None:
+        """Treat the opening as done without speaking it.
+
+        For an agent joining a salon that is already under way — a restarted job, or one the
+        host removed and brought back. The conversation has an opening already; what it must
+        not get is a second one the next time the host pauses and resumes.
+
+        Distinct from stand_down, which reports whether it was the call that settled things
+        and only applies while a timer is pending. This applies at any point and says nothing.
+        """
+        self._spoken = True
+        if self.waiting:
+            self._timer.cancel()
 
     def stand_down(self) -> bool:
         """Somebody spoke first. Returns whether this call is what settled it."""

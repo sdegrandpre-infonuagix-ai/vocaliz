@@ -138,14 +138,6 @@ class Settings(BaseSettings):
     # rules entirely, so the code below is inert rather than failing on every invitation.
     sip_trunk_id: str = ""
 
-    # How long after a guest is invited the agent opens the conversation by itself.
-    #
-    # Published in the guest_invited message rather than compiled into each client, so the
-    # countdown a host watches and the delay the agent actually waits are the same number.
-    # Three codebases each holding their own 15 would drift, and the failure would be a
-    # counter reaching zero in silence — the most alarming way for this to break.
-    invitation_opening_seconds: int = 15
-
     # Whether the clients offer to invite by text message.
     #
     # A flag rather than markup commented out, because the thing it waits on is an AWS

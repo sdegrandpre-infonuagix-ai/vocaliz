@@ -38,11 +38,6 @@ AGENT_NAME = "salon-agent"
 # threshold and the announcement would never fire.
 ENDING_WARNING_SECONDS = 75
 
-# Fallback only. The API publishes the real figure in the guest_invited message, so the
-# countdown the clients display and the delay waited here are one number. This is what is
-# used if that field is ever missing — an older API, or a message from something else.
-INVITATION_OPENING_SECONDS = 15
-
 _BASE_INSTRUCTIONS = (
     "You are Vocaliz, a sophisticated voice discussion facilitator. "
     "Your role is to animate intellectually stimulating conversations "
@@ -1029,6 +1024,10 @@ async def entrypoint(ctx: agents.JobContext):
     source_type: str | None = None
     source_url: str | None = None
     additional_sources: list[dict] = []
+    # Salons start paused, so this is the state to assume when the API cannot be reached at
+    # all: joining a room and immediately talking is the one outcome nobody asked for, and it
+    # is what the host would get if a failed fetch defaulted the other way.
+    starts_paused = True
 
     if session_id and api_url and host_token:
         detail = await _fetch_session_detail(api_url, session_id, host_token)
@@ -1038,6 +1037,10 @@ async def entrypoint(ctx: agents.JobContext):
             source_type = detail.get("sourceType")
             source_url = detail.get("sourceUrl")
             additional_sources = detail.get("additionalSources") or []
+            # Read rather than assumed, because an agent can join a salon that is already
+            # under way — a restarted job, or one the host removed and brought back. That
+            # room is mid-conversation and must not be rejoined in silence.
+            starts_paused = bool(detail.get("agentMuted", True))
 
     # The key is passed explicitly rather than left to the plugin's env lookup: the job
     # runs in a subprocess, and a missing key there surfaces only as an opaque 400 on the
@@ -1116,33 +1119,41 @@ async def entrypoint(ctx: agents.JobContext):
     def _speak_the_opening() -> None:
         """Start the conversation, without having been spoken to.
 
-        Fifteen seconds is long enough for the host to put the phone down and short enough
-        that the silence never becomes a question about whether anything is working.
+        Said once, when the host first gives the agent the floor. Pressing that button is a
+        request to be talked to, so waiting to be addressed on top of it would leave the host
+        pressing a button and getting silence — the exact complaint the opening exists to fix.
 
-        Deliberately not tied to the guest arriving: they may take minutes, or never come.
-        The opening is for the host, and the guest is greeted separately when they join.
+        Deliberately says nothing about who else is in the room. The host may activate the
+        agent alone, or with guests already present, and a greeting that assumed either one
+        would be wrong half the time.
         """
         agent_session.generate_reply(
             instructions=(
                 "Open the conversation now, without waiting to be spoken to. Greet "
-                "the host in their language, say in one sentence what Vocaliz is — a "
-                "platform for creating Salons, conversations where people and a voice "
-                "agent, meaning you, discuss a web page or a document together — say "
-                "briefly that their guest has been invited and "
-                "will join shortly, and begin on the topic by asking them an opening "
-                "question about it rather than describing what you are about to do. Keep "
-                "it short. Do not mention timers or waiting periods."
+                "whoever is in the room in their language, say in one sentence "
+                "what Vocaliz is — a platform for creating Salons, conversations where "
+                "people and a voice agent, meaning you, "
+                "discuss a web page or a document together — and begin on the topic by "
+                "asking an opening question about it rather than describing what you are "
+                "about to do. Keep it short. Do not mention timers, waiting periods, or "
+                "the fact that you were paused."
             )
         )
-        logger.info("Opened the conversation after an invitation (session %s)", session_id)
+        logger.info("Opened the conversation on the host's signal (session %s)", session_id)
 
-    # Fires once per session: a host inviting two people should not be greeted twice, and an
-    # opening only makes sense as an opening. Speech during the wait stands it down — see
-    # src/opening.py for why that produces no reply of its own.
+    # Fires once per session: a host who pauses and resumes is picking the conversation back
+    # up, not starting a new one, and being greeted from the top each time would be absurd.
+    # Speech before it lands stands it down — see src/opening.py for why that produces no
+    # reply of its own.
     opening = OpeningGate(_speak_the_opening, label=f"session {session_id}")
+    if not starts_paused:
+        # This salon was activated before the agent got here, so its opening belongs to a
+        # conversation already in progress. Without this, the host's next pause and resume
+        # would be answered with a welcome to a room that has been talking for ten minutes.
+        opening.settle()
 
     async def _drop_pending_opening() -> None:
-        # A room that empties mid-wait leaves a timer with nobody to greet.
+        # A room that empties before the opening is spoken leaves nobody to greet.
         opening.cancel()
 
     ctx.add_shutdown_callback(_drop_pending_opening)
@@ -1169,6 +1180,13 @@ async def entrypoint(ctx: agents.JobContext):
                 logger.info("Agent %s by the host", "paused" if muted else "resumed")
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not %s: %s", "pause" if muted else "resume", exc)
+                return
+            if not muted:
+                # Every salon starts paused, so the first time this arrives it is the host
+                # opening their salon — not resuming one. Scheduled with no delay rather than
+                # called outright: the gate is what guarantees this happens once, and going
+                # around it would greet the room again after every pause.
+                opening.schedule(0)
         elif isinstance(msg, dict) and msg.get("action") == "session_ended":
             # Published by the API just before it deletes the room. A third way of learning
             # the conversation is over, alongside end_session and the heartbeat flag — and the
@@ -1176,14 +1194,6 @@ async def entrypoint(ctx: agents.JobContext):
             salon_agent.leave("the API announced the session had ended")
         elif isinstance(msg, dict) and msg.get("action") == "source_added":
             asyncio.create_task(_reload_sources())
-        elif isinstance(msg, dict) and msg.get("action") == "guest_invited":
-            # The API publishes how long it told the clients to count down. Falling back to
-            # the local constant only matters for a message from an older API.
-            try:
-                delay = float(msg.get("opensInSeconds") or INVITATION_OPENING_SECONDS)
-            except (TypeError, ValueError):
-                delay = INVITATION_OPENING_SECONDS
-            opening.schedule(delay)
 
     ctx.room.on("data_received", _on_data)
 
@@ -1229,6 +1239,14 @@ async def entrypoint(ctx: agents.JobContext):
     # mixer instead of on_attached(), so its frames are never consumed — the model
     # receives nothing and never speaks at all.
     agent_session.input.set_audio_enabled(True)
+
+    # Enabled first and paused second, rather than never enabled at all. Attaching the mixer
+    # is what the line above is for, and it only happens on the transition into True; starting
+    # at False would leave a mixer that is never consumed even after the host presses activate.
+    if starts_paused:
+        agent_session.input.set_audio_enabled(False)
+        agent_session.output.set_audio_enabled(False)
+        logger.info("Joined paused; waiting for the host to activate (session %s)", session_id)
 
     async def _close_mixer() -> None:
         await mixed_input.aclose()

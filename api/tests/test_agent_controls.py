@@ -59,7 +59,37 @@ def test_the_state_can_be_read(client, session, host):
         present.return_value = True
         resp = client.get(f"/sessions/{session.id}/agent", headers=_auth(token))
     assert resp.status_code == 200
-    assert resp.json() == {"present": True, "muted": False}
+    # Paused, because a Salon starts that way and this session has not been activated.
+    assert resp.json() == {"present": True, "muted": True}
+
+
+def test_a_new_salon_starts_with_its_agent_paused(db, host):
+    """The decision itself, asserted on the row rather than through an endpoint: a Salon opens
+    when its host says so. An agent that began listening would be in the room hearing people
+    who had not yet chosen to be heard."""
+    from src.models.session import SessionModel
+
+    host_user, _ = host
+    fresh = SessionModel(
+        host_user_id=host_user.id,
+        livekit_room_name="salon-fresh",
+        source_type="url",
+        source_content="c",
+        status="active",
+    )
+    db.add(fresh)
+    db.commit()
+    db.refresh(fresh)
+    assert fresh.agent_muted is True
+
+
+def test_the_detail_reports_the_pause_so_the_agent_can_read_it(client, session, host):
+    """How the agent knows to join in silence. Without this it would connect and start
+    talking, and the host's activate button would have nothing left to do."""
+    _, token = host
+    resp = client.get(f"/sessions/{session.id}", headers=_auth(token))
+    assert resp.status_code == 200
+    assert resp.json()["agentMuted"] is True
 
 
 def test_presence_comes_from_livekit_not_from_a_column(client, session, host):

@@ -3,6 +3,11 @@
 Reported from a real session: speaking before the fifteen seconds elapsed got a reply, while
 the counter on screen carried on down to zero — so the wait was visibly a fiction. The fix is
 not to make the agent ignore whoever spoke; it is to stop pretending anyone is still waiting.
+
+The countdown is gone now: a Salon starts with its agent paused and the host activates it,
+which schedules the opening with no delay at all. What the gate still guarantees is that the
+opening happens once — a host who pauses and resumes is picking a conversation back up, not
+starting one — and that speech arriving first settles it instead.
 """
 import asyncio
 
@@ -165,3 +170,65 @@ async def test_a_room_that_empties_mid_wait_greets_nobody():
 @pytest.mark.asyncio
 async def test_cancelling_when_nothing_waits_is_not_an_error():
     OpeningGate(Spoken()).cancel()
+
+
+# ─── Joining a Salon that is already under way ────────────────────────────────
+#
+# An agent can arrive after the host has already activated the Salon — a restarted job, or one
+# the host removed and brought back. That conversation has an opening already; settling the gate
+# is what stops the host's next pause and resume being answered with a welcome.
+
+@pytest.mark.asyncio
+async def test_settling_greets_nobody():
+    speak = Spoken()
+    gate = OpeningGate(speak)
+    gate.settle()
+    await _settle(0.05)
+    assert speak.count == 0
+
+
+@pytest.mark.asyncio
+async def test_a_settled_gate_refuses_every_later_opening():
+    """The point of settling. Without it, resuming a Salon the agent joined mid-conversation
+    would greet a room that has been talking for ten minutes."""
+    gate = OpeningGate(Spoken())
+    gate.settle()
+    assert gate.schedule(0) is False
+    assert gate.spoken
+
+
+@pytest.mark.asyncio
+async def test_settling_drops_an_opening_already_pending():
+    """Ordering is not guaranteed: the state can be read after a resume has been scheduled,
+    and a timer left running would deliver the greeting anyway."""
+    speak = Spoken()
+    gate = OpeningGate(speak)
+    gate.schedule(0.05)
+    gate.settle()
+    await _settle(0.1)
+    assert speak.count == 0
+
+
+# ─── Activation, which is what an opening now waits for ─────────────────────────
+
+@pytest.mark.asyncio
+async def test_a_zero_delay_opening_is_still_spoken():
+    """The host pressed activate, so there is nothing left to wait for. A gate that treated
+    zero as "already elapsed, nothing to do" would leave the button doing nothing at all."""
+    speak = Spoken()
+    gate = OpeningGate(speak)
+    assert gate.schedule(0) is True
+    await _settle(0.05)
+    assert speak.count == 1
+
+
+@pytest.mark.asyncio
+async def test_pausing_and_resuming_does_not_greet_the_room_twice():
+    """Every resume schedules an opening, because the first one is what opens the Salon. Only
+    the gate distinguishes that press from the fourth."""
+    speak = Spoken()
+    gate = OpeningGate(speak)
+    for _ in range(4):
+        gate.schedule(0)
+        await _settle(0.03)
+    assert speak.count == 1

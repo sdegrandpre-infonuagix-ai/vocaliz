@@ -27,15 +27,22 @@ import { Room, RoomEvent } from 'livekit-client';
 import PoweredBy from '../components/PoweredBy';
 import Wordmark from '../components/Wordmark';
 import CaptionsPanel from '../components/CaptionsPanel';
-import OpeningCountdown from '../components/OpeningCountdown';
 import DrivingMode from '../components/DrivingMode';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTranslationMute } from '../hooks/useTranslationMute';
 import { useCaptions } from '../hooks/useCaptions';
-import { useOpeningCountdown } from '../hooks/useOpeningCountdown';
-import { addSourceFromUrl, endSession, joinSession, sendHeartbeat } from '../services/sessionsApi';
+import {
+  addSourceFromUrl,
+  endSession,
+  getAgentState,
+  joinSession,
+  sendHeartbeat,
+  // Aliased because the component holds its own agent state, and a setter and a network call
+  // sharing one name is the kind of collision that compiles in JavaScript and misbehaves.
+  setAgentMuted as requestAgentMuted,
+} from '../services/sessionsApi';
 import { sendInvitation } from '../services/invitationsApi';
 import { getPublicConfig } from '../services/configApi';
 import { getMyProfile, saveLanguagePreferences } from '../services/userApi';
@@ -79,9 +86,33 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
   // so it knows which languages to translate each turn into.
   const { captions, language: captionLang, setLanguage: setCaptionLang } = useCaptions(room);
 
-  // Driven by the same room message the agent waits on, so the counter and the agent
-  // cannot disagree about when the conversation opens.
-  const openingSeconds = useOpeningCountdown(room);
+  // A Salon starts with its agent paused, so this is the control that opens the conversation
+  // as well as the one that interrupts it. Assumed paused until the API answers: showing
+  // "listening" first would tell the host their agent can hear them before it can.
+  const [agentMuted, setAgentMuted] = useState(true);
+  const [agentBusy, setAgentBusy] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    getAgentState(token, sessionId)
+      .then((state) => setAgentMuted(state.muted))
+      // The control keeps showing paused. A state that cannot be read is no reason to claim
+      // the agent is listening.
+      .catch(() => undefined);
+  }, [token, sessionId]);
+
+  const toggleAgent = useCallback(async () => {
+    if (!token || agentBusy) return;
+    setAgentBusy(true);
+    try {
+      const state = await requestAgentMuted(token, sessionId, !agentMuted);
+      setAgentMuted(state.muted);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAgentBusy(false);
+    }
+  }, [token, sessionId, agentMuted, agentBusy]);
 
   // Nobody reads while driving, so nothing is translated for them: the empty attribute
   // tells the agent to stop rendering turns this participant will never see. The choice
@@ -427,7 +458,28 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
           <Text style={styles.noticeText} accessibilityLiveRegion="polite">{notice}</Text>
         ) : null}
 
-        <OpeningCountdown secondsLeft={openingSeconds} />
+        {/* A Salon starts paused, so this is where one begins. Gold while the agent waits
+            and outlined once it is listening: the press that opens a Salon should look like
+            the action it is, and stop looking like one afterwards. */}
+        <Pressable
+          style={({ pressed }) => [
+            agentMuted ? styles.buttonGold : styles.buttonOutline,
+            agentBusy && styles.buttonDisabled,
+            pressed && styles.buttonPressed,
+          ]}
+          onPress={toggleAgent}
+          disabled={agentBusy}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: !agentMuted, disabled: agentBusy }}
+          accessibilityLabel={agentMuted ? t.room.agentActivate : t.room.agentPause}
+        >
+          <Text style={agentMuted ? styles.buttonGoldText : styles.buttonOutlineText}>
+            {agentMuted ? t.room.agentActivate : t.room.agentPause}
+          </Text>
+        </Pressable>
+        <Text style={styles.agentHint}>
+          {agentMuted ? t.room.agentHintPaused : t.room.agentHintListening}
+        </Text>
 
         <CaptionsPanel
           captions={captions}
@@ -588,6 +640,13 @@ const styles = StyleSheet.create({
     fontSize: typography.bodySize,
     color: colors.charcoal,
     backgroundColor: colors.white,
+    marginBottom: spacing.sm,
+  },
+  // Under the agent control: what pausing means is not obvious from the word alone.
+  agentHint: {
+    fontSize: typography.captionSize,
+    color: colors.muted,
+    marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },
   buttonGold: {

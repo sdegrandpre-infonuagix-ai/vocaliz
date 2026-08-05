@@ -70,8 +70,10 @@ export interface Translations {
     drivingToggle: string;
     drivingHint: string;
     drivingExit: string;
-    countdownWaiting: string;
-    countdownNow: string;
+    agentPause: string;
+    agentActivate: string;
+    agentHintPaused: string;
+    agentHintListening: string;
     invitePhoneLabel: string;
     invitePhoneHint: string;
     inviteContactHint: string;
@@ -163,8 +165,10 @@ const fr: Translations = {
     drivingToggle: 'Conduite',
     drivingHint: 'Mode conduite. La conversation continue.\nTouchez l’écran pour revenir.',
     drivingExit: 'Quitter le mode conduite',
-    countdownWaiting: 'avant que Vocaliz ouvre la conversation',
-    countdownNow: 'Vocaliz commence…',
+    agentPause: "Mettre l’agent en pause",
+    agentActivate: "Activer l’agent",
+    agentHintPaused: "L’agent est là mais n’entend rien tant que vous ne l’activez pas.",
+    agentHintListening: "L’agent écoute. La pause conserve tout ce qu’il a entendu.",
     invitePhoneLabel: 'Numéro de mobile de l’invité',
     invitePhoneHint: 'Avec l’indicatif du pays, par exemple +1 514 555 0123.',
     inviteContactHint: 'L’un des deux suffit. Donnez les deux et l’invitation part par les deux.',
@@ -252,8 +256,10 @@ const en: Translations = {
     drivingToggle: 'Driving',
     drivingHint: 'Driving mode. The conversation continues.\nTap the screen to come back.',
     drivingExit: 'Leave driving mode',
-    countdownWaiting: 'before Vocaliz opens the conversation',
-    countdownNow: 'Vocaliz is starting…',
+    agentPause: 'Pause the agent',
+    agentActivate: 'Activate the agent',
+    agentHintPaused: 'The agent is here but hears nothing until you activate it.',
+    agentHintListening: 'The agent is listening. Pausing keeps everything it has heard.',
     invitePhoneLabel: 'Guest mobile number',
     invitePhoneHint: 'With the country code, for example +1 514 555 0123.',
     inviteContactHint: 'One of the two is enough. Give both and the invitation goes out by both.',

@@ -263,3 +263,50 @@ def test_a_stored_choice_beats_the_device_default(page):
     block = block[: block.index("})();")]
     assert "stored === '1'" in block and "stored === '0'" in block
     assert "SOUND_KEY, soundOn ? '1' : '0'" in source
+
+
+# ─── The countdown, and what replaced it ─────────────────────────────────────
+#
+# A Salon opened on a timer: fifteen seconds after the first invitation the agent spoke. It
+# interrupted a host still reading and made a host who was ready wait. The host now activates
+# the agent, so the button press is the timing.
+
+@pytest.mark.parametrize("page", PAGES)
+def test_no_countdown_survives_anywhere_in_the_page(page):
+    """Markup, styles, strings and timers were four separate places. Leaving any one of them
+    is a panel that shows a number nothing counts down, or a string nothing displays."""
+    source = _source(page)
+    for leftover in ("countdown", "Countdown", "guest_invited", "opensInSeconds"):
+        assert leftover not in source, f"{page}: {leftover} still present"
+
+
+def test_the_agent_control_is_what_starts_a_salon():
+    """The host page carries the button. It is the only way a Salon begins now, so it must
+    open in the state that offers activation rather than the one that offers a pause."""
+    source = _source("host.html")
+    assert "var agentState = { present: true, muted: true }" in source
+    assert 'data-i18n="agentResume"' in source
+
+
+def test_the_activate_wording_fits_a_first_press():
+    """"Resume" is a lie the first time — there is nothing yet to resume, and the host has
+    never heard the agent speak."""
+    source = _source("host.html")
+    head = source[: source.index("agentPause: \"Mettre")]
+    assert "agentResume: 'Activate the agent'" in head
+
+
+def test_the_button_looks_like_an_action_only_while_it_is_one():
+    """Primary while the Salon waits to be started, ordinary once the agent is listening. A
+    control that stayed gold would compete with everything else on the page forever."""
+    source = _source("host.html")
+    assert "agentState.muted ? 'btn btn-primary' : 'btn btn-outline'" in source
+
+
+def test_a_paused_agent_says_so_rather_than_explaining_removal():
+    """The host's first question about a paused agent is whether it can hear them. The hint
+    that describes what removing does answers a question nobody asked yet."""
+    source = _source("host.html")
+    assert "agentHintPaused" in source
+    hint = source[source.index("var hint = 'agentHintAbsent'") :][:300]
+    assert "agentState.muted ? 'agentHintPaused' : 'agentHintPresent'" in hint

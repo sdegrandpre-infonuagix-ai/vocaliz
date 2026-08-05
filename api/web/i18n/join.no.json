@@ -21,8 +21,6 @@
   "connectedSub": "Samtalen er i gang. Snakk fritt.",
   "connectedTitle": "Du er i Salon",
   "consoleLeaves": "Hvis du åpner konsollen, avsluttes deltakelsen din i denne Salon. Fortsette?",
-  "countdownNow": "Vocaliz starter...",
-  "countdownWaiting": "før Vocaliz åpner samtalen",
   "createAccount": "Opprett en konto",
   "errConnDetail": "Det oppstod en uventet feil.",
   "errConnTitle": "Tilkoblingsfeil",
@@ -36,7 +34,7 @@
   "errTitle": "Kan ikke bli med",
   "info1": "Sikker gjestetilgang — ingen konto nødvendig",
   "info2": "Ingenting å installere - alt i nettleseren din",
-  "info3": "Lydsamtale arrangert av Vocaliz AI",
+  "info3": "Lydsamtale vert av Vocaliz AI",
   "joinButton": "Bli med i samtalen",
   "leaveButton": "Forlat samtalen",
   "leftSub": "Takk for at du deltok!",
@@ -51,11 +49,11 @@
   "micOn": "Mikrofon på",
   "micStarting": "Slå på mikrofonen...",
   "openConsole": "Vertskonsoll",
-  "pageTitle": "Vocaliz - Bli med i samtalen",
-  "readySub": "Vocaliz trenger tilgang til mikrofonen din slik at du kan delta i samtalen.",
+  "pageTitle": "Vocaliz — Bli med i samtalen",
+  "readySub": "Vocaliz trenger tilgang til mikrofonen slik at du kan delta i samtalen.",
   "readyTitle": "Klar til å bli med",
   "retryButton": "Prøv igjen",
   "soundOffButton": "🔇 Lyden er av — slå den på",
   "soundOnButton": "🔊 Lyden er på — slå den av",
-  "whatIsVocaliz": "Vocaliz er en plattform for å lage Salons. I en Salon diskuterer folk og en AI-stemmeagent en webside eller et dokument sammen."
+  "whatIsVocaliz": "Vocaliz er en plattform for å lage Salons. I et Salon diskuterer personer og en AI-stemmeagent en webside eller et dokument sammen."
 }

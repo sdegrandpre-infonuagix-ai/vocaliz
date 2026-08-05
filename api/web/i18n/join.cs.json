@@ -16,13 +16,11 @@
   "capNotice": "To, co je řečeno v tomto Salon, je přepsáno a uloženo, aby bylo možné jej přeložit. Každý si ji může přečíst v jazyce, který si zvolí.",
   "capSmaller": "Menší titulky",
   "capTitle": "Živé titulky",
-  "connFailSub": "Připojení k Salon se nezdařilo. Zkontrolujte síť a zkuste to znovu.",
+  "connFailSub": "Připojení k systému Salon se nezdařilo. Zkontrolujte síť a zkuste to znovu.",
   "connFailTitle": "Připojení přerušeno",
   "connectedSub": "Konverzace probíhá. Mluvte svobodně.",
   "connectedTitle": "Nacházíte se v Salon",
   "consoleLeaves": "Otevřením konzoly ukončíte účast v tomto systému Salon. Pokračovat?",
-  "countdownNow": "Vocaliz začíná...",
-  "countdownWaiting": "než Vocaliz otevře konverzaci",
   "createAccount": "Vytvořit účet",
   "errConnDetail": "Došlo k neočekávané chybě.",
   "errConnTitle": "Chyba připojení",
@@ -57,5 +55,5 @@
   "retryButton": "Zkuste to znovu",
   "soundOffButton": "🔇 Zvuk je vypnutý — zapněte jej",
   "soundOnButton": "🔊 Zvuk je zapnutý — vypněte jej",
-  "whatIsVocaliz": "Vocaliz je platforma pro vytváření Salons. V Salon lidé a hlasový agent AI diskutují společně o webové stránce nebo dokumentu."
+  "whatIsVocaliz": "Vocaliz je platforma pro vytváření Salons. V systému Salon lidé a hlasový agent AI diskutují společně o webové stránce nebo dokumentu."
 }

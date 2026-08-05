@@ -215,20 +215,6 @@
     /* The count is what makes it a popularity list rather than a tag cloud. */
     .billboard-count { color: #a99e91; }
 
-    /* ── Countdown to the agent speaking ────────────────────────────────────── */
-    .countdown {
-      display: none;
-      text-align: center;
-      padding: 14px 12px;
-      margin-top: 14px;
-      border-radius: 12px;
-      background: #F8F3E8;
-      border: 1px solid #C9A84C;
-    }
-    .countdown.on { display: block; }
-    .countdown-n { font-size: 2.2rem; font-weight: 700; color: #7B1528; line-height: 1.1; }
-    .countdown-label { font-size: 0.82rem; color: #6b6257; margin-top: 4px; }
-
     /* ── Live captions ──────────────────────────────────────────────────────── */
     .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     /* Caption size, chosen by the reader. Applied as a scale on the container rather than a
@@ -413,18 +399,13 @@
               aria-pressed="false">🔇  Sound is off — turn it on</button>
       <button class="btn btn-primary hidden" id="btn-mic" onclick="retryMic(true)" data-i18n="micButton">🎤  Enable microphone</button>
 
-      <!-- Driven by the guest_invited message, which also carries how long to count. The
-           agent waits out the same number, so the counter cannot reach zero while it is
-           still waiting — the most alarming way for this to be wrong. -->
-      <div class="countdown" id="countdown" role="status" aria-live="polite">
-        <div class="countdown-n" id="countdown-n">15</div>
-        <div class="countdown-label" id="countdown-label"></div>
-      </div>
       <!-- The agent, under the host's hand. Two controls rather than one, because they are
-           not interchangeable: pausing keeps everything it knows, removing it does not. -->
+           not interchangeable: pausing keeps everything it knows, removing it does not.
+           A salon starts paused, so the first of these is also how a salon begins — its
+           styling follows the state, primary while the agent is waiting to be let in. -->
       <div class="row">
-        <button class="btn btn-outline" id="btn-agent-mute" onclick="toggleAgentMute()"
-                data-i18n="agentPause">Pause the agent</button>
+        <button class="btn btn-primary" id="btn-agent-mute" onclick="toggleAgentMute()"
+                data-i18n="agentResume">Activate the agent</button>
         <button class="btn btn-outline" id="btn-agent-presence" onclick="toggleAgentPresence()"
                 data-i18n="agentRemove">Remove the agent</button>
       </div>
@@ -568,10 +549,14 @@
         errHttp: 'Error {code}',
         codeSent: 'Code sent to {email}.',
         agentPause: 'Pause the agent',
-        agentResume: 'Resume the agent',
+        // Also the button that starts a Salon, since one begins with its agent paused. Worded
+        // to fit both that first press and every later one: "resume" would be a lie the first
+        // time, when there is nothing yet to resume.
+        agentResume: 'Activate the agent',
         agentRemove: 'Remove the agent',
         agentRestore: 'Bring an agent back',
         agentHintPresent: 'Pausing keeps everything it has heard. Removing it starts a new agent that remembers nothing of this conversation.',
+        agentHintPaused: 'The agent is here but hears nothing until you activate it. It keeps everything said before the pause.',
         agentHintAbsent: 'No agent in this Salon. A new one will read the source again and know nothing of what has been said.',
         agentRemoveWarning: 'Removing the agent erases what it has heard. A new one would start over. Continue?',
         anonButton: 'Link without an email address',
@@ -614,8 +599,6 @@
         channelFailed: 'not sent',
         soundOffButton: '\ud83d\udd07  Sound is off \u2014 turn it on',
         soundOnButton: '\ud83d\udd0a  Sound is on \u2014 turn it off',
-        countdownWaiting: 'before Vocaliz opens the conversation',
-        countdownNow: 'Vocaliz is starting…',
         shareLabel: 'Let other hosts find this page in their own conversations',
         shareLabel2: 'Let other hosts find this page in their own conversations',
         privateNote: 'Documents you upload are never shared between Salons — only a public '
@@ -671,10 +654,11 @@
         errHttp: 'Erreur {code}',
         codeSent: 'Code envoyé à {email}.',
         agentPause: "Mettre l'agent en pause",
-        agentResume: "Réactiver l'agent",
+        agentResume: "Activer l'agent",
         agentRemove: "Retirer l'agent",
         agentRestore: 'Faire revenir un agent',
         agentHintPresent: "La pause conserve tout ce qu'il a entendu. Le retirer démarre un nouvel agent qui ne se souvient de rien de cette conversation.",
+        agentHintPaused: "L'agent est là mais n'entend rien tant que vous ne l'activez pas. Il conserve tout ce qui s'est dit avant la pause.",
         agentHintAbsent: "Aucun agent dans ce Salon. Un nouveau relira la source et ne saura rien de ce qui s'est dit.",
         agentRemoveWarning: "Retirer l'agent efface ce qu'il a entendu. Un nouveau repartirait de zéro. Continuer ?",
         anonButton: 'Lien sans adresse courriel',
@@ -720,8 +704,6 @@
         channelFailed: 'non envoyé',
         soundOffButton: '\ud83d\udd07  Le son est coup\u00e9 \u2014 activez-le',
         soundOnButton: '\ud83d\udd0a  Le son est actif \u2014 coupez-le',
-        countdownWaiting: 'avant que Vocaliz ouvre la conversation',
-        countdownNow: 'Vocaliz commence…',
         shareLabel: 'Permettre aux autres hôtes de trouver cette page dans leurs '
                   + 'propres conversations',
         shareLabel2: 'Permettre aux autres hôtes de trouver cette page dans leurs '
@@ -892,7 +874,7 @@
       renderMic();
       renderRoomSub();
       renderSound();
-      if (countdownTimer || countdownLeft) renderCountdown();
+      renderAgent();
       // The "As spoken" option and the empty-log line are interface text, so they follow
       // the interface language rather than the caption language.
       var capSel = document.getElementById('cap-lang');
@@ -1263,10 +1245,6 @@
       }
       captionLog.push(msg);
       renderCaptions();
-      // Anything transcribed means the wait is over — whether the agent opened on time or
-      // somebody spoke first. A counter still ticking down while words appear above it is
-      // the clearest possible way to look broken.
-      standDownCountdown();
     }
 
     function renderCaptions() {
@@ -1328,13 +1306,6 @@
 
 
 
-    // ── Countdown to the agent speaking ───────────────────────────────────────
-    // Started by the guest_invited message rather than by the invitation response, so the
-    // counter and the agent are driven by the same event. The message carries the number
-    // of seconds, so nothing here has to agree with a constant kept somewhere else.
-    var countdownTimer = null;
-    var countdownLeft = 0;
-
     function onRoomData(payload, participant, kind, topic) {
       // Captions travel on their own topic; this one has none.
       if (topic) return;
@@ -1345,8 +1316,6 @@
       // over even when that deletion fails. Relying on the transport dropping was the whole
       // problem: the failure was logged as a warning and nobody was told anything.
       if (msg.action === 'session_ended') { salonIsOver(); return; }
-      if (msg.action !== 'guest_invited') return;
-      startCountdown(parseInt(msg.opensInSeconds, 10) || 15);
     }
 
     var salonOver = false;
@@ -1372,43 +1341,6 @@
       show('c-room', false); show('c-source', false); show('c-invite', false);
       show('c-create', true);
       setStatus('create-status', 'salonEnded', true);
-    }
-
-    function startCountdown(seconds) {
-      if (countdownTimer) clearInterval(countdownTimer);
-      countdownLeft = seconds;
-      renderCountdown();
-      countdownTimer = setInterval(function () {
-        countdownLeft -= 1;
-        renderCountdown();
-        // Left on screen at zero rather than removed: the last thing a host read should be
-        // that the agent is starting, not a panel that vanished a moment before it spoke.
-        if (countdownLeft <= 0) {
-          clearInterval(countdownTimer);
-          countdownTimer = null;
-        }
-      }, 1000);
-    }
-
-    // The delay is a maximum, not a promise of silence: if the host speaks at second three,
-    // the agent answers then, and the remaining twelve seconds no longer describe anything.
-    // Shown as the same "starting" state it reaches by counting down, rather than removed —
-    // a panel that vanishes just as the agent speaks reads as a fault.
-    function standDownCountdown() {
-      if (!countdownTimer && countdownLeft <= 0) return;
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-      countdownLeft = 0;
-      renderCountdown();
-    }
-
-    function renderCountdown() {
-      var box = document.getElementById('countdown');
-      if (!box) return;
-      box.className = 'countdown on';
-      document.getElementById('countdown-n').textContent = Math.max(countdownLeft, 0);
-      document.getElementById('countdown-label').textContent =
-        T(countdownLeft > 0 ? 'countdownWaiting' : 'countdownNow');
     }
 
     // A random token this browser keeps, so a device that comes back is recognisable as the same
@@ -1510,7 +1442,10 @@
     // Two states rather than one tri-state control. An agent can be present and listening,
     // present and paused, or gone — and "gone" and "paused" need different buttons because
     // they are undone differently.
-    var agentState = { present: true, muted: false };
+    // Paused is what a salon starts as, and this is what the buttons show until the API is
+    // read. Guessing "listening" would flash the wrong control on every page load and, worse,
+    // tell the host their agent is hearing them when it is not.
+    var agentState = { present: true, muted: true };
 
     function renderAgent() {
       var mute = document.getElementById('btn-agent-mute');
@@ -1520,9 +1455,15 @@
       // Nothing to pause when there is nobody there.
       mute.disabled = !agentState.present;
       mute.textContent = T(agentState.muted ? 'agentResume' : 'agentPause');
+      // The one action a new salon is waiting for, so it is the one that looks like an
+      // action. Once the agent is listening it goes back to being an ordinary control.
+      mute.className = agentState.muted ? 'btn btn-primary' : 'btn btn-outline';
       presence.textContent = T(agentState.present ? 'agentRemove' : 'agentRestore');
-      document.getElementById('agent-hint').textContent =
-        T(agentState.present ? 'agentHintPresent' : 'agentHintAbsent');
+      // Three states, three sentences. A paused agent is the state a Salon starts in, and the
+      // host's first question about it is whether it can hear them — not what removing does.
+      var hint = 'agentHintAbsent';
+      if (agentState.present) hint = agentState.muted ? 'agentHintPaused' : 'agentHintPresent';
+      document.getElementById('agent-hint').textContent = T(hint);
     }
 
     async function readAgentState() {

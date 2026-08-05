@@ -21,8 +21,6 @@
   "connectedSub": "Samtalen er i gang. Tal frit.",
   "connectedTitle": "Du er i Salon",
   "consoleLeaves": "Åbning af konsollen afslutter din deltagelse i denne Salon. Fortsætte?",
-  "countdownNow": "Vocaliz starter...",
-  "countdownWaiting": "før Vocaliz åbner samtalen",
   "createAccount": "Opret en konto",
   "errConnDetail": "Der opstod en uventet fejl.",
   "errConnTitle": "Forbindelsesfejl",
@@ -57,5 +55,5 @@
   "retryButton": "Prøv igen",
   "soundOffButton": "🔇 Lyden er slukket — tænd den",
   "soundOnButton": "🔊 Lyden er tændt — sluk den",
-  "whatIsVocaliz": "Vocaliz er en platform til oprettelse af Salons. I en Salon diskuterer folk og en AI-stemmeagent en webside eller et dokument sammen."
+  "whatIsVocaliz": "Vocaliz er en platform til oprettelse af Salons. I et Salon diskuterer personer og en AI-stemmeagent en webside eller et dokument sammen."
 }

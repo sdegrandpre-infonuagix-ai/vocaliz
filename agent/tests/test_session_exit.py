@@ -185,9 +185,9 @@ def test_the_explanation_is_per_participant_not_per_salon():
     assert "Once per participant, not once per salon" in section
 
 
-def test_the_invitation_opening_also_explains_the_platform():
-    """The opening triggered by an invitation carries its own instructions, so leaving them
-    alone would have made the explanation depend on how the salon happened to start."""
+def test_the_hosts_opening_also_explains_the_platform():
+    """The opening the host triggers by activating the agent carries its own instructions, so
+    leaving them alone would have made the explanation depend on how the salon started."""
     import inspect
 
     source = inspect.getsource(salon.entrypoint)

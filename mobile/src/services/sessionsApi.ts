@@ -148,3 +148,38 @@ export async function endSession(token: string, sessionId: string): Promise<void
   });
   await handleResponse<unknown>(res);
 }
+
+/**
+ * What the host's agent control should show.
+ *
+ * Two independent facts rather than one tri-state: an agent can be present and listening,
+ * present and paused, or absent, and "absent" and "paused" are undone differently.
+ */
+export interface AgentState {
+  present: boolean;
+  muted: boolean;
+}
+
+export async function getAgentState(token: string, sessionId: string): Promise<AgentState> {
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/agent`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<AgentState>(res);
+}
+
+/**
+ * Pause or activate the agent. A Salon starts paused, so the first call of the session is
+ * what opens the conversation rather than what resumes it.
+ */
+export async function setAgentMuted(
+  token: string,
+  sessionId: string,
+  muted: boolean,
+): Promise<AgentState> {
+  const res = await fetch(`${API_URL}/sessions/${sessionId}/agent/mute`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ muted }),
+  });
+  return handleResponse<AgentState>(res);
+}
