@@ -205,16 +205,19 @@ export class SalonApiStack extends cdk.Stack {
       ],
     });
 
-    // The participant table, mailed hourly to the administrator.
+    // The participant table, mailed to the administrator — off, on request.
     //
-    // Hourly rather than on a change: a report is a picture of the whole, and one per new
-    // registration would arrive in bursts and be ignored. Sent even when nothing moved —
-    // an empty hour is information, and a report that only arrives sometimes cannot be
-    // distinguished from one that failed.
+    // It was hourly, on the reasoning that a report is a picture of the whole and an empty
+    // hour is still information. In practice twenty-four mails a day about a platform with
+    // twenty accounts is noise, and noise is what stops a report being read. It is now pulled
+    // rather than pushed: /report shows the same rows on demand, behind the same code.
     //
-    // The recipient is in the event rather than in the code, so it can be redirected by
-    // editing this rule instead of deploying the application.
+    // Kept rather than deleted, and disabled here rather than only in the console. The rule
+    // was switched off by hand the moment it was asked for; without this line the next deploy
+    // would quietly turn it back on, which is the worst possible way for a setting to return.
+    // Flip `enabled` to restore the schedule.
     new events.Rule(this, 'ParticipantReport', {
+      enabled: false,
       schedule: events.Schedule.rate(cdk.Duration.hours(1)),
       description: 'Mail the participant table to the administrator',
       targets: [

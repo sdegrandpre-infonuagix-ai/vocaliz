@@ -55,6 +55,35 @@ def _reset_trial(email: str) -> dict:
         db.close()
 
 
+def _reset_all_trials() -> dict:
+    """Clear metered time for every account at once.
+
+    Separate action rather than an empty email on the one above, deliberately. That one is
+    given an address and would find nobody if the field were blank; a version that quietly
+    treated "no address" as "everybody" would clear the whole platform on a typo.
+
+    Both counters go, and they have to go together. Zeroing the metered seconds while leaving
+    billed_seconds behind would leave an account already charged for time it no longer shows
+    as used — the delta between them is what the next invoice reads.
+    """
+    from src.database import SessionLocal
+    from src.models.user import User
+
+    db = SessionLocal()
+    try:
+        cleared = sum(
+            user.trial_seconds_used for user in db.query(User.trial_seconds_used).all()
+        )
+        accounts = db.query(User).update(
+            {User.trial_seconds_used: 0, User.billed_seconds: 0},
+            synchronize_session=False,
+        )
+        db.commit()
+        return {"status": "ok", "accounts": accounts, "secondsCleared": cleared}
+    finally:
+        db.close()
+
+
 def _sweep_expired_sessions() -> dict:
     """Close every session that has outlived its cap, whatever its heartbeats say.
 
@@ -127,6 +156,8 @@ def handler(event, context):
     event = {"action": "participant_report"} mails the participant table; EventBridge does
     this every hour, and the recipient can be overridden with a "recipient" field.
     event = {"action": "reset_trial", "email": "..."} clears metered time for one account.
+    event = {"action": "reset_all_trials"} clears it for every account. Named in full because
+    it cannot be undone: the seconds it clears are not recorded anywhere else.
     event = {"action": "sweep_sessions"} closes sessions past the per-session cap; this is
     what EventBridge invokes every five minutes.
     event = {"action": "invoice_advertisers"} bills every uninvoiced ad broadcast; EventBridge
@@ -141,6 +172,10 @@ def handler(event, context):
     if action == "reset_trial":
         result = _reset_trial(event["email"])
         logger.info("reset_trial: %s", result)
+        return result
+    if action == "reset_all_trials":
+        result = _reset_all_trials()
+        logger.info("reset_all_trials: %s", result)
         return result
     if action == "sweep_sessions":
         result = _sweep_expired_sessions()
