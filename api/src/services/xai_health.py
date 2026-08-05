@@ -25,7 +25,11 @@ from src.models.service_health import ServiceHealth
 
 logger = logging.getLogger(__name__)
 
+# Two things can fail independently, so two rows. Text is probed on a schedule; voice is
+# reported by the agent when it actually connects, because xAI offers no cheap voice call to
+# probe — /v1/audio/speech answers 403 for this team.
 SERVICE = "xai"
+VOICE_SERVICE = "xai_voice"
 
 # Long enough that a slow answer is not called an outage, short enough to finish well inside a
 # minute so probes cannot pile up on each other.
@@ -64,28 +68,37 @@ def probe() -> tuple[bool, str]:
 
 
 def check(db: DbSession, recipient: str = "") -> dict:
-    """Probe, and email the administrator when the answer has changed.
+    """Probe the text API and record the result. Invoked every minute by EventBridge."""
+    healthy, detail = probe()
+    return record(db, service=SERVICE, healthy=healthy, detail=detail, recipient=recipient)
 
-    On transition only. A probe every minute that emailed on every failure would send more than
+
+def record(
+    db: DbSession, *, service: str, healthy: bool, detail: str = "", recipient: str = ""
+) -> dict:
+    """Store one service's state and email the administrator when it has changed.
+
+    On transition only. A check every minute that emailed on every failure would send more than
     a thousand messages during one bad night, and an inbox with a thousand identical alerts is
     an inbox where the next real one is missed.
 
     Recovery is announced too. Being told something broke and never told it was fixed leaves
     somebody checking by hand, which is the work this was meant to remove.
-    """
-    healthy, detail = probe()
-    to = recipient or settings.front_desk_email
 
-    row = db.get(ServiceHealth, SERVICE)
+    Shared by the scheduled text probe and the agent's report on the voice connection, so both
+    inherit the same alert-once behaviour rather than each inventing it.
+    """
+    to = recipient or settings.front_desk_email
+    row = db.get(ServiceHealth, service)
+
     if row is None:
-        # First ever probe. Recorded without alerting when healthy: an email saying "xAI is
+        # First ever result. Recorded without alerting when healthy: an email saying "xAI is
         # fine" to announce that monitoring has started is noise on the day it is deployed.
-        row = ServiceHealth(service=SERVICE, healthy=healthy, detail=detail)
-        db.add(row)
+        db.add(ServiceHealth(service=service, healthy=healthy, detail=detail))
         db.commit()
         if healthy:
             return {"status": "ok", "healthy": True, "alerted": False}
-        _alert(to, healthy=False, detail=detail)
+        _alert(to, healthy=False, detail=detail, service=service)
         return {"status": "ok", "healthy": False, "alerted": True}
 
     if row.healthy == healthy:
@@ -98,26 +111,29 @@ def check(db: DbSession, recipient: str = "") -> dict:
     row.changed_at = datetime.now(tz=timezone.utc)
     db.commit()
 
-    _alert(to, healthy=healthy, detail=detail)
+    _alert(to, healthy=healthy, detail=detail, service=service)
     return {"status": "ok", "healthy": healthy, "alerted": True}
 
 
-def _alert(recipient: str, *, healthy: bool, detail: str) -> None:
+def _alert(recipient: str, *, healthy: bool, detail: str, service: str = SERVICE) -> None:
     """Send the one email a transition earns. Never raises.
 
     A monitor that can crash is a monitor that stops monitoring, and it would fail silently —
     the same shape as the outage it watches for.
     """
+    voice = service == VOICE_SERVICE
+    what = "the xAI voice model" if voice else "xAI"
+
     if healthy:
-        subject = "Vocaliz: xAI is answering again"
+        subject = f"Vocaliz: {what} is answering again"
         body = (
-            "xAI is responding normally again. Salons can be held.\n\n"
+            f"{what} is responding normally again. Salons can be held.\n\n"
             "Nothing was lost that was not already lost while it was down."
         )
     else:
-        subject = "Vocaliz: xAI is NOT answering — agents will be silent"
+        subject = f"Vocaliz: {what} is NOT answering — agents will be silent"
         body = (
-            "A probe to xAI failed. Until it succeeds, an agent joining a Salon will not "
+            f"A check on {what} failed. Until it succeeds, an agent joining a Salon will not "
             "speak: it connects, the room looks normal, and nobody is answered. There is no "
             "error visible anywhere in Vocaliz.\n\n"
             f"What xAI said:\n{detail}\n\n"
@@ -125,6 +141,14 @@ def _alert(recipient: str, *, healthy: bool, detail: str) -> None:
             "how much is left — check console.x.ai. A revoked or mistyped key produces the "
             "same silence.\n\n"
             "You will get one more email when it recovers."
+        )
+    if voice:
+        # The voice result comes from a real agent that really tried to connect, not from a
+        # probe standing in for one. Saying so changes what the reader should do: this is not a
+        # warning about what might happen, it is a report that a Salon just failed.
+        body += (
+            "\n\nThis was reported by an agent joining an actual Salon, so somebody was "
+            "already affected."
         )
     try:
         # SES directly, the same way the participant report sends. Plain text on purpose: this

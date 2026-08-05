@@ -249,3 +249,15 @@ class AgentStateResponse(BaseModel):
 class AgentMuteBody(BaseModel):
     muted: bool
 
+
+
+class VoiceHealthBody(BaseModel):
+    """What an agent reports about its realtime voice connection.
+
+    `ok` is what the agent actually observed, not a prediction. `detail` carries the failure so
+    the alert can quote it — an alert saying "voice failed" without saying how sends somebody
+    looking through logs at an awkward hour.
+    """
+
+    ok: bool
+    detail: str = ""

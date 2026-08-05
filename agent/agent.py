@@ -1039,6 +1039,33 @@ class SalonAgent(Agent):
             return "error:network"
 
 
+
+async def _report_voice_health(
+    api_url: str | None,
+    session_id: str | None,
+    host_token: str | None,
+    *,
+    ok: bool,
+    detail: str = "",
+) -> None:
+    """Tell the API whether the realtime voice connection worked.
+
+    Best-effort and silent on failure. A monitor that can break the thing it monitors is worse
+    than no monitor: a Salon must never fail to start because a health report could not be
+    posted.
+    """
+    if not (api_url and session_id and host_token):
+        return
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            await client.post(
+                f"{api_url}/sessions/{session_id}/voice-health",
+                json={"ok": ok, "detail": detail[:500]},
+                headers={"Authorization": f"Bearer {host_token}"},
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not report voice health: %s", exc)
+
 async def _fetch_session_detail(api_url: str, session_id: str, host_token: str) -> dict | None:
     """Fetch session content from the API so the agent can read it aloud."""
     url = f"{api_url}/sessions/{session_id}"
@@ -1471,16 +1498,38 @@ async def entrypoint(ctx: agents.JobContext):
 
     ctx.room.on("track_unmuted", _on_track_unmuted)
 
-    await agent_session.start(
-        room=ctx.room,
-        agent=salon_agent,
+    # The voice connection is reported, not probed.
+    #
+    # xAI offers no cheap voice call to test: /v1/audio/speech answers 403 for this team, and a
+    # realtime session is the only alternative — too costly to open every minute purely to ask
+    # whether it can be opened. So the check is the real thing. This start() either reaches the
+    # realtime model or it does not, and whichever happens is what gets reported.
+    #
+    # Better than a probe in the way that matters: a substitute can succeed while the genuine
+    # path fails, and this cannot, because it *is* the genuine path. What it gives up is
+    # warning — nothing is reported until somebody calls. The scheduled text probe covers the
+    # account-level causes, spent credit and a revoked key, which are the only two that have
+    # ever actually happened here.
+    try:
+        await agent_session.start(
+            room=ctx.room,
+            agent=salon_agent,
         # audio_input=False stops RoomIO from installing its own single-participant
         # input; ours replaces it below. Everything else about RoomIO — the shared audio
         # output, transcriptions, disconnect handling — is kept. (Formerly
         # RoomInputOptions(audio_enabled=False); the option classes were merged into
         # RoomOptions, where False on an input means the same thing.)
-        room_options=RoomOptions(audio_input=False),
-    )
+            room_options=RoomOptions(audio_input=False),
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Reported before re-raising. The job is over either way, but somebody has to learn
+        # that a Salon just failed for a reason invisible from inside Vocaliz — the room looks
+        # normal to everyone in it.
+        await _report_voice_health(
+            api_url, session_id, host_token, ok=False, detail=f"{type(exc).__name__}: {exc}"
+        )
+        raise
+    await _report_voice_health(api_url, session_id, host_token, ok=True)
 
     # RoomIO hears only the participant it linked to, so the agent was deaf to everyone
     # else in the room. This mixes every remote participant into one stream instead.

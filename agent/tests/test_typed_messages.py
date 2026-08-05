@@ -206,3 +206,33 @@ def test_the_arrival_asks_whether_to_hand_over():
     anything leaves them guessing whether to keep talking to a machine."""
     source = inspect.getsource(salon.entrypoint)
     assert "would rather speak with the human directly" in source
+
+
+# ─── The voice connection reports itself ──────────────────────────────────────
+#
+# xAI offers no cheap voice call to probe: /v1/audio/speech answers 403 for this team, and a
+# realtime session is too costly to open every minute purely to ask whether it can be opened.
+# So the check is the real thing — this start() either reaches the realtime model or it does not.
+
+def test_the_voice_connection_is_reported_both_ways():
+    source = inspect.getsource(salon.entrypoint)
+    block = source[source.index("try:\n        await agent_session.start") :]
+    block = block[: block.index("mixed_input = ")]
+    assert "ok=False" in block
+    assert "ok=True" in block
+
+
+def test_a_failure_is_reported_before_it_is_re_raised():
+    """The job is over either way, but somebody has to learn that a Salon just failed for a
+    reason invisible from inside Vocaliz — the room looks normal to everyone in it."""
+    source = inspect.getsource(salon.entrypoint)
+    block = source[source.index("except Exception as exc:  # noqa: BLE001\n        # Reported") :]
+    block = block[: block.index("await _report_voice_health(api_url, session_id, host_token, ok=True)")]
+    assert block.index("_report_voice_health") < block.index("raise")
+
+
+def test_reporting_can_never_break_the_salon():
+    """A monitor that can break the thing it monitors is worse than no monitor."""
+    source = inspect.getsource(salon._report_voice_health)
+    assert "except Exception" in source
+    assert "logger.warning" in source

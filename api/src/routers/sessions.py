@@ -37,6 +37,7 @@ from src.schemas.session import (
     TranscriptResponse,
     UtteranceBody,
     UtteranceResponse,
+    VoiceHealthBody,
 )
 from src.config import settings
 from src.schemas.invitation import GeoBody, InviteGuestBody
@@ -54,6 +55,7 @@ from src.services import (
     stripe_service,
     translation_service,
     utterance_service,
+    xai_health,
 )
 
 logger = logging.getLogger(__name__)
@@ -806,6 +808,40 @@ def participant_history(
             participant_identity=identity,
         )
     }
+
+
+@router.post("/{session_id}/voice-health", status_code=200)
+def report_voice_health(
+    session_id: str,
+    body: VoiceHealthBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The agent reporting whether its realtime voice connection worked.
+
+    xAI offers no cheap voice call to probe — /v1/audio/speech answers 403 for this team, and a
+    realtime session is the only test, which is too costly to open every minute. So the check is
+    not a probe at all: it is the real thing, reported by the agent that just did it.
+
+    Better than a probe in the way that matters. A substitute can succeed while the genuine path
+    fails; this cannot, because it *is* the genuine path. What it gives up is warning: it says
+    nothing until somebody calls, so a voice outage overnight is discovered by the first caller
+    of the morning rather than before them. The scheduled text probe covers the account-level
+    causes — spent credit, revoked key — which were the only two that ever actually happened.
+
+    The session id is not used beyond authorising the call. The health of xAI is not a property
+    of one Salon, and recording it per Salon would make "is voice working" unanswerable without
+    picking a room first.
+    """
+    logger.info(
+        "Agent reported voice health: ok=%s detail=%s", body.ok, body.detail[:200]
+    )
+    return xai_health.record(
+        db,
+        service=xai_health.VOICE_SERVICE,
+        healthy=body.ok,
+        detail=body.detail,
+    )
 
 
 @router.post("/{session_id}/participant-language", status_code=200)

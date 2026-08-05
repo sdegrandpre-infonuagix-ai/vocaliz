@@ -202,3 +202,56 @@ def test_every_scheduled_action_says_what_it_did():
     source = inspect.getsource(migrate_handler.handler)
     for action in ("check_xai", "sweep_sessions", "invoice_advertisers"):
         assert f'_report(f"{action}' in source, f"{action} runs silently"
+
+
+# ─── Voice, reported rather than probed ───────────────────────────────────────
+#
+# xAI offers no cheap voice call: /v1/audio/speech answers 403 for this team, and a realtime
+# session is too costly to open every minute purely to ask whether it can be opened. So the
+# agent reports what it actually observed, which is better than a probe in the way that matters
+# — a substitute can succeed while the genuine path fails, and this cannot, because it is the
+# genuine path. What it gives up is warning: nothing is said until somebody calls.
+
+def test_voice_and_text_are_tracked_separately(db, sent):
+    """Two things fail independently. One row would let a healthy text API hide a broken voice
+    one, which is the exact gap this was built to close."""
+    with _probing(True):
+        xai_health.check(db)
+    xai_health.record(db, service=xai_health.VOICE_SERVICE, healthy=False, detail="handshake 400")
+
+    assert db.get(ServiceHealth, xai_health.SERVICE).healthy is True
+    assert db.get(ServiceHealth, xai_health.VOICE_SERVICE).healthy is False
+
+
+def test_the_voice_alert_says_it_is_voice(db, sent):
+    """"xAI is not answering" would send somebody to check their credit when the text API is
+    fine and only the voice model is not."""
+    xai_health.record(db, service=xai_health.VOICE_SERVICE, healthy=False, detail="handshake 400")
+    subject = sent.call_args.kwargs["Message"]["Subject"]["Data"]
+    assert "voice" in subject.lower()
+
+
+def test_the_voice_alert_says_somebody_was_already_affected(db, sent):
+    """This is not a warning about what might happen. An agent really tried to join a real
+    Salon and could not speak, so a caller was already failed."""
+    xai_health.record(db, service=xai_health.VOICE_SERVICE, healthy=False, detail="handshake 400")
+    body = sent.call_args.kwargs["Message"]["Body"]["Text"]["Data"]
+    assert "already affected" in body
+
+
+def test_voice_alerts_once_like_everything_else(db, sent):
+    """A busy evening opens many Salons. If every failed one emailed, the inbox would fill at
+    the rate people were being let down."""
+    xai_health.record(db, service=xai_health.VOICE_SERVICE, healthy=False, detail="a")
+    sent.reset_mock()
+    for _ in range(4):
+        xai_health.record(db, service=xai_health.VOICE_SERVICE, healthy=False, detail="a")
+    sent.assert_not_called()
+
+
+def test_the_agent_reports_through_an_authenticated_endpoint(client, db):
+    """Anonymous, this would let anybody declare the voice model broken and trigger an alert."""
+    assert client.post("/sessions/whatever/voice-health", json={"ok": False}).status_code in (
+        401,
+        403,
+    )
