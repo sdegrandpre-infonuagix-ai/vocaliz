@@ -42,7 +42,17 @@ def public_config():
     not what it may do. Nothing here is a secret, and requiring a token would mean the
     sign-in screen could not read it.
     """
-    return {"smsEnabled": settings.sms_enabled}
+    return {
+        "smsEnabled": settings.sms_enabled,
+        # The address the front desk signs in with. Served rather than written into the page
+        # so the two cannot disagree: the desk is a role, and the address changes when
+        # somebody else is on shift. A page holding its own copy would send a code to the
+        # previous occupant and show no reason why nobody received it.
+        #
+        # Not a secret. It is the published address of a front desk, and the code that reaches
+        # it is what actually guards the desk.
+        "frontDeskEmail": settings.front_desk_email,
+    }
 
 
 # AWS Lambda handler (Mangum adapts ASGI ↔ Lambda event)

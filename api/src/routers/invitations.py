@@ -369,6 +369,7 @@ def dial_in(code: str, db: DbSession = Depends(get_db)):
 async def call_the_desk(
     request: Request,
     language: str = FOLLOW_THE_SPEAKER,
+    email: str = "",
     db: DbSession = Depends(get_db),
 ):
     """Ring the front desk from the front page, with no account and no code.
@@ -444,9 +445,19 @@ async def call_the_desk(
     ).one()
     caller_id = livekit_service.identity_for(invitation)
 
+    # Optional, and only ever for sending them the conversation afterwards. A caller who
+    # gives nothing still gets through: the address buys them a copy, it does not buy them
+    # the call. Recorded on the participation rather than on the invitation, because an
+    # anonymous_link invitation is forbidden by the schema from carrying an address — that
+    # constraint exists so a link addressed to nobody cannot quietly hold somebody's email.
+    caller_email = (email or "").strip().lower()
+    if caller_email and "@" not in caller_email:
+        caller_email = ""
+
     salon_event_service.record_entry(
         db,
         participant_identity=caller_id,
+        email=caller_email,
         user_type="guest",
         salon_name=room_name,
         latitude=None,

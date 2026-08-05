@@ -330,7 +330,16 @@ def test_config_is_readable_without_a_token(client):
 def test_sms_is_off_by_default(client):
     """Text messaging waits on an AWS review. Off is the safe direction: a host never
     sees a channel that cannot deliver."""
-    assert client.get("/config").json() == {"smsEnabled": False}
+    assert client.get("/config").json()["smsEnabled"] is False
+
+
+def test_the_config_names_the_front_desk(client):
+    """The landing page sends the desk's sign-in code to this address and never asks anybody to
+    type it. A field would let a visitor aim the code at themselves; served from here, the two
+    cannot disagree when whoever is on shift changes."""
+    from src.config import settings
+
+    assert client.get("/config").json()["frontDeskEmail"] == settings.front_desk_email
 
 
 def test_config_follows_the_setting(client):

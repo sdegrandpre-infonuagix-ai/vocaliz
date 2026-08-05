@@ -41,6 +41,12 @@
     width: 100%; min-height: 52px; margin-top: 12px; border: 0; border-radius: 12px;
     cursor: pointer; font-family: inherit; font-size: 1.02rem; font-weight: 600;
   }
+  .email {
+    width: 100%; font-size: .95rem; text-align: center;
+    padding: 11px 12px; border: 1px solid #d9cfbe; border-radius: 10px;
+    font-family: inherit; background: #fff; color: var(--ink);
+  }
+  .email-note { font-size: .78rem; color: var(--muted); margin-top: 7px; line-height: 1.45; }
   .btn-call { background: var(--gold); color: var(--ink); }
   .btn-hang { background: var(--burgundy); color: var(--paper); }
   .btn-quiet { background: transparent; color: var(--burgundy); border: 1px solid var(--burgundy); }
@@ -127,6 +133,15 @@
     <!-- One button, nothing to type. Somebody who has never heard of Vocaliz should be in a
          room with an agent one press after arriving; a code would mean they had to have been
          given one, which is the opposite of ringing a front desk. -->
+    <!-- Optional, and it has to read as optional. An address field above a call button looks
+         like a requirement, and somebody who just wants to ask a question would rather hang up
+         than register for one. -->
+    <input id="caller-email" class="email" type="email" autocomplete="email"
+           placeholder="your@email.com (optional)" aria-label="Email, optional">
+    <div class="email-note">
+      Only if you would like the conversation emailed to you afterwards, word for word.
+      Leave it blank and call anyway.
+    </div>
     <button class="btn btn-call" id="btn-call" onclick="placeCall()">Call Vocaliz</button>
     <!-- The speaker, not the microphone. This exists so one person can be both sides at once
          — ringing from a phone while watching the desk on a laptop — and the howl that
@@ -156,8 +171,9 @@
 
     <!-- Signed out ─────────────────────────────────────────────────────────── -->
     <div class="panel signin" id="signin">
-      <label for="email">Clerk email</label>
-      <input id="email" type="email" autocomplete="email" placeholder="clerk@hotel.com">
+      <!-- No address to type. The desk is one address, read from /config, and a field would
+           only let somebody aim the code at themselves — the same reasoning as /report. -->
+      <div class="sub" id="desk-address">Sending the code to the front desk</div>
       <button class="btn btn-quiet" id="btn-code" onclick="requestCode()">Send me a code</button>
       <div id="code-row" class="hidden">
         <label for="otp" style="display:block;margin-top:12px">Code</label>
@@ -313,8 +329,10 @@
     try {
       // Opens the Salon, puts this caller in it, and mails the desk. One request, because a
       // caller who has to wait through three is a caller who hangs up.
+      var typed = (document.getElementById('caller-email').value || '').trim();
       var resp = await fetch('/invitations/call-the-desk?language=' +
-        encodeURIComponent(voiceLang), { method: 'POST' });
+        encodeURIComponent(voiceLang) + '&email=' + encodeURIComponent(typed),
+        { method: 'POST' });
       var body = await resp.json().catch(function () { return {}; });
       if (!resp.ok) throw new Error(body.detail || ('Error ' + resp.status));
 
@@ -378,9 +396,24 @@
     return body;
   }
 
+  // Read from /config, never typed. A field would let a visitor send the desk's code to
+  // themselves; this way it only ever goes where the desk actually reads.
+  var deskEmail = '';
+
+  (async function loadDeskAddress() {
+    try {
+      var cfg = await (await fetch('/config')).json();
+      deskEmail = cfg.frontDeskEmail || '';
+      var line = document.getElementById('desk-address');
+      if (line && deskEmail) line.textContent = 'A code will be sent to ' + deskEmail;
+    } catch (e) {
+      console.warn('Vocaliz: could not read the front desk address', e);
+    }
+  })();
+
   async function requestCode() {
-    var email = (document.getElementById('email').value || '').trim();
-    if (!email) { say('signin-status', 'An email address, please.', true); return; }
+    var email = deskEmail;
+    if (!email) { say('signin-status', 'The desk is not reachable right now.', true); return; }
     try {
       await api('/auth/otp/request', {
         method: 'POST',
@@ -395,7 +428,7 @@
   }
 
   async function verifyCode() {
-    var email = (document.getElementById('email').value || '').trim();
+    var email = deskEmail;
     var code = (document.getElementById('otp').value || '').replace(/\D/g, '');
     if (code.length !== 6) { say('signin-status', 'Six digits.', true); return; }
     try {

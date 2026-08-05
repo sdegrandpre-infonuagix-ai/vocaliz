@@ -43,7 +43,11 @@ def test_the_button_rings_the_desk_with_nothing_to_type(client):
     body = client.get("/").text
     assert "/invitations/call-the-desk" in body
     caller = body[body.index('id="dialer"') : body.index("</header>")]
-    assert "<input" not in caller, "the caller is asked to type something"
+    # An optional address is allowed and a required one is not. Nothing in the dialer may be
+    # a precondition: somebody who just wants to ask a question would hang up rather than
+    # register for one.
+    assert "required" not in caller
+    assert 'placeholder="000000"' not in caller, "a code would mean they had to be given one"
 
 
 def test_the_microphone_is_asked_for_inside_the_click(client):
