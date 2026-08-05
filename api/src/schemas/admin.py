@@ -33,6 +33,26 @@ class ParticipantRecord(BaseModel):
     devices: list[str] = []
 
 
+class ReportResponse(BaseModel):
+    """The hourly participant report, returned for a browser to render.
+
+    Columns are sent alongside the rows rather than being known by the page. They are French
+    labels chosen for the email, they have changed twice already, and a page holding its own
+    copy would show yesterday's headings over today's figures — or silently drop a column
+    nobody noticed was added.
+    """
+
+    # Ordered. The rows are dictionaries keyed by these labels, and a table has to be drawn
+    # in some order — one the sender decides, not one a JSON object happens to preserve.
+    columns: list[str]
+    rows: list[dict]
+    # What each weak column does and does not mean. Travels with the data because a reader who
+    # sees "Salons de cet appareil: 3" without them concludes three visits by one person, and
+    # that is not what it measures.
+    caveats: list[str]
+    contacts: int
+
+
 class ParticipantsResponse(BaseModel):
     total: int
     # How many of the total this page carries. Both are returned so a truncated answer

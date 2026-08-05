@@ -1,0 +1,224 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- A report is not a page to be found by accident, and a search result linking to it would
+     invite exactly the attempts the code exists to refuse. -->
+<meta name="robots" content="noindex, nofollow">
+<title>Vocaliz — Rapport des participants</title>
+
+<style>
+  :root { color-scheme: light; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #F8F3E8;
+    color: #2C2C2C;
+    margin: 0;
+    padding: 0 0 48px;
+  }
+  header {
+    background: #7B1528;
+    color: #F8F3E8;
+    padding: 18px 20px;
+  }
+  h1 { font-size: 1.05rem; margin: 0; font-weight: 600; letter-spacing: .01em; }
+  .sub { font-size: .8rem; opacity: .85; margin-top: 4px; }
+
+  main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+  .card {
+    background: #fff;
+    border: 1px solid #e6ded0;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 420px;
+  }
+  label { display: block; font-size: .82rem; color: #6b6257; margin-bottom: 6px; }
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 1.3rem;
+    letter-spacing: .35em;
+    text-align: center;
+    padding: 12px;
+    border: 1px solid #cfc4b2;
+    border-radius: 10px;
+    font-family: inherit;
+  }
+  button {
+    width: 100%;
+    min-height: 46px;
+    margin-top: 12px;
+    border: 0;
+    border-radius: 10px;
+    background: #C9A84C;
+    color: #2C2C2C;
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  button.secondary { background: transparent; color: #7B1528; border: 1px solid #7B1528; }
+
+  .status { font-size: .85rem; margin-top: 12px; min-height: 1.2em; }
+  .status.bad { color: #9b2226; }
+  .status.good { color: #4a6b3a; }
+
+  /* The table is wider than a laptop on purpose — eleven columns, several of them free text.
+     It scrolls inside its own box so the page itself never does. */
+  .scroll { overflow-x: auto; border: 1px solid #e6ded0; border-radius: 12px; background: #fff; }
+  table { border-collapse: collapse; width: 100%; font-size: .82rem; }
+  th, td { padding: 8px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid #f0e9dc; }
+  th { background: #F3ECDD; font-weight: 600; position: sticky; top: 0; }
+  tbody tr:hover { background: #fdfaf3; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .caveats { margin-top: 18px; font-size: .78rem; color: #6b6257; line-height: 1.55; max-width: 900px; }
+  .caveats li { margin-bottom: 5px; }
+  .count { font-size: .85rem; color: #6b6257; margin-bottom: 10px; }
+  .hidden { display: none; }
+</style>
+
+<header>
+  <h1>Rapport des participants</h1>
+  <div class="sub" id="sub">Réservé à l'administration</div>
+</header>
+
+<main>
+  <!-- ── The gate ─────────────────────────────────────────────────────────── -->
+  <section class="card" id="gate">
+    <label for="code">Code envoyé à s.degrandpre@vocaliz.net</label>
+    <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+           placeholder="000000" aria-describedby="gate-status">
+    <button id="btn-verify" onclick="verify()">Afficher le rapport</button>
+    <button class="secondary" id="btn-send" onclick="sendCode()">Envoyer un code</button>
+    <div class="status" id="gate-status" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- ── The report ───────────────────────────────────────────────────────── -->
+  <section id="report" class="hidden">
+    <div class="count" id="count"></div>
+    <div class="scroll"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div>
+    <ul class="caveats" id="caveats"></ul>
+  </section>
+</main>
+
+<script>
+  // One address, and it is not a field. Typing it would make this a login page for a platform
+  // whose only administrator is already known — and would let anyone aim the code elsewhere.
+  // The API refuses a token that is not on its own admin list regardless, so this is the
+  // convenience half; the enforcement half is server-side and cannot be edited from here.
+  var ADMIN_EMAIL = 's.degrandpre@vocaliz.net';
+
+  var token = '';
+
+  function say(message, ok) {
+    var el = document.getElementById('gate-status');
+    el.textContent = message;
+    el.className = 'status' + (message ? (ok ? ' good' : ' bad') : '');
+  }
+
+  async function api(path, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (token) options.headers['Authorization'] = 'Bearer ' + token;
+    var resp = await fetch(path, options);
+    var body = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(body.detail || ('Erreur ' + resp.status));
+    return body;
+  }
+
+  async function sendCode() {
+    var button = document.getElementById('btn-send');
+    button.disabled = true;
+    say('Envoi…', true);
+    try {
+      await api('/auth/otp/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: ADMIN_EMAIL })
+      });
+      say('Code envoyé. Il expire dans dix minutes.', true);
+      document.getElementById('code').focus();
+    } catch (e) {
+      say(e.message, false);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function verify() {
+    var code = document.getElementById('code').value.replace(/\D/g, '');
+    if (code.length !== 6) { say('Six chiffres.', false); return; }
+
+    var button = document.getElementById('btn-verify');
+    button.disabled = true;
+    say('Vérification…', true);
+    try {
+      var auth = await api('/auth/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: ADMIN_EMAIL, code: code })
+      });
+      token = auth.token;
+      await load();
+    } catch (e) {
+      // Deliberately not stored anywhere. A report token in localStorage would outlive the
+      // reading of the report, on a laptop, for a day.
+      token = '';
+      say(e.message, false);
+      button.disabled = false;
+    }
+  }
+
+  async function load() {
+    say('Lecture…', true);
+    var data = await api('/admin/report');
+
+    // Columns come from the API rather than being written here. They are chosen for the
+    // hourly email, they have changed twice, and a page holding its own copy would show
+    // yesterday's headings over today's figures.
+    var head = document.getElementById('head');
+    var body = document.getElementById('body');
+    head.innerHTML = '';
+    body.innerHTML = '';
+
+    data.columns.forEach(function (column) {
+      var th = document.createElement('th');
+      th.textContent = column;
+      head.appendChild(th);
+    });
+
+    data.rows.forEach(function (row) {
+      var tr = document.createElement('tr');
+      data.columns.forEach(function (column) {
+        var td = document.createElement('td');
+        var value = row[column];
+        // textContent, never innerHTML: these are addresses and identities typed by people,
+        // and this page is read by the one person who could not afford to be phished.
+        td.textContent = (value === null || value === undefined) ? '' : String(value);
+        if (/^\d+$/.test(td.textContent)) td.className = 'num';
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+
+    var caveats = document.getElementById('caveats');
+    caveats.innerHTML = '';
+    data.caveats.forEach(function (line) {
+      var li = document.createElement('li');
+      li.textContent = line;
+      caveats.appendChild(li);
+    });
+
+    document.getElementById('count').textContent =
+      data.contacts + (data.contacts === 1 ? ' contact' : ' contacts');
+    document.getElementById('gate').className = 'hidden';
+    document.getElementById('report').className = '';
+    document.getElementById('sub').textContent =
+      'Lu le ' + new Date().toLocaleString('fr-CA');
+  }
+
+  document.getElementById('code').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') verify();
+  });
+</script>

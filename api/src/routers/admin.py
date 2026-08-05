@@ -20,7 +20,12 @@ from src.dependencies.auth import get_current_admin
 from src.models.salon_event import SalonEvent
 from src.models.user import User
 from src.rate_limit import limiter
-from src.schemas.admin import ParticipantRecord, ParticipantsResponse
+from src.schemas.admin import (
+    ParticipantRecord,
+    ParticipantsResponse,
+    ReportResponse,
+)
+from src.services import participant_report
 
 logger = logging.getLogger(__name__)
 
@@ -137,4 +142,33 @@ def list_participants(
             )
             for row in grouped
         ],
+    )
+
+
+@router.get("/report", response_model=ReportResponse)
+@limiter.limit("30/minute")
+def participant_report_now(
+    request: Request,
+    db: DbSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> ReportResponse:
+    """The hourly participant report, on demand and in the browser.
+
+    The same rows the email carries, built by the same function. Two readings of one table
+    that could disagree would be worse than having only the email: the report is what
+    decisions get made from, and "the page said something else" is not a footnote.
+
+    The caveats travel with the rows rather than being written into the page. Several columns
+    are weaker than they look — a device token measures browsers and not people, and metered
+    seconds belong to the account rather than to the participations listed beside them — and a
+    reader who sees the numbers without the qualifications draws conclusions the data does not
+    support. Sending them together is what makes that impossible to skip.
+    """
+    rows = participant_report.collect(db)
+    logger.info("Admin %s read the participant report (%d contacts)", admin.email, len(rows))
+    return ReportResponse(
+        columns=participant_report.COLUMNS,
+        rows=rows,
+        caveats=participant_report.caveat_lines(),
+        contacts=len(rows),
     )

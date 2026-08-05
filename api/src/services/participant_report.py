@@ -219,6 +219,16 @@ _CAVEAT_TEXT = (
 )
 
 
+def caveat_lines() -> list[str]:
+    """The same qualifications, one per line, for a caller that renders rather than prints.
+
+    Split from the block above rather than written a second time. Two copies of a paragraph
+    this easy to leave alone would drift the first time a column changes meaning, and the
+    version that goes stale is always the one somebody is reading.
+    """
+    return _CAVEAT_TEXT.split("\n")
+
+
 def as_text(rows: list[dict]) -> str:
     if not rows:
         return "Aucune participation enregistree.\n"

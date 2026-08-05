@@ -78,6 +78,19 @@ def host_console_page(request: Request):
     return _page(request, "host.html")
 
 
+@router.get("/report", include_in_schema=False)
+def participant_report_page(request: Request):
+    """Serve the participant report console.
+
+    The page is public; what it shows is not. Everything on it arrives from /admin/report,
+    which requires a token belonging to an address in admin_emails — one address today. So
+    this serves an empty shell to anybody and its contents to one person, which is the right
+    split: a page that refused to load at all would need its own gate, duplicating the one
+    the API already applies to the data.
+    """
+    return _page(request, "report.html")
+
+
 # The pages whose dictionaries can be requested, and the languages that exist as generated
 # files. Allowlists rather than a constructed path: `../../secret` in a language name would
 # otherwise serve any file in the container, and a check for ".." is the kind of guard that
