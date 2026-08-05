@@ -192,11 +192,16 @@ export class SalonApiStack extends cdk.Stack {
     // or the agent worker dies. The session then stayed active for good, leaking an open
     // session, a reserved telephone code and a span of metered time never settled.
     //
-    // Five minutes is chosen against the ten-minute cap: a session overruns by at most half
-    // its own length, which is well inside what a spending guard needs, and the sweep costs
-    // one Lambda invocation that usually finds nothing.
+    // Every minute, not every five. The interval is not a tidiness setting: a Salon past its
+    // cap still has an agent in it, and that agent is a live connection to the realtime model
+    // — billed by xAI for as long as it lasts. Five minutes meant an abandoned Salon could
+    // burn half its own length again before anything noticed.
+    //
+    // The extra cost is on the side that is nearly free: 1440 invocations a day instead of
+    // 288, of a Lambda that usually finds nothing and returns in milliseconds. Trading Lambda
+    // invocations for realtime-model minutes is the right way round by a wide margin.
     new events.Rule(this, 'SweepExpiredSessions', {
-      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
       description: 'Close sessions past the per-session cap, regardless of heartbeats',
       targets: [
         new eventTargets.LambdaFunction(migrateFn, {

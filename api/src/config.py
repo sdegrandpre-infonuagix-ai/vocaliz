@@ -77,7 +77,20 @@ class Settings(BaseSettings):
     # detection — right when one person talks, a guess when two overlap. Three humans already
     # overlap; four would make the transcript unreliable often enough to notice.
     livekit_room_max_participants: int = 4
-    livekit_room_empty_timeout: int = 300   # 5 min (auto-close if no one joins)
+    # How long an empty room survives before LiveKit closes it — and with it, the agent.
+    #
+    # Fifteen seconds, down from five minutes. This is the setting that actually stops an
+    # abandoned Salon costing money: the agent holds a live connection to the realtime model
+    # for as long as its room exists, and a room nobody is in was costing five more minutes of
+    # it every time. LiveKit enforces this itself, at the moment the last participant leaves —
+    # no polling, nothing to miss it.
+    #
+    # The price is paid by a bad connection. Somebody whose phone drops into a tunnel has
+    # fifteen seconds to come back before the Salon is gone, where they used to have five
+    # minutes. That is a real regression for a caller on mobile data, and it is the reason
+    # this is a setting rather than a constant: raise it the moment a dropped call costs more
+    # than the idle minutes it saves.
+    livekit_room_empty_timeout: int = 15
 
     # Invitation join links sent via SMS to non-registered contacts
     salon_web_base_url: str = "https://salon.app"
