@@ -146,3 +146,63 @@ def test_an_overlong_message_is_cut_rather_than_refused():
 
 def test_an_empty_message_does_nothing():
     assert "if not text" in _handler()
+
+
+# ─── A human speaking silences the agent ──────────────────────────────────────
+#
+# The rule is unconditional, and that is the point. It does not wait for the caller to say
+# they would rather talk to a person, and it does not check whether anybody asked: somebody
+# unmuting in a room is somebody about to speak, and two voices answering one caller is worse
+# than either alone.
+
+def test_a_human_unmuting_pauses_the_agent():
+    source = inspect.getsource(salon.entrypoint)
+    assert 'ctx.room.on("track_unmuted"' in source
+    handler = source[source.index("def _on_track_unmuted") :]
+    handler = handler[: handler.index('ctx.room.on("track_unmuted"')]
+    assert "_pause_for_a_human" in handler
+
+
+def test_the_agents_own_track_is_ignored():
+    """The agent unmutes itself when it is resumed. Reacting to that would pause it again a
+    moment after the host let it speak — a control that undoes itself."""
+    source = inspect.getsource(salon.entrypoint)
+    handler = source[source.index("def _on_track_unmuted") :]
+    handler = handler[: handler.index('ctx.room.on("track_unmuted"')]
+    assert 'identity == "agent"' in handler
+
+
+def test_only_audio_counts():
+    """A camera coming on is not somebody about to speak."""
+    source = inspect.getsource(salon.entrypoint)
+    handler = source[source.index("def _on_track_unmuted") :]
+    handler = handler[: handler.index('ctx.room.on("track_unmuted"')]
+    assert "KIND_AUDIO" in handler
+
+
+def test_pausing_for_a_human_is_idempotent():
+    """The event can arrive more than once — a reconnect republishes tracks — and interrupting
+    an agent that is already silent would be a stutter nobody asked for."""
+    source = inspect.getsource(salon.entrypoint)
+    block = source[source.index("def _pause_for_a_human") :]
+    block = block[: block.index("def _on_track_unmuted")]
+    assert 'if paused["value"]:' in block
+    assert "return" in block
+
+
+def test_both_directions_are_cut_and_speech_is_interrupted():
+    """Mid-sentence is exactly when a human takes over, so stopping the output matters as much
+    as stopping the input."""
+    source = inspect.getsource(salon.entrypoint)
+    block = source[source.index("def _pause_for_a_human") :]
+    block = block[: block.index("def _on_track_unmuted")]
+    assert "input.set_audio_enabled(False)" in block
+    assert "output.set_audio_enabled(False)" in block
+    assert "interrupt()" in block
+
+
+def test_the_arrival_asks_whether_to_hand_over():
+    """The caller was promised a signal; being told a human is there without being asked
+    anything leaves them guessing whether to keep talking to a machine."""
+    source = inspect.getsource(salon.entrypoint)
+    assert "would rather speak with the human directly" in source

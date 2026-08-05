@@ -11,7 +11,7 @@ from typing import Annotated, Callable
 
 import httpx
 from dotenv import load_dotenv
-from livekit import agents
+from livekit import agents, rtc
 from livekit.agents import AgentSession, Agent, function_tool, inference
 # RoomOptions is not re-exported at the livekit.agents top level the way RoomInputOptions
 # was, so it has to be imported from its own module.
@@ -1421,15 +1421,47 @@ async def entrypoint(ctx: agents.JobContext):
         try:
             agent_session.generate_reply(
                 instructions=(
-                    "The human call agent has just joined. Tell the caller so, in one short "
-                    "sentence, in their own language — this is the signal you promised them. "
-                    "Then carry on."
+                    "The human call agent has just joined. In their own language, tell the "
+                    "caller so — this is the signal you promised them — and ask whether they "
+                    "would rather speak with the human directly. Two short sentences. Do not "
+                    "explain how any of it works, and do not offer to transfer them anywhere: "
+                    "the human is already in the room and only has to start talking."
                 )
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not announce the desk joining: %s", exc)
 
     ctx.room.on("participant_connected", _on_participant_connected)
+
+    def _pause_for_a_human(reason: str) -> None:
+        """Silence the agent because a person is speaking. Idempotent."""
+        if paused["value"]:
+            return
+        try:
+            agent_session.input.set_audio_enabled(False)
+            agent_session.output.set_audio_enabled(False)
+            agent_session.interrupt()
+            paused["value"] = True
+            logger.info("Paused: %s", reason)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not pause for a human: %s", exc)
+
+    def _on_track_unmuted(publication, participant) -> None:
+        """A human opened their microphone, so the agent closes its own.
+
+        Unconditional, and that is the whole rule. It does not wait for the caller to say they
+        would rather talk to a person, and it does not check whether anybody asked: somebody
+        unmuting in a room is somebody about to speak, and an agent talking over them is the
+        one outcome nobody wants. Two voices answering one caller is worse than either alone.
+        """
+        if getattr(publication, "kind", None) != rtc.TrackKind.KIND_AUDIO:
+            return
+        identity = getattr(participant, "identity", "")
+        if not identity or identity == "agent":
+            return
+        _pause_for_a_human(f"{identity} unmuted their microphone")
+
+    ctx.room.on("track_unmuted", _on_track_unmuted)
 
     await agent_session.start(
         room=ctx.room,
