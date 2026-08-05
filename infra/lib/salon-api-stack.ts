@@ -210,6 +210,25 @@ export class SalonApiStack extends cdk.Stack {
       ],
     });
 
+    // Is xAI answering? Every minute, because the failure is invisible from inside Vocaliz.
+    //
+    // A spent balance, a revoked key and a suspended team all produce the same symptom: the
+    // agent joins a Salon, the room looks normal, and nobody is ever answered. Nothing in the
+    // API errors, so nothing tells anybody. xAI publishes no balance endpoint — /v1/billing,
+    // /v1/credits and /v1/usage all answer 404 — so this probes rather than predicts.
+    //
+    // One email per transition, not per probe. The state lives in service_health precisely so
+    // a bad night sends one message instead of fourteen hundred.
+    new events.Rule(this, 'CheckXaiHealth', {
+      schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
+      description: 'Probe xAI and email the administrator when its answer changes',
+      targets: [
+        new eventTargets.LambdaFunction(migrateFn, {
+          event: events.RuleTargetInput.fromObject({ action: 'check_xai' }),
+        }),
+      ],
+    });
+
     // The participant table, mailed to the administrator — off, on request.
     //
     // It was hourly, on the reasoning that a report is a picture of the whole and an empty

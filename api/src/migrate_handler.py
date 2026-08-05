@@ -84,6 +84,22 @@ def _reset_all_trials() -> dict:
         db.close()
 
 
+def _check_xai() -> dict:
+    """Probe xAI and alert the administrator when the answer has changed.
+
+    Invoked every minute by EventBridge. There is no balance to read — xAI publishes none — so
+    this detects the outage rather than predicting it, and emails only on a transition.
+    """
+    from src.database import SessionLocal
+    from src.services import xai_health
+
+    db = SessionLocal()
+    try:
+        return xai_health.check(db)
+    finally:
+        db.close()
+
+
 def _sweep_expired_sessions() -> dict:
     """Close every session that has outlived its cap, whatever its heartbeats say.
 
@@ -158,6 +174,8 @@ def handler(event, context):
     event = {"action": "reset_trial", "email": "..."} clears metered time for one account.
     event = {"action": "reset_all_trials"} clears it for every account. Named in full because
     it cannot be undone: the seconds it clears are not recorded anywhere else.
+    event = {"action": "check_xai"} probes xAI and alerts on a change of state; EventBridge
+    invokes it every minute.
     event = {"action": "sweep_sessions"} closes sessions past the per-session cap; this is
     what EventBridge invokes every five minutes.
     event = {"action": "invoice_advertisers"} bills every uninvoiced ad broadcast; EventBridge
@@ -176,6 +194,10 @@ def handler(event, context):
     if action == "reset_all_trials":
         result = _reset_all_trials()
         logger.info("reset_all_trials: %s", result)
+        return result
+    if action == "check_xai":
+        result = _check_xai()
+        logger.info("check_xai: %s", result)
         return result
     if action == "sweep_sessions":
         result = _sweep_expired_sessions()
