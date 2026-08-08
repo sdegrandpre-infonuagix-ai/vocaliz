@@ -1,15 +1,13 @@
 # Specs Changelog
 
-Last updated: 2026-07-29T01:42:45.933Z
+Last updated: 2026-08-08T23:50:17.760Z
 
 ## Added
-- brainstorming/brainstorming-session-2026-07-25-10-40-26.md
-- planning-artifacts/architecture.md
-- planning-artifacts/epics.md
-- planning-artifacts/implementation-readiness-report-2026-07-28.md
-- planning-artifacts/prd.md
-- planning-artifacts/product-brief-salon-2026-07-25.md
-- planning-artifacts/ux-design-directions.html
-- planning-artifacts/ux-design-specification.md
-- project-context.md
+- planning-artifacts/product-rule-voice-modes.md
+- planning-artifacts/story-audit-2026-08-08.md
+
+## Modified
+- planning-artifacts/architecture.md (stepsCompleted: [1, 2, 3, 4])
+- planning-artifacts/epics.md (lastValidated: '2026-08-08')
+- planning-artifacts/prd.md (version: 2)
 
