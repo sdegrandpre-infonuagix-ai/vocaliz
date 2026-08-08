@@ -82,7 +82,7 @@ def _query_words(query: str) -> set[str]:
 def publish(
     db: DbSession,
     *,
-    session_id,
+    salon_id,
     shared_by: str,
     url: str,
     summary: str = "",
@@ -143,7 +143,7 @@ def publish(
         if db.get(SharedSourceConsent, (row.id, owner)) is None:
             db.add(
                 SharedSourceConsent(
-                    source_id=row.id, shared_by=owner, session_id=session_id, shared_at=now
+                    source_id=row.id, shared_by=owner, salon_id=salon_id, shared_at=now
                 )
             )
         db.commit()
@@ -151,7 +151,7 @@ def publish(
         return row
     except Exception:  # noqa: BLE001
         db.rollback()
-        logger.warning("Could not publish a source for session %s", session_id, exc_info=True)
+        logger.warning("Could not publish a source for salon %s", salon_id, exc_info=True)
         return None
 
 

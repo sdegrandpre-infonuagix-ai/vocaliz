@@ -1,6 +1,6 @@
 """Reading a string must never take the page down with it.
 
-Reported from a live session as `Cannot read properties of undefined (reading 'roomSub')`.
+Reported from a live salon as `Cannot read properties of undefined (reading 'roomSub')`.
 `T()` indexed `I18N[lang][key]` directly, and `lang` is allowed to name a dictionary that has
 not arrived yet — a stored choice is validated against the sixteen supported languages, not
 against what is loaded. Only English and French ship inline, so for the other fourteen the
@@ -207,7 +207,7 @@ def test_the_microphone_is_asked_for_while_the_click_is_still_warm(page):
 
 @pytest.mark.parametrize(
     "page,handler",
-    [("host.html", "async function createSession()"), ("join.html", "async function joinNow()")],
+    [("host.html", "async function createSalon()"), ("join.html", "async function joinNow()")],
 )
 def test_nothing_is_awaited_before_the_microphone(page, handler):
     """The whole point of the fix is the order. An await placed above this line would spend the
@@ -359,7 +359,7 @@ def test_a_pause_does_not_end_the_dictation():
     assert "'no-speech'" in source
 
 
-def test_the_session_is_restarted_while_the_button_still_says_listening():
+def test_the_salon_is_restarted_while_the_button_still_says_listening():
     """Chrome ends recognition on its own after a stretch of silence. A control that says
     "listening" and is not is worse than one that never worked."""
     source = _source("host.html")
@@ -375,18 +375,18 @@ def test_a_browser_without_a_recogniser_says_so():
 
 # ─── A Salon that outlives the page ──────────────────────────────────────────
 #
-# Reported from a live session: "he added a URL and it ended my session as a guest". The host
-# console set sessionId only at creation, so a reload left a host with a running Salon they
+# Reported from a live salon: "he added a URL and it ended my salon as a guest". The host
+# console set salonId only at creation, so a reload left a host with a running Salon they
 # could not see and a create form they could. Creating from there ends the previous Salon and
-# deletes its room — POST /sessions does that deliberately — and the guests already inside are
+# deletes its room — POST /salons does that deliberately — and the guests already inside are
 # disconnected with no warning to anybody.
 
 def test_the_console_looks_for_a_salon_it_already_has():
     """Without this the page cannot know it is standing in front of a live Salon."""
     source = _source("host.html")
     block = source[source.index("async function signedIn()"):]
-    block = block[: block.index("var pendingSession")]
-    assert "api('/sessions')" in block
+    block = block[: block.index("var pendingSalon")]
+    assert "api('/salons')" in block
     assert "'active'" in block and "'host'" in block
 
 
@@ -395,7 +395,7 @@ def test_an_open_salon_is_offered_before_a_new_one():
     option the familiar one."""
     source = _source("host.html")
     block = source[source.index("async function signedIn()"):]
-    block = block[: block.index("var pendingSession")]
+    block = block[: block.index("var pendingSalon")]
     resume = block.index("show('c-resume', true)")
     # The only create-form reveal in this function is the early return for "no Salon open".
     assert block.index("show('c-create', true)") < block.index("if (!open)") + 200
@@ -413,7 +413,7 @@ def test_rejoining_asks_for_the_microphone_inside_the_click():
     """Entering a Salon needs a microphone. Asking on page load spends a permission nobody
     granted by arriving, and iOS Safari refuses it outside the gesture anyway."""
     source = _source("host.html")
-    block = source[source.index("async function resumeSession()"):]
+    block = source[source.index("async function resumeSalon()"):]
     block = block[: block.index("function startInstead")]
     assert block.index("warmUpMicrophone()") < block.index("joinRoom()")
 
@@ -423,5 +423,5 @@ def test_a_history_that_cannot_be_read_still_lets_the_host_work():
     refuses to do anything because one request failed."""
     source = _source("host.html")
     block = source[source.index("async function signedIn()"):]
-    block = block[: block.index("var pendingSession")]
+    block = block[: block.index("var pendingSalon")]
     assert "catch" in block and "open = null" in block

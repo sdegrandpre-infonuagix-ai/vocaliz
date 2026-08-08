@@ -7,7 +7,7 @@
  * already here and answer well enough.
  *
  * A category, never a device model or a user agent. The model plus the OS build identifies
- * somebody across sessions; the shape of their screen does not.
+ * somebody across salons; the shape of their screen does not.
  */
 import { Dimensions, Platform } from 'react-native';
 

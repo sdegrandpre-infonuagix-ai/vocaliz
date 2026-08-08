@@ -1,4 +1,4 @@
-"""Tests for session creation endpoint."""
+"""Tests for salon creation endpoint."""
 import io
 import pytest
 from unittest.mock import AsyncMock, patch
@@ -18,21 +18,21 @@ def user(db):
 
 # ─── Auth guard ─────────────────────────────────────────────────────────────
 
-def test_create_session_requires_auth(client):
-    response = client.post("/sessions", data={"source_url": "https://example.com"})
+def test_create_salon_requires_auth(client):
+    response = client.post("/salons", data={"source_url": "https://example.com"})
     assert response.status_code == 401
 
 
-# ─── Source-less session ─────────────────────────────────────────────────────
+# ─── Source-less salon ─────────────────────────────────────────────────────
 
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
-@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-test")
-def test_create_session_no_source(mock_name, mock_token, mock_room, client, user):
-    """A session may start with no document and no URL — the agent then asks the
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_create_salon_no_source(mock_name, mock_token, mock_room, client, user):
+    """A salon may start with no document and no URL — the agent then asks the
     participants what they want to discuss."""
     _, token = user
-    response = client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
+    response = client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 201
     body = response.json()
     assert body["sourceType"] == "none"
@@ -40,45 +40,45 @@ def test_create_session_no_source(mock_name, mock_token, mock_room, client, user
     assert body["hostToken"] == "tok"
 
 
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
-@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-test")
-def test_create_session_no_source_persists_empty_content(
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_create_salon_no_source_persists_empty_content(
     mock_name, mock_token, mock_room, client, db, user
 ):
     """No source means no extracted content to inject into the agent prompt."""
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
     _, token = user
-    client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
-    session = db.query(SessionModel).first()
-    assert session.source_type == "none"
-    assert session.source_content is None
-    assert session.source_url is None
-    assert session.source_filename is None
+    client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
+    salon = db.query(Salon).first()
+    assert salon.source_type == "none"
+    assert salon.source_content is None
+    assert salon.source_url is None
+    assert salon.source_filename is None
 
 
 # ─── Agent dispatch ──────────────────────────────────────────────────────────
 
-@patch("src.routers.sessions.livekit_service.dispatch_agent", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
-@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-test")
-def test_create_session_dispatches_agent_with_context(
+@patch("src.routers.salons.livekit_service.dispatch_agent", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_create_salon_dispatches_agent_with_context(
     mock_name, mock_token, mock_room, mock_dispatch, client, user
 ):
-    """The agent is useless without session context, so creation must dispatch it.
+    """The agent is useless without salon context, so creation must dispatch it.
 
     Passing the context through job metadata (not room metadata) keeps the host token
     away from participants.
     """
     _, token = user
-    response = client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
+    response = client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 201
 
     mock_dispatch.assert_awaited_once()
     kwargs = mock_dispatch.await_args.kwargs
     assert mock_dispatch.await_args.args[0] == "salon-test"
-    assert kwargs["session_id"] == response.json()["sessionId"]
+    assert kwargs["salon_id"] == response.json()["salonId"]
 
     # Must be a Salon API JWT for the host, not the LiveKit participant token: the agent
     # authenticates against our REST API with it.
@@ -101,7 +101,7 @@ async def test_dispatch_agent_swallows_livekit_failure(mock_api):
 
     mock_api.side_effect = RuntimeError("livekit unreachable")
     assert await livekit_service.dispatch_agent(
-        "salon-test", session_id="s1", host_token="tok"
+        "salon-test", salon_id="s1", host_token="tok"
     ) is None
 
 
@@ -118,18 +118,18 @@ async def test_notify_room_swallows_livekit_failure(mock_api):
 
 # ─── URL source ──────────────────────────────────────────────────────────────
 
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="lk-tok")
-@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-abc")
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="lk-tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-abc")
 @patch(
-    "src.routers.sessions.content_service.fetch_url_document",
+    "src.routers.salons.content_service.fetch_url_document",
     new_callable=AsyncMock,
     return_value=("Article text.", {"article_date": "", "author": "", "publisher": ""}),
 )
-def test_create_session_url_success(mock_content, mock_name, mock_token, mock_room, client, user, db):
+def test_create_salon_url_success(mock_content, mock_name, mock_token, mock_room, client, user, db):
     _, token = user
     response = client.post(
-        "/sessions",
+        "/salons",
         data={"source_url": "https://example.com/article"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -138,43 +138,43 @@ def test_create_session_url_success(mock_content, mock_name, mock_token, mock_ro
     assert data["livekitRoomName"] == "salon-abc"
     assert data["hostToken"] == "lk-tok"
     assert data["sourceType"] == "url"
-    assert "sessionId" in data
+    assert "salonId" in data
     assert "createdAt" in data
 
-    from src.models.session import SessionModel
-    session = db.query(SessionModel).first()
-    assert session.source_url == "https://example.com/article"
-    assert session.source_content == "Article text."
+    from src.models.salon import Salon
+    salon = db.query(Salon).first()
+    assert salon.source_url == "https://example.com/article"
+    assert salon.source_content == "Article text."
 
 
 # ─── Document upload ─────────────────────────────────────────────────────────
 
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="lk-tok")
-@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-doc")
-def test_create_session_txt_upload(mock_name, mock_token, mock_room, client, user, db):
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="lk-tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-doc")
+def test_create_salon_txt_upload(mock_name, mock_token, mock_room, client, user, db):
     _, token = user
     response = client.post(
-        "/sessions",
+        "/salons",
         files={"file": ("test.txt", io.BytesIO(b"Plain text content."), "text/plain")},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
     assert response.json()["sourceType"] == "document"
 
-    from src.models.session import SessionModel
-    session = db.query(SessionModel).first()
-    assert session.source_filename == "test.txt"
-    assert session.source_content == "Plain text content."
+    from src.models.salon import Salon
+    salon = db.query(Salon).first()
+    assert salon.source_filename == "test.txt"
+    assert salon.source_content == "Plain text content."
 
 
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
-@patch("src.routers.sessions.livekit_service.new_room_name", return_value="salon-bad")
-def test_create_session_unsupported_file_type(mock_name, mock_token, mock_room, client, user):
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-bad")
+def test_create_salon_unsupported_file_type(mock_name, mock_token, mock_room, client, user):
     _, token = user
     response = client.post(
-        "/sessions",
+        "/salons",
         files={"file": ("test.docx", io.BytesIO(b"data"), "application/vnd.openxmlformats")},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -219,63 +219,63 @@ async def test_fetch_url_rejects_ssrf_link_local():
     assert exc_info.value.status_code == 400
 
 
-# ─── One open session per host ───────────────────────────────────────────────
+# ─── One open salon per host ───────────────────────────────────────────────
 
 @patch("src.services.livekit_service.delete_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
-def test_creating_a_session_closes_the_previous_one(
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+def test_creating_a_salon_closes_the_previous_one(
     mock_token, mock_room, mock_delete, client, db, user
 ):
-    """A host may never hold two open sessions.
+    """A host may never hold two open salons.
 
-    A stale session keeps its agent alive and talking, so joining the new room could
+    A stale salon keeps its agent alive and talking, so joining the new room could
     surface the previous agent — the failure this rule exists to prevent.
     """
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
 
     _, token = user
     headers = {"Authorization": f"Bearer {token}"}
 
-    first = client.post("/sessions", data={}, headers=headers).json()["sessionId"]
-    second = client.post("/sessions", data={}, headers=headers).json()["sessionId"]
+    first = client.post("/salons", data={}, headers=headers).json()["salonId"]
+    second = client.post("/salons", data={}, headers=headers).json()["salonId"]
     assert first != second
 
     db.expire_all()
-    sessions = {str(s.id): s.status for s in db.query(SessionModel).all()}
-    assert sessions[first] == "ended"
-    assert sessions[second] == "active"
+    salons = {str(s.id): s.status for s in db.query(Salon).all()}
+    assert salons[first] == "ended"
+    assert salons[second] == "active"
 
 
 @patch("src.services.livekit_service.delete_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
 def test_previous_room_is_deleted_not_just_marked_ended(
     mock_token, mock_room, mock_delete, client, db, user
 ):
     """Deleting the room is what stops the old agent; the row only settles accounting."""
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
 
     _, token = user
     headers = {"Authorization": f"Bearer {token}"}
 
-    client.post("/sessions", data={}, headers=headers)
-    first_room = db.query(SessionModel).first().livekit_room_name
+    client.post("/salons", data={}, headers=headers)
+    first_room = db.query(Salon).first().livekit_room_name
 
-    client.post("/sessions", data={}, headers=headers)
+    client.post("/salons", data={}, headers=headers)
 
     mock_delete.assert_awaited()
     assert first_room in [call.args[0] for call in mock_delete.await_args_list]
 
 
 @patch("src.services.livekit_service.delete_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.create_room", new_callable=AsyncMock)
-@patch("src.routers.sessions.livekit_service.generate_participant_token", return_value="tok")
-def test_another_host_session_is_left_alone(
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+def test_another_host_salon_is_left_alone(
     mock_token, mock_room, mock_delete, client, db, user
 ):
-    """Cleanup is scoped to the caller: it must never close someone else's session."""
-    from src.models.session import SessionModel
+    """Cleanup is scoped to the caller: it must never close someone else's salon."""
+    from src.models.salon import Salon
     from src.models.user import User
     from src.services.jwt_service import issue_token
 
@@ -283,7 +283,7 @@ def test_another_host_session_is_left_alone(
     db.add(other)
     db.commit()
     db.refresh(other)
-    theirs = SessionModel(
+    theirs = Salon(
         host_user_id=other.id,
         livekit_room_name="salon-theirs",
         source_type="none",
@@ -293,7 +293,7 @@ def test_another_host_session_is_left_alone(
     db.commit()
 
     _, token = user
-    client.post("/sessions", data={}, headers={"Authorization": f"Bearer {token}"})
+    client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
 
     db.expire(theirs)
     db.refresh(theirs)
@@ -361,7 +361,7 @@ def test_a_phone_invitation_is_still_accepted_while_the_field_is_hidden(client, 
     """
     from unittest.mock import patch
 
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
     from src.models.user import User
     from src.services import sms_service
     from src.services.jwt_service import issue_token
@@ -370,7 +370,7 @@ def test_a_phone_invitation_is_still_accepted_while_the_field_is_hidden(client, 
     db.add(user)
     db.commit()
     db.refresh(user)
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-flag",
         source_type="url",
@@ -383,7 +383,7 @@ def test_a_phone_invitation_is_still_accepted_while_the_field_is_hidden(client, 
 
     with patch.object(sms_service, "send_invitation_sms", return_value=True):
         response = client.post(
-            f"/sessions/{sess.id}/invitations",
+            f"/salons/{sess.id}/invitations",
             json={"guestPhone": "+15145550123"},
             headers={"Authorization": f"Bearer {issue_token(str(user.id))}"},
         )

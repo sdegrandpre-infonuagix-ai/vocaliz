@@ -1,5 +1,5 @@
 /**
- * Session creation screen — host enters a URL or uploads a document to start a session (FR1).
+ * Salon creation screen — host enters a URL or uploads a document to start a salon (FR1).
  * Palette: Salon Parisien. WCAG AA touch targets and ARIA labels.
  */
 import React, { useState } from 'react';
@@ -24,13 +24,13 @@ import Wordmark from '../components/Wordmark';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { createSessionFromUrl, createSessionWithoutSource } from '../services/sessionsApi';
+import { createSalonFromUrl, createSalonWithoutSource } from '../services/salonsApi';
 
 interface Props {
-  onSessionCreated?: (sessionId: string, roomName: string, hostToken: string) => void;
+  onSalonCreated?: (salonId: string, roomName: string, hostToken: string) => void;
 }
 
-export default function SessionCreationScreen({ onSessionCreated }: Props) {
+export default function SalonCreationScreen({ onSalonCreated }: Props) {
   const [sourceUrl, setSourceUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,16 +39,16 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
 
   const isValidUrl = /^https?:\/\/.+/.test(sourceUrl.trim());
 
-  /** Creates the session, then hands it to the caller. `create` chooses the source mode. */
-  async function runCreate(create: () => Promise<Awaited<ReturnType<typeof createSessionFromUrl>>>) {
+  /** Creates the salon, then hands it to the caller. `create` chooses the source mode. */
+  async function runCreate(create: () => Promise<Awaited<ReturnType<typeof createSalonFromUrl>>>) {
     if (!token) return;
     setIsLoading(true);
     setError(null);
     try {
-      const session = await create();
-      onSessionCreated?.(session.sessionId, session.livekitRoomName, session.hostToken);
+      const salon = await create();
+      onSalonCreated?.(salon.salonId, salon.livekitRoomName, salon.hostToken);
     } catch (e: any) {
-      setError(e.message ?? t.session.errorGeneric);
+      setError(e.message ?? t.salon.errorGeneric);
     } finally {
       setIsLoading(false);
     }
@@ -56,12 +56,12 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
 
   function handleCreate() {
     if (!isValidUrl) return;
-    return runCreate(() => createSessionFromUrl(token!, sourceUrl.trim()));
+    return runCreate(() => createSalonFromUrl(token!, sourceUrl.trim()));
   }
 
   // No document, no URL — the agent opens by asking what to discuss.
   function handleCreateWithoutSource() {
-    return runCreate(() => createSessionWithoutSource(token!));
+    return runCreate(() => createSalonWithoutSource(token!));
   }
 
   return (
@@ -89,19 +89,19 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
 
         {/* ── Header ── */}
         <Text style={styles.title} accessibilityRole="header">
-          {t.session.title}
+          {t.salon.title}
         </Text>
         {/* What the platform is. Repeated here because a host who signed in on a previous
             run never passes the entry screen again. */}
         <Text style={styles.whatIs}>{t.whatIsVocaliz}</Text>
 
         <Text style={styles.subtitle}>
-          {t.session.subtitle}
+          {t.salon.subtitle}
         </Text>
 
         {/* ── URL input ── */}
         <Text style={styles.label} accessibilityElementsHidden>
-          {t.session.urlLabel}
+          {t.salon.urlLabel}
         </Text>
         <TextInput
           style={[styles.input, error ? styles.inputError : null]}
@@ -113,8 +113,8 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
           autoCapitalize="none"
           autoCorrect={false}
           textContentType="URL"
-          accessibilityLabel={t.session.urlInputLabel}
-          accessibilityHint={t.session.urlInputHint}
+          accessibilityLabel={t.salon.urlInputLabel}
+          accessibilityHint={t.salon.urlInputHint}
         />
 
         {/* ── Error ── */}
@@ -134,35 +134,35 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
           onPress={handleCreate}
           disabled={!isValidUrl || isLoading}
           accessibilityRole="button"
-          accessibilityLabel={t.session.startButton}
+          accessibilityLabel={t.salon.startButton}
           accessibilityState={{ disabled: !isValidUrl || isLoading, busy: isLoading }}
         >
           {isLoading ? (
             <ActivityIndicator color={colors.ivory} />
           ) : (
-            <Text style={styles.buttonText}>{t.session.startButton}</Text>
+            <Text style={styles.buttonText}>{t.salon.startButton}</Text>
           )}
         </Pressable>
 
         {/* ── Divider ── */}
         <View style={styles.dividerRow} accessibilityElementsHidden>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>{t.session.or}</Text>
+          <Text style={styles.dividerText}>{t.salon.or}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         {/* ── Document upload placeholder (file picker added with expo-document-picker in Story 2.3) ── */}
         <Pressable
           style={styles.uploadButton}
-          onPress={() => Alert.alert(t.session.uploadComingSoonTitle, t.session.uploadComingSoonMsg)}
+          onPress={() => Alert.alert(t.salon.uploadComingSoonTitle, t.salon.uploadComingSoonMsg)}
           accessibilityRole="button"
-          accessibilityLabel={t.session.uploadButtonLabel}
-          accessibilityHint={t.session.uploadButtonHint}
+          accessibilityLabel={t.salon.uploadButtonLabel}
+          accessibilityHint={t.salon.uploadButtonHint}
         >
-          <Text style={styles.uploadButtonText}>{t.session.uploadButton}</Text>
+          <Text style={styles.uploadButtonText}>{t.salon.uploadButton}</Text>
         </Pressable>
 
-        {/* ── Source-less session: the agent asks what to discuss ── */}
+        {/* ── Source-less salon: the agent asks what to discuss ── */}
         <Pressable
           style={({ pressed }) => [
             styles.noSourceButton,
@@ -172,11 +172,11 @@ export default function SessionCreationScreen({ onSessionCreated }: Props) {
           onPress={handleCreateWithoutSource}
           disabled={isLoading}
           accessibilityRole="button"
-          accessibilityLabel={t.session.noSourceButtonLabel}
-          accessibilityHint={t.session.noSourceButtonHint}
+          accessibilityLabel={t.salon.noSourceButtonLabel}
+          accessibilityHint={t.salon.noSourceButtonHint}
           accessibilityState={{ disabled: isLoading, busy: isLoading }}
         >
-          <Text style={styles.noSourceButtonText}>{t.session.noSourceButton}</Text>
+          <Text style={styles.noSourceButtonText}>{t.salon.noSourceButton}</Text>
         </Pressable>
         <PoweredBy />
       </ScrollView>

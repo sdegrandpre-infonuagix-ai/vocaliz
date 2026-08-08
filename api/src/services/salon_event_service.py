@@ -2,7 +2,7 @@
 
 Every write here is best-effort. This is an observation record, not part of the
 conversation: a failure to note that someone arrived must never keep them out of the
-room, and a failure to note that they left must never block a session from closing.
+room, and a failure to note that they left must never block a salon from closing.
 """
 import logging
 import uuid
@@ -153,7 +153,7 @@ def record_entry(
 def record_salon_exit(db: DbSession, salon_name: str, *, enjoyed: bool | None = None) -> int:
     """Close every open participation in a salon, and record the closing answer.
 
-    Called when the session ends, which is the only moment the API reliably learns that
+    Called when the salon ends, which is the only moment the API reliably learns that
     everyone is gone — a guest who closes their tab tells nobody. Rows already closed are
     left alone so a second call cannot move an exit time.
 
@@ -280,7 +280,7 @@ def record_upload(
     """Note a source given to a salon's agent, and what it weighed.
 
     Accounting only: nothing reads this back during a conversation. It exists because the
-    schema records sources in two places — the sessions row and session_sources — and
+    schema records sources in two places — the salons row and salon_sources — and
     measures them in neither.
 
     Best-effort. Failing to note a source must not stop the agent from receiving it.

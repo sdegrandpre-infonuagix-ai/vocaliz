@@ -27,7 +27,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 interface Props {
   /** Called when the driver taps to come back. */
   onExit: () => void;
-  /** Ends the session outright, without leaving driving mode first. */
+  /** Ends the salon outright, without leaving driving mode first. */
   onLeave: () => void;
 }
 

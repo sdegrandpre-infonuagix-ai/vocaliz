@@ -116,12 +116,12 @@ def _check_xai() -> dict:
         db.close()
 
 
-def _sweep_expired_sessions() -> dict:
-    """Close every session that has outlived its cap, whatever its heartbeats say.
+def _sweep_expired_salons() -> dict:
+    """Close every salon that has outlived its cap, whatever its heartbeats say.
 
     Runs on a schedule rather than on a request, because the thing it fixes is the absence
-    of requests: the per-session cap used to be evaluated only when a heartbeat arrived, so
-    a host who closed their laptop left a session active for good — with its telephone code
+    of requests: the per-salon cap used to be evaluated only when a heartbeat arrived, so
+    a host who closed their laptop left a salon active for good — with its telephone code
     reserved and its metered time never settled.
 
     Carried by this function rather than a new one: it already has database access, already
@@ -131,12 +131,12 @@ def _sweep_expired_sessions() -> dict:
     import asyncio
 
     from src.database import SessionLocal
-    from src.services import session_lifecycle
+    from src.services import salon_lifecycle
 
     db = SessionLocal()
     try:
-        closed = asyncio.run(session_lifecycle.close_expired_sessions(db))
-        return {"status": "ok", "closed": len(closed), "sessionIds": closed}
+        closed = asyncio.run(salon_lifecycle.close_expired_salons(db))
+        return {"status": "ok", "closed": len(closed), "salonIds": closed}
     finally:
         db.close()
 
@@ -152,7 +152,7 @@ def _invoice_advertisers() -> dict:
     Idempotent by construction: a broadcast is marked the instant its invoice line exists, so a
     run interrupted halfway bills nothing twice and leaves nothing behind.
 
-    Carried here for the same reason as the session sweep — this function already has database
+    Carried here for the same reason as the salon sweep — this function already has database
     access and already sits behind IAM.
     """
     from src.database import SessionLocal
@@ -182,6 +182,23 @@ def _seed_house_ads() -> dict:
         db.close()
 
 
+def _backfill_stripe_namespace(apply: bool) -> dict:
+    """Move metadata on existing Stripe objects into the `vocaliz_` namespace.
+
+    A one-off, but written as an action rather than a local script: it needs the Stripe
+    key and the database, and both are reachable from inside the VPC and nowhere else.
+    Idempotent and resumable, so re-running after a partial run is the ordinary fix.
+    """
+    from src.database import SessionLocal
+    from src.services import stripe_backfill
+
+    db = SessionLocal()
+    try:
+        return stripe_backfill.run(db, apply=apply)
+    finally:
+        db.close()
+
+
 def handler(event, context):
     """Run `alembic upgrade head`, or a named maintenance action.
 
@@ -192,10 +209,13 @@ def handler(event, context):
     it cannot be undone: the seconds it clears are not recorded anywhere else.
     event = {"action": "check_xai"} probes xAI and alerts on a change of state; EventBridge
     invokes it every minute.
-    event = {"action": "sweep_sessions"} closes sessions past the per-session cap; this is
+    event = {"action": "sweep_salons"} closes salons past the per-salon cap; this is
     what EventBridge invokes every five minutes.
     event = {"action": "invoice_advertisers"} bills every uninvoiced ad broadcast; EventBridge
     invokes it daily.
+    event = {"action": "backfill_stripe_namespace"} reports what metadata on existing Stripe
+    objects would move into the vocaliz_ namespace; add "apply": true to write it. Nothing
+    schedules this — it is a one-off, run by hand, and safe to repeat.
     Any other event runs migrations.
     """
     action = (event or {}).get("action")
@@ -215,9 +235,9 @@ def handler(event, context):
         result = _check_xai()
         _report(f"check_xai: {result}")
         return result
-    if action == "sweep_sessions":
-        result = _sweep_expired_sessions()
-        _report(f"sweep_sessions: {result}")
+    if action == "sweep_salons":
+        result = _sweep_expired_salons()
+        _report(f"sweep_salons: {result}")
         return result
     if action == "seed_house_ads":
         result = _seed_house_ads()
@@ -226,6 +246,11 @@ def handler(event, context):
     if action == "invoice_advertisers":
         result = _invoice_advertisers()
         _report(f"invoice_advertisers: {result}")
+        return result
+    if action == "backfill_stripe_namespace":
+        # Writes to live billing records only when asked in full. The default reports.
+        result = _backfill_stripe_namespace(apply=bool(event.get("apply")))
+        _report(f"backfill_stripe_namespace: {result}")
         return result
 
     # settings resolves DATABASE_URL from the Aurora secret; import after env is in place.

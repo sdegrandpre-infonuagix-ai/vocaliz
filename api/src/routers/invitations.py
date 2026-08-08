@@ -9,7 +9,7 @@ from src.config import settings
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.invitation import Invitation
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.schemas.invitation import (
     GeoBody,
@@ -31,17 +31,17 @@ from src.services import (
     utterance_service,
 )
 
-router = APIRouter(prefix="/sessions", tags=["invitations"])
+router = APIRouter(prefix="/salons", tags=["invitations"])
 guest_router = APIRouter(prefix="/invitations", tags=["guest"])
 
 
 @router.post(
-    "/{session_id}/invitations/anonymous",
+    "/{salon_id}/invitations/anonymous",
     response_model=InvitationResponse,
     status_code=201,
 )
 def create_anonymous_invitation(
-    session_id: str,
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -52,28 +52,28 @@ def create_anonymous_invitation(
     an address and left the field blank should be told, not handed a link to a stranger.
     """
     return invitation_service.invite_anonymously(
-        session_id=session_id, host_user=current_user, db=db
+        salon_id=salon_id, host_user=current_user, db=db
     )
 
 
-@router.post("/{session_id}/invitations", response_model=InvitationResponse, status_code=201)
+@router.post("/{salon_id}/invitations", response_model=InvitationResponse, status_code=201)
 def create_invitation(
-    session_id: str,
+    salon_id: str,
     body: InviteGuestBody,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
         result = invitation_service.invite_guest(
-            session_id=session_id,
+            salon_id=salon_id,
             host_user=current_user,
             guest_email=body.guestEmail,
             guest_phone=body.guestPhone,
             db=db,
         )
     except ValueError as exc:
-        if str(exc) == "session_not_found":
-            raise HTTPException(status_code=404, detail="Session not found or access denied")
+        if str(exc) == "salon_not_found":
+            raise HTTPException(status_code=404, detail="Salon not found or access denied")
         if str(exc) == "contact_required":
             raise HTTPException(
                 status_code=400,
@@ -88,9 +88,9 @@ def create_invitation(
     return result
 
 
-@router.post("/{session_id}/invitations/{invitation_id}/email", status_code=200)
+@router.post("/{salon_id}/invitations/{invitation_id}/email", status_code=200)
 def resend_invitation_email(
-    session_id: str,
+    salon_id: str,
     invitation_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -104,7 +104,7 @@ def resend_invitation_email(
 
 
 @guest_router.get("/guest-join/{join_token}", response_model=GuestJoinResponse)
-def guest_join_session(
+def guest_join_salon(
     join_token: str,
     db: DbSession = Depends(get_db),
 ):
@@ -141,11 +141,11 @@ def guest_join_session(
     if expires < now:
         raise HTTPException(status_code=410, detail="This link has expired.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == invitation.session_id,
+    salon = db.query(Salon).filter(
+        Salon.id == invitation.salon_id,
     ).first()
-    if not session or session.status != "active":
-        raise HTTPException(status_code=410, detail="This session is no longer available.")
+    if not salon or salon.status != "active":
+        raise HTTPException(status_code=410, detail="This salon is no longer available.")
 
     # Derived from the invitation instead of random. The old `guest-<8 hex>` was minted
     # here and stored nowhere, so no part of Salon could name a specific guest — messages
@@ -159,7 +159,7 @@ def guest_join_session(
     # nothing by it.
     guest_id = livekit_service.identity_for(invitation)
     token = livekit_service.generate_participant_token(
-        room_name=session.livekit_room_name,
+        room_name=salon.livekit_room_name,
         user_id=guest_id,
         # Every guest used to carry the same fixed label, which made them addressable but
         # still indistinguishable — on screen and to the agent alike. The label carries a
@@ -171,9 +171,9 @@ def guest_join_session(
 
     return GuestJoinResponse(
         participantToken=token,
-        livekitRoomName=session.livekit_room_name,
+        livekitRoomName=salon.livekit_room_name,
         livekitUrl=livekit_service._http_url(),
-        sessionId=str(session.id),
+        salonId=str(salon.id),
         participantIdentity=guest_id,
         participantName=livekit_service.guest_display_name(invitation.id),
     )
@@ -209,10 +209,10 @@ def confirm_guest_join(
 
     # Recorded here rather than when the credentials were fetched: this is the first
     # moment the guest is genuinely present — microphone working, able to be heard.
-    session = db.query(SessionModel).filter(
-        SessionModel.id == invitation.session_id,
+    salon = db.query(Salon).filter(
+        Salon.id == invitation.salon_id,
     ).first()
-    if session is not None:
+    if salon is not None:
         salon_event_service.record_entry(
             db,
             # Derived from the invitation, exactly as this guest's LiveKit token is. It is what
@@ -225,7 +225,7 @@ def confirm_guest_join(
             email=invitation.guest_email or "",
             phone=invitation.guest_phone or "",
             user_type="guest",
-            salon_name=session.livekit_room_name,
+            salon_name=salon.livekit_room_name,
             latitude=body.latitude if body else None,
             longitude=body.longitude if body else None,
             # The client's own answer when it gave one, the header only as a fallback: an iPad
@@ -271,10 +271,10 @@ def guest_transcript(
     the language being used, and the guest often does not.
 
     Authenticated by the join token, which is the same credential that let them into the room —
-    no weaker, and the only one they hold. A guest has no API session, so requiring the host's
+    no weaker, and the only one they hold. A guest has no API salon, so requiring the host's
     would mean the feature could never reach them.
 
-    Bounded to the guest's own salon: the token names one invitation, which names one session.
+    Bounded to the guest's own salon: the token names one invitation, which names one salon.
     """
     invitation = db.query(Invitation).filter(Invitation.join_token == join_token).first()
     if invitation is None:
@@ -283,19 +283,19 @@ def guest_transcript(
     # Expiry is not checked. A conversation in progress outliving its invitation window is
     # possible, and cutting a participant's captions mid-sentence over a timestamp would be a
     # strange way to enforce it — the room membership is what governs whether they are present.
-    session = db.query(SessionModel).filter(
-        SessionModel.id == invitation.session_id,
+    salon = db.query(Salon).filter(
+        Salon.id == invitation.salon_id,
     ).first()
-    if session is None:
-        raise HTTPException(status_code=404, detail="Session not found.")
+    if salon is None:
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
     return {
-        "sessionId": str(session.id),
+        "salonId": str(salon.id),
         # Echoed so a client can tell which language it is looking at: requests can land out of
         # order, and a stale reply must not overwrite a newer choice.
         "language": lang,
         "utterances": utterance_service.transcript(
-            db, session_id=session.id, language=lang, after=after
+            db, salon_id=salon.id, language=lang, after=after
         ),
     }
 
@@ -324,15 +324,15 @@ def dial_in(code: str, db: DbSession = Depends(get_db)):
         # them would let anybody sweep the six-digit space and learn which salons exist.
         raise HTTPException(status_code=404, detail="No Salon is reachable with that code.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == invitation.session_id,
+    salon = db.query(Salon).filter(
+        Salon.id == invitation.salon_id,
     ).first()
-    if not session or session.status != "active":
+    if not salon or salon.status != "active":
         raise HTTPException(status_code=404, detail="No Salon is reachable with that code.")
 
     caller_id = livekit_service.identity_for(invitation)
     token = livekit_service.generate_participant_token(
-        room_name=session.livekit_room_name,
+        room_name=salon.livekit_room_name,
         user_id=caller_id,
         display_name=livekit_service.guest_display_name(invitation.id),
         can_publish=True,
@@ -347,7 +347,7 @@ def dial_in(code: str, db: DbSession = Depends(get_db)):
         email=invitation.guest_email or "",
         phone=invitation.guest_phone or "",
         user_type="guest",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         latitude=None,
         longitude=None,
         first_spoken_language="",
@@ -356,9 +356,9 @@ def dial_in(code: str, db: DbSession = Depends(get_db)):
 
     return GuestJoinResponse(
         participantToken=token,
-        livekitRoomName=session.livekit_room_name,
+        livekitRoomName=salon.livekit_room_name,
         livekitUrl=livekit_service._http_url(),
-        sessionId=str(session.id),
+        salonId=str(salon.id),
         participantIdentity=caller_id,
         participantName=livekit_service.guest_display_name(invitation.id),
     )
@@ -397,7 +397,7 @@ async def call_the_desk(
     room_name = livekit_service.new_room_name()
     await livekit_service.create_room(room_name)
 
-    session = SessionModel(
+    salon = Salon(
         host_user_id=desk.id,
         livekit_room_name=room_name,
         # No source. A caller rings about whatever they are ringing about, and a Salon built
@@ -417,23 +417,23 @@ async def call_the_desk(
         # silence would leave somebody who just rang listening to nothing at all.
         agent_muted=False,
     )
-    db.add(session)
+    db.add(salon)
     db.commit()
-    db.refresh(session)
+    db.refresh(salon)
 
     await livekit_service.dispatch_agent(
         room_name,
-        session_id=str(session.id),
+        salon_id=str(salon.id),
         host_token=jwt_service.issue_token(str(desk.id)),
     )
 
     caller = invitation_service.invite_anonymously(
-        session_id=str(session.id), host_user=desk, db=db
+        salon_id=str(salon.id), host_user=desk, db=db
     )
     # Mailed, which is the point of this one. A failure to send is logged inside the service
     # and costs the notification, never the call — the caller is already in the room.
     invitation_service.invite_guest(
-        session_id=str(session.id),
+        salon_id=str(salon.id),
         host_user=desk,
         guest_email=settings.front_desk_email,
         guest_phone="",
@@ -475,7 +475,7 @@ async def call_the_desk(
         ),
         livekitRoomName=room_name,
         livekitUrl=livekit_service._http_url(),
-        sessionId=str(session.id),
+        salonId=str(salon.id),
         participantIdentity=caller_id,
         participantName=livekit_service.guest_display_name(invitation.id),
     )

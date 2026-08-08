@@ -2,8 +2,8 @@ from pydantic import BaseModel, field_validator
 import re
 
 
-class SessionInvitationSummary(BaseModel):
-    """Summary of the partner auto-invited when a session is quick-started (Story 5.2)."""
+class SalonInvitationSummary(BaseModel):
+    """Summary of the partner auto-invited when a salon is quick-started (Story 5.2)."""
     invitationId: str
     invitationType: str   # 'salon_friend' | 'email_contact'
     guestEmail: str
@@ -11,18 +11,18 @@ class SessionInvitationSummary(BaseModel):
     joinLink: str | None = None
 
 
-class SessionResponse(BaseModel):
-    sessionId: str
+class SalonResponse(BaseModel):
+    salonId: str
     livekitRoomName: str
     hostToken: str
     sourceType: str
     createdAt: str
     # Present only when a previous partner was auto-invited at creation (quick-start).
-    invitation: SessionInvitationSummary | None = None
+    invitation: SalonInvitationSummary | None = None
 
 
 class AddSourceBody(BaseModel):
-    """Body for adding an additional source to an active session (Story 2.3)."""
+    """Body for adding an additional source to an active salon (Story 2.3)."""
     sourceUrl: str | None = None
 
     @field_validator("sourceUrl")
@@ -35,15 +35,15 @@ class AddSourceBody(BaseModel):
         return v
 
 
-class SessionSourceResponse(BaseModel):
+class SalonSourceResponse(BaseModel):
     sourceId: str
-    sessionId: str
+    salonId: str
     sourceType: str       # 'url' | 'document'
     contentLength: int    # characters of extracted plain text
     createdAt: str
 
 
-class SessionSourceSummary(BaseModel):
+class SalonSourceSummary(BaseModel):
     sourceId: str
     sourceType: str
     sourceUrl: str | None = None
@@ -53,8 +53,8 @@ class SessionSourceSummary(BaseModel):
     createdAt: str
 
 
-class SessionDetailResponse(BaseModel):
-    sessionId: str
+class SalonDetailResponse(BaseModel):
+    salonId: str
     livekitRoomName: str
     sourceType: str
     sourceUrl: str | None
@@ -62,7 +62,7 @@ class SessionDetailResponse(BaseModel):
     # The brief the agent works from. sourceContent stays available for search, but it is
     # this that goes into the prompt.
     sourceSummary: str | None = None
-    additionalSources: list[SessionSourceSummary]
+    additionalSources: list[SalonSourceSummary]
     status: str
     createdAt: str
     # Read by the agent at start-up, which is the only way it can know it is joining a salon
@@ -90,38 +90,38 @@ class SessionDetailResponse(BaseModel):
     frontDesk: bool = False
 
 
-class JoinSessionResponse(BaseModel):
+class JoinSalonResponse(BaseModel):
     participantToken: str
     livekitRoomName: str
     livekitUrl: str
 
 
-class SessionPartner(BaseModel):
-    """A discussion partner in a past session (host sees guests, guest sees host)."""
+class SalonPartner(BaseModel):
+    """A discussion partner in a past salon (host sees guests, guest sees host)."""
     userId: str | None = None       # null for contacts never registered
     phoneNumber: str | None = None  # null for partners known only by email
     email: str | None = None        # null for invited contacts never registered
     displayName: str | None = None
 
 
-class SessionHistoryItem(BaseModel):
-    """One entry in a user's session history — a light summary, no message thread."""
-    sessionId: str
+class SalonHistoryItem(BaseModel):
+    """One entry in a user's salon history — a light summary, no message thread."""
+    salonId: str
     role: str                       # 'host' | 'guest'
     sourceType: str
     sourceUrl: str | None = None
     status: str
     createdAt: str
     endedAt: str | None = None
-    partners: list[SessionPartner]
+    partners: list[SalonPartner]
 
 
-class SessionHistoryResponse(BaseModel):
-    sessions: list[SessionHistoryItem]
+class SalonHistoryResponse(BaseModel):
+    salons: list[SalonHistoryItem]
 
 
 class BillingChargeSummary(BaseModel):
-    """Details of a post-trial charge made when a session ends (Story 4.4)."""
+    """Details of a post-trial charge made when a salon ends (Story 4.4)."""
     billedSeconds: int
     amountCents: int
     currency: str
@@ -129,8 +129,8 @@ class BillingChargeSummary(BaseModel):
     status: str
 
 
-class EndSessionResponse(BaseModel):
-    sessionId: str
+class EndSalonResponse(BaseModel):
+    salonId: str
     status: str
     endedAt: str
     # Present only when the host was charged for usage beyond the free trial.
@@ -157,7 +157,7 @@ class ParticipantLanguageBody(BaseModel):
     language: str
 
 
-class EndSessionBody(BaseModel):
+class EndSalonBody(BaseModel):
     """Optional closing answer, supplied by the agent that asked the question.
 
     Three states and the third is not a failure: True and False are answers, None means
@@ -172,13 +172,13 @@ class HeartbeatBody(BaseModel):
 
 
 class HeartbeatResponse(BaseModel):
-    sessionId: str
+    salonId: str
     trialSecondsUsed: int
-    # Seconds left before this session hits its own cap — not the account's trial.
+    # Seconds left before this salon hits its own cap — not the account's trial.
     # Returned so the agent can wind the conversation down instead of being cut off.
     secondsRemaining: int = 0
-    # True when this very heartbeat is the one that closed the session.
-    sessionEnded: bool = False
+    # True when this very heartbeat is the one that closed the salon.
+    salonEnded: bool = False
 
 
 class UtteranceBody(BaseModel):
@@ -227,7 +227,7 @@ class UtteranceResponse(BaseModel):
 
 
 class TranscriptResponse(BaseModel):
-    sessionId: str
+    salonId: str
     # Echoed so a client can tell which language it is looking at after changing it
     # mid-salon, when a request in flight may answer after the newer one.
     language: str | None = None

@@ -5,7 +5,7 @@ import AppNavigator from './AppNavigator';
 import AuthNavigator from './AuthNavigator';
 
 /**
- * Auth gate: the OTP flow until a JWT is held, the session flow afterwards.
+ * Auth gate: the OTP flow until a JWT is held, the salon flow afterwards.
  * confirmOtp() sets the token in AuthContext, which flips this over.
  */
 export default function RootNavigator() {

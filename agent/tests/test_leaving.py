@@ -5,7 +5,7 @@ stays in the room. Every server path does delete the room, which disconnects eve
 `livekit_service.delete_room` swallows its own failures and only logs a warning, so the moment
 leaving mattered most was the moment nothing made it happen.
 
-Three things end a salon, and each has to end in departure: the exit flow calling end_session,
+Three things end a salon, and each has to end in departure: the exit flow calling end_salon,
 the cap reported on a heartbeat, and the room disconnecting under the agent.
 """
 import asyncio
@@ -19,7 +19,7 @@ import agent as salon  # noqa: E402
 
 def _agent(**kw):
     a = salon.SalonAgent(
-        session_id="sess-1", api_url="http://api.test", host_token="tok", **kw
+        salon_id="sess-1", api_url="http://api.test", host_token="tok", **kw
     )
     departures = []
     a.set_departure(departures.append)
@@ -51,7 +51,7 @@ def test_an_agent_has_somewhere_to_go():
 def test_leaving_without_a_departure_set_does_not_raise():
     """A job context is only present in the entrypoint. Unit-constructed agents have none,
     and a missing exit must not become an exception inside a callback nobody awaits."""
-    bare = salon.SalonAgent(session_id="s", api_url="http://x", host_token="t")
+    bare = salon.SalonAgent(salon_id="s", api_url="http://x", host_token="t")
     bare.leave("no context")  # must not raise
 
 
@@ -87,26 +87,26 @@ def test_leaving_stops_the_heartbeat():
     asyncio.run(_run())
 
 
-# ─── Ending the session explicitly ───────────────────────────────────────────
+# ─── Ending the salon explicitly ───────────────────────────────────────────
 
-def test_ending_the_session_leaves_the_room():
+def test_ending_the_salon_leaves_the_room():
     """The reported bug: the salon ends and the agent stays."""
     a, departures = _agent()
     patcher = _http(200)
     try:
-        assert asyncio.run(a.end_session()) == "session_ended"
+        assert asyncio.run(a.end_salon()) == "salon_ended"
     finally:
         patcher.stop()
     assert len(departures) == 1
 
 
-def test_a_session_already_over_is_still_a_reason_to_leave():
-    """409 means the cap, the host or a previous call got there first. The session being over
+def test_a_salon_already_over_is_still_a_reason_to_leave():
+    """409 means the cap, the host or a previous call got there first. The salon being over
     is precisely the case for leaving, so treating it as an error kept the agent seated."""
     a, departures = _agent()
-    patcher = _http(409, {"detail": "This session has already ended."})
+    patcher = _http(409, {"detail": "This salon has already ended."})
     try:
-        assert asyncio.run(a.end_session()) == "session_ended"
+        assert asyncio.run(a.end_salon()) == "salon_ended"
     finally:
         patcher.stop()
     assert len(departures) == 1
@@ -117,7 +117,7 @@ def test_a_network_failure_does_not_make_the_agent_leave():
     and hanging up on people mid-sentence over a transient error is the worse mistake."""
     a, departures = _agent()
     with patch("httpx.AsyncClient", side_effect=RuntimeError("no network")):
-        assert asyncio.run(a.end_session()) == "error:network"
+        assert asyncio.run(a.end_salon()) == "error:network"
     assert departures == []
 
 
@@ -125,28 +125,28 @@ def test_a_server_error_does_not_make_the_agent_leave():
     a, departures = _agent()
     patcher = _http(500, {"detail": "boom"})
     try:
-        assert asyncio.run(a.end_session()).startswith("error:")
+        assert asyncio.run(a.end_salon()).startswith("error:")
     finally:
         patcher.stop()
     assert departures == []
 
 
-def test_no_session_context_means_no_departure():
+def test_no_salon_context_means_no_departure():
     a = salon.SalonAgent()
     departures = []
     a.set_departure(departures.append)
-    assert asyncio.run(a.end_session()) == "no_session_context"
+    assert asyncio.run(a.end_salon()) == "no_salon_context"
     assert departures == []
 
 
 # ─── The cap, reported on a heartbeat ────────────────────────────────────────
 
 def test_the_cap_reported_on_a_heartbeat_makes_the_agent_leave():
-    """The API closes a session that reached its cap and says so in the reply. That flag was
+    """The API closes a salon that reached its cap and says so in the reply. That flag was
     ignored, so the only thing that could stop the agent was a room deletion that fails
     silently."""
     a, departures = _agent()
-    patcher = _http(200, {"sessionEnded": True, "secondsRemaining": 0})
+    patcher = _http(200, {"salonEnded": True, "secondsRemaining": 0})
     try:
         asyncio.run(a._send_heartbeat())
     finally:
@@ -156,7 +156,7 @@ def test_the_cap_reported_on_a_heartbeat_makes_the_agent_leave():
 
 def test_a_heartbeat_with_time_left_does_not_end_anything():
     a, departures = _agent()
-    patcher = _http(200, {"sessionEnded": False, "secondsRemaining": 300})
+    patcher = _http(200, {"salonEnded": False, "secondsRemaining": 300})
     try:
         asyncio.run(a._send_heartbeat())
     finally:
@@ -169,8 +169,8 @@ def test_the_ending_is_still_announced_before_the_cap():
     """Leaving must not have replaced the warning: a conversation cut off mid-sentence with
     no wind-down is the experience this announcement exists to prevent."""
     a, departures = _agent()
-    a.session = MagicMock()
-    patcher = _http(200, {"sessionEnded": False, "secondsRemaining": 5})
+    a.salon = MagicMock()
+    patcher = _http(200, {"salonEnded": False, "secondsRemaining": 5})
     try:
         asyncio.run(a._send_heartbeat())
     finally:
@@ -179,15 +179,15 @@ def test_the_ending_is_still_announced_before_the_cap():
     assert departures == [], "warned, not gone"
 
 
-def test_a_capped_session_does_not_also_get_a_farewell_speech():
-    """Once the API says the session is over the room is already being torn down; generating
+def test_a_capped_salon_does_not_also_get_a_farewell_speech():
+    """Once the API says the salon is over the room is already being torn down; generating
     a reply into it would be talking to nobody."""
     a, departures = _agent()
-    a.session = MagicMock()
-    patcher = _http(200, {"sessionEnded": True, "secondsRemaining": 0})
+    a.salon = MagicMock()
+    patcher = _http(200, {"salonEnded": True, "secondsRemaining": 0})
     try:
         asyncio.run(a._send_heartbeat())
     finally:
         patcher.stop()
-    a.session.generate_reply.assert_not_called()
+    a.salon.generate_reply.assert_not_called()
     assert len(departures) == 1

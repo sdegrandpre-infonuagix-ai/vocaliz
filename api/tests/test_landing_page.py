@@ -187,7 +187,7 @@ def test_an_unsupported_tag_still_reaches_the_desk(client, db):
     from unittest.mock import AsyncMock, patch
 
     from src.config import settings
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
     from src.models.user import User
 
     db.add(User(email=settings.front_desk_email))
@@ -197,10 +197,10 @@ def test_an_unsupported_tag_still_reaches_the_desk(client, db):
     ):
         resp = client.post("/invitations/call-the-desk?language=klingon")
     assert resp.status_code == 200
-    session = db.query(SessionModel).filter(
-        SessionModel.livekit_room_name == resp.json()["livekitRoomName"]
+    salon = db.query(Salon).filter(
+        Salon.livekit_room_name == resp.json()["livekitRoomName"]
     ).one()
-    assert session.agent_language == "auto"
+    assert salon.agent_language == "auto"
 
 
 def test_a_supported_tag_is_kept_whole(client, db):
@@ -209,7 +209,7 @@ def test_a_supported_tag_is_kept_whole(client, db):
     from unittest.mock import AsyncMock, patch
 
     from src.config import settings
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
     from src.models.user import User
 
     db.add(User(email=settings.front_desk_email))
@@ -218,10 +218,10 @@ def test_a_supported_tag_is_kept_whole(client, db):
         "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
     ):
         resp = client.post("/invitations/call-the-desk?language=pt-PT")
-    session = db.query(SessionModel).filter(
-        SessionModel.livekit_room_name == resp.json()["livekitRoomName"]
+    salon = db.query(Salon).filter(
+        Salon.livekit_room_name == resp.json()["livekitRoomName"]
     ).one()
-    assert session.agent_language == "pt-PT"
+    assert salon.agent_language == "pt-PT"
 
 
 # ─── What Vocaliz can be asked to speak ──────────────────────────────────────

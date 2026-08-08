@@ -20,7 +20,7 @@ def _entrypoint() -> str:
 
 
 def test_silence_is_what_an_unreachable_api_falls_back_to():
-    """The default when the session detail cannot be read at all. Joining a room and
+    """The default when the salon detail cannot be read at all. Joining a room and
     immediately talking is the one outcome nobody asked for, so an unanswered fetch must not
     produce it."""
     source = _entrypoint()
@@ -30,7 +30,7 @@ def test_silence_is_what_an_unreachable_api_falls_back_to():
     assert at_default < at_read, "the default must be set before the detail can overwrite it"
 
 
-def test_the_pause_is_read_from_the_session_rather_than_assumed():
+def test_the_pause_is_read_from_the_salon_rather_than_assumed():
     """An agent can join a Salon that is already under way — a restarted job, or one the host
     removed and brought back. Hard-coding the pause would rejoin that room in silence."""
     assert 'detail.get("agentMuted", True)' in _entrypoint()
@@ -88,12 +88,13 @@ def test_nothing_still_waits_on_an_invitation():
 # ─── The voice model is pinned, not aliased ───────────────────────────────────
 
 def test_the_voice_model_is_named_explicitly():
-    """`grok-voice-latest` pointed at think-fast-1.0 and xAI's documentation said it updates to
-    2.0 on 5 August 2026 — the day this was pinned. An alias lets the model change under a
-    running product without a deploy, and a voice, a latency and a price moving on their own is
-    a behaviour change nobody can attribute afterwards."""
+    """An alias lets the model change under a running product without a deploy, and a voice, a
+    latency and a price moving on their own is a behaviour change nobody can attribute
+    afterwards. 1.0 rather than 2.0 because $0.08/min against a $5/h tier is a loss on every
+    second; $0.05/min is not."""
     source = inspect.getsource(salon.entrypoint)
-    assert 'model="grok-voice-think-fast-2.0"' in source
-    # The assignment, not the bare word: the comment above the call names the old alias to
-    # explain why it was abandoned. Sixth time today a test has quoted its own reasoning.
+    assert 'model="grok-voice-think-fast-1.0"' in source
+    # The assignment, not the bare word: the comment above the call names the alternative to
+    # explain why it was not taken. Sixth time today a test has quoted its own reasoning.
     assert 'model="grok-voice-latest"' not in source
+    assert 'model="grok-voice-think-fast-2.0"' not in source

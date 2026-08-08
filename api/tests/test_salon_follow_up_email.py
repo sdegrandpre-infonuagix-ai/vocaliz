@@ -12,7 +12,7 @@ import pytest
 
 from src.config import settings
 from src.models.invitation import Invitation
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import invitation_service
 from src.services.jwt_service import issue_token
@@ -30,9 +30,9 @@ def host(db):
 
 
 @pytest.fixture
-def active_session(db, host):
+def active_salon(db, host):
     host_user, _ = host
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-followup-room",
         source_type="url",
@@ -46,9 +46,9 @@ def active_session(db, host):
     return sess
 
 
-def _add_invitation(db, host_user, session, *, inv_type="email_contact", status="accepted", email=None):
+def _add_invitation(db, host_user, salon, *, inv_type="email_contact", status="accepted", email=None):
     inv = Invitation(
-        session_id=session.id,
+        salon_id=salon.id,
         host_user_id=host_user.id,
         guest_email=email or "guest.default@example.com",
         guest_user_id=None,
@@ -65,15 +65,15 @@ def _add_invitation(db, host_user, session, *, inv_type="email_contact", status=
 
 # ─── send_followup_email_to_guests unit tests ───────────────────────────────────
 
-def test_followup_email_sent_to_accepted_email_contact(db, host, active_session):
+def test_followup_email_sent_to_accepted_email_contact(db, host, active_salon):
     """Accepted sms_contact invitations receive the install-link SMS."""
     host_user, _ = host
-    inv = _add_invitation(db, host_user, active_session)
+    inv = _add_invitation(db, host_user, active_salon)
 
     with patch("src.services.invitation_service.boto3") as mock_boto3:
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
-        count = invitation_service.send_followup_email_to_guests(str(active_session.id), db)
+        count = invitation_service.send_followup_email_to_guests(str(active_salon.id), db)
 
     assert count == 1
     mock_client.send_email.assert_called_once()
@@ -89,15 +89,15 @@ def test_followup_email_sent_to_accepted_email_contact(db, host, active_session)
     assert body.count(f"{settings.salon_web_base_url}/host") == 2
 
 
-def test_followup_email_invites_the_guest_to_host(db, host, active_session):
+def test_followup_email_invites_the_guest_to_host(db, host, active_salon):
     """The point of the message: turning a guest into a host."""
     host_user, _ = host
-    _add_invitation(db, host_user, active_session)
+    _add_invitation(db, host_user, active_salon)
 
     with patch("src.services.invitation_service.boto3") as mock_boto3:
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
-        invitation_service.send_followup_email_to_guests(str(active_session.id), db)
+        invitation_service.send_followup_email_to_guests(str(active_salon.id), db)
 
     msg = mock_client.send_email.call_args[1]["Content"]["Simple"]["Body"]["Text"]["Data"]
     assert f"{settings.salon_web_base_url}/host" in msg
@@ -106,70 +106,70 @@ def test_followup_email_invites_the_guest_to_host(db, host, active_session):
     assert "animer une vous-même" in msg
 
 
-def test_followup_email_not_sent_to_pending_invitation(db, host, active_session):
+def test_followup_email_not_sent_to_pending_invitation(db, host, active_salon):
     """Pending (unused) invitations do NOT receive follow-up SMS."""
     host_user, _ = host
-    _add_invitation(db, host_user, active_session, status="pending")
+    _add_invitation(db, host_user, active_salon, status="pending")
 
     with patch("src.services.invitation_service.boto3") as mock_boto3:
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
-        count = invitation_service.send_followup_email_to_guests(str(active_session.id), db)
+        count = invitation_service.send_followup_email_to_guests(str(active_salon.id), db)
 
     assert count == 0
     mock_client.send_email.assert_not_called()
 
 
-def test_followup_email_not_sent_to_salon_friend(db, host, active_session):
+def test_followup_email_not_sent_to_salon_friend(db, host, active_salon):
     """In-app (salon_friend) invitations do NOT receive follow-up SMS."""
     host_user, _ = host
-    _add_invitation(db, host_user, active_session, inv_type="salon_friend")
+    _add_invitation(db, host_user, active_salon, inv_type="salon_friend")
 
     with patch("src.services.invitation_service.boto3") as mock_boto3:
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
-        count = invitation_service.send_followup_email_to_guests(str(active_session.id), db)
+        count = invitation_service.send_followup_email_to_guests(str(active_salon.id), db)
 
     assert count == 0
     mock_client.send_email.assert_not_called()
 
 
-def test_followup_email_returns_zero_for_no_guests(db, host, active_session):
-    """Sessions with no accepted sms_contact invitations return count 0."""
+def test_followup_email_returns_zero_for_no_guests(db, host, active_salon):
+    """Salons with no accepted sms_contact invitations return count 0."""
     host_user, _ = host
-    count = invitation_service.send_followup_email_to_guests(str(active_session.id), db)
+    count = invitation_service.send_followup_email_to_guests(str(active_salon.id), db)
     assert count == 0
 
 
-def test_followup_email_individual_failure_does_not_abort(db, host, active_session):
+def test_followup_email_individual_failure_does_not_abort(db, host, active_salon):
     """An SNS error on one guest does not raise — returns partial count."""
     host_user, _ = host
-    _add_invitation(db, host_user, active_session, email="15146661111@example.com")
-    _add_invitation(db, host_user, active_session, email="15146662222@example.com")
+    _add_invitation(db, host_user, active_salon, email="15146661111@example.com")
+    _add_invitation(db, host_user, active_salon, email="15146662222@example.com")
 
     with patch("src.services.invitation_service.boto3") as mock_boto3:
         mock_client = MagicMock()
         mock_client.send_email.side_effect = [Exception("SNS error"), None]
         mock_boto3.client.return_value = mock_client
-        count = invitation_service.send_followup_email_to_guests(str(active_session.id), db)
+        count = invitation_service.send_followup_email_to_guests(str(active_salon.id), db)
 
     # One failed, one succeeded
     assert count == 1
 
 
-# ─── Integration: end_session triggers follow-up SMS ─────────────────────────
+# ─── Integration: end_salon triggers follow-up SMS ─────────────────────────
 
-def test_end_session_triggers_followup_email(client, db, host, active_session):
-    """POST /sessions/{id}/end sends follow-up SMS to accepted sms_contact guests."""
+def test_end_salon_triggers_followup_email(client, db, host, active_salon):
+    """POST /salons/{id}/end sends follow-up SMS to accepted sms_contact guests."""
     host_user, token = host
-    _add_invitation(db, host_user, active_session)
+    _add_invitation(db, host_user, active_salon)
 
     with patch("src.services.invitation_service.boto3") as mock_boto3:
         mock_client = MagicMock()
         mock_boto3.client.return_value = mock_client
 
         resp = client.post(
-            f"/sessions/{active_session.id}/end",
+            f"/salons/{active_salon.id}/end",
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -178,10 +178,10 @@ def test_end_session_triggers_followup_email(client, db, host, active_session):
     assert mock_client.send_email.call_count >= 1
 
 
-def test_end_session_succeeds_even_if_sms_fails(client, db, host, active_session):
-    """Session end returns 200 even if follow-up SMS encounters an error."""
+def test_end_salon_succeeds_even_if_sms_fails(client, db, host, active_salon):
+    """Salon end returns 200 even if follow-up SMS encounters an error."""
     host_user, token = host
-    _add_invitation(db, host_user, active_session)
+    _add_invitation(db, host_user, active_salon)
 
     with patch("src.services.invitation_service.boto3") as mock_boto3:
         mock_client = MagicMock()
@@ -189,7 +189,7 @@ def test_end_session_succeeds_even_if_sms_fails(client, db, host, active_session
         mock_boto3.client.return_value = mock_client
 
         resp = client.post(
-            f"/sessions/{active_session.id}/end",
+            f"/salons/{active_salon.id}/end",
             headers={"Authorization": f"Bearer {token}"},
         )
 

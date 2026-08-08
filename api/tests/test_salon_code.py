@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.models.invitation import Invitation
 from src.models.salon_code import CODE_DIGITS, CodeAvailable
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import salon_code_service
 
@@ -17,7 +17,7 @@ def salon(db):
     db.add(user)
     db.commit()
     db.refresh(user)
-    s = SessionModel(
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-codes",
         source_type="url",
@@ -32,7 +32,7 @@ def salon(db):
 
 def _invitation(db, salon, code, *, email="guest@example.com", status="pending"):
     row = Invitation(
-        session_id=salon.id,
+        salon_id=salon.id,
         host_user_id=salon.host_user_id,
         guest_email=email,
         guest_phone="",
@@ -100,19 +100,19 @@ def test_releasing_a_free_code_changes_nothing(db):
     assert salon_code_service.release(db, [code]) == 0
 
 
-def test_a_session_releases_the_codes_of_its_invitations(db, salon):
-    """Found through the invitations rather than stored against the session, because that
+def test_a_salon_releases_the_codes_of_its_invitations(db, salon):
+    """Found through the invitations rather than stored against the salon, because that
     is where the mapping already lives."""
     first, second = salon_code_service.claim(db), salon_code_service.claim(db)
     _invitation(db, salon, first, email="a@example.com")
     _invitation(db, salon, second, email="b@example.com")
 
-    assert salon_code_service.release_for_session(db, salon.id) == 2
+    assert salon_code_service.release_for_salon(db, salon.id) == 2
     assert db.query(CodeAvailable).filter(CodeAvailable.available.is_(False)).count() == 0
 
 
-def test_a_session_with_no_codes_releases_nothing(db, salon):
-    assert salon_code_service.release_for_session(db, salon.id) == 0
+def test_a_salon_with_no_codes_releases_nothing(db, salon):
+    assert salon_code_service.release_for_salon(db, salon.id) == 0
 
 
 # ─── Resolving a dialled code ─────────────────────────────────────────────────
@@ -124,7 +124,7 @@ def test_a_dialled_code_identifies_the_guest_not_just_the_room(db, salon):
     found = salon_code_service.invitation_for_code(db, code)
     assert found is not None
     assert found.guest_email == "caller@example.com"
-    assert found.session_id == salon.id
+    assert found.salon_id == salon.id
 
 
 def test_a_released_code_resolves_to_nothing(db, salon):
@@ -251,7 +251,7 @@ def test_two_pending_invitations_cannot_share_a_code(db, salon):
     _invitation(db, salon, "444444", status="pending")
     db.add(
         Invitation(
-            session_id=salon.id,
+            salon_id=salon.id,
             host_user_id=salon.host_user_id,
             guest_email="other@example.com",
             guest_phone="",
@@ -274,7 +274,7 @@ def test_a_closed_invitation_does_not_reserve_its_code_forever(db, salon):
     _invitation(db, salon, "555555", status="accepted")
     db.add(
         Invitation(
-            session_id=salon.id,
+            salon_id=salon.id,
             host_user_id=salon.host_user_id,
             guest_email="later@example.com",
             guest_phone="",

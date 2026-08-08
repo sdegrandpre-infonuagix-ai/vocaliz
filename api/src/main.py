@@ -7,7 +7,7 @@ from slowapi.errors import RateLimitExceeded
 
 from src.config import settings
 from src.rate_limit import limiter
-from src.routers import auth, sessions
+from src.routers import auth, salons
 from src.routers.admin import router as admin_router
 from src.routers.guest_web import router as guest_web_router
 from src.routers.sources import router as sources_router
@@ -19,7 +19,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth.router)
-app.include_router(sessions.router)
+app.include_router(salons.router)
 app.include_router(invitations_router)
 app.include_router(guest_router)
 app.include_router(me_router)

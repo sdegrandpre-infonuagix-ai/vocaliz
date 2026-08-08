@@ -200,14 +200,14 @@ def test_every_scheduled_action_says_what_it_did():
     from src import migrate_handler
 
     source = inspect.getsource(migrate_handler.handler)
-    for action in ("check_xai", "sweep_sessions", "invoice_advertisers"):
+    for action in ("check_xai", "sweep_salons", "invoice_advertisers"):
         assert f'_report(f"{action}' in source, f"{action} runs silently"
 
 
 # ─── Voice, reported rather than probed ───────────────────────────────────────
 #
 # xAI offers no cheap voice call: /v1/audio/speech answers 403 for this team, and a realtime
-# session is too costly to open every minute purely to ask whether it can be opened. So the
+# salon is too costly to open every minute purely to ask whether it can be opened. So the
 # agent reports what it actually observed, which is better than a probe in the way that matters
 # — a substitute can succeed while the genuine path fails, and this cannot, because it is the
 # genuine path. What it gives up is warning: nothing is said until somebody calls.
@@ -251,7 +251,7 @@ def test_voice_alerts_once_like_everything_else(db, sent):
 
 def test_the_agent_reports_through_an_authenticated_endpoint(client, db):
     """Anonymous, this would let anybody declare the voice model broken and trigger an alert."""
-    assert client.post("/sessions/whatever/voice-health", json={"ok": False}).status_code in (
+    assert client.post("/salons/whatever/voice-health", json={"ok": False}).status_code in (
         401,
         403,
     )

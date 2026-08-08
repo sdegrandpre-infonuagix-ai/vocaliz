@@ -1,6 +1,6 @@
-"""Tests for Story 5.2 — Starting a new session with a previous partner.
+"""Tests for Story 5.2 — Starting a new salon with a previous partner.
 
-A registered user can list their previous partners and quick-start a new session
+A registered user can list their previous partners and quick-start a new salon
 with one already identified, without repeating the full invitation flow.
 """
 from datetime import datetime, timedelta, timezone
@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from src.models.invitation import Invitation
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -25,9 +25,9 @@ def user(db):
     return u, issue_token(str(u.id))
 
 
-def _session(db, host, *, offset_min=0):
+def _salon(db, host, *, offset_min=0):
     now = datetime.now(tz=timezone.utc)
-    s = SessionModel(
+    s = Salon(
         host_user_id=host.id,
         livekit_room_name=f"room-{host.phone_number[-4:]}-{offset_min}",
         source_type="url",
@@ -43,14 +43,14 @@ def _session(db, host, *, offset_min=0):
     return s
 
 
-def _invite(db, session, host, guest_phone, *, guest_user=None, status="accepted"):
+def _invite(db, salon, host, guest_phone, *, guest_user=None, status="accepted"):
     inv = Invitation(
-        session_id=session.id,
+        salon_id=salon.id,
         host_user_id=host.id,
         guest_email=guest_phone.lstrip("+") + "@example.com",
         guest_user_id=guest_user.id if guest_user else None,
         invitation_type="salon_friend" if guest_user else "email_contact",
-        join_token=f"tok-{session.livekit_room_name}-{guest_phone}",
+        join_token=f"tok-{salon.livekit_room_name}-{guest_phone}",
         status=status,
         expires_at=datetime.now(tz=timezone.utc) + timedelta(days=1),
     )
@@ -75,33 +75,33 @@ def test_partners_empty_for_new_user(client, user):
 
 def test_partners_lists_hosted_guest(client, db, user):
     host, token = user
-    session = _session(db, host)
-    _invite(db, session, host, "+15145559999")
+    salon = _salon(db, host)
+    _invite(db, salon, host, "+15145559999")
 
     resp = client.get("/me/partners", headers={"Authorization": f"Bearer {token}"})
     partners = resp.json()["partners"]
     assert len(partners) == 1
     assert partners[0]["email"] == "15145559999@example.com"
-    assert partners[0]["sessionCount"] == 1
+    assert partners[0]["salonCount"] == 1
 
 
-def test_partners_dedupes_across_sessions_and_counts(client, db, user):
-    """The same partner across two sessions appears once with sessionCount 2."""
+def test_partners_dedupes_across_salons_and_counts(client, db, user):
+    """The same partner across two salons appears once with salonCount 2."""
     host, token = user
     guest = User(email="15145558888@example.com", phone_number="+15145558888")
     db.add(guest)
     db.commit()
     db.refresh(guest)
 
-    s1 = _session(db, host, offset_min=60)
-    s2 = _session(db, host, offset_min=1)
+    s1 = _salon(db, host, offset_min=60)
+    s2 = _salon(db, host, offset_min=1)
     _invite(db, s1, host, guest.phone_number, guest_user=guest)
     _invite(db, s2, host, guest.phone_number, guest_user=guest)
 
     partners = client.get("/me/partners", headers={"Authorization": f"Bearer {token}"}).json()["partners"]
     assert len(partners) == 1
     assert partners[0]["userId"] == str(guest.id)
-    assert partners[0]["sessionCount"] == 2
+    assert partners[0]["salonCount"] == 2
 
 
 def test_partners_includes_host_when_user_was_guest(client, db, user):
@@ -111,8 +111,8 @@ def test_partners_includes_host_when_user_was_guest(client, db, user):
     db.commit()
     db.refresh(other_host)
 
-    session = _session(db, other_host)
-    _invite(db, session, other_host, me.phone_number, guest_user=me, status="accepted")
+    salon = _salon(db, other_host)
+    _invite(db, salon, other_host, me.phone_number, guest_user=me, status="accepted")
 
     partners = client.get("/me/partners", headers={"Authorization": f"Bearer {token}"}).json()["partners"]
     assert len(partners) == 1
@@ -121,8 +121,8 @@ def test_partners_includes_host_when_user_was_guest(client, db, user):
 
 def test_partners_sorted_most_recent_first(client, db, user):
     host, token = user
-    old = _session(db, host, offset_min=120)
-    new = _session(db, host, offset_min=1)
+    old = _salon(db, host, offset_min=120)
+    new = _salon(db, host, offset_min=1)
     _invite(db, old, host, "+15140000001")
     _invite(db, new, host, "+15140000002")
 
@@ -131,10 +131,10 @@ def test_partners_sorted_most_recent_first(client, db, user):
     assert emails == ["15140000002@example.com", "15140000001@example.com"]
 
 
-# ─── POST /sessions quick-start with partner_email ───────────────────────────
+# ─── POST /salons quick-start with partner_email ───────────────────────────
 
 def test_quick_start_auto_invites_registered_partner(client, db, user):
-    """Creating a session with partner_email auto-invites that partner (salon_friend)."""
+    """Creating a salon with partner_email auto-invites that partner (salon_friend)."""
     host, token = user
     partner = User(email="15145556666@example.com", phone_number="+15145556666")
     db.add(partner)
@@ -150,7 +150,7 @@ def test_quick_start_auto_invites_registered_partner(client, db, user):
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
     ):
         resp = client.post(
-            "/sessions",
+            "/salons",
             data={"source_url": "https://example.com/x", "partner_email": "15145556666@example.com"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -162,10 +162,10 @@ def test_quick_start_auto_invites_registered_partner(client, db, user):
     assert body["invitation"]["invitationType"] == "salon_friend"
     assert body["invitation"]["status"] == "pending"
 
-    # An invitation row was actually created for the new session.
+    # An invitation row was actually created for the new salon.
     import uuid as _uuid
     inv = db.query(Invitation).filter(
-        Invitation.session_id == _uuid.UUID(body["sessionId"])
+        Invitation.salon_id == _uuid.UUID(body["salonId"])
     ).first()
     assert inv is not None
     assert inv.guest_user_id == partner.id
@@ -186,7 +186,7 @@ def test_quick_start_email_contact_sends_link(client, db, user):
         patch("src.services.invitation_service._send_invitation_email") as mock_email,
     ):
         resp = client.post(
-            "/sessions",
+            "/salons",
             data={"source_url": "https://example.com/x", "partner_email": "15147778888@example.com"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -198,7 +198,7 @@ def test_quick_start_email_contact_sends_link(client, db, user):
     mock_email.assert_called_once()
 
 
-def test_create_session_without_partner_has_no_invitation(client, user):
+def test_create_salon_without_partner_has_no_invitation(client, user):
     """Omitting partner_email keeps the original behaviour (no auto-invite)."""
     _, token = user
     with (
@@ -211,7 +211,7 @@ def test_create_session_without_partner_has_no_invitation(client, user):
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
     ):
         resp = client.post(
-            "/sessions",
+            "/salons",
             data={"source_url": "https://example.com/x"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -232,7 +232,7 @@ def test_quick_start_rejects_invalid_partner_email(client, user):
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
     ):
         resp = client.post(
-            "/sessions",
+            "/salons",
             data={"source_url": "https://example.com/x", "partner_email": "not-a-phone"},
             headers={"Authorization": f"Bearer {token}"},
         )

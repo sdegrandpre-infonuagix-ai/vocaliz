@@ -14,7 +14,7 @@ import pytest
 
 from src.models.invitation import Invitation
 from src.models.salon_event import SalonEvent
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import salon_code_service
 
@@ -25,22 +25,22 @@ def salon(db):
     db.add(host)
     db.commit()
     db.refresh(host)
-    session = SessionModel(
+    salon = Salon(
         host_user_id=host.id,
         livekit_room_name="salon-dial",
         source_type="url",
         source_content="c",
         status="active",
     )
-    db.add(session)
+    db.add(salon)
     db.commit()
-    db.refresh(session)
-    return session
+    db.refresh(salon)
+    return salon
 
 
 def _invite(db, salon, code, *, token="tok-dial"):
     row = Invitation(
-        session_id=salon.id,
+        salon_id=salon.id,
         host_user_id=salon.host_user_id,
         guest_email="caller@example.com",
         guest_phone="",
@@ -213,10 +213,10 @@ def test_the_salon_belongs_to_the_desk(client, desk, db):
     """Owned by the address that answers, so signing in at the console offers to rejoin it.
     A Salon owned by nobody could not be answered at all."""
     body = _ring(client).json()
-    session = db.query(SessionModel).filter(
-        SessionModel.livekit_room_name == body["livekitRoomName"]
+    salon = db.query(Salon).filter(
+        Salon.livekit_room_name == body["livekitRoomName"]
     ).one()
-    assert session.host_user_id == desk.id
+    assert salon.host_user_id == desk.id
 
 
 def test_the_desk_is_told_somebody_is_waiting(client, desk, db):
@@ -225,11 +225,11 @@ def test_the_desk_is_told_somebody_is_waiting(client, desk, db):
     from src.models.invitation import Invitation
 
     body = _ring(client).json()
-    session = db.query(SessionModel).filter(
-        SessionModel.livekit_room_name == body["livekitRoomName"]
+    salon = db.query(Salon).filter(
+        Salon.livekit_room_name == body["livekitRoomName"]
     ).one()
     addressed = db.query(Invitation).filter(
-        Invitation.session_id == session.id,
+        Invitation.salon_id == salon.id,
         Invitation.guest_email == settings.front_desk_email,
     ).all()
     assert len(addressed) == 1
@@ -241,11 +241,11 @@ def test_the_caller_gets_an_identity_of_their_own(client, desk, db):
     from src.models.invitation import Invitation
 
     body = _ring(client).json()
-    session = db.query(SessionModel).filter(
-        SessionModel.livekit_room_name == body["livekitRoomName"]
+    salon = db.query(Salon).filter(
+        Salon.livekit_room_name == body["livekitRoomName"]
     ).one()
     anonymous = db.query(Invitation).filter(
-        Invitation.session_id == session.id,
+        Invitation.salon_id == salon.id,
         Invitation.invitation_type == "anonymous_link",
     ).all()
     assert len(anonymous) == 1
@@ -274,4 +274,4 @@ def test_without_a_desk_account_nothing_is_created(client, db):
     """The account is not minted on the fly: one an anonymous request could create is one
     anybody could create, and this address is the one that reads the reports."""
     assert _ring(client).status_code == 503
-    assert db.query(SessionModel).count() == 0
+    assert db.query(Salon).count() == 0

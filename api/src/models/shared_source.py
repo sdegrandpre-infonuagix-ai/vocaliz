@@ -3,7 +3,7 @@
 Two properties make this safe, and both are structural rather than enforced by care.
 
 Only what was consented to exists here. Sources live in two places — the first on the
-sessions row, later ones in session_sources — so a cross-platform search over those would
+salons row, later ones in salon_sources — so a cross-platform search over those would
 have to query both and never once forget the filter. One missing WHERE would expose every
 private document. Here, not sharing is a row that does not exist, and withdrawing consent
 is a delete.
@@ -117,7 +117,7 @@ class SharedSourceConsent(Base):
     second still stands behind. Sharing prevails — the page stays in the corpus while any
     consent remains, and goes when the last one does.
 
-    The session is recorded here rather than on the page, because it describes *this
+    The salon is recorded here rather than on the page, because it describes *this
     host's* publication: the same article may reach the corpus from two unrelated
     conversations.
     """
@@ -133,8 +133,8 @@ class SharedSourceConsent(Base):
     # publications, and so a complaint can be traced to whoever published the material.
     shared_by: Mapped[str] = mapped_column(String(320), primary_key=True)
 
-    session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    salon_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False
     )
     shared_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

@@ -57,10 +57,10 @@ class AdBroadcast(Base):
 
     # SET NULL rather than RESTRICT: a salon is ephemeral and may legitimately be removed,
     # and losing which room an ad played in must not block that. The name below survives it.
-    session_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True
+    salon_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("salons.id", ondelete="SET NULL"), nullable=True
     )
-    # Kept as text so an invoice line can name the salon even after the session is gone.
+    # Kept as text so an invoice line can name the salon even after the salon is gone.
     salon_name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
 
     # The rate at the moment of broadcast, in cents. See the module note.

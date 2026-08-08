@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -31,9 +31,9 @@ def guest_user(db):
 
 
 @pytest.fixture
-def active_session(db, host):
+def active_salon(db, host):
     host_user, _ = host
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-test-room",
         source_type="url",
@@ -49,9 +49,9 @@ def active_session(db, host):
 
 # ─── Auth guard ──────────────────────────────────────────────────────────────
 
-def test_invite_requires_auth(client, active_session):
+def test_invite_requires_auth(client, active_salon):
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "15143333333@example.com"},
     )
     assert resp.status_code == 401
@@ -64,22 +64,22 @@ def test_list_invitations_requires_auth(client):
 
 # ─── Phone validation ────────────────────────────────────────────────────────
 
-def test_invite_rejects_invalid_phone(client, host, active_session):
+def test_invite_rejects_invalid_phone(client, host, active_salon):
     _, token = host
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "not-an-email"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
 
 
-# ─── Session ownership ───────────────────────────────────────────────────────
+# ─── Salon ownership ───────────────────────────────────────────────────────
 
-def test_invite_wrong_session_returns_404(client, db, host):
+def test_invite_wrong_salon_returns_404(client, db, host):
     _, token = host
     resp = client.post(
-        f"/sessions/{uuid.uuid4()}/invitations",
+        f"/salons/{uuid.uuid4()}/invitations",
         json={"guestEmail": "15143333333@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -89,10 +89,10 @@ def test_invite_wrong_session_returns_404(client, db, host):
 # ─── SMS contact (unregistered phone) ────────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_invite_sms_contact(mock_sms, client, host, active_session):
+def test_invite_sms_contact(mock_sms, client, host, active_salon):
     _, token = host
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "15149999999@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -108,10 +108,10 @@ def test_invite_sms_contact(mock_sms, client, host, active_session):
 # ─── Salon friend (registered user) ──────────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_invite_salon_friend(mock_sms, client, host, active_session, guest_user):
+def test_invite_salon_friend(mock_sms, client, host, active_salon, guest_user):
     _, token = host
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": guest_user.email},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -130,13 +130,13 @@ def test_invite_salon_friend(mock_sms, client, host, active_session, guest_user)
 
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_email_can_be_resent_to_salon_friend(mock_send, client, host, active_session, guest_user):
+def test_email_can_be_resent_to_salon_friend(mock_send, client, host, active_salon, guest_user):
     """Resending to a registered member used to be refused with a 409."""
     _, token = host
     headers = {"Authorization": f"Bearer {token}"}
 
     created = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": guest_user.email},
         headers=headers,
     ).json()
@@ -144,7 +144,7 @@ def test_email_can_be_resent_to_salon_friend(mock_send, client, host, active_ses
 
     mock_send.reset_mock()
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations/{created['invitationId']}/email",
+        f"/salons/{active_salon.id}/invitations/{created['invitationId']}/email",
         headers=headers,
     )
     assert resp.status_code == 200
@@ -154,13 +154,13 @@ def test_email_can_be_resent_to_salon_friend(mock_send, client, host, active_ses
 # ─── Idempotency ─────────────────────────────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_invite_idempotent_within_5_min(mock_sms, client, host, active_session):
+def test_invite_idempotent_within_5_min(mock_sms, client, host, active_salon):
     _, token = host
     payload = {"guestEmail": "15149999999@example.com"}
     headers = {"Authorization": f"Bearer {token}"}
 
-    r1 = client.post(f"/sessions/{active_session.id}/invitations", json=payload, headers=headers)
-    r2 = client.post(f"/sessions/{active_session.id}/invitations", json=payload, headers=headers)
+    r1 = client.post(f"/salons/{active_salon.id}/invitations", json=payload, headers=headers)
+    r2 = client.post(f"/salons/{active_salon.id}/invitations", json=payload, headers=headers)
 
     assert r1.status_code == 201
     assert r2.status_code == 201
@@ -176,7 +176,7 @@ def test_invite_idempotent_within_5_min(mock_sms, client, host, active_session):
 # ─── A failed send keeps the invitation ──────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_email", side_effect=__import__('fastapi').HTTPException(503, "SES unavailable"))
-def test_invite_keeps_invitation_when_email_fails(mock_send, client, host, active_session, db):
+def test_invite_keeps_invitation_when_email_fails(mock_send, client, host, active_salon, db):
     """This test previously asserted the opposite — a 503 and no invitation row.
 
     Rolling back was wrong: the join link works over any channel, so discarding it
@@ -186,7 +186,7 @@ def test_invite_keeps_invitation_when_email_fails(mock_send, client, host, activ
     from src.models.invitation import Invitation
     _, token = host
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "15149999999@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -199,13 +199,13 @@ def test_invite_keeps_invitation_when_email_fails(mock_send, client, host, activ
 # ─── GET /me/invitations ─────────────────────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_list_invitations_returns_salon_friend_invites(mock_sms, client, host, active_session, guest_user, db):
+def test_list_invitations_returns_salon_friend_invites(mock_sms, client, host, active_salon, guest_user, db):
     host_user, host_token = host
     guest_token = issue_token(str(guest_user.id))
 
     # Host invites the registered Salon user
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": guest_user.email},
         headers={"Authorization": f"Bearer {host_token}"},
     )
@@ -222,11 +222,11 @@ def test_list_invitations_returns_salon_friend_invites(mock_sms, client, host, a
 
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_list_invitations_empty_for_unrelated_user(mock_sms, client, db, host, active_session, guest_user):
+def test_list_invitations_empty_for_unrelated_user(mock_sms, client, db, host, active_salon, guest_user):
     _, host_token = host
     # Invite the guest
     client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": guest_user.email},
         headers={"Authorization": f"Bearer {host_token}"},
     )
@@ -245,7 +245,7 @@ def test_list_invitations_empty_for_unrelated_user(mock_sms, client, db, host, a
 # ─── The link must survive a failed email ────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_invitation_survives_failed_email(mock_send, client, host, active_session):
+def test_invitation_survives_failed_email(mock_send, client, host, active_salon):
     """A failed send must still yield the link: the host can then share it by hand.
 
     Rolling the invitation back destroyed the join link at the exact moment it was most
@@ -257,7 +257,7 @@ def test_invitation_survives_failed_email(mock_send, client, host, active_sessio
     _, token = host
 
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "unreachable@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -268,11 +268,11 @@ def test_invitation_survives_failed_email(mock_send, client, host, active_sessio
 
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_invitation_reports_successful_delivery(mock_send, client, host, active_session):
+def test_invitation_reports_successful_delivery(mock_send, client, host, active_salon):
     """emailSent tells the host whether they still need to share the link themselves."""
     _, token = host
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "reachable@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -280,20 +280,20 @@ def test_invitation_reports_successful_delivery(mock_send, client, host, active_
 
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_email_can_be_sent_afterwards(mock_send, client, host, active_session):
+def test_email_can_be_sent_afterwards(mock_send, client, host, active_salon):
     """Sending is a separate step, and reuses the same token rather than minting one."""
     _, token = host
     headers = {"Authorization": f"Bearer {token}"}
 
     created = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "later@example.com"},
         headers=headers,
     ).json()
 
     mock_send.reset_mock()
     resp = client.post(
-        f"/sessions/{active_session.id}/invitations/{created['invitationId']}/email",
+        f"/salons/{active_salon.id}/invitations/{created['invitationId']}/email",
         headers=headers,
     )
     assert resp.status_code == 200
@@ -306,7 +306,7 @@ def test_email_can_be_sent_afterwards(mock_send, client, host, active_session):
 
 @patch("src.services.invitation_service._send_invitation_email")
 def test_invitation_exposes_the_identity_the_guest_will_join_under(
-    mock_send, client, host, active_session
+    mock_send, client, host, active_salon
 ):
     """The whole point: the host holds the guest's room identity before they connect.
 
@@ -315,7 +315,7 @@ def test_invitation_exposes_the_identity_the_guest_will_join_under(
     """
     _, token = host
     created = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "addressable@example.com"},
         headers={"Authorization": f"Bearer {token}"},
     ).json()
@@ -332,19 +332,19 @@ def test_invitation_exposes_the_identity_the_guest_will_join_under(
 
 @patch("src.services.invitation_service._send_invitation_email")
 def test_guest_identity_is_stable_and_distinct_per_invitation(
-    mock_send, client, host, active_session
+    mock_send, client, host, active_salon
 ):
     """Two guests must not collide, and one guest must not change identity."""
     _, token = host
     headers = {"Authorization": f"Bearer {token}"}
 
     a = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "one@example.com"},
         headers=headers,
     ).json()
     b = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "two@example.com"},
         headers=headers,
     ).json()
@@ -354,7 +354,7 @@ def test_guest_identity_is_stable_and_distinct_per_invitation(
     # Re-inviting the same address inside the idempotency window reuses the invitation,
     # so the identity the host was given first must not move under them.
     again = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "one@example.com"},
         headers=headers,
     ).json()
@@ -363,13 +363,13 @@ def test_guest_identity_is_stable_and_distinct_per_invitation(
 
 @patch("src.services.invitation_service._send_invitation_email")
 def test_guest_label_shows_the_identifier_never_the_email(
-    mock_send, client, host, active_session
+    mock_send, client, host, active_salon
 ):
     """A guest is invited by address; that address is not the room's business."""
     _, token = host
     email = "private.person@example.com"
     created = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": email},
         headers={"Authorization": f"Bearer {token}"},
     ).json()
@@ -390,16 +390,16 @@ def test_guest_label_shows_the_identifier_never_the_email(
 
 
 @patch("src.services.invitation_service._send_invitation_email")
-def test_two_guests_get_distinguishable_labels(mock_send, client, host, active_session):
+def test_two_guests_get_distinguishable_labels(mock_send, client, host, active_salon):
     """The point of the change: one fixed label told two guests apart from nobody."""
     _, token = host
     headers = {"Authorization": f"Bearer {token}"}
     a = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "a@example.com"}, headers=headers,
     ).json()
     b = client.post(
-        f"/sessions/{active_session.id}/invitations",
+        f"/salons/{active_salon.id}/invitations",
         json={"guestEmail": "b@example.com"}, headers=headers,
     ).json()
     assert a["participantName"] != b["participantName"]

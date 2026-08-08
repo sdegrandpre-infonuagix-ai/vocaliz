@@ -217,7 +217,7 @@ def run_auction(
 def broadcast_winner(
     db: DbSession,
     *,
-    session=None,
+    salon=None,
     participant_codes=None,
     salon_topics=None,
     salon_languages=None,
@@ -262,8 +262,8 @@ def broadcast_winner(
         row = AdBroadcast(
             ad_id=ad.ad_id,
             advertiser_id=ad.advertiser_id,
-            session_id=getattr(session, "id", None),
-            salon_name=getattr(session, "livekit_room_name", "") or "",
+            salon_id=getattr(salon, "id", None),
+            salon_name=getattr(salon, "livekit_room_name", "") or "",
             amount_cents=price,
             currency=settings.billing_currency,
             broadcast_at=datetime.now(tz=timezone.utc),

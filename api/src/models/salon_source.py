@@ -8,14 +8,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database import Base
 
 
-class SessionSource(Base):
-    """Additional sources added to an active session by the host (Story 2.3)."""
+class SalonSource(Base):
+    """Additional sources added to an active salon by the host (Story 2.3)."""
 
-    __tablename__ = "session_sources"
+    __tablename__ = "salon_sources"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    salon_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False, index=True
     )
     host_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False

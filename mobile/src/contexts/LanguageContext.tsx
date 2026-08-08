@@ -8,8 +8,7 @@ import {
   resolveLanguage,
 } from '../i18n/translations';
 import type { SupportedLanguage, Translations } from '../i18n/translations';
-
-const LANGUAGE_KEY = 'salon_language';
+import { LANGUAGE as LANGUAGE_KEY, migrateLegacyKeys } from '../services/secureStoreKeys';
 
 /**
  * Three things want to choose the interface language, and they do not agree. Ranking them
@@ -89,7 +88,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // which is a reasonable thing to be showing in the meantime.
   useEffect(() => {
     let active = true;
-    SecureStore.getItemAsync(LANGUAGE_KEY)
+    // The migration has to complete before the read, not beside it: a launch that read
+    // first would find nothing under the new key and quietly fall back to detection,
+    // discarding a choice the user had already made.
+    migrateLegacyKeys()
+      .then(() => SecureStore.getItemAsync(LANGUAGE_KEY))
       .then(stored => {
         if (!active || !stored) return;
         applyIfStronger(resolveLanguage(stored), 'user');

@@ -22,8 +22,7 @@ export const CAPTION_TOPIC = 'captions';
 /** The attribute a client sets on itself to say what it is reading. */
 export const CAPTION_LANGUAGE_ATTRIBUTE = 'caption_lang';
 
-// SecureStore keys accept only letters, digits, dot, dash and underscore.
-const STORAGE_KEY = 'vocaliz.captionLang';
+import { CAPTION_LANG as STORAGE_KEY } from '../services/secureStoreKeys';
 
 export interface Caption {
   sequence: number;

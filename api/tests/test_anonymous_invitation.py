@@ -13,7 +13,7 @@ import uuid
 import pytest
 
 from src.models.invitation import Invitation
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -28,9 +28,9 @@ def host(db):
 
 
 @pytest.fixture
-def session(db, host):
+def salon(db, host):
     host_user, _ = host
-    s = SessionModel(
+    s = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-anon",
         source_type="url",
@@ -48,17 +48,17 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _create(client, session, token):
+def _create(client, salon, token):
     return client.post(
-        f"/sessions/{session.id}/invitations/anonymous", headers=_auth(token)
+        f"/salons/{salon.id}/invitations/anonymous", headers=_auth(token)
     )
 
 
 # ─── Creating one ────────────────────────────────────────────────────────────
 
-def test_a_host_can_make_a_link_with_no_address(client, session, host):
+def test_a_host_can_make_a_link_with_no_address(client, salon, host):
     _, token = host
-    resp = _create(client, session, token)
+    resp = _create(client, salon, token)
     assert resp.status_code == 201
     body = resp.json()
     assert body["joinLink"]
@@ -67,21 +67,21 @@ def test_a_host_can_make_a_link_with_no_address(client, session, host):
     assert body["invitationType"] == "anonymous_link"
 
 
-def test_nothing_is_sent(client, session, host):
+def test_nothing_is_sent(client, salon, host):
     """There is no address and no number, so reporting a delivery would be a lie. The host
     sharing the link by hand is the delivery."""
     _, token = host
-    body = _create(client, session, token).json()
+    body = _create(client, salon, token).json()
     assert body["emailSent"] is False
     assert body["smsSent"] is False
 
 
-def test_no_telephone_code_is_reserved(client, session, host, db):
+def test_no_telephone_code_is_reserved(client, salon, host, db):
     """Codes are a finite pool of six digits and a PIN reaches a guest only by text message.
     Holding one for a link with no number to send it to spends a scarce code on a channel
     that cannot be used."""
     _, token = host
-    body = _create(client, session, token).json()
+    body = _create(client, salon, token).json()
     # The id arrives as a string; the column is a UUID.
     row = db.query(Invitation).filter(
         Invitation.id == uuid.UUID(body["invitationId"])
@@ -94,37 +94,37 @@ def test_no_telephone_code_is_reserved(client, session, host, db):
     assert body["phonePin"] == ""
 
 
-def test_the_guest_still_gets_a_name_to_wear(client, session, host):
+def test_the_guest_still_gets_a_name_to_wear(client, salon, host):
     """Derived from the invitation, so an anonymous guest is still distinguishable from
     another anonymous guest in the same room."""
     _, token = host
-    body = _create(client, session, token).json()
+    body = _create(client, salon, token).json()
     assert body["participantName"].startswith("Guest ")
     assert body["participantIdentity"]
 
 
-def test_two_links_are_two_different_guests(client, session, host):
+def test_two_links_are_two_different_guests(client, salon, host):
     _, token = host
-    first = _create(client, session, token).json()
-    second = _create(client, session, token).json()
+    first = _create(client, salon, token).json()
+    second = _create(client, salon, token).json()
     assert first["joinLink"] != second["joinLink"]
     assert first["participantIdentity"] != second["participantIdentity"]
 
 
 # ─── Used once, like any other ───────────────────────────────────────────────
 
-def test_the_link_works_before_it_is_spent(client, session, host):
+def test_the_link_works_before_it_is_spent(client, salon, host):
     _, token = host
-    link = _create(client, session, token).json()["joinLink"]
+    link = _create(client, salon, token).json()["joinLink"]
     join_token = link.rsplit("/", 1)[-1]
     assert client.get(f"/invitations/guest-join/{join_token}").status_code == 200
 
 
-def test_the_link_dies_once_the_guest_is_really_in(client, session, host):
+def test_the_link_dies_once_the_guest_is_really_in(client, salon, host):
     """Spent at the confirm, not at the credential fetch — a guest whose browser refuses the
     microphone must be able to reopen the link elsewhere."""
     _, token = host
-    link = _create(client, session, token).json()["joinLink"]
+    link = _create(client, salon, token).json()["joinLink"]
     join_token = link.rsplit("/", 1)[-1]
 
     assert client.get(f"/invitations/guest-join/{join_token}").status_code == 200
@@ -134,15 +134,15 @@ def test_the_link_dies_once_the_guest_is_really_in(client, session, host):
     assert second.status_code == 410, "an anonymous link must be one-time like any other"
 
 
-def test_confirming_twice_does_not_throw_the_guest_out(client, session, host):
+def test_confirming_twice_does_not_throw_the_guest_out(client, salon, host):
     """A retry or a lost response must not eject somebody already in the room."""
     _, token = host
-    join_token = _create(client, session, token).json()["joinLink"].rsplit("/", 1)[-1]
+    join_token = _create(client, salon, token).json()["joinLink"].rsplit("/", 1)[-1]
     client.post(f"/invitations/guest-join/{join_token}/confirm")
     assert client.post(f"/invitations/guest-join/{join_token}/confirm").status_code == 200
 
 
-def test_an_anonymous_guest_is_recorded_under_their_room_identity(client, session, host, db):
+def test_an_anonymous_guest_is_recorded_under_their_room_identity(client, salon, host, db):
     """This asserted the opposite until the key changed, and the old behaviour was the defect.
 
     salon_events was keyed on an address or a number, so a guest with neither could not be
@@ -153,7 +153,7 @@ def test_an_anonymous_guest_is_recorded_under_their_room_identity(client, sessio
     from src.models.salon_event import SalonEvent
 
     _, token = host
-    body = _create(client, session, token).json()
+    body = _create(client, salon, token).json()
     join_token = body["joinLink"].rsplit("/", 1)[-1]
     client.post(f"/invitations/guest-join/{join_token}/confirm")
 
@@ -167,41 +167,41 @@ def test_an_anonymous_guest_is_recorded_under_their_room_identity(client, sessio
 
 # ─── Who may make one ────────────────────────────────────────────────────────
 
-def test_a_stranger_cannot_make_a_link(client, session):
-    assert client.post(f"/sessions/{session.id}/invitations/anonymous").status_code in (401, 403)
+def test_a_stranger_cannot_make_a_link(client, salon):
+    assert client.post(f"/salons/{salon.id}/invitations/anonymous").status_code in (401, 403)
 
 
-def test_another_host_cannot_make_a_link_for_this_salon(client, session, db):
+def test_another_host_cannot_make_a_link_for_this_salon(client, salon, db):
     other = User(email="other@example.com")
     db.add(other)
     db.commit()
     db.refresh(other)
-    resp = _create(client, session, issue_token(str(other.id)))
+    resp = _create(client, salon, issue_token(str(other.id)))
     assert resp.status_code == 404
 
 
-def test_a_closed_salon_takes_no_new_guests(client, session, host, db):
+def test_a_closed_salon_takes_no_new_guests(client, salon, host, db):
     _, token = host
-    session.status = "ended"
+    salon.status = "ended"
     db.commit()
-    assert _create(client, session, token).status_code == 409
+    assert _create(client, salon, token).status_code == 409
 
 
 def test_an_unknown_salon_is_not_found(client, host):
     _, token = host
     resp = client.post(
-        f"/sessions/{uuid.uuid4()}/invitations/anonymous", headers=_auth(token)
+        f"/salons/{uuid.uuid4()}/invitations/anonymous", headers=_auth(token)
     )
     assert resp.status_code == 404
 
 
 # ─── The addressed endpoint keeps its refusal ────────────────────────────────
 
-def test_an_empty_addressed_invitation_is_still_refused(client, session, host):
+def test_an_empty_addressed_invitation_is_still_refused(client, salon, host):
     """The anonymous link is a separate endpoint on purpose. Somebody who meant to type an
     address and left the field blank should be told, not handed a link to a stranger."""
     _, token = host
-    resp = client.post(f"/sessions/{session.id}/invitations", json={}, headers=_auth(token))
+    resp = client.post(f"/salons/{salon.id}/invitations", json={}, headers=_auth(token))
     assert resp.status_code == 422
 
 
@@ -218,7 +218,7 @@ def test_an_addressed_invitation_still_needs_a_way_to_reach_someone(db):
     import sqlalchemy
 
     row = Invitation(
-        session_id=uuid.uuid4(),
+        salon_id=uuid.uuid4(),
         host_user_id=uuid.uuid4(),
         guest_email="",
         guest_phone="",
@@ -239,7 +239,7 @@ def test_an_anonymous_invitation_may_not_carry_an_address(db):
     import sqlalchemy
 
     row = Invitation(
-        session_id=uuid.uuid4(),
+        salon_id=uuid.uuid4(),
         host_user_id=uuid.uuid4(),
         guest_email="someone@example.com",
         guest_phone="",
@@ -260,11 +260,11 @@ def test_an_anonymous_invitation_may_not_carry_an_address(db):
 # and "guest-<invitation>" when they clicked the emailed link. The participant report showed that
 # as two rows for one human, and three more if they were invited three times.
 
-def _invitation(db, session, host_user, **kw):
+def _invitation(db, salon, host_user, **kw):
     from datetime import datetime, timedelta, timezone
 
     row = Invitation(
-        session_id=session.id,
+        salon_id=salon.id,
         host_user_id=host_user.id,
         guest_email=kw.pop("email", "friend@example.com"),
         guest_phone="",
@@ -280,7 +280,7 @@ def _invitation(db, session, host_user, **kw):
     return row
 
 
-def test_an_invitation_linked_to_an_account_joins_as_that_account(db, session, host):
+def test_an_invitation_linked_to_an_account_joins_as_that_account(db, salon, host):
     """The fix. One registered person is one identity, whichever door they came through."""
     from src.services import livekit_service
 
@@ -290,28 +290,28 @@ def test_an_invitation_linked_to_an_account_joins_as_that_account(db, session, h
     db.commit()
     db.refresh(guest)
 
-    invitation = _invitation(db, session, host_user, guest_user_id=guest.id, kind="salon_friend")
+    invitation = _invitation(db, salon, host_user, guest_user_id=guest.id, kind="salon_friend")
     assert livekit_service.identity_for(invitation) == str(guest.id)
 
 
-def test_an_invitation_with_no_account_keeps_its_own_identity(db, session, host):
+def test_an_invitation_with_no_account_keeps_its_own_identity(db, salon, host):
     """Somebody with no account has nothing else to be identified by."""
     from src.services import livekit_service
 
     host_user, _ = host
-    invitation = _invitation(db, session, host_user)
+    invitation = _invitation(db, salon, host_user)
     assert livekit_service.identity_for(invitation) == f"guest-{invitation.id}"
 
 
-def test_an_anonymous_invitation_keeps_its_own_identity(db, session, host):
+def test_an_anonymous_invitation_keeps_its_own_identity(db, salon, host):
     from src.services import livekit_service
 
     host_user, _ = host
-    invitation = _invitation(db, session, host_user, email="", kind="anonymous_link")
+    invitation = _invitation(db, salon, host_user, email="", kind="anonymous_link")
     assert livekit_service.identity_for(invitation) == f"guest-{invitation.id}"
 
 
-def test_the_display_name_is_untouched(db, session, host):
+def test_the_display_name_is_untouched(db, salon, host):
     """Anonymity between participants rides on the label, not the identity. A registered guest is
     still shown as "Guest 3F2A" while being one countable person behind the scenes."""
     from src.services import livekit_service
@@ -321,7 +321,7 @@ def test_the_display_name_is_untouched(db, session, host):
     db.add(guest)
     db.commit()
     db.refresh(guest)
-    invitation = _invitation(db, session, host_user, guest_user_id=guest.id)
+    invitation = _invitation(db, salon, host_user, guest_user_id=guest.id)
 
     assert livekit_service.identity_for(invitation) == str(guest.id)
     label = livekit_service.guest_display_name(invitation.id)
@@ -329,7 +329,7 @@ def test_the_display_name_is_untouched(db, session, host):
     assert "shown@example.com" not in label
 
 
-def test_all_three_places_agree_on_the_identity(client, db, session, host):
+def test_all_three_places_agree_on_the_identity(client, db, salon, host):
     """The reason it is one function. The token the guest joins with, the handle returned to the
     host, and the participation row must name the same participant — a disagreement would leave
     the host addressing somebody who is not there.
@@ -344,13 +344,13 @@ def test_all_three_places_agree_on_the_identity(client, db, session, host):
     db.commit()
     db.refresh(guest)
     invitation = _invitation(
-        db, session, host_user, guest_user_id=guest.id, token="t-agree", kind="salon_friend"
+        db, salon, host_user, guest_user_id=guest.id, token="t-agree", kind="salon_friend"
     )
 
     # What the host is handed, straight from the invitation service.
     from src.services import invitation_service
 
-    handed = invitation_service._build_response(invitation, session)["participantIdentity"]
+    handed = invitation_service._build_response(invitation, salon)["participantIdentity"]
 
     # What the guest page is given, and what the row records.
     assert client.get(f"/invitations/guest-join/{invitation.join_token}").status_code == 200
@@ -360,7 +360,7 @@ def test_all_three_places_agree_on_the_identity(client, db, session, host):
     assert handed == recorded == str(guest.id)
 
 
-def test_a_folded_participation_keeps_its_salon(db, session, host):
+def test_a_folded_participation_keeps_its_salon(db, salon, host):
     """The behaviour migration 038 repairs, asserted at the level that matters: a registered
     person's guest participation belongs to them, not to an invitation.
 
@@ -376,7 +376,7 @@ def test_a_folded_participation_keeps_its_salon(db, session, host):
     db.commit()
     db.refresh(guest)
     invitation = _invitation(
-        db, session, host_user, guest_user_id=guest.id, token="t-fold", kind="salon_friend"
+        db, salon, host_user, guest_user_id=guest.id, token="t-fold", kind="salon_friend"
     )
 
     # As host of their own salon.
@@ -393,7 +393,7 @@ def test_a_folded_participation_keeps_its_salon(db, session, host):
         participant_identity=livekit_service.identity_for(invitation),
         email=guest.email,
         user_type="guest",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
     )
 
     rows = db.query(SalonEvent).all()

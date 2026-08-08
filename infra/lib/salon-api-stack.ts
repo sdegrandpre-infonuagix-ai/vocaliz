@@ -90,25 +90,53 @@ export class SalonApiStack extends cdk.Stack {
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       writer: rds.ClusterInstance.serverlessV2('writer'),
-      // 0, not 0.5: a floor of 0.5 ACU bills around the clock for a database that is
-      // only touched during test sessions — roughly 50 USD a month to keep an idle
-      // cluster warm. PostgreSQL 16.14 supports scaling to zero, so it now costs
-      // storage alone while nobody is talking.
+      // 0.5, the lowest floor above zero. This used to be 0, and the reasoning behind
+      // that is worth keeping because it was right at the time: scaling to zero costs
+      // storage alone while nobody is talking, against roughly 44 USD a month to hold
+      // a floor of 0.5 ACU around the clock. For a database "only touched during test
+      // salons", paying to keep it warm bought nothing.
       //
-      // The price is a resume of about fifteen seconds on the first request after a
-      // pause. That fits inside the API Lambda's 29 s ceiling below, but it is real:
-      // the first call after an idle night will be visibly slow.
-      serverlessV2MinCapacity: 0,
+      // What changed is what the database is for. The price of zero is a resume of
+      // about fifteen seconds on the first request after a pause, and that first
+      // request is now the opening of a live voice conversation. Fifteen seconds of
+      // dead air while three people wait is not a slow page load — it is the product
+      // failing in the one moment it has to work.
+      //
+      // Two more things now depend on the database being awake continuously rather
+      // than on demand: the journal is read and written on every turn, and the balance
+      // is debited every five seconds. Neither tolerates a cold start mid-conversation.
+      serverlessV2MinCapacity: 0.5,
       serverlessV2MaxCapacity: 2,
-      // Ten minutes rather than the five-minute default: sessions come in bursts, and
-      // this keeps consecutive tests from each paying for a resume, while still leaving
-      // an idle evening at zero.
-      serverlessV2AutoPauseDuration: cdk.Duration.minutes(10),
+      // No serverlessV2AutoPauseDuration: auto-pause only applies to a floor of 0, and
+      // there is nothing left to pause.
       defaultDatabaseName: 'salon',
       credentials: rds.Credentials.fromGeneratedSecret('salon'),
       storageEncrypted: true,
-      // Test environment: the cluster is meant to be torn down between test rounds.
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+
+      // This cluster stopped being a test environment. It now holds transcribed
+      // conversations kept for a year, participant contact details and approximate
+      // locations, and ad_broadcasts rows that are an advertiser's only evidence that
+      // their ad ran. The three settings below were right for something torn down
+      // between test rounds and are wrong for that.
+      //
+      // RETAIN rather than DESTROY: deleting the stack must not delete the data. The
+      // cluster survives its stack and is removed deliberately or not at all.
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      // Blocks deletion at the RDS layer as well, so a hand-typed `aws rds
+      // delete-db-cluster` fails too. RETAIN alone only binds CloudFormation.
+      deletionProtection: true,
+      // Thirty days, not the one-day default. One day means an accidental truncate
+      // discovered on a Tuesday about work done on Sunday is unrecoverable — and the
+      // retention obligation on these journals is a year, which a 24-hour restore
+      // window cannot honour.
+      //
+      // Thirty rather than fourteen: a month covers the interval at which anything is
+      // actually reconciled here — the advertiser invoicing run, the participant
+      // report, a monthly look at the books. A corruption found while closing the
+      // month has to be restorable from within that month, or the discovery is
+      // useless. Aurora allows up to 35; the cost is backup storage beyond the
+      // cluster's own size, which is negligible against a cluster that scales to zero.
+      backup: { retention: cdk.Duration.days(30) },
     });
 
     // ── Application secrets ───────────────────────────────────────────────────
@@ -187,10 +215,10 @@ export class SalonApiStack extends cdk.Stack {
       }),
     });
 
-    // The per-session cap used to be evaluated only when a heartbeat arrived, which meant
+    // The per-salon cap used to be evaluated only when a heartbeat arrived, which meant
     // it was not evaluated at all in the most ordinary failure: a host closes their laptop,
-    // or the agent worker dies. The session then stayed active for good, leaking an open
-    // session, a reserved telephone code and a span of metered time never settled.
+    // or the agent worker dies. The salon then stayed active for good, leaking an open
+    // salon, a reserved telephone code and a span of metered time never settled.
     //
     // Every minute, not every five. The interval is not a tidiness setting: a Salon past its
     // cap still has an agent in it, and that agent is a live connection to the realtime model
@@ -200,12 +228,12 @@ export class SalonApiStack extends cdk.Stack {
     // The extra cost is on the side that is nearly free: 1440 invocations a day instead of
     // 288, of a Lambda that usually finds nothing and returns in milliseconds. Trading Lambda
     // invocations for realtime-model minutes is the right way round by a wide margin.
-    new events.Rule(this, 'SweepExpiredSessions', {
+    new events.Rule(this, 'SweepExpiredSalons', {
       schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
-      description: 'Close sessions past the per-session cap, regardless of heartbeats',
+      description: 'Close salons past the per-salon cap, regardless of heartbeats',
       targets: [
         new eventTargets.LambdaFunction(migrateFn, {
-          event: events.RuleTargetInput.fromObject({ action: 'sweep_sessions' }),
+          event: events.RuleTargetInput.fromObject({ action: 'sweep_salons' }),
         }),
       ],
     });

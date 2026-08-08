@@ -77,7 +77,7 @@ class SalonEvent(Base):
     # What kind of device this person joined from, as one of a closed set of categories —
     # "iphone", "android-tablet", "windows" — and never the User-Agent header it came from.
     # The header carries browser build, engine version and often the exact model, which
-    # together identify somebody across sessions better than anything else here; a category
+    # together identify somebody across salons better than anything else here; a category
     # answers what the interface should assume and nothing about who.
     #
     # On the participation rather than the account, for the same reason as the language above:

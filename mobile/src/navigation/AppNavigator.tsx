@@ -2,11 +2,11 @@ import React, { useCallback, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import RoomScreen from '../screens/RoomScreen';
-import SessionCreationScreen from '../screens/SessionCreationScreen';
+import SalonCreationScreen from '../screens/SalonCreationScreen';
 import { colors } from '../theme/tokens';
 
 export type AppStackParamList = {
-  SessionCreation: undefined;
+  SalonCreation: undefined;
 };
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -17,15 +17,15 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
  * cleanup — the moment the host leaves, which a navigation stack would not guarantee.
  */
 function HostFlow() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [salonId, setSalonId] = useState<string | null>(null);
 
-  const handleCreated = useCallback((id: string) => setSessionId(id), []);
-  const handleLeft = useCallback(() => setSessionId(null), []);
+  const handleCreated = useCallback((id: string) => setSalonId(id), []);
+  const handleLeft = useCallback(() => setSalonId(null), []);
 
-  return sessionId ? (
-    <RoomScreen sessionId={sessionId} onLeft={handleLeft} />
+  return salonId ? (
+    <RoomScreen salonId={salonId} onLeft={handleLeft} />
   ) : (
-    <SessionCreationScreen onSessionCreated={handleCreated} />
+    <SalonCreationScreen onSalonCreated={handleCreated} />
   );
 }
 
@@ -38,7 +38,7 @@ export default function AppNavigator() {
         animation: 'slide_from_right',
       }}
     >
-      <Stack.Screen name="SessionCreation" component={HostFlow} />
+      <Stack.Screen name="SalonCreation" component={HostFlow} />
     </Stack.Navigator>
   );
 }

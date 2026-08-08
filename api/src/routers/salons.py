@@ -1,4 +1,4 @@
-"""Sessions router — create and manage discussion sessions."""
+"""Salons router — create and manage discussion salons."""
 import logging
 from typing import Optional
 
@@ -10,29 +10,29 @@ from src.dependencies.auth import get_current_user
 from src.models.ad import Ad
 from src.models.ad_broadcast import AdBroadcast
 from src.models.salon_event import SalonEvent
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.shared_source import SharedSource, SharedSourceConsent
-from src.models.session_source import SessionSource
+from src.models.salon_source import SalonSource
 from src.models.user import User
 from src.models.invitation import Invitation
-from src.schemas.session import (
+from src.schemas.salon import (
     AgentMuteBody,
     AgentStateResponse,
     BillingChargeSummary,
-    EndSessionBody,
-    EndSessionResponse,
+    EndSalonBody,
+    EndSalonResponse,
     HeartbeatBody,
     ParticipantLanguageBody,
     HeartbeatResponse,
-    JoinSessionResponse,
-    SessionDetailResponse,
-    SessionHistoryItem,
-    SessionHistoryResponse,
-    SessionInvitationSummary,
-    SessionPartner,
-    SessionResponse,
-    SessionSourceResponse,
-    SessionSourceSummary,
+    JoinSalonResponse,
+    SalonDetailResponse,
+    SalonHistoryItem,
+    SalonHistoryResponse,
+    SalonInvitationSummary,
+    SalonPartner,
+    SalonResponse,
+    SalonSourceResponse,
+    SalonSourceSummary,
     SourceSearchResponse,
     TranscriptResponse,
     UtteranceBody,
@@ -49,7 +49,7 @@ from src.services import (
     jwt_service,
     livekit_service,
     salon_event_service,
-    session_lifecycle,
+    salon_lifecycle,
     shared_source_service,
     summary_service,
     stripe_service,
@@ -60,13 +60,13 @@ from src.services import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+router = APIRouter(prefix="/salons", tags=["salons"])
 
 
 async def _publish_to_corpus(
     db: DbSession,
     *,
-    session_id,
+    salon_id,
     shared_by: str,
     url: str,
     summary: str | None,
@@ -87,7 +87,7 @@ async def _publish_to_corpus(
         topics = await summary_service.topics(content)
         shared_source_service.publish(
             db,
-            session_id=session_id,
+            salon_id=salon_id,
             shared_by=shared_by,
             url=url,
             summary=summary or "",
@@ -102,20 +102,20 @@ async def _publish_to_corpus(
 
 
 
-def _is_front_desk(session: SessionModel, db: DbSession) -> bool:
+def _is_front_desk(salon: Salon, db: DbSession) -> bool:
     """Whether this Salon was opened by somebody ringing the front page.
 
     The desk's own Salons, started from the console, are ordinary discussions — so owning it
     is not enough. A call has no source: nobody chose a document, they just rang.
     """
-    if session.source_type != "none":
+    if salon.source_type != "none":
         return False
-    host = db.query(User).filter(User.id == session.host_user_id).first()
+    host = db.query(User).filter(User.id == salon.host_user_id).first()
     return host is not None and host.email == settings.front_desk_email
 
 
-@router.post("", response_model=SessionResponse, status_code=201)
-async def create_session(
+@router.post("", response_model=SalonResponse, status_code=201)
+async def create_salon(
     source_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     partner_email: Optional[str] = Form(None),
@@ -127,11 +127,11 @@ async def create_session(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Create a discussion session from a document upload or a URL.
+    Create a discussion salon from a document upload or a URL.
     Provisions a LiveKit room and returns a host participant token.
 
     Quick-start (Story 5.2): pass `partner_email` (a previous partner selected from
-    GET /me/partners) to auto-invite that partner in the same call, so the new session
+    GET /me/partners) to auto-invite that partner in the same call, so the new salon
     starts with the partner already identified — no separate invitation step needed.
     """
     # Trial gate: trial exhausted + no payment method → require Stripe setup before continuing
@@ -147,15 +147,15 @@ async def create_session(
             ),
         )
 
-    # 0. A host may never have two sessions open at once. A stale session keeps its agent
+    # 0. A host may never have two salons open at once. A stale salon keeps its agent
     # alive and talking, so a new room could surface the previous agent instead of its own
     # — which is precisely what happened in testing. Closing settles the metering; deleting
     # the room is what actually stops the old agent.
-    closed = await session_lifecycle.close_previous_host_sessions(current_user, db)
+    closed = await salon_lifecycle.close_previous_host_salons(current_user, db)
     if closed:
-        logger.info("Closed %d stale session(s) before creating a new one", closed)
+        logger.info("Closed %d stale salon(s) before creating a new one", closed)
 
-    # 1. Extract source content. A session may start with no source at all: the agent
+    # 1. Extract source content. A salon may start with no source at all: the agent
     # then opens by asking participants what they want to discuss (see _build_instructions).
     # Metadata is read from the same fetch as the text, never a second request: fetching
     # twice doubles the wait and can return two different versions of a page.
@@ -198,8 +198,8 @@ async def create_session(
         content, language or current_user.detected_language
     )
 
-    # 4. Persist session
-    session = SessionModel(
+    # 4. Persist salon
+    salon = Salon(
         host_user_id=current_user.id,
         livekit_room_name=room_name,
         source_type=source_type,
@@ -208,15 +208,15 @@ async def create_session(
         source_content=content,
         source_summary=summary,
     )
-    db.add(session)
+    db.add(salon)
     db.commit()
-    db.refresh(session)
+    db.refresh(salon)
 
     # Accounting only — nothing reads this back during the conversation.
     if content:
         salon_event_service.record_upload(
             db,
-            salon_id=session.id,
+            salon_id=salon.id,
             uploaded_by=current_user.email,
             url=source_url,
             filename=source_filename,
@@ -233,7 +233,7 @@ async def create_session(
     if share_with_platform and source_type == "url" and content:
         await _publish_to_corpus(
             db,
-            session_id=session.id,
+            salon_id=salon.id,
             shared_by=current_user.email,
             url=source_url,
             summary=summary,
@@ -242,20 +242,20 @@ async def create_session(
             article_date=article_date,
         )
 
-    # 5. Dispatch the agent with the session context it needs to read sources, invite
-    # guests and report metering. Done after the commit so the session id exists.
+    # 5. Dispatch the agent with the salon context it needs to read sources, invite
+    # guests and report metering. Done after the commit so the salon id exists.
     #
     # This is a Salon API JWT, not the LiveKit participant token above: the agent calls
     # our REST API with it, and passing the LiveKit token here yields 401 on every call.
     await livekit_service.dispatch_agent(
         room_name,
-        session_id=str(session.id),
+        salon_id=str(salon.id),
         host_token=jwt_service.issue_token(str(current_user.id)),
     )
 
-    # Quick-start with a previous partner: auto-invite so the session starts with
-    # the partner already identified (Story 5.2). The session is already persisted,
-    # so an invitation failure surfaces to the client without losing the session.
+    # Quick-start with a previous partner: auto-invite so the salon starts with
+    # the partner already identified (Story 5.2). The salon is already persisted,
+    # so an invitation failure surfaces to the client without losing the salon.
     invitation_summary = None
     if partner_email:
         try:
@@ -266,12 +266,12 @@ async def create_session(
                 detail="partner_email must be a valid email address.",
             )
         invite = invitation_service.invite_guest(
-            session_id=str(session.id),
+            salon_id=str(salon.id),
             host_user=current_user,
             guest_email=normalized_email,
             db=db,
         )
-        invitation_summary = SessionInvitationSummary(
+        invitation_summary = SalonInvitationSummary(
             invitationId=invite["invitationId"],
             invitationType=invite["invitationType"],
             guestEmail=invite["guestEmail"],
@@ -279,19 +279,19 @@ async def create_session(
             joinLink=invite.get("joinLink"),
         )
 
-    return SessionResponse(
-        sessionId=str(session.id),
+    return SalonResponse(
+        salonId=str(salon.id),
         livekitRoomName=room_name,
         hostToken=host_token,
         sourceType=source_type,
-        createdAt=session.created_at.isoformat(),
+        createdAt=salon.created_at.isoformat(),
         invitation=invitation_summary,
     )
 
 
-@router.post("/{session_id}/sources", response_model=SessionSourceResponse, status_code=201)
-async def add_session_source(
-    session_id: str,
+@router.post("/{salon_id}/sources", response_model=SalonSourceResponse, status_code=201)
+async def add_salon_source(
+    salon_id: str,
     source_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     share_with_platform: bool = Form(False),
@@ -299,25 +299,25 @@ async def add_session_source(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Add an additional source (URL or document) to an active session.
-    Only the session host may call this endpoint.
+    Add an additional source (URL or document) to an active salon.
+    Only the salon host may call this endpoint.
     """
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
-    if session.status != "active":
-        raise HTTPException(status_code=409, detail="Cannot add a source to an ended session.")
+    if salon.status != "active":
+        raise HTTPException(status_code=409, detail="Cannot add a source to an ended salon.")
 
     if not source_url and (file is None or not file.filename):
         raise HTTPException(
@@ -341,8 +341,8 @@ async def add_session_source(
         content, current_user.detected_language
     )
 
-    source = SessionSource(
-        session_id=session_uuid,
+    source = SalonSource(
+        salon_id=salon_uuid,
         host_user_id=current_user.id,
         source_type=src_type,
         source_url=source_url,
@@ -356,7 +356,7 @@ async def add_session_source(
 
     salon_event_service.record_upload(
         db,
-        salon_id=session.id,
+        salon_id=salon.id,
         uploaded_by=current_user.email,
         url=source_url,
         filename=src_filename,
@@ -370,7 +370,7 @@ async def add_session_source(
     if share_with_platform and source_url and content:
         await _publish_to_corpus(
             db,
-            session_id=session.id,
+            salon_id=salon.id,
             shared_by=current_user.email,
             url=source_url,
             summary=summary,
@@ -381,41 +381,41 @@ async def add_session_source(
             ),
         )
 
-    # The agent reads session sources once, at job start. Without this it would never
+    # The agent reads salon sources once, at job start. Without this it would never
     # learn about a source added mid-conversation (FR3).
     await livekit_service.notify_room(
-        session.livekit_room_name, {"action": "source_added", "sourceId": str(source.id)}
+        salon.livekit_room_name, {"action": "source_added", "sourceId": str(source.id)}
     )
 
-    return SessionSourceResponse(
+    return SalonSourceResponse(
         sourceId=str(source.id),
-        sessionId=str(session.id),
+        salonId=str(salon.id),
         sourceType=src_type,
         contentLength=len(content or ""),
         createdAt=source.created_at.isoformat(),
     )
 
 
-@router.get("", response_model=SessionHistoryResponse)
-def list_session_history(
+@router.get("", response_model=SalonHistoryResponse)
+def list_salon_history(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Return the authenticated user's session history (Story 5.1).
+    Return the authenticated user's salon history (Story 5.1).
 
-    Lists every session the user took part in — as host or as an accepted guest —
+    Lists every salon the user took part in — as host or as an accepted guest —
     with the discussion partner(s), most recent first. A light summary only: source
     topic, date and partners. No message thread is returned (Salon keeps no transcript).
     """
-    # Sessions where the user was the host.
-    host_sessions = (
-        db.query(SessionModel)
-        .filter(SessionModel.host_user_id == current_user.id)
+    # Salons where the user was the host.
+    host_salons = (
+        db.query(Salon)
+        .filter(Salon.host_user_id == current_user.id)
         .all()
     )
 
-    # Sessions where the user joined as an invited guest (invitation accepted).
+    # Salons where the user joined as an invited guest (invitation accepted).
     guest_invitations = (
         db.query(Invitation)
         .filter(
@@ -424,24 +424,24 @@ def list_session_history(
         )
         .all()
     )
-    guest_session_ids = {inv.session_id for inv in guest_invitations}
-    # Exclude any session the user also hosts (can't be both) to avoid duplicates.
-    host_session_ids = {s.id for s in host_sessions}
-    guest_session_ids -= host_session_ids
-    guest_sessions = (
-        db.query(SessionModel).filter(SessionModel.id.in_(guest_session_ids)).all()
-        if guest_session_ids
+    guest_salon_ids = {inv.salon_id for inv in guest_invitations}
+    # Exclude any salon the user also hosts (can't be both) to avoid duplicates.
+    host_salon_ids = {s.id for s in host_salons}
+    guest_salon_ids -= host_salon_ids
+    guest_salons = (
+        db.query(Salon).filter(Salon.id.in_(guest_salon_ids)).all()
+        if guest_salon_ids
         else []
     )
 
-    items: list[SessionHistoryItem] = []
+    items: list[SalonHistoryItem] = []
 
     # Host-role entries: partners are the invited guests.
-    for s in host_sessions:
+    for s in host_salons:
         invitations = (
-            db.query(Invitation).filter(Invitation.session_id == s.id).all()
+            db.query(Invitation).filter(Invitation.salon_id == s.id).all()
         )
-        partners: list[SessionPartner] = []
+        partners: list[SalonPartner] = []
         seen: set = set()
         for inv in invitations:
             key = inv.guest_user_id or inv.guest_email
@@ -455,10 +455,10 @@ def list_session_history(
                 if guest_user:
                     email = guest_user.email
                     user_id = str(guest_user.id)
-            partners.append(SessionPartner(userId=user_id, email=email))
+            partners.append(SalonPartner(userId=user_id, email=email))
         items.append(
-            SessionHistoryItem(
-                sessionId=str(s.id),
+            SalonHistoryItem(
+                salonId=str(s.id),
                 role="host",
                 sourceType=s.source_type,
                 sourceUrl=s.source_url,
@@ -469,17 +469,17 @@ def list_session_history(
             )
         )
 
-    # Guest-role entries: the partner is the session host.
-    for s in guest_sessions:
+    # Guest-role entries: the partner is the salon host.
+    for s in guest_salons:
         host_user = db.query(User).filter(User.id == s.host_user_id).first()
         partners = (
-            [SessionPartner(userId=str(host_user.id), email=host_user.email)]
+            [SalonPartner(userId=str(host_user.id), email=host_user.email)]
             if host_user
             else []
         )
         items.append(
-            SessionHistoryItem(
-                sessionId=str(s.id),
+            SalonHistoryItem(
+                salonId=str(s.id),
                 role="guest",
                 sourceType=s.source_type,
                 sourceUrl=s.source_url,
@@ -493,50 +493,50 @@ def list_session_history(
     # Most recent first (ISO-8601 timestamps sort lexicographically).
     items.sort(key=lambda i: i.createdAt, reverse=True)
 
-    return SessionHistoryResponse(sessions=items)
+    return SalonHistoryResponse(salons=items)
 
 
-@router.get("/{session_id}", response_model=SessionDetailResponse)
-def get_session(
-    session_id: str,
+@router.get("/{salon_id}", response_model=SalonDetailResponse)
+def get_salon(
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Return full session details including source content.
+    Return full salon details including source content.
     Used by the agent worker at job start to build facilitation context.
-    Only accessible by the session host.
+    Only accessible by the salon host.
     """
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
     extra_sources = (
-        db.query(SessionSource)
-        .filter(SessionSource.session_id == session_uuid)
-        .order_by(SessionSource.created_at)
+        db.query(SalonSource)
+        .filter(SalonSource.salon_id == salon_uuid)
+        .order_by(SalonSource.created_at)
         .all()
     )
 
-    return SessionDetailResponse(
-        sessionId=str(session.id),
-        livekitRoomName=session.livekit_room_name,
-        sourceType=session.source_type,
-        sourceUrl=session.source_url,
-        sourceContent=session.source_content,
-        sourceSummary=session.source_summary,
+    return SalonDetailResponse(
+        salonId=str(salon.id),
+        livekitRoomName=salon.livekit_room_name,
+        sourceType=salon.source_type,
+        sourceUrl=salon.source_url,
+        sourceContent=salon.source_content,
+        sourceSummary=salon.source_summary,
         additionalSources=[
-            SessionSourceSummary(
+            SalonSourceSummary(
                 sourceId=str(s.id),
                 sourceType=s.source_type,
                 sourceUrl=s.source_url,
@@ -546,53 +546,53 @@ def get_session(
             )
             for s in extra_sources
         ],
-        status=session.status,
-        createdAt=session.created_at.isoformat(),
-        agentMuted=session.agent_muted,
-        hostIdentity=str(session.host_user_id),
-        agentLanguage=session.agent_language,
-        frontDesk=_is_front_desk(session, db),
+        status=salon.status,
+        createdAt=salon.created_at.isoformat(),
+        agentMuted=salon.agent_muted,
+        hostIdentity=str(salon.host_user_id),
+        agentLanguage=salon.agent_language,
+        frontDesk=_is_front_desk(salon, db),
     )
 
 
-@router.post("/{session_id}/join", response_model=JoinSessionResponse)
-def join_session(
-    session_id: str,
+@router.post("/{salon_id}/join", response_model=JoinSalonResponse)
+def join_salon(
+    salon_id: str,
     request: Request,
     body: GeoBody | None = None,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Generate a LiveKit participant token for joining an active session.
-    Accessible by: the session host, or any user with a pending invitation.
+    Generate a LiveKit participant token for joining an active salon.
+    Accessible by: the salon host, or any user with a pending invitation.
     Marks the invitation as accepted when a guest joins.
     """
     import uuid as _uuid
     from datetime import datetime, timezone
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found.")
-    if session.status != "active":
-        raise HTTPException(status_code=409, detail="This session has ended.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found.")
+    if salon.status != "active":
+        raise HTTPException(status_code=409, detail="This salon has ended.")
 
     # Authorise host OR invited guest
-    is_host = session.host_user_id == current_user.id
+    is_host = salon.host_user_id == current_user.id
     invitation = None
     if not is_host:
         now = datetime.now(tz=timezone.utc)
         invitation = (
             db.query(Invitation)
             .filter(
-                Invitation.session_id == session_uuid,
+                Invitation.salon_id == salon_uuid,
                 Invitation.guest_user_id == current_user.id,
                 Invitation.status == "pending",
                 Invitation.expires_at > now,
@@ -600,7 +600,7 @@ def join_session(
             .first()
         )
         if not invitation:
-            raise HTTPException(status_code=403, detail="Access denied to this session.")
+            raise HTTPException(status_code=403, detail="Access denied to this salon.")
 
     # Mark invitation accepted
     if invitation:
@@ -618,7 +618,7 @@ def join_session(
         email=current_user.email or "",
         phone=current_user.phone_number or "",
         user_type="host" if is_host else "guest",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         latitude=body.latitude if body else None,
         longitude=body.longitude if body else None,
         first_spoken_language=current_user.detected_language,
@@ -634,22 +634,22 @@ def join_session(
     )
 
     token = livekit_service.generate_participant_token(
-        room_name=session.livekit_room_name,
+        room_name=salon.livekit_room_name,
         user_id=str(current_user.id),
         display_name=current_user.email,
         can_publish=True,
     )
 
-    return JoinSessionResponse(
+    return JoinSalonResponse(
         participantToken=token,
-        livekitRoomName=session.livekit_room_name,
+        livekitRoomName=salon.livekit_room_name,
         livekitUrl=livekit_service._http_url(),
     )
 
 
-@router.post("/{session_id}/heartbeat", response_model=HeartbeatResponse)
-async def session_heartbeat(
-    session_id: str,
+@router.post("/{salon_id}/heartbeat", response_model=HeartbeatResponse)
+async def salon_heartbeat(
+    salon_id: str,
     body: HeartbeatBody,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -658,74 +658,74 @@ async def session_heartbeat(
     Record a metering heartbeat from the agent worker.
 
     Called every 30 seconds by the agent to commit elapsed trial time in real time.
-    Ensures metered time is not lost if the session ends unexpectedly.
-    Only the session host may call this endpoint.
+    Ensures metered time is not lost if the salon ends unexpectedly.
+    Only the salon host may call this endpoint.
     """
     import uuid as _uuid
     from datetime import datetime, timezone
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
-    if session.status != "active":
-        raise HTTPException(status_code=409, detail="The session has ended.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
+    if salon.status != "active":
+        raise HTTPException(status_code=409, detail="The salon has ended.")
 
     seconds = max(0, body.seconds)
-    host = db.query(User).filter(User.id == session.host_user_id).first()
+    host = db.query(User).filter(User.id == salon.host_user_id).first()
     if host is not None and seconds > 0:
         host.trial_seconds_used = host.trial_seconds_used + seconds
 
     now = datetime.now(tz=timezone.utc)
-    session.last_heartbeat_at = now
+    salon.last_heartbeat_at = now
     db.commit()
 
-    # Per-session cap, enforced here because the heartbeat is the only thing that ticks
+    # Per-salon cap, enforced here because the heartbeat is the only thing that ticks
     # reliably while a conversation is live. Doing it server-side rather than trusting the
     # agent to stop itself matters: a worker that crashes or loses its connection would
     # otherwise leave the room open and billing.
     #
     # Overshoot is bounded by the heartbeat interval — thirty seconds — which is close
     # enough for a spending guard, and far simpler than a scheduled sweep.
-    started = session.created_at
+    started = salon.created_at
     if started.tzinfo is None:
         started = started.replace(tzinfo=timezone.utc)
-    remaining = max(0, settings.max_session_seconds - int((now - started).total_seconds()))
+    remaining = max(0, settings.max_salon_seconds - int((now - started).total_seconds()))
 
     ended_now = False
     if remaining == 0:
         # Deleting the room is what actually stops the agent; finalizing only settles the
-        # accounting. Same order as close_previous_host_sessions, for the same reason.
-        room_name = session.livekit_room_name
-        session_lifecycle.finalize_session(session, db)
+        # accounting. Same order as close_previous_host_salons, for the same reason.
+        room_name = salon.livekit_room_name
+        salon_lifecycle.finalize_salon(salon, db)
         await livekit_service.delete_room(room_name)
         ended_now = True
         logger.info(
-            "Session %s reached the %ds cap and was closed",
-            session.id,
-            settings.max_session_seconds,
+            "Salon %s reached the %ds cap and was closed",
+            salon.id,
+            settings.max_salon_seconds,
         )
 
-    # Re-read after finalize_session, which may have accrued the closing span.
+    # Re-read after finalize_salon, which may have accrued the closing span.
     used = host.trial_seconds_used if host is not None else 0
     return HeartbeatResponse(
-        sessionId=str(session.id),
+        salonId=str(salon.id),
         trialSecondsUsed=used,
         secondsRemaining=remaining,
-        sessionEnded=ended_now,
+        salonEnded=ended_now,
     )
 
 
-@router.get("/{session_id}/search", response_model=SourceSearchResponse)
-def search_session_sources(
-    session_id: str,
+@router.get("/{salon_id}/search", response_model=SourceSearchResponse)
+def search_salon_sources(
+    salon_id: str,
     q: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -743,22 +743,22 @@ def search_session_sources(
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
-    texts = [session.source_content]
+    texts = [salon.source_content]
     texts += [
         src.source_content
-        for src in db.query(SessionSource)
-        .filter(SessionSource.session_id == session_uuid)
+        for src in db.query(SalonSource)
+        .filter(SalonSource.salon_id == salon_uuid)
         .all()
     ]
 
@@ -772,9 +772,9 @@ def search_session_sources(
     return SourceSearchResponse(excerpts=excerpts[:4])
 
 
-@router.get("/{session_id}/participant-history", status_code=200)
+@router.get("/{salon_id}/participant-history", status_code=200)
 def participant_history(
-    session_id: str,
+    salon_id: str,
     identity: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -790,29 +790,29 @@ def participant_history(
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
     return {
         "firstSalon": salon_event_service.is_first_salon(
             db,
-            salon_name=session.livekit_room_name,
+            salon_name=salon.livekit_room_name,
             participant_identity=identity,
         )
     }
 
 
-@router.post("/{session_id}/voice-health", status_code=200)
+@router.post("/{salon_id}/voice-health", status_code=200)
 def report_voice_health(
-    session_id: str,
+    salon_id: str,
     body: VoiceHealthBody,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -820,7 +820,7 @@ def report_voice_health(
     """The agent reporting whether its realtime voice connection worked.
 
     xAI offers no cheap voice call to probe — /v1/audio/speech answers 403 for this team, and a
-    realtime session is the only test, which is too costly to open every minute. So the check is
+    realtime salon is the only test, which is too costly to open every minute. So the check is
     not a probe at all: it is the real thing, reported by the agent that just did it.
 
     Better than a probe in the way that matters. A substitute can succeed while the genuine path
@@ -829,7 +829,7 @@ def report_voice_health(
     of the morning rather than before them. The scheduled text probe covers the account-level
     causes — spent credit, revoked key — which were the only two that ever actually happened.
 
-    The session id is not used beyond authorising the call. The health of xAI is not a property
+    The salon id is not used beyond authorising the call. The health of xAI is not a property
     of one Salon, and recording it per Salon would make "is voice working" unanswerable without
     picking a room first.
     """
@@ -844,9 +844,9 @@ def report_voice_health(
     )
 
 
-@router.post("/{session_id}/participant-language", status_code=200)
+@router.post("/{salon_id}/participant-language", status_code=200)
 def record_participant_language(
-    session_id: str,
+    salon_id: str,
     body: ParticipantLanguageBody,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -858,25 +858,25 @@ def record_participant_language(
     the participation — and guests, having no account, had nowhere for it to go at all.
 
     Called by the agent with the host's token, which is why authorisation is ownership of
-    the session rather than being the participant in question.
+    the salon rather than being the participant in question.
     """
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
     written = salon_event_service.record_first_language(
         db,
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         participant_identity=body.participantIdentity,
         language=body.language,
     )
@@ -885,59 +885,59 @@ def record_participant_language(
     return {"recorded": written}
 
 
-@router.post("/{session_id}/end", response_model=EndSessionResponse)
-async def end_session(
-    session_id: str,
-    body: EndSessionBody | None = None,
+@router.post("/{salon_id}/end", response_model=EndSalonResponse)
+async def end_salon(
+    salon_id: str,
+    body: EndSalonBody | None = None,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Mark an active session as ended.
-    Only the session host (or the agent acting on behalf of the host) may call this.
-    Idempotent: calling on an already-ended session returns 409.
+    Mark an active salon as ended.
+    Only the salon host (or the agent acting on behalf of the host) may call this.
+    Idempotent: calling on an already-ended salon returns 409.
     """
     import uuid as _uuid
     from datetime import datetime, timezone
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
-    if session.status == "ended":
-        raise HTTPException(status_code=409, detail="This session has already ended.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
+    if salon.status == "ended":
+        raise HTTPException(status_code=409, detail="This salon has already ended.")
 
-    # Shared with the cleanup that runs before a host opens a new session, so the
+    # Shared with the cleanup that runs before a host opens a new salon, so the
     # metering clamp and the billing path cannot drift between the two.
     # The closing answer, when the agent managed to get one. The cap path above passes
-    # nothing: a session cut off by its own limit was never asked the question.
-    charge = session_lifecycle.finalize_session(
-        session, db, enjoyed=body.enjoyed if body else None
+    # nothing: a salon cut off by its own limit was never asked the question.
+    charge = salon_lifecycle.finalize_salon(
+        salon, db, enjoyed=body.enjoyed if body else None
     )
     billing_summary = BillingChargeSummary(**charge) if charge else None
 
     # Deleting the room disconnects everyone and stops the agent; without it the worker
-    # keeps talking in a session the host believes is over.
-    await livekit_service.delete_room(session.livekit_room_name)
+    # keeps talking in a salon the host believes is over.
+    await livekit_service.delete_room(salon.livekit_room_name)
 
-    return EndSessionResponse(
-        sessionId=str(session.id),
-        status=session.status,
-        endedAt=session.ended_at.isoformat(),
+    return EndSalonResponse(
+        salonId=str(salon.id),
+        status=salon.status,
+        endedAt=salon.ended_at.isoformat(),
         billing=billing_summary,
     )
 
 
-@router.post("/{session_id}/utterances", response_model=UtteranceResponse, status_code=201)
+@router.post("/{salon_id}/utterances", response_model=UtteranceResponse, status_code=201)
 def record_utterance(
-    session_id: str,
+    salon_id: str,
     body: UtteranceBody,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -945,7 +945,7 @@ def record_utterance(
     """Store one final turn of speech and return it in the languages being watched.
 
     Called by the agent with the host's token, as the other agent-facing endpoints are:
-    authorisation is ownership of the session, not being the person who spoke.
+    authorisation is ownership of the salon, not being the person who spoke.
 
     Storing and translating happen in one round trip on purpose. The caption cannot be
     published until it is translated, so a second call would sit on the critical path
@@ -954,20 +954,20 @@ def record_utterance(
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
     utterance = utterance_service.record(
         db,
-        session_id=session.id,
+        salon_id=salon.id,
         speaker_identity=body.speakerIdentity,
         speaker_role=body.speakerRole,
         text=body.text,
@@ -999,9 +999,9 @@ def record_utterance(
     )
 
 
-@router.get("/{session_id}/utterances", response_model=TranscriptResponse)
+@router.get("/{salon_id}/utterances", response_model=TranscriptResponse)
 def get_transcript(
-    session_id: str,
+    salon_id: str,
     lang: str | None = None,
     after: int = 0,
     db: DbSession = Depends(get_db),
@@ -1019,29 +1019,29 @@ def get_transcript(
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
     return TranscriptResponse(
-        sessionId=str(session.id),
+        salonId=str(salon.id),
         language=lang,
         utterances=utterance_service.transcript(
-            db, session_id=session.id, language=lang, after=after
+            db, salon_id=salon.id, language=lang, after=after
         ),
     )
 
 
-@router.post("/{session_id}/ad", status_code=200)
+@router.post("/{salon_id}/ad", status_code=200)
 def request_ad(
-    session_id: str,
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1051,7 +1051,7 @@ def request_ad(
     here rather than passed in: the agent knows who is in the room but not where they are, what
     the salon's topics are, or what anyone bid.
 
-    ONE PER SESSION, enforced here rather than trusted to the prompt. A model that called this
+    ONE PER SALON, enforced here rather than trusted to the prompt. A model that called this
     twice would spend two of an advertiser's broadcasts and charge for both, and no instruction
     is a substitute for the check.
 
@@ -1061,19 +1061,19 @@ def request_ad(
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
     already = (
-        db.query(AdBroadcast).filter(AdBroadcast.session_id == session.id).first()
+        db.query(AdBroadcast).filter(AdBroadcast.salon_id == salon.id).first()
     )
     if already is not None:
         return {"pitch": "", "reason": "already_broadcast"}
@@ -1084,7 +1084,7 @@ def request_ad(
     # as admitting everything, so an ad still plays.
     participations = (
         db.query(SalonEvent.plus_code, SalonEvent.first_spoken_language)
-        .filter(SalonEvent.salon_name == session.livekit_room_name)
+        .filter(SalonEvent.salon_name == salon.livekit_room_name)
         .all()
     )
     participant_codes = [row[0] for row in participations]
@@ -1095,11 +1095,11 @@ def request_ad(
     # deliberately, because extracting topics from a private document to place advertising is a
     # different consent from making a public page searchable.
     topics: list[str] = []
-    if session.source_url:
+    if salon.source_url:
         shared = (
             db.query(SharedSource)
             .join(SharedSourceConsent, SharedSourceConsent.source_id == SharedSource.id)
-            .filter(SharedSourceConsent.session_id == session.id)
+            .filter(SharedSourceConsent.salon_id == salon.id)
             .first()
         )
         if shared is not None:
@@ -1107,7 +1107,7 @@ def request_ad(
 
     broadcast = ad_auction_service.broadcast_winner(
         db,
-        session=session,
+        salon=salon,
         participant_codes=participant_codes,
         salon_topics=topics,
         salon_languages=salon_languages,
@@ -1124,9 +1124,9 @@ def request_ad(
     }
 
 
-@router.post("/{session_id}/ad/delivered", status_code=200)
+@router.post("/{salon_id}/ad/delivered", status_code=200)
 def confirm_ad_delivered(
-    session_id: str,
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1142,19 +1142,19 @@ def confirm_ad_delivered(
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
 
     broadcast = (
-        db.query(AdBroadcast).filter(AdBroadcast.session_id == session.id).first()
+        db.query(AdBroadcast).filter(AdBroadcast.salon_id == salon.id).first()
     )
     if broadcast is None:
         # Nothing was reserved, so nothing can be confirmed. Not an error: an agent that heard
@@ -1177,7 +1177,7 @@ def confirm_ad_delivered(
 # when the agent has gone wrong and should start over.
 
 
-def _host_session(session_id: str, db: DbSession, current_user: User) -> SessionModel:
+def _host_salon(salon_id: str, db: DbSession, current_user: User) -> Salon:
     # Imported inside the function, as every other handler in this module does. There is no
     # module-level `uuid` here, and assuming one produced a NameError on the first click of a
     # button that had passed every test — the tests patch this module's dependencies but never
@@ -1185,21 +1185,21 @@ def _host_session(session_id: str, db: DbSession, current_user: User) -> Session
     import uuid as _uuid
 
     try:
-        session_uuid = _uuid.UUID(session_id)
+        salon_uuid = _uuid.UUID(salon_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found.")
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_uuid,
-        SessionModel.host_user_id == current_user.id,
+        raise HTTPException(status_code=404, detail="Salon not found.")
+    salon = db.query(Salon).filter(
+        Salon.id == salon_uuid,
+        Salon.host_user_id == current_user.id,
     ).first()
-    if session is None:
-        raise HTTPException(status_code=404, detail="Session not found or access denied.")
-    return session
+    if salon is None:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
+    return salon
 
 
-@router.get("/{session_id}/agent", response_model=AgentStateResponse)
+@router.get("/{salon_id}/agent", response_model=AgentStateResponse)
 async def get_agent_state(
-    session_id: str,
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1209,16 +1209,16 @@ async def get_agent_state(
     room, and an agent can leave for reasons nothing here initiated. Mute has no such authority
     to consult — it lives inside the running agent — so it is the one thing recorded.
     """
-    session = _host_session(session_id, db, current_user)
+    salon = _host_salon(salon_id, db, current_user)
     return AgentStateResponse(
-        present=await livekit_service.agent_is_present(session.livekit_room_name),
-        muted=session.agent_muted,
+        present=await livekit_service.agent_is_present(salon.livekit_room_name),
+        muted=salon.agent_muted,
     )
 
 
-@router.post("/{session_id}/agent/mute", response_model=AgentStateResponse)
+@router.post("/{salon_id}/agent/mute", response_model=AgentStateResponse)
 async def set_agent_muted(
-    session_id: str,
+    salon_id: str,
     body: AgentMuteBody,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -1229,35 +1229,35 @@ async def set_agent_muted(
     it from here by muting its published track would silence its voice while leaving it
     listening — half a pause, and the wrong half.
     """
-    session = _host_session(session_id, db, current_user)
-    session.agent_muted = body.muted
+    salon = _host_salon(salon_id, db, current_user)
+    salon.agent_muted = body.muted
     db.commit()
     await livekit_service.notify_room(
-        session.livekit_room_name, {"action": "agent_mute", "muted": body.muted}
+        salon.livekit_room_name, {"action": "agent_mute", "muted": body.muted}
     )
-    logger.info("Agent %s in session %s", "muted" if body.muted else "unmuted", session.id)
+    logger.info("Agent %s in salon %s", "muted" if body.muted else "unmuted", salon.id)
     return AgentStateResponse(present=True, muted=body.muted)
 
 
-@router.post("/{session_id}/agent/disconnect", response_model=AgentStateResponse)
+@router.post("/{salon_id}/agent/disconnect", response_model=AgentStateResponse)
 async def disconnect_agent(
-    session_id: str,
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Take the agent out. Its memory of the conversation goes with it."""
-    session = _host_session(session_id, db, current_user)
-    await livekit_service.remove_agent(session.livekit_room_name)
+    salon = _host_salon(salon_id, db, current_user)
+    await livekit_service.remove_agent(salon.livekit_room_name)
     # A removed agent is not a paused one. Leaving the flag set would bring the next agent back
     # already silent, which is not what "reconnect" means to the host who asked for it.
-    session.agent_muted = False
+    salon.agent_muted = False
     db.commit()
     return AgentStateResponse(present=False, muted=False)
 
 
-@router.post("/{session_id}/agent/connect", response_model=AgentStateResponse)
+@router.post("/{salon_id}/agent/connect", response_model=AgentStateResponse)
 async def connect_agent(
-    session_id: str,
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1266,22 +1266,22 @@ async def connect_agent(
     A new job with a new context: it reads the sources again and knows nothing of what was
     said. The host asked for a restart, and this is what a restart is.
     """
-    session = _host_session(session_id, db, current_user)
-    if session.status != "active":
-        raise HTTPException(status_code=409, detail="This session is no longer active.")
+    salon = _host_salon(salon_id, db, current_user)
+    if salon.status != "active":
+        raise HTTPException(status_code=409, detail="This salon is no longer active.")
     await livekit_service.dispatch_agent(
-        session.livekit_room_name,
-        session_id=str(session.id),
+        salon.livekit_room_name,
+        salon_id=str(salon.id),
         host_token=jwt_service.issue_token(str(current_user.id)),
     )
-    session.agent_muted = False
+    salon.agent_muted = False
     db.commit()
     return AgentStateResponse(present=True, muted=False)
 
 
-@router.post("/{session_id}/microphone", status_code=204)
+@router.post("/{salon_id}/microphone", status_code=204)
 def report_microphone_working(
-    session_id: str,
+    salon_id: str,
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1299,14 +1299,14 @@ def report_microphone_working(
     204 and never an error: this is an observation about a conversation, and failing to record
     one must not interrupt it.
     """
-    session = _host_session(session_id, db, current_user)
+    salon = _host_salon(salon_id, db, current_user)
     salon_event_service.record_entry(
         db,
         participant_identity=str(current_user.id),
         email=current_user.email or "",
         phone=current_user.phone_number or "",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         microphone_enabled=True,
     )
     return Response(status_code=204)

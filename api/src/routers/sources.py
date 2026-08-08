@@ -1,6 +1,6 @@
 """Searching the consented corpus — sources hosts chose to publish to the platform.
 
-Cross-session by nature, which is why it is not under /sessions: the point is to reach
+Cross-salon by nature, which is why it is not under /salons: the point is to reach
 material somebody else supplied. What makes that safe is not a check in this file but the
 table it reads — shared_sources holds only what a host explicitly published, so a query
 here cannot reach a private document however it is written.

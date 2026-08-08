@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -20,8 +20,8 @@ def host(db):
     return u, issue_token(str(u.id))
 
 
-def _active_session(db, host_user, room_suffix=""):
-    sess = SessionModel(
+def _active_salon(db, host_user, room_suffix=""):
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name=f"salon-trial-room{room_suffix}",
         source_type="url",
@@ -93,19 +93,19 @@ def test_trial_status_requires_auth(client):
     assert resp.status_code == 401
 
 
-# ─── end_session increments trial time ───────────────────────────────────────
+# ─── end_salon increments trial time ───────────────────────────────────────
 
-def test_end_session_increments_host_trial_time(client, db, host):
-    """Ending a session adds its duration to the host's trial_seconds_used."""
+def test_end_salon_increments_host_trial_time(client, db, host):
+    """Ending a salon adds its duration to the host's trial_seconds_used."""
     host_user, token = host
-    sess = _active_session(db, host_user)
+    sess = _active_salon(db, host_user)
 
-    # Backdate created_at so the session has a ~60 s duration when ended
+    # Backdate created_at so the salon has a ~60 s duration when ended
     sess.created_at = datetime.now(tz=timezone.utc) - timedelta(seconds=60)
     db.commit()
 
     resp = client.post(
-        f"/sessions/{sess.id}/end",
+        f"/salons/{sess.id}/end",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -115,7 +115,7 @@ def test_end_session_increments_host_trial_time(client, db, host):
     assert host_user.trial_seconds_used >= 60
 
 
-def test_end_session_guest_time_never_counted(client, db, host):
+def test_end_salon_guest_time_never_counted(client, db, host):
     """Guest role never accumulates trial time — only the host's counter grows."""
     host_user, token = host
     other_guest = User(email="15148889999@example.com", phone_number="+15148889999")
@@ -125,11 +125,11 @@ def test_end_session_guest_time_never_counted(client, db, host):
 
     assert other_guest.trial_seconds_used == 0
 
-    sess = _active_session(db, host_user)
+    sess = _active_salon(db, host_user)
     sess.created_at = datetime.now(tz=timezone.utc) - timedelta(seconds=30)
     db.commit()
     client.post(
-        f"/sessions/{sess.id}/end",
+        f"/salons/{sess.id}/end",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -138,32 +138,32 @@ def test_end_session_guest_time_never_counted(client, db, host):
     assert other_guest.trial_seconds_used == 0
 
 
-def test_end_session_accumulates_across_multiple_sessions(client, db, host):
-    """Trial time is cumulative across multiple sessions."""
+def test_end_salon_accumulates_across_multiple_salons(client, db, host):
+    """Trial time is cumulative across multiple salons."""
     host_user, token = host
 
     for i in range(3):
-        sess = _active_session(db, host_user, room_suffix=str(i))
+        sess = _active_salon(db, host_user, room_suffix=str(i))
         sess.created_at = datetime.now(tz=timezone.utc) - timedelta(seconds=30)
         db.commit()
-        client.post(f"/sessions/{sess.id}/end", headers={"Authorization": f"Bearer {token}"})
+        client.post(f"/salons/{sess.id}/end", headers={"Authorization": f"Bearer {token}"})
 
     db.expire(host_user)
     db.refresh(host_user)
     assert host_user.trial_seconds_used >= 90
 
 
-# ─── Abandoned sessions must not be billed ───────────────────────────────────
+# ─── Abandoned salons must not be billed ───────────────────────────────────
 
-def test_end_session_clamps_gap_since_last_heartbeat(client, db):
-    """A session abandoned without heartbeats bills the grace window, not the whole gap.
+def test_end_salon_clamps_gap_since_last_heartbeat(client, db):
+    """A salon abandoned without heartbeats bills the grace window, not the whole gap.
 
-    Closing the laptop stops the heartbeats but leaves the session active. Without the
+    Closing the laptop stops the heartbeats but leaves the salon active. Without the
     clamp, ending it later would charge the host for every hour in between.
     """
     from datetime import datetime, timedelta, timezone
     from src.config import settings
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
     from src.models.user import User
     from src.services.jwt_service import issue_token
 
@@ -174,7 +174,7 @@ def test_end_session_clamps_gap_since_last_heartbeat(client, db):
 
     # Last sign of life four hours ago.
     stale = datetime.now(tz=timezone.utc) - timedelta(hours=4)
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host.id,
         livekit_room_name="salon-abandoned",
         source_type="none",
@@ -186,7 +186,7 @@ def test_end_session_clamps_gap_since_last_heartbeat(client, db):
     db.refresh(sess)
 
     resp = client.post(
-        f"/sessions/{sess.id}/end",
+        f"/salons/{sess.id}/end",
         headers={"Authorization": f"Bearer {issue_token(str(host.id))}"},
     )
     assert resp.status_code == 200
@@ -197,10 +197,10 @@ def test_end_session_clamps_gap_since_last_heartbeat(client, db):
     assert host.trial_seconds_used < 4 * 3600
 
 
-def test_end_session_bills_full_span_within_grace(client, db):
-    """A normally-ended session is unaffected: its gap is under the grace window."""
+def test_end_salon_bills_full_span_within_grace(client, db):
+    """A normally-ended salon is unaffected: its gap is under the grace window."""
     from datetime import datetime, timedelta, timezone
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
     from src.models.user import User
     from src.services.jwt_service import issue_token
 
@@ -210,7 +210,7 @@ def test_end_session_bills_full_span_within_grace(client, db):
     db.refresh(host)
 
     recent = datetime.now(tz=timezone.utc) - timedelta(seconds=20)
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host.id,
         livekit_room_name="salon-normal",
         source_type="none",
@@ -221,7 +221,7 @@ def test_end_session_bills_full_span_within_grace(client, db):
     db.commit()
 
     client.post(
-        f"/sessions/{sess.id}/end",
+        f"/salons/{sess.id}/end",
         headers={"Authorization": f"Bearer {issue_token(str(host.id))}"},
     )
     db.expire(host)

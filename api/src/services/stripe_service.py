@@ -5,6 +5,7 @@ import stripe
 
 from src.config import settings
 from src.models.billing_event import BillingEvent  # noqa: F401 — ensure table is registered
+from src.services.stripe_metadata import namespaced
 
 logger = logging.getLogger("salon.stripe")
 
@@ -22,7 +23,7 @@ def attach_payment_method(user, payment_method_id: str, db) -> None:
     if not customer_id:
         customer = stripe.Customer.create(
             email=user.email,
-            metadata={"salon_user_id": str(user.id)},
+            metadata=namespaced(user_id=user.id),
         )
         customer_id = customer.id
         logger.info("Stripe customer created: %s for user %s", customer_id, user.id)
@@ -46,29 +47,29 @@ def _amount_cents(seconds: int) -> int:
     return round(seconds * settings.hourly_rate_cents / 3600)
 
 
-def bill_host_for_usage(host, session, db):
+def bill_host_for_usage(host, salon, db):
     """Charge the host for metered time beyond their free trial hour.
 
-    Called when a session ends. Computes host seconds past the free trial that
+    Called when a salon ends. Computes host seconds past the free trial that
     have not yet been billed, prorates them to the hourly rate ($5/hr per second),
     and charges the saved Stripe payment method off-session.
 
-    Guests are never billed — only the session host accumulates billable seconds.
+    Guests are never billed — only the salon host accumulates billable seconds.
 
     Returns a dict describing the charge (or None if nothing was charged, e.g.
     still within the free trial, no payment method, or the amount rounds to < 1¢).
     A BillingEvent audit row is written for every actual charge attempt, whether
     it succeeds or fails. Stripe errors are recorded and re-raised swallowing is
     left to the caller — this function never advances billed_seconds on failure,
-    so an unbilled span is retried on the next session.
+    so an unbilled span is retried on the next salon.
     """
     seconds = _billable_seconds(host)
     if seconds <= 0:
         return None
     if not host.stripe_payment_method_id or not host.stripe_customer_id:
         # Host crossed into paid usage but never added a card (the crossing
-        # session was not gated). Leave billed_seconds untouched so this span is
-        # captured on a later session once a payment method exists.
+        # salon was not gated). Leave billed_seconds untouched so this span is
+        # captured on a later salon once a payment method exists.
         logger.info("Host %s owes %s billable seconds but has no payment method", host.id, seconds)
         return None
 
@@ -88,11 +89,13 @@ def bill_host_for_usage(host, session, db):
             payment_method=host.stripe_payment_method_id,
             off_session=True,
             confirm=True,
-            metadata={
-                "salon_user_id": str(host.id),
-                "salon_session_id": str(session.id) if session is not None else "",
-                "billable_seconds": str(seconds),
-            },
+            # salon_id is null for a charge that settles metered time with no Salon left
+            # to point at; namespaced() stores the empty string rather than refusing it.
+            metadata=namespaced(
+                user_id=host.id,
+                salon_id=salon.id if salon is not None else None,
+                billable_seconds=seconds,
+            ),
         )
     except stripe.StripeError as exc:
         message = getattr(exc, "user_message", None) or str(exc)
@@ -100,7 +103,7 @@ def bill_host_for_usage(host, session, db):
         db.add(
             BillingEvent(
                 host_user_id=host.id,
-                session_id=session.id if session is not None else None,
+                salon_id=salon.id if salon is not None else None,
                 billable_seconds=seconds,
                 amount_cents=amount,
                 currency=settings.billing_currency,
@@ -116,7 +119,7 @@ def bill_host_for_usage(host, session, db):
     db.add(
         BillingEvent(
             host_user_id=host.id,
-            session_id=session.id if session is not None else None,
+            salon_id=salon.id if salon is not None else None,
             billable_seconds=seconds,
             amount_cents=amount,
             currency=settings.billing_currency,

@@ -3,7 +3,7 @@ import uuid
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as DbSession
 
 from src.config import settings
 from src.database import get_db
@@ -15,7 +15,7 @@ _bearer = HTTPBearer()
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
-    db: Session = Depends(get_db),
+    db: DbSession = Depends(get_db),
 ) -> User:
     payload = decode_token(credentials.credentials)
     user_id_str: str | None = payload.get("sub")

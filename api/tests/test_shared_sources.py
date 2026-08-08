@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.shared_source import SharedSource, SharedSourceConsent
 from src.models.user import User
 from src.services import content_service, shared_source_service
@@ -20,8 +20,8 @@ def _host(db, email):
     return u
 
 
-def _session(db, user, room="salon-corpus"):
-    s = SessionModel(
+def _salon(db, user, room="salon-corpus"):
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name=room,
         source_type="url",
@@ -37,12 +37,12 @@ def _session(db, user, room="salon-corpus"):
 @pytest.fixture
 def alice(db):
     user = _host(db, "alice@example.com")
-    return user, _session(db, user, "salon-alice"), issue_token(str(user.id))
+    return user, _salon(db, user, "salon-alice"), issue_token(str(user.id))
 
 
-def _publish(db, user, session, **overrides):
+def _publish(db, user, salon, **overrides):
     fields = {
-        "session_id": session.id,
+        "salon_id": salon.id,
         "shared_by": user.email,
         "url": "https://news.example/iran-usa",
         "summary": "Tensions between the United States and Iran escalated this week.",
@@ -56,32 +56,32 @@ def _publish(db, user, session, **overrides):
 # ─── What can get in ──────────────────────────────────────────────────────────
 
 def test_a_url_is_published(db, alice):
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     assert row is not None
     assert db.query(SharedSource).count() == 1
 
 
 def test_publishing_records_a_consent(db, alice):
     """The page and the permission are separate rows, because consent belongs to a person."""
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     consent = db.get(SharedSourceConsent, (row.id, user.email))
     assert consent is not None
-    assert consent.session_id == session.id
+    assert consent.salon_id == salon.id
 
 
 def test_publish_refuses_a_page_with_no_url(db, alice):
     """Structural, not a rule: there is no parameter for a file and no column to hold one."""
-    user, session, _ = alice
-    assert _publish(db, user, session, url="") is None
+    user, salon, _ = alice
+    assert _publish(db, user, salon, url="") is None
     assert db.query(SharedSource).count() == 0
 
 
 def test_publish_refuses_a_page_with_nothing_to_say(db, alice):
     """A row with neither summary nor text would be found by a search and then be mute."""
-    user, session, _ = alice
-    assert _publish(db, user, session, summary="", content="") is None
+    user, salon, _ = alice
+    assert _publish(db, user, salon, summary="", content="") is None
 
 
 def test_the_model_has_no_way_to_hold_a_file(db):
@@ -99,19 +99,19 @@ def test_the_model_has_no_way_to_hold_a_file(db):
 
 def test_the_same_article_is_one_row(db, alice):
     """Deduplicated on the text, not the address: two URLs can serve one article."""
-    user, session, _ = alice
-    _publish(db, user, session)
-    _publish(db, user, session, url="https://mirror.example/same-story")
+    user, salon, _ = alice
+    _publish(db, user, salon)
+    _publish(db, user, salon, url="https://mirror.example/same-story")
     assert db.query(SharedSource).count() == 1
 
 
 def test_a_second_host_adds_a_consent_not_a_copy(db, alice):
-    user, session, _ = alice
-    first = _publish(db, user, session)
+    user, salon, _ = alice
+    first = _publish(db, user, salon)
 
     bob = _host(db, "bob@example.com")
-    bob_session = _session(db, bob, "salon-bob")
-    second = _publish(db, bob, bob_session)
+    bob_salon = _salon(db, bob, "salon-bob")
+    second = _publish(db, bob, bob_salon)
 
     assert second.id == first.id
     assert db.query(SharedSource).count() == 1
@@ -121,10 +121,10 @@ def test_a_second_host_adds_a_consent_not_a_copy(db, alice):
 def test_sharing_prevails_when_one_host_withdraws(db, alice):
     """The point of separating consent from the page: one host taking theirs back must not
     revoke a permission the other never withdrew."""
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     bob = _host(db, "bob@example.com")
-    _publish(db, bob, _session(db, bob, "salon-bob"))
+    _publish(db, bob, _salon(db, bob, "salon-bob"))
 
     assert shared_source_service.withdraw(db, shared_by=user.email, source_id=row.id)
     assert db.query(SharedSource).count() == 1, "still published by bob"
@@ -133,15 +133,15 @@ def test_sharing_prevails_when_one_host_withdraws(db, alice):
 
 def test_the_page_goes_with_the_last_consent(db, alice):
     """Consent withdrawn has to mean the material is gone, not hidden behind a condition."""
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     assert shared_source_service.withdraw(db, shared_by=user.email, source_id=row.id)
     assert db.query(SharedSource).count() == 0
 
 
 def test_withdrawing_someone_elses_consent_does_nothing(db, alice):
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     assert not shared_source_service.withdraw(
         db, shared_by="stranger@example.com", source_id=row.id
     )
@@ -150,13 +150,13 @@ def test_withdrawing_someone_elses_consent_does_nothing(db, alice):
 
 def test_republishing_refreshes_the_recency(db, alice):
     """A page somebody brings up again today is topical again today."""
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     row.last_shared_at = NOW - timedelta(days=90)
     db.commit()
 
     bob = _host(db, "bob@example.com")
-    _publish(db, bob, _session(db, bob, "salon-bob"))
+    _publish(db, bob, _salon(db, bob, "salon-bob"))
     db.expire_all()
     # Compared naive: SQLite does not keep the offset, so a value read back has no tzinfo
     # even though the column is declared with one.
@@ -169,27 +169,27 @@ def test_republishing_refreshes_the_recency(db, alice):
 def test_a_spoken_question_reaches_the_page(db, alice):
     """The case that motivated all of this: asking about a subject a different host
     supplied material on."""
-    user, session, _ = alice
-    _publish(db, user, session)
+    user, salon, _ = alice
+    _publish(db, user, salon)
     results = shared_source_service.search(db, "what is the latest on the USA and Iran")
     assert len(results) == 1
     assert "Iran" in results[0]["summary"]
 
 
 def test_an_unrelated_question_finds_nothing(db, alice):
-    user, session, _ = alice
-    _publish(db, user, session)
+    user, salon, _ = alice
+    _publish(db, user, salon)
     assert shared_source_service.search(db, "bread baking sourdough") == []
 
 
 def test_topics_outweigh_the_prose(db, alice):
     """Topics are the terms a person would say out loud, so a hit there is worth more."""
-    user, session, _ = alice
-    _publish(db, user, session, topics=["nuclear"], content="A", summary="Something else.")
+    user, salon, _ = alice
+    _publish(db, user, salon, topics=["nuclear"], content="A", summary="Something else.")
     _publish(
         db,
         user,
-        session,
+        salon,
         url="https://other.example/b",
         topics=[],
         content="B",
@@ -202,10 +202,10 @@ def test_topics_outweigh_the_prose(db, alice):
 def test_the_article_date_decides_recency_not_the_paste_date(db, alice):
     """An old article shared today must not rank as fresh. This is the whole reason
     article_date exists."""
-    user, session, _ = alice
-    old = _publish(db, user, session, url="https://a.example/old", content="Old text.")
+    user, salon, _ = alice
+    old = _publish(db, user, salon, url="https://a.example/old", content="Old text.")
     old.article_date = NOW - timedelta(days=400)
-    fresh = _publish(db, user, session, url="https://b.example/new", content="New text.")
+    fresh = _publish(db, user, salon, url="https://b.example/new", content="New text.")
     fresh.article_date = NOW - timedelta(days=1)
     db.commit()
 
@@ -215,8 +215,8 @@ def test_the_article_date_decides_recency_not_the_paste_date(db, alice):
 
 def test_results_carry_their_attribution(db, alice):
     """An agent about to read a summary aloud should be able to say where it came from."""
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     row.author = "Marie Tremblay"
     row.publisher = "Le Devoir"
     db.commit()
@@ -228,9 +228,9 @@ def test_results_carry_their_attribution(db, alice):
 def test_excerpts_come_from_the_stored_text(db, alice):
     """Not re-fetched: the page may have changed or gone, and the honest answer is the one
     the salon actually read."""
-    user, session, _ = alice
+    user, salon, _ = alice
     row = _publish(
-        db, user, session, content="The treaty was signed in Geneva on a Tuesday morning."
+        db, user, salon, content="The treaty was signed in Geneva on a Tuesday morning."
     )
     found = shared_source_service.excerpts(db, row.id, "treaty Geneva signed")
     assert found and "Geneva" in found[0]
@@ -245,8 +245,8 @@ def test_search_requires_a_token(client):
 
 
 def test_search_returns_results_to_a_signed_in_host(client, db, alice):
-    user, session, token = alice
-    _publish(db, user, session)
+    user, salon, token = alice
+    _publish(db, user, salon)
     body = client.get(
         "/sources/search?q=iran usa", headers={"Authorization": f"Bearer {token}"}
     ).json()
@@ -255,8 +255,8 @@ def test_search_returns_results_to_a_signed_in_host(client, db, alice):
 
 def test_a_host_can_list_and_withdraw_their_own(client, db, alice):
     """Consent that cannot be reviewed is not consent."""
-    user, session, token = alice
-    row = _publish(db, user, session)
+    user, salon, token = alice
+    row = _publish(db, user, salon)
     auth = {"Authorization": f"Bearer {token}"}
 
     listed = client.get("/sources/mine", headers=auth).json()
@@ -269,8 +269,8 @@ def test_a_host_can_list_and_withdraw_their_own(client, db, alice):
 def test_withdrawing_a_page_you_did_not_publish_is_a_404(client, db, alice):
     """404 rather than 403: whether an id exists in the corpus is not something one host
     needs to learn about another."""
-    user, session, _ = alice
-    row = _publish(db, user, session)
+    user, salon, _ = alice
+    row = _publish(db, user, salon)
     stranger = _host(db, "stranger@example.com")
     response = client.delete(
         f"/sources/{row.id}",
@@ -338,11 +338,11 @@ def test_a_french_question_reaches_an_english_topic(db, alice):
 
     from src.services import translation_service
 
-    user, session, _ = alice
+    user, salon, _ = alice
     _publish(
         db,
         user,
-        session,
+        salon,
         topics=["war", "iran", "united states"],
         summary="An English summary of the conflict.",
         content="English body text.",
@@ -366,8 +366,8 @@ def test_the_original_words_still_count(db, alice):
 
     from src.services import translation_service
 
-    user, session, _ = alice
-    _publish(db, user, session, topics=["iran"], summary="About Iran.", content="Body.")
+    user, salon, _ = alice
+    _publish(db, user, salon, topics=["iran"], summary="About Iran.", content="Body.")
 
     with patch.object(translation_service, "translate", return_value="the country of Persia"):
         assert len(shared_source_service.search(db, "Iran")) == 1
@@ -377,19 +377,19 @@ def test_the_original_words_still_count(db, alice):
 
 def test_the_billboard_counts_pages_not_mentions(db, alice):
     """The question is how many pages are about a subject, not how often a word appears."""
-    user, session, _ = alice
-    _publish(db, user, session, topics=["iran", "iran", "usa"], content="A")
-    _publish(db, user, session, url="https://b.example/b", topics=["iran"], content="B")
+    user, salon, _ = alice
+    _publish(db, user, salon, topics=["iran", "iran", "usa"], content="A")
+    _publish(db, user, salon, url="https://b.example/b", topics=["iran"], content="B")
 
     tally = {t["topic"]: t["pages"] for t in shared_source_service.top_topics(db)}
     assert tally == {"iran": 2, "usa": 1}
 
 
 def test_the_billboard_is_ordered_by_popularity(db, alice):
-    user, session, _ = alice
-    _publish(db, user, session, topics=["rare"], content="A")
+    user, salon, _ = alice
+    _publish(db, user, salon, topics=["rare"], content="A")
     for i in range(3):
-        _publish(db, user, session, url=f"https://x{i}.example/", topics=["common"], content=f"B{i}")
+        _publish(db, user, salon, url=f"https://x{i}.example/", topics=["common"], content=f"B{i}")
 
     assert [t["topic"] for t in shared_source_service.top_topics(db)] == ["common", "rare"]
 
@@ -408,8 +408,8 @@ def test_the_billboard_needs_no_token(client):
 def test_the_billboard_exposes_no_addresses(client, db, alice):
     """Subject words and counts only. No URLs, no summaries, and nothing from a private
     source — shared_sources holds only what a host published."""
-    user, session, _ = alice
-    _publish(db, user, session)
+    user, salon, _ = alice
+    _publish(db, user, salon)
     body = client.get("/sources/topics").json()
     assert body["topics"]
     for entry in body["topics"]:

@@ -75,8 +75,8 @@ class PreviousPartner(BaseModel):
     userId: str | None = None       # null for contacts never registered
     phoneNumber: str | None = None  # null for partners known only by email
     email: str | None = None        # null for invited contacts never registered
-    lastSessionAt: str | None = None
-    sessionCount: int
+    lastSalonAt: str | None = None
+    salonCount: int
 
 
 class PreviousPartnersResponse(BaseModel):

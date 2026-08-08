@@ -1,10 +1,10 @@
-"""Tests for GET /sessions/{session_id} (Story 2.4)."""
+"""Tests for GET /salons/{salon_id} (Story 2.4)."""
 import uuid
 
 import pytest
 
-from src.models.session import SessionModel
-from src.models.session_source import SessionSource
+from src.models.salon import Salon
+from src.models.salon_source import SalonSource
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -19,9 +19,9 @@ def host(db):
 
 
 @pytest.fixture
-def session_with_content(db, host):
+def salon_with_content(db, host):
     host_user, _ = host
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-detail-room",
         source_type="url",
@@ -37,41 +37,41 @@ def session_with_content(db, host):
 
 # ─── Auth guard ──────────────────────────────────────────────────────────────
 
-def test_get_session_requires_auth(client, session_with_content):
-    resp = client.get(f"/sessions/{session_with_content.id}")
+def test_get_salon_requires_auth(client, salon_with_content):
+    resp = client.get(f"/salons/{salon_with_content.id}")
     assert resp.status_code == 401
 
 
 # ─── Ownership check ─────────────────────────────────────────────────────────
 
-def test_get_session_non_host_returns_404(client, db, session_with_content):
+def test_get_salon_non_host_returns_404(client, db, salon_with_content):
     other = User(email="15148888888@example.com", phone_number="+15148888888")
     db.add(other)
     db.commit()
     db.refresh(other)
     token = issue_token(str(other.id))
 
-    resp = client.get(f"/sessions/{session_with_content.id}", headers={"Authorization": f"Bearer {token}"})
+    resp = client.get(f"/salons/{salon_with_content.id}", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 404
 
 
-def test_get_session_unknown_id_returns_404(client, host):
+def test_get_salon_unknown_id_returns_404(client, host):
     _, token = host
-    resp = client.get(f"/sessions/{uuid.uuid4()}", headers={"Authorization": f"Bearer {token}"})
+    resp = client.get(f"/salons/{uuid.uuid4()}", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 404
 
 
 # ─── Happy path ──────────────────────────────────────────────────────────────
 
-def test_get_session_returns_content(client, host, session_with_content):
+def test_get_salon_returns_content(client, host, salon_with_content):
     _, token = host
     resp = client.get(
-        f"/sessions/{session_with_content.id}",
+        f"/salons/{salon_with_content.id}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["sessionId"] == str(session_with_content.id)
+    assert data["salonId"] == str(salon_with_content.id)
     assert data["sourceContent"] == "This is the article text about a very interesting topic."
     assert data["sourceUrl"] == "https://example.com/article"
     assert data["sourceType"] == "url"
@@ -79,11 +79,11 @@ def test_get_session_returns_content(client, host, session_with_content):
     assert data["additionalSources"] == []
 
 
-def test_get_session_includes_additional_sources(client, host, session_with_content, db):
+def test_get_salon_includes_additional_sources(client, host, salon_with_content, db):
     _, token = host
-    extra = SessionSource(
-        session_id=session_with_content.id,
-        host_user_id=session_with_content.host_user_id,
+    extra = SalonSource(
+        salon_id=salon_with_content.id,
+        host_user_id=salon_with_content.host_user_id,
         source_type="document",
         source_content="Extra document content.",
     )
@@ -91,7 +91,7 @@ def test_get_session_includes_additional_sources(client, host, session_with_cont
     db.commit()
 
     resp = client.get(
-        f"/sessions/{session_with_content.id}",
+        f"/salons/{salon_with_content.id}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -103,11 +103,11 @@ def test_get_session_includes_additional_sources(client, host, session_with_cont
     assert sources[0]["sourceContent"] == "Extra document content."
 
 
-def test_get_session_additional_sources_include_url(client, host, session_with_content, db):
+def test_get_salon_additional_sources_include_url(client, host, salon_with_content, db):
     _, token = host
-    extra = SessionSource(
-        session_id=session_with_content.id,
-        host_user_id=session_with_content.host_user_id,
+    extra = SalonSource(
+        salon_id=salon_with_content.id,
+        host_user_id=salon_with_content.host_user_id,
         source_type="url",
         source_url="https://example.com/contrast",
         source_content="A contrasting perspective.",
@@ -116,7 +116,7 @@ def test_get_session_additional_sources_include_url(client, host, session_with_c
     db.commit()
 
     resp = client.get(
-        f"/sessions/{session_with_content.id}",
+        f"/salons/{salon_with_content.id}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200

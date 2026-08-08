@@ -3,8 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { requestOtp, resendOtp, verifyOtp } from '../services/authApi';
 import { useLanguage } from './LanguageContext';
 
-const TOKEN_KEY = 'salon_jwt';
-const USER_ID_KEY = 'salon_user_id';
+import { JWT as TOKEN_KEY, USER_ID as USER_ID_KEY } from '../services/secureStoreKeys';
 
 interface AuthState {
   token: string | null;

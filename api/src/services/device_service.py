@@ -2,7 +2,7 @@
 
 Only the classification is stored. The raw User-Agent header is not, and deliberately: it
 carries browser build, engine version and often the exact device model, which together
-identify a person across sessions far better than anything else we hold. The same reasoning as
+identify a person across salons far better than anything else we hold. The same reasoning as
 the position — a neighbourhood-scale Plus Code rather than coordinates. A category answers
 "what should the interface assume" and answers nothing about who.
 

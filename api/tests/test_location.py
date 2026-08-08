@@ -3,7 +3,7 @@ import pytest
 
 from src.config import settings
 from src.models.salon_event import SalonEvent
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import location_service, salon_event_service
 
@@ -12,12 +12,12 @@ LAT, LON = 45.5019, -73.5674
 
 
 @pytest.fixture
-def session(db):
+def salon(db):
     user = User(email="geo@example.com")
     db.add(user)
     db.commit()
     db.refresh(user)
-    s = SessionModel(
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-geo",
         source_type="url",
@@ -101,7 +101,7 @@ def test_decoding_nothing_returns_nothing():
 
 # ─── What actually reaches the database ───────────────────────────────────────
 
-def test_the_precise_coordinates_never_reach_the_row(db, session):
+def test_the_precise_coordinates_never_reach_the_row(db, salon):
     """The whole point: encoding happens at ingestion, so there is nothing precise at
     rest to round on the way out."""
     salon_event_service.record_entry(
@@ -109,7 +109,7 @@ def test_the_precise_coordinates_never_reach_the_row(db, session):
         participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         latitude=LAT,
         longitude=LON,
     )
@@ -120,35 +120,35 @@ def test_the_precise_coordinates_never_reach_the_row(db, session):
     assert not hasattr(row, "client_ip")
 
 
-def test_declining_the_prompt_leaves_no_location(db, session):
+def test_declining_the_prompt_leaves_no_location(db, salon):
     """The common case, and not an error."""
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
-        email="geo@example.com", user_type="host", salon_name=session.livekit_room_name
+        email="geo@example.com", user_type="host", salon_name=salon.livekit_room_name
     )
     assert db.query(SalonEvent).one().plus_code == ""
 
 
-def test_a_position_granted_on_re_entry_is_filled_in(db, session):
+def test_a_position_granted_on_re_entry_is_filled_in(db, salon):
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
-        email="geo@example.com", user_type="host", salon_name=session.livekit_room_name
+        email="geo@example.com", user_type="host", salon_name=salon.livekit_room_name
     )
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         latitude=LAT,
         longitude=LON,
     )
     assert db.query(SalonEvent).one().plus_code == location_service.plus_code(LAT, LON)
 
 
-def test_a_second_reading_does_not_replace_the_first(db, session):
+def test_a_second_reading_does_not_replace_the_first(db, salon):
     """Someone who moves during a salon keeps the cell they arrived in — a participation
     has one location, and the last reading is no truer than the first."""
     salon_event_service.record_entry(
@@ -156,7 +156,7 @@ def test_a_second_reading_does_not_replace_the_first(db, session):
         participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         latitude=LAT,
         longitude=LON,
     )
@@ -166,7 +166,7 @@ def test_a_second_reading_does_not_replace_the_first(db, session):
         participant_identity="test-identity",
         email="geo@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         latitude=46.8139,
         longitude=-71.2080,
     )
@@ -186,7 +186,7 @@ def _entry(db, salon, email, *, language=None, role="guest"):
     )
 
 
-def test_the_purge_is_a_dry_run_by_default(db, session):
+def test_the_purge_is_a_dry_run_by_default(db, salon):
     """Destructive and irreversible, so the count comes before the deletion."""
     _entry(db, "salon-a", "silent@example.com")
     result = salon_event_service.purge_silent_participations(db)
@@ -196,7 +196,7 @@ def test_the_purge_is_a_dry_run_by_default(db, session):
     assert db.query(SalonEvent).count() == 1, "nothing removed"
 
 
-def test_the_dry_run_names_whose_history_is_at_stake(db, session):
+def test_the_dry_run_names_whose_history_is_at_stake(db, salon):
     """The point of a dry run is recognising the contacts, not just counting rows."""
     _entry(db, "salon-a", "silent@example.com")
     assert salon_event_service.purge_silent_participations(db)["contacts"] == [
@@ -204,7 +204,7 @@ def test_the_dry_run_names_whose_history_is_at_stake(db, session):
     ]
 
 
-def test_the_purge_removes_only_the_silent(db, session):
+def test_the_purge_removes_only_the_silent(db, salon):
     _entry(db, "salon-a", "spoke@example.com", language="fr")
     _entry(db, "salon-b", "silent@example.com")
 
@@ -214,7 +214,7 @@ def test_the_purge_removes_only_the_silent(db, session):
     assert [row.email for row in remaining] == ["spoke@example.com"]
 
 
-def test_the_purge_reaches_host_rows_too(db, session):
+def test_the_purge_reaches_host_rows_too(db, salon):
     """The scope nobody expects: the admin listing aggregates languages across a person's salons,
     so somebody shown as speaking French may still have silent rows."""
     _entry(db, "salon-a", "host@example.com", language="fr", role="host")
@@ -226,7 +226,7 @@ def test_the_purge_reaches_host_rows_too(db, session):
     assert result["byRole"] == {"host": 2}
 
 
-def test_a_purge_with_nothing_silent_is_not_an_error(db, session):
+def test_a_purge_with_nothing_silent_is_not_an_error(db, salon):
     _entry(db, "salon-a", "spoke@example.com", language="en")
     result = salon_event_service.purge_silent_participations(db, confirm=True)
     assert result["status"] == "purged"

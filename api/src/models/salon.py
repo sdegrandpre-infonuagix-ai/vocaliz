@@ -8,8 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 
-class SessionModel(Base):
-    __tablename__ = "sessions"
+class Salon(Base):
+    __tablename__ = "salons"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -38,7 +38,7 @@ class SessionModel(Base):
     # who is in a room; mute lives inside the running agent, so a host who reloads the page
     # would otherwise be shown a listening agent that is not listening.
     #
-    # False on a brand-new session: the agent joins listening and opens the conversation
+    # False on a brand-new salon: the agent joins listening and opens the conversation
     # itself.
     #
     # It defaulted to True for a few hours, so a host had to press activate before anything
@@ -52,7 +52,7 @@ class SessionModel(Base):
     # The language the agent must speak, whatever it hears. "auto" — the default — means
     # follow each speaker, which is what every Salon did before this existed.
     #
-    # Held on the session rather than on the participant who chose it: a caller picks the
+    # Held on the salon rather than on the participant who chose it: a caller picks the
     # language of the conversation, not of their own line, and an agent answering one person
     # in Persian and another in Mandarin because they each set a preference would be two
     # conversations in one room.

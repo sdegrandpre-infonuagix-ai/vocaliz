@@ -4,8 +4,8 @@ import { deviceType } from './deviceType';
 const API_URL: string =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? 'http://localhost:8000';
 
-export interface SessionResponse {
-  sessionId: string;
+export interface SalonResponse {
+  salonId: string;
   livekitRoomName: string;
   hostToken: string;
   sourceType: string;
@@ -20,51 +20,51 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function createSessionFromUrl(
+export async function createSalonFromUrl(
   token: string,
   sourceUrl: string,
-): Promise<SessionResponse> {
+): Promise<SalonResponse> {
   const form = new FormData();
   form.append('source_url', sourceUrl);
-  const res = await fetch(`${API_URL}/sessions`, {
+  const res = await fetch(`${API_URL}/salons`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  return handleResponse<SessionResponse>(res);
+  return handleResponse<SalonResponse>(res);
 }
 
 /**
- * Start a session with no document and no URL. The agent opens by asking the
+ * Start a salon with no document and no URL. The agent opens by asking the
  * participants what they would like to discuss.
  */
-export async function createSessionWithoutSource(token: string): Promise<SessionResponse> {
-  const res = await fetch(`${API_URL}/sessions`, {
+export async function createSalonWithoutSource(token: string): Promise<SalonResponse> {
+  const res = await fetch(`${API_URL}/salons`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: new FormData(),
   });
-  return handleResponse<SessionResponse>(res);
+  return handleResponse<SalonResponse>(res);
 }
 
-export async function createSessionFromFile(
+export async function createSalonFromFile(
   token: string,
   file: { uri: string; name: string; type: string },
-): Promise<SessionResponse> {
+): Promise<SalonResponse> {
   const form = new FormData();
   // React Native FormData accepts {uri, name, type} objects for file fields
   form.append('file', file as unknown as Blob);
-  const res = await fetch(`${API_URL}/sessions`, {
+  const res = await fetch(`${API_URL}/salons`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  return handleResponse<SessionResponse>(res);
+  return handleResponse<SalonResponse>(res);
 }
 
-export interface SessionSourceResponse {
+export interface SalonSourceResponse {
   sourceId: string;
-  sessionId: string;
+  salonId: string;
   sourceType: string;
   contentLength: number;
   createdAt: string;
@@ -72,45 +72,45 @@ export interface SessionSourceResponse {
 
 export async function addSourceFromUrl(
   token: string,
-  sessionId: string,
+  salonId: string,
   sourceUrl: string,
-): Promise<SessionSourceResponse> {
+): Promise<SalonSourceResponse> {
   const form = new FormData();
   form.append('source_url', sourceUrl);
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/sources`, {
+  const res = await fetch(`${API_URL}/salons/${salonId}/sources`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  return handleResponse<SessionSourceResponse>(res);
+  return handleResponse<SalonSourceResponse>(res);
 }
 
 export async function addSourceFromFile(
   token: string,
-  sessionId: string,
+  salonId: string,
   file: { uri: string; name: string; type: string },
-): Promise<SessionSourceResponse> {
+): Promise<SalonSourceResponse> {
   const form = new FormData();
   form.append('file', file as unknown as Blob);
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/sources`, {
+  const res = await fetch(`${API_URL}/salons/${salonId}/sources`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  return handleResponse<SessionSourceResponse>(res);
+  return handleResponse<SalonSourceResponse>(res);
 }
 
-export interface JoinSessionResponse {
+export interface JoinSalonResponse {
   participantToken: string;
   livekitRoomName: string;
   livekitUrl: string;
 }
 
-export async function joinSession(
+export async function joinSalon(
   token: string,
-  sessionId: string,
-): Promise<JoinSessionResponse> {
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/join`, {
+  salonId: string,
+): Promise<JoinSalonResponse> {
+  const res = await fetch(`${API_URL}/salons/${salonId}/join`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -121,19 +121,19 @@ export async function joinSession(
     // iPad from a Mac.
     body: JSON.stringify({ device: deviceType() }),
   });
-  return handleResponse<JoinSessionResponse>(res);
+  return handleResponse<JoinSalonResponse>(res);
 }
 
 /**
  * Metering heartbeat (Story 4.2). The agent sends these too; the client sends its own so
- * host time keeps accruing even if the agent worker drops out mid-session.
+ * host time keeps accruing even if the agent worker drops out mid-salon.
  */
 export async function sendHeartbeat(
   token: string,
-  sessionId: string,
+  salonId: string,
   seconds: number,
 ): Promise<void> {
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/heartbeat`, {
+  const res = await fetch(`${API_URL}/salons/${salonId}/heartbeat`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ seconds }),
@@ -141,8 +141,8 @@ export async function sendHeartbeat(
   await handleResponse<unknown>(res);
 }
 
-export async function endSession(token: string, sessionId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/end`, {
+export async function endSalon(token: string, salonId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/salons/${salonId}/end`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -160,23 +160,23 @@ export interface AgentState {
   muted: boolean;
 }
 
-export async function getAgentState(token: string, sessionId: string): Promise<AgentState> {
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/agent`, {
+export async function getAgentState(token: string, salonId: string): Promise<AgentState> {
+  const res = await fetch(`${API_URL}/salons/${salonId}/agent`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return handleResponse<AgentState>(res);
 }
 
 /**
- * Pause or activate the agent. A Salon starts paused, so the first call of the session is
+ * Pause or activate the agent. A Salon starts paused, so the first call of the salon is
  * what opens the conversation rather than what resumes it.
  */
 export async function setAgentMuted(
   token: string,
-  sessionId: string,
+  salonId: string,
   muted: boolean,
 ): Promise<AgentState> {
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/agent/mute`, {
+  const res = await fetch(`${API_URL}/salons/${salonId}/agent/mute`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ muted }),

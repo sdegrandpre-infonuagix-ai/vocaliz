@@ -8,7 +8,7 @@ together identify a person far better than anything else stored.
 import pytest
 
 from src.models.salon_event import SalonEvent
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import device_service, salon_event_service
 
@@ -23,11 +23,11 @@ CHROMEBOOK = "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 Chrome
 
 
 @pytest.fixture
-def session(db):
+def salon(db):
     user = User(email="dev@example.com")
     db.add(user)
     db.commit()
-    s = SessionModel(
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-dev",
         source_type="url",
@@ -124,19 +124,19 @@ def test_every_category_the_clients_can_send_is_accepted():
 
 # ─── What reaches the database ───────────────────────────────────────────────
 
-def test_the_category_is_stored_on_the_participation(db, session):
+def test_the_category_is_stored_on_the_participation(db, salon):
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_type="iphone",
     )
     assert db.query(SalonEvent).one().device_type == "iphone"
 
 
-def test_the_user_agent_itself_never_reaches_the_row(db, session):
+def test_the_user_agent_itself_never_reaches_the_row(db, salon):
     """The point of the whole module. A header passed straight through would be a fingerprint
     sitting in a table, and this is what stops one arriving by accident."""
     salon_event_service.record_entry(
@@ -144,7 +144,7 @@ def test_the_user_agent_itself_never_reaches_the_row(db, session):
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_type=IPHONE,
     )
     row = db.query(SalonEvent).one()
@@ -152,35 +152,35 @@ def test_the_user_agent_itself_never_reaches_the_row(db, session):
     assert "Mozilla" not in row.device_type
 
 
-def test_no_device_is_an_empty_string_not_null(db, session):
+def test_no_device_is_an_empty_string_not_null(db, salon):
     """A telephone participant has no device in this sense at all, and the sibling columns use
     the same convention: absent is a value that compares."""
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
-        email="dev@example.com", user_type="host", salon_name=session.livekit_room_name
+        email="dev@example.com", user_type="host", salon_name=salon.livekit_room_name
     )
     assert db.query(SalonEvent).one().device_type == ""
 
 
-def test_a_device_learned_on_re_entry_is_filled_in(db, session):
+def test_a_device_learned_on_re_entry_is_filled_in(db, salon):
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
-        email="dev@example.com", user_type="host", salon_name=session.livekit_room_name
+        email="dev@example.com", user_type="host", salon_name=salon.livekit_room_name
     )
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_type="windows",
     )
     assert db.query(SalonEvent).one().device_type == "windows"
 
 
-def test_rejoining_from_another_device_does_not_rewrite_the_first(db, session):
+def test_rejoining_from_another_device_does_not_rewrite_the_first(db, salon):
     """One participation, one device: the interesting one is what they arrived on. Someone who
     switches from laptop to phone mid-salon is one participation, not two devices."""
     salon_event_service.record_entry(
@@ -188,7 +188,7 @@ def test_rejoining_from_another_device_does_not_rewrite_the_first(db, session):
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_type="mac",
     )
     salon_event_service.record_entry(
@@ -196,20 +196,20 @@ def test_rejoining_from_another_device_does_not_rewrite_the_first(db, session):
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_type="iphone",
     )
     assert db.query(SalonEvent).one().device_type == "mac"
 
 
-def test_an_unusable_device_never_costs_the_participation(db, session):
+def test_an_unusable_device_never_costs_the_participation(db, salon):
     """Same rule as the position: failing to note something must not keep anyone out."""
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_type="nonsense",
     )
     assert db.query(SalonEvent).count() == 1
@@ -220,14 +220,14 @@ def test_an_unusable_device_never_costs_the_participation(db, session):
 # It lands in an indexed column and arrives in a request body, so it is validated rather than
 # trusted. Anything that is not the UUID a client should send is not a token.
 
-def test_a_uuid_is_kept(db, session):
+def test_a_uuid_is_kept(db, salon):
     token = "66666666-6666-4666-8666-666666666666"
     salon_event_service.record_entry(
         db,
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_token=token,
     )
     assert db.query(SalonEvent).one().device_token == token
@@ -237,7 +237,7 @@ def test_a_uuid_is_kept(db, session):
     "bad",
     ["", "not-a-uuid", "<script>alert(1)</script>", "1" * 36, "a" * 200],
 )
-def test_anything_that_is_not_a_uuid_is_dropped(db, session, bad):
+def test_anything_that_is_not_a_uuid_is_dropped(db, salon, bad):
     """Dropped rather than stored: this column is indexed and queried by value, and it must not
     become a place to put arbitrary text."""
     salon_event_service.record_entry(
@@ -245,13 +245,13 @@ def test_anything_that_is_not_a_uuid_is_dropped(db, session, bad):
         participant_identity="test-identity",
         email="dev@example.com",
         user_type="host",
-        salon_name=session.livekit_room_name,
+        salon_name=salon.livekit_room_name,
         device_token=bad,
     )
     assert db.query(SalonEvent).one().device_token == ""
 
 
-def test_a_token_is_not_replaced_on_re_entry(db, session):
+def test_a_token_is_not_replaced_on_re_entry(db, salon):
     """One participation came from one browser. A later call from another would be a different
     participation, not a correction of this one."""
     first = "77777777-7777-4777-8777-777777777777"
@@ -262,7 +262,7 @@ def test_a_token_is_not_replaced_on_re_entry(db, session):
             participant_identity="test-identity",
             email="dev@example.com",
             user_type="host",
-            salon_name=session.livekit_room_name,
+            salon_name=salon.livekit_room_name,
             device_token=token,
         )
     assert db.query(SalonEvent).one().device_token == first

@@ -1,9 +1,9 @@
 """Closing a room is the only thing that actually stops a conversation.
 
-Ending the session row settles the accounting; deleting the room is what disconnects the
+Ending the salon row settles the accounting; deleting the room is what disconnects the
 participants and stops the agent. That call used to swallow every failure into a warning, so
 the one case where it mattered — a transient LiveKit error — left everybody sitting in a room
-whose session was over, with nothing retrying and nobody told.
+whose salon was over, with nothing retrying and nobody told.
 
 Two changes, tested here: the deletion is retried and its final failure is reported, and the
 room is told the salon is over *before* it is deleted, so the clients no longer depend on that
@@ -105,7 +105,7 @@ def test_a_persistent_failure_is_reported_rather_than_hidden(no_announce, caplog
         with caplog.at_level("ERROR"):
             assert asyncio.run(livekit_service.delete_room("salon-1")) is False
     assert fake.calls == livekit_service.DELETE_ROOM_ATTEMPTS
-    # Error, not warning: participants are left connected to a dead session, and the only
+    # Error, not warning: participants are left connected to a dead salon, and the only
     # reason that was survivable before is that nobody saw it.
     assert any(r.levelname == "ERROR" for r in caplog.records)
     assert "salon-1" in caplog.text
@@ -120,7 +120,7 @@ def test_a_network_error_is_retried_too(no_announce):
 
 
 def test_a_failure_never_raises_at_the_caller(no_announce):
-    """A room that outlives its session must not stop a host opening the next one."""
+    """A room that outlives its salon must not stop a host opening the next one."""
     fake = FakeLiveKit([OSError("down")] * livekit_service.DELETE_ROOM_ATTEMPTS)
     with patch.object(livekit_service.lk_api, "LiveKitAPI", fake):
         assert asyncio.run(livekit_service.delete_room("salon-1")) is False
@@ -145,7 +145,7 @@ def test_the_room_is_told_before_it_is_deleted():
             asyncio.run(livekit_service.delete_room("salon-1"))
 
     assert order == ["notify", "delete"]
-    assert announced == [("salon-1", {"action": "session_ended"})]
+    assert announced == [("salon-1", {"action": "salon_ended"})]
 
 
 def test_the_announcement_reaches_the_room_that_is_closing():
@@ -154,7 +154,7 @@ def test_the_announcement_reaches_the_room_that_is_closing():
     with patch.object(livekit_service, "notify_room", notify):
         with patch.object(livekit_service.lk_api, "LiveKitAPI", fake):
             asyncio.run(livekit_service.delete_room("salon-7"))
-    notify.assert_awaited_once_with("salon-7", {"action": "session_ended"})
+    notify.assert_awaited_once_with("salon-7", {"action": "salon_ended"})
 
 
 def test_a_failed_announcement_does_not_stop_the_deletion():

@@ -418,7 +418,7 @@
   // happens in the console, and a panel that looked like it could answer would be the worst
   // kind of lie for somebody with a caller waiting.
   var token = '';
-  var sessionId = '';
+  var salonId = '';
   var deskRoom = null;
   var turns = [];
 
@@ -482,28 +482,28 @@
   }
 
   async function openDesk() {
-    var history = await api('/sessions');
-    var active = (history.sessions || []).filter(function (s) {
+    var history = await api('/salons');
+    var active = (history.salons || []).filter(function (s) {
       return s.status === 'active' && s.role === 'host';
     });
     if (!active.length) {
       say('signin-status', 'No Salon is open. Start one in the console and it appears here.', true);
       return;
     }
-    sessionId = active[0].sessionId;
+    salonId = active[0].salonId;
 
     // What came before this page was opened. The data channel carries turns from now on and
     // knows nothing of the ones already spoken, so a desk opened mid-call would start blank
     // in front of a clerk who needs precisely what was already said.
     try {
-      var history_page = await api('/sessions/' + sessionId + '/utterances?lang=' +
+      var history_page = await api('/salons/' + salonId + '/utterances?lang=' +
         encodeURIComponent(readingLanguage()));
       turns = history_page.utterances || [];
     } catch (e) {
       turns = [];
     }
 
-    var creds = await api('/sessions/' + sessionId + '/join', { method: 'POST' });
+    var creds = await api('/salons/' + salonId + '/join', { method: 'POST' });
 
     deskRoom = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
 

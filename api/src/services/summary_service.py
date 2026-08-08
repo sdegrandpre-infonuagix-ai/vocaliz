@@ -1,7 +1,7 @@
 """Condensing a source once, so the agent knows all of it without carrying all of it.
 
 The agent used to receive a document's first 2 500 characters and nothing else. Raising
-that limit is not free: a realtime session processes its context on every turn, so a
+that limit is not free: a realtime salon processes its context on every turn, so a
 document carried whole is paid for on every reply, for the whole conversation.
 
 Summarising inverts the trade. One call, before the conversation starts, produces a brief
@@ -95,7 +95,7 @@ async def summarise(text: str, language: str | None = None) -> tuple[str | None,
     `language` is a BCP-47 code — the host's, not the document's. A French host given an
     English article should read a French brief, because the conversation will be French.
 
-    Never raises. A session must open even if the summariser is down, unreachable or
+    Never raises. A salon must open even if the summariser is down, unreachable or
     unconfigured — the agent then falls back to the truncated preview it used before,
     which is worse but still a working conversation.
     """

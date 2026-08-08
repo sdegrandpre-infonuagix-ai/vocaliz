@@ -25,8 +25,8 @@ def test_base_instructions_detect_without_asking():
     assert "Never ask participants to configure or select a language" in salon._BASE_INSTRUCTIONS
 
 
-def test_base_instructions_persist_language_throughout_session():
-    assert "entire session" in salon._BASE_INSTRUCTIONS
+def test_base_instructions_persist_language_throughout_salon():
+    assert "entire salon" in salon._BASE_INSTRUCTIONS
 
 
 def test_base_instructions_multilingual_participants():

@@ -118,7 +118,7 @@ class InvitationResponse(BaseModel):
 
 class PendingInvitationResponse(BaseModel):
     invitationId: str
-    sessionId: str
+    salonId: str
     livekitRoomName: str
     hostEmail: str
     hostPhone: str | None = None
@@ -131,7 +131,7 @@ class GuestJoinResponse(BaseModel):
     participantToken: str
     livekitRoomName: str
     livekitUrl: str
-    sessionId: str
+    salonId: str
     # Returned so the guest's own page knows which identity in the room is itself.
     participantIdentity: str
     # And under which label it appears to the others.

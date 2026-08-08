@@ -73,7 +73,7 @@ def host_console_page(request: Request):
     """Serve the host console.
 
     The PRD gives the host a native app; this browser console exists because that app
-    has no room screen yet, leaving no way at all to add a source mid-session (FR3) or
+    has no room screen yet, leaving no way at all to add a source mid-salon (FR3) or
     generate an invitation. It authenticates with the same email OTP as the app, so it
     grants nothing the host does not already have.
     """

@@ -1,8 +1,8 @@
 """Audio input that merges every remote participant into one stream.
 
-livekit-agents' RoomIO binds the session to a single participant: its
+livekit-agents' RoomIO binds the salon to a single participant: its
 `_ParticipantAudioInputStream` takes one `participant_identity`, and `set_participant()`
-only switches between them. In a Salon session that means the agent hears whoever joined
+only switches between them. In a Salon salon that means the agent hears whoever joined
 first and is deaf to the other — which breaks facilitation of a two-way conversation
 (FR9) and translation between participants outright (FR14–FR17).
 

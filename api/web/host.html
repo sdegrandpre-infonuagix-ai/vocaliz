@@ -402,7 +402,7 @@
     <div class="card hidden" id="c-resume">
       <div class="card-title" data-i18n="resumeTitle">A Salon of yours is still open</div>
       <div class="card-sub" id="resume-line"></div>
-      <button class="btn btn-primary" onclick="resumeSession()" data-i18n="resumeButton">
+      <button class="btn btn-primary" onclick="resumeSalon()" data-i18n="resumeButton">
         Go back in
       </button>
       <button class="btn btn-outline" onclick="startInstead()" data-i18n="resumeDiscard">
@@ -411,12 +411,12 @@
       <div id="resume-status" class="status"></div>
     </div>
 
-    <!-- Step 2: create a session -->
+    <!-- Step 2: create a salon -->
     <div id="c-create" class="card hidden">
-      <div class="card-title" data-i18n="createTitle">New session</div>
+      <div class="card-title" data-i18n="createTitle">New salon</div>
       <div class="card-sub" data-i18n="createSub">
         A source is optional: without one, the agent will ask you what to talk about.
-        Any session you had left open is closed automatically.
+        Any salon you had left open is closed automatically.
       </div>
       <label for="src-url" data-i18n="srcUrlLabel">Article URL (optional)</label>
       <input type="text" id="src-url" placeholder="https://…">
@@ -431,11 +431,11 @@
         Documents you upload are never shared between Salons — only a public web
         address can be, because anyone could already read it by following the link.
       </div>
-      <button class="btn btn-primary" onclick="createSession()" data-i18n="startButton">Start the session</button>
+      <button class="btn btn-primary" onclick="createSalon()" data-i18n="startButton">Start the salon</button>
       <div id="create-status" class="status"></div>
     </div>
 
-    <!-- Step 3: in session -->
+    <!-- Step 3: in salon -->
     <div id="c-room" class="card hidden">
       <div class="card-title" data-i18n="roomTitle">You are hosting the Salon</div>
       <div class="card-sub" id="room-sub"></div>
@@ -510,7 +510,7 @@
       <div class="say-hint" id="say-hint" role="status" aria-live="polite"></div>
     </div>
 
-    <!-- Step 3b: add a source mid-session (host only) -->
+    <!-- Step 3b: add a source mid-salon (host only) -->
     <div id="c-source" class="card hidden">
       <div class="card-title" data-i18n="sourceTitle">Add a source</div>
       <div class="card-sub" data-i18n="sourceSub">
@@ -530,7 +530,7 @@
         Documents you upload are never shared between Salons — only a public web
         address can be, because anyone could already read it by following the link.
       </div>
-      <button class="btn btn-gold" onclick="addSource()" data-i18n="addButton">Add to the session</button>
+      <button class="btn btn-gold" onclick="addSource()" data-i18n="addButton">Add to the salon</button>
       <div id="source-status" class="status"></div>
     </div>
 
@@ -598,12 +598,12 @@
         otpButton: 'Send me a code',
         codeLabel: '6-digit code',
         verifyButton: 'Verify',
-        createTitle: 'New session',
+        createTitle: 'New salon',
         createSub: 'A source is optional: without one, the agent will ask you what to talk '
-                 + 'about. Any session you had left open is closed automatically.',
+                 + 'about. Any salon you had left open is closed automatically.',
         srcUrlLabel: 'Article URL (optional)',
         srcFileLabel: 'Or a document (PDF, text)',
-        startButton: 'Start the session',
+        startButton: 'Start the salon',
         roomTitle: 'You are hosting the Salon',
         micButton: '🎤  Enable microphone',
         leaveButton: 'Leave',
@@ -612,7 +612,7 @@
                  + 'interrupting the conversation.',
         addUrlLabel: 'Article URL',
         addFileLabel: 'Or a document',
-        addButton: 'Add to the session',
+        addButton: 'Add to the salon',
         inviteTitle: 'Invite',
         inviteSub: 'The link is emailed to your guest, and opens in any browser without '
                  + 'installing the app. It only works once.',
@@ -722,13 +722,13 @@
         otpButton: 'Recevoir mon code',
         codeLabel: 'Code à 6 chiffres',
         verifyButton: 'Valider',
-        createTitle: 'Nouvelle session',
+        createTitle: 'Nouvelle salon',
         createSub: "Une source est facultative : sans elle, l'agent vous demandera de quoi "
-                 + 'discuter. Toute session que vous aviez laissée ouverte est fermée '
+                 + 'discuter. Toute salon que vous aviez laissée ouverte est fermée '
                  + 'automatiquement.',
         srcUrlLabel: "URL d'article (facultatif)",
         srcFileLabel: 'Ou un document (PDF, texte)',
-        startButton: 'Démarrer la session',
+        startButton: 'Démarrer la salon',
         roomTitle: 'Vous animez le Salon',
         micButton: '🎤  Activer le micro',
         leaveButton: 'Quitter',
@@ -737,7 +737,7 @@
                  + 'la conversation.',
         addUrlLabel: "URL d'article",
         addFileLabel: 'Ou un document',
-        addButton: 'Ajouter à la session',
+        addButton: 'Ajouter à la salon',
         inviteTitle: 'Inviter',
         inviteSub: "Le lien est envoyé par courriel à l'invité, et s'ouvre dans n'importe "
                  + "quel navigateur sans installer l'application. Il ne fonctionne qu'une "
@@ -876,13 +876,24 @@
       }
     }
 
-    var LANG_KEY = 'salon_lang';
+    var LANG_KEY = 'vocaliz.lang';
+    // Written under the old project's name until the rename. Carried across on first read
+    // rather than dropped: it is an explicit choice the visitor made, and losing it would
+    // show somebody their own site in the wrong language for no reason they could see.
+    var LEGACY_LANG_KEY = 'salon_lang';
 
     // Precedence: a choice made here, then the browser's own languages, then English.
     function storedLang() {
       // localStorage throws outright under some privacy settings, not just return null.
       try {
         var v = localStorage.getItem(LANG_KEY);
+        if (v === null) {
+          v = localStorage.getItem(LEGACY_LANG_KEY);
+          if (v !== null) {
+            localStorage.setItem(LANG_KEY, v);
+            localStorage.removeItem(LEGACY_LANG_KEY);
+          }
+        }
         // Checked against every supported language, not against what is loaded: a stored
         // choice of Japanese is valid even though its dictionary has not been fetched yet.
         return isSupported(v) ? v : null;
@@ -934,7 +945,7 @@
         return;
       }
       lang = next;
-      try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: session only */ }
+      try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: this browsing session only */ }
       applyLang();
       rememberLanguages({ interfaceLanguage: next });
     }
@@ -962,7 +973,7 @@
     }
 
     // Re-renders everything, static and dynamic alike. Anything shown to the host has to
-    // survive a switch mid-session — a status line left in the previous language would be
+    // survive a switch mid-salon — a status line left in the previous language would be
     // the most visible part of the page and the one that looks broken.
     function applyLang() {
       document.documentElement.lang = lang;
@@ -1066,8 +1077,8 @@
     }
 
     // ── App ───────────────────────────────────────────────────────────────────
-    var token = sessionStorage.getItem('salon_host_jwt');
-    var sessionId = null;
+    var token = sessionStorage.getItem('vocaliz.hostJwt');
+    var salonId = null;
     var room = null;
 
     function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
@@ -1109,7 +1120,7 @@
           body: JSON.stringify({ email: email, code: code })
         });
         token = data.token;
-        sessionStorage.setItem('salon_host_jwt', token);
+        sessionStorage.setItem('vocaliz.hostJwt', token);
         signedIn();
       } catch (e) {
         setStatusRaw('login-status', e.message, false);
@@ -1118,11 +1129,11 @@
 
     // A Salon survives a reload; this page did not, and that cost somebody their guests.
     //
-    // sessionId was set only at creation, so reloading left a host with a live Salon they
+    // salonId was set only at creation, so reloading left a host with a live Salon they
     // could not see and a create form they could. Creating from there ends the previous
-    // Salon and deletes its room — POST /sessions does that deliberately, so a stale agent
+    // Salon and deletes its room — POST /salons does that deliberately, so a stale agent
     // is never inherited — and the guests already in it are disconnected without warning.
-    // Reported as "he added a URL and it ended my session as a guest", which is exactly what
+    // Reported as "he added a URL and it ended my salon as a guest", which is exactly what
     // it looks like from the other side.
     //
     // The Salon is not rejoined automatically. Entering it needs a microphone, and asking for
@@ -1134,8 +1145,8 @@
 
       var open = null;
       try {
-        var history = await api('/sessions');
-        open = (history.sessions || []).filter(function (s) {
+        var history = await api('/salons');
+        open = (history.salons || []).filter(function (s) {
           return s.status === 'active' && s.role === 'host';
         })[0] || null;
       } catch (e) {
@@ -1149,22 +1160,22 @@
         return;
       }
 
-      pendingSession = open;
+      pendingSalon = open;
       show('c-resume', true);
       document.getElementById('resume-line').textContent =
         T('resumeOpen', { source: open.sourceUrl || T('resumeNoSource') });
     }
 
-    var pendingSession = null;
+    var pendingSalon = null;
 
     // Back into the Salon that was already running, rather than a new one on top of it.
-    async function resumeSession() {
-      if (!pendingSession) return;
+    async function resumeSalon() {
+      if (!pendingSalon) return;
       // First, and before any await: iOS Safari grants the microphone only inside the
       // activation window this click opened.
       await warmUpMicrophone();
 
-      sessionId = pendingSession.sessionId;
+      salonId = pendingSalon.salonId;
       salonOver = false;
       show('c-resume', false);
       try {
@@ -1178,7 +1189,7 @@
     // Deliberately explicit, and deliberately not the first thing offered. Ending a Salon is
     // what the host means when they want a new one, but they should be the one saying so.
     function startInstead() {
-      pendingSession = null;
+      pendingSalon = null;
       show('c-resume', false);
       show('c-create', true);
     }
@@ -1206,7 +1217,7 @@
           await setLang(me.interfaceLanguage);
         }
         // Compared against null rather than falsy: '' is the "as spoken" choice, and treating
-        // it as "nothing saved" would silently discard a real decision every session.
+        // it as "nothing saved" would silently discard a real decision every salon.
         if (me.captionLanguage !== null && me.captionLanguage !== undefined
             && me.captionLanguage !== captionLang) {
           setCaptionLang(me.captionLanguage);
@@ -1217,14 +1228,14 @@
         // overrides it.
         if (me.captionScale) adoptCaptionScale(me.captionScale);
       } catch (e) {
-        // A profile that will not load costs a preference, not a session.
+        // A profile that will not load costs a preference, not a salon.
         console.warn('Vocaliz: could not read the saved languages', e);
       } finally {
         adoptingSaved = false;
       }
     }
 
-    // ── Session creation ──────────────────────────────────────────────────────
+    // ── Salon creation ──────────────────────────────────────────────────────
     // Ask for the microphone while the click is still warm.
     //
     // iOS Safari grants getUserMedia only inside the activation window a user gesture opens, and
@@ -1252,7 +1263,7 @@
       }
     }
 
-    async function createSession() {
+    async function createSalon() {
       // First, before any await that would spend the gesture. See warmUpMicrophone.
       await warmUpMicrophone();
 
@@ -1267,14 +1278,14 @@
       //
       // The element is looked up defensively, and that is not paranoia: this line used to sit
       // outside the try below, so a browser serving a cached page from before the checkbox
-      // existed threw here and the session simply never started, with no message at all.
+      // existed threw here and the salon simply never started, with no message at all.
       var share = document.getElementById('src-share');
       if (url && share && share.checked) {
         form.append('share_with_platform', 'true');
       }
       try {
-        var data = await api('/sessions', { method: 'POST', body: form });
-        sessionId = data.sessionId;
+        var data = await api('/salons', { method: 'POST', body: form });
+        salonId = data.salonId;
         // Cleared per salon, not per page load: without this the second salon of a sitting
         // could never be closed, because the guard would still be holding the first one's.
         salonOver = false;
@@ -1361,12 +1372,12 @@
     // translation on (turn, language), so a reader who switches back pays nothing, and a second
     // reader of the same language pays nothing either.
     async function retranslateHistory() {
-      if (!captionLog.length || !sessionId) return;
+      if (!captionLog.length || !salonId) return;
       // "As spoken" needs no request: every turn already carries the words it was said in.
       if (!captionLang) { renderCaptions(); return; }
 
       try {
-        var data = await api('/sessions/' + sessionId + '/utterances?lang='
+        var data = await api('/salons/' + salonId + '/utterances?lang='
                              + encodeURIComponent(captionLang));
         // A reply for a language the reader has since moved on from must not overwrite the
         // screen. Requests can land out of order, and the last one asked for is the one meant.
@@ -1549,7 +1560,7 @@
       // Sent by the API just before it deletes the room, so this page learns the salon is
       // over even when that deletion fails. Relying on the transport dropping was the whole
       // problem: the failure was logged as a warning and nobody was told anything.
-      if (msg.action === 'session_ended') { salonIsOver(); return; }
+      if (msg.action === 'salon_ended') { salonIsOver(); return; }
     }
 
     var salonOver = false;
@@ -1646,7 +1657,7 @@
     // see that.
     //
     // A category, never the user agent itself. The header carries browser build, engine version
-    // and often the exact model, which together identify somebody across sessions; the shape of
+    // and often the exact model, which together identify somebody across salons; the shape of
     // their screen does not.
     function deviceType() {
       try {
@@ -1730,7 +1741,7 @@
         stopDictation();
       };
       recogniser.onend = function () {
-        // Chrome ends the session on its own after a stretch of silence. Restarted while the
+        // Chrome ends the salon on its own after a stretch of silence. Restarted while the
         // clerk still believes it is on, because a control that says "listening" and is not
         // is worse than one that never worked.
         if (dictating) { try { recogniser.start(); } catch (e) { } }
@@ -1829,9 +1840,9 @@
     }
 
     async function readAgentState() {
-      if (!sessionId) return;
+      if (!salonId) return;
       try {
-        agentState = await api('/sessions/' + sessionId + '/agent');
+        agentState = await api('/salons/' + salonId + '/agent');
         renderAgent();
       } catch (e) {
         // The controls keep whatever they were showing. A state that cannot be read is not a
@@ -1843,7 +1854,7 @@
     async function toggleAgentMute() {
       var next = !agentState.muted;
       try {
-        agentState = await api('/sessions/' + sessionId + '/agent/mute', {
+        agentState = await api('/salons/' + salonId + '/agent/mute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ muted: next })
@@ -1861,7 +1872,7 @@
       if (agentState.present && !confirm(T('agentRemoveWarning'))) return;
       var path = agentState.present ? '/agent/disconnect' : '/agent/connect';
       try {
-        agentState = await api('/sessions/' + sessionId + path, { method: 'POST' });
+        agentState = await api('/salons/' + salonId + path, { method: 'POST' });
       } catch (e) {
         setStatusRaw('room-status', e.message, false);
       }
@@ -2033,7 +2044,7 @@
     async function joinRoom() {
       // api() hands options straight to fetch, so the body has to be serialised here and the
       // content type set with it — an object would go out as "[object Object]".
-      var creds = await api('/sessions/' + sessionId + '/join', {
+      var creds = await api('/salons/' + salonId + '/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2071,7 +2082,7 @@
       room.on(LivekitClient.RoomEvent.DataReceived, onRoomData);
 
       // There was no handler here at all, so a salon closed by the ten-minute cap left this
-      // page asserting a live session: the mic dot still pulsing, the Salon card still up,
+      // page asserting a live salon: the mic dot still pulsing, the Salon card still up,
       // over a room that no longer existed.
       room.on(LivekitClient.RoomEvent.Disconnected, function () {
         salonIsOver();
@@ -2079,7 +2090,7 @@
 
       await room.connect(creds.livekitUrl, creds.participantToken);
       // Reported separately from the connection: a refused microphone still leaves a
-      // usable session (you can hear), so it must not read as a failed connection.
+      // usable salon (you can hear), so it must not read as a failed connection.
       await retryMic();
 
       // A clerk answering a call arrives silent, on purpose.
@@ -2092,7 +2103,7 @@
       // Only for a call. An ordinary Salon is a discussion its host started and wants to be
       // in; arriving muted there would be a puzzle, not a courtesy.
       try {
-        var detail = await api('/sessions/' + sessionId);
+        var detail = await api('/salons/' + salonId);
         if (detail.frontDesk) {
           await room.localParticipant.setMicrophoneEnabled(false);
           micState = { on: false, denied: false, starting: false, retried: false };
@@ -2104,7 +2115,7 @@
         // A detail that cannot be read leaves the microphone as retryMic left it. Being
         // audible when you expected to be silent is the safer of the two failures here: the
         // caller hears you rather than being met with nothing.
-        console.warn('Vocaliz: could not read the session kind', e);
+        console.warn('Vocaliz: could not read the salon kind', e);
       }
 
       // Only when the host has already asked for sound. Starting audio for someone who
@@ -2137,8 +2148,8 @@
         // Reported because two states looked identical in the data: a host who never tried to
         // speak, and one who tried and was not heard. Fire-and-forget — an observation about a
         // conversation must not interrupt it.
-        if (sessionId) {
-          api('/sessions/' + sessionId + '/microphone', { method: 'POST' }).catch(function () { });
+        if (salonId) {
+          api('/salons/' + salonId + '/microphone', { method: 'POST' }).catch(function () { });
         }
       } catch (micErr) {
         var denied = micErr && (micErr.name === 'NotAllowedError'
@@ -2165,10 +2176,10 @@
         await room.disconnect();
         room = null;
       }
-      try { await api('/sessions/' + sessionId + '/end', { method: 'POST' }); } catch (e) {}
+      try { await api('/salons/' + salonId + '/end', { method: 'POST' }); } catch (e) {}
 
       // The mic row survives in the DOM behind the hidden card, so without this the next
-      // session would open on a green dot and "Micro actif" inherited from the last one.
+      // salon would open on a green dot and "Micro actif" inherited from the last one.
       micState = { on: false, denied: false, retried: false };
       renderMic();
       show('btn-mic', false);
@@ -2178,7 +2189,7 @@
       show('c-create', true);
     }
 
-    // ── Mid-session source (FR3) ──────────────────────────────────────────────
+    // ── Mid-salon source (FR3) ──────────────────────────────────────────────
     async function addSource() {
       var url = document.getElementById('add-url').value.trim();
       var file = document.getElementById('add-file').files[0];
@@ -2194,7 +2205,7 @@
         form.append('share_with_platform', 'true');
       }
       try {
-        var data = await api('/sessions/' + sessionId + '/sources', { method: 'POST', body: form });
+        var data = await api('/salons/' + salonId + '/sources', { method: 'POST', body: form });
         setStatus('source-status', 'sourceAdded', true,
                   { type: data.sourceType, chars: data.contentLength });
         document.getElementById('add-url').value = '';
@@ -2226,7 +2237,7 @@
     async function sendInviteEmail() {
       if (!lastInvitation) return;
       try {
-        await api('/sessions/' + sessionId + '/invitations/' + lastInvitation.invitationId + '/email',
+        await api('/salons/' + salonId + '/invitations/' + lastInvitation.invitationId + '/email',
                   { method: 'POST' });
         setStatus('invite-status', 'emailSentTo', true, { email: lastInvitation.guestEmail });
       } catch (e) {
@@ -2258,7 +2269,7 @@
     // stranger. Nothing is sent, so no "send by email" button appears with it.
     async function inviteAnonymously() {
       try {
-        var data = await api('/sessions/' + sessionId + '/invitations/anonymous', {
+        var data = await api('/salons/' + salonId + '/invitations/anonymous', {
           method: 'POST'
         });
         lastInvitation = data;
@@ -2290,7 +2301,7 @@
         return;
       }
       try {
-        var data = await api('/sessions/' + sessionId + '/invitations', {
+        var data = await api('/salons/' + salonId + '/invitations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           // Omitted rather than sent empty: an empty string is not an address, and the
@@ -2337,7 +2348,7 @@
 
     // ── Clean exit on browser or tab close ────────────────────────────────────
     // Disconnecting is enough and is deliberately all we do: the agent watches for the
-    // room emptying and closes the session server-side. Calling /end from here would
+    // room emptying and closes the salon server-side. Calling /end from here would
     // need the JWT in a sendBeacon query string — beacons carry no headers — which would
     // then sit in API Gateway and CloudWatch logs.
     function onPageUnload() {
@@ -2357,7 +2368,7 @@
     // Rendering must not be able to take the application down with it. A throw in applyLang()
     // aborted the rest of this block — including the fetch immediately below, which is exactly
     // what would have supplied the missing strings. So one unreadable string left the page
-    // permanently in English with no config and no session, rather than briefly imperfect.
+    // permanently in English with no config and no salon, rather than briefly imperfect.
     // Logged rather than swallowed: reaching this is a bug, not a state.
     try {
       applyLang();

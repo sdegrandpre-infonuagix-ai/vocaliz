@@ -14,7 +14,7 @@ from src.config import settings
 from src.models.ad import Ad
 from src.models.ad_broadcast import AdBroadcast
 from src.models.advertiser import Advertiser
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import ad_billing_service
 
@@ -48,7 +48,7 @@ def salon(db):
     db.add(user)
     db.commit()
     db.refresh(user)
-    s = SessionModel(
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-ads",
         source_type="url",
@@ -64,9 +64,9 @@ def salon(db):
 # ─── Recording ────────────────────────────────────────────────────────────────
 
 def test_a_broadcast_is_recorded_with_its_salon(db, ad, salon):
-    row = ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    row = ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     assert row is not None
-    assert row.session_id == salon.id
+    assert row.salon_id == salon.id
     assert row.salon_name == "salon-ads"
     assert row.advertiser_id == ad.advertiser_id
 
@@ -77,7 +77,7 @@ def test_the_price_is_copied_not_referenced(db, ad, salon):
     original = settings.ad_broadcast_rate_cents
     settings.ad_broadcast_rate_cents = 40
     try:
-        row = ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+        row = ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     finally:
         settings.ad_broadcast_rate_cents = original
 
@@ -86,7 +86,7 @@ def test_the_price_is_copied_not_referenced(db, ad, salon):
 
 
 def test_recording_spends_one_of_the_allowance(db, ad, salon):
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     db.expire_all()
     assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 2
 
@@ -96,7 +96,7 @@ def test_an_exhausted_ad_is_not_broadcast(db, ad, salon):
     together, or an advertiser is billed for a broadcast they did not buy."""
     ad.number_of_broadcasts_left = 0
     db.commit()
-    assert ad_billing_service.record_broadcast(db, ad=ad, session=salon) is None
+    assert ad_billing_service.record_broadcast(db, ad=ad, salon=salon) is None
     assert db.query(AdBroadcast).count() == 0
 
 
@@ -104,27 +104,27 @@ def test_recording_makes_no_stripe_call(db, ad, salon):
     """This runs while somebody is waiting to hear a sentence. A payment processor has no
     business on that path."""
     with patch("src.services.ad_billing_service.stripe") as stripe_mock:
-        ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+        ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     assert not stripe_mock.method_calls
 
 
 def test_a_broadcast_survives_its_salon(db, ad, salon):
     """A salon is ephemeral; the billing record is not. The name is kept as text so an invoice
     line can still say where the ad played."""
-    row = ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    row = ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     db.delete(salon)
     db.commit()
     db.expire_all()
     kept = db.get(AdBroadcast, row.id)
     assert kept is not None
-    assert kept.session_id is None
+    assert kept.salon_id is None
     assert kept.salon_name == "salon-ads"
 
 
 def test_a_broadcast_ad_cannot_be_deleted(db, ad, salon):
     """These rows are the evidence an advertiser could dispute. A cascade would make history
     depend on whether anyone had tidied up."""
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     db.delete(ad)
     with pytest.raises(IntegrityError):
         db.commit()
@@ -188,7 +188,7 @@ def _stripe_double():
 def test_each_broadcast_becomes_its_own_invoice_line(db, ad, salon, advertiser):
     """An advertiser disputing a charge should see what they are charged for without asking."""
     for _ in range(3):
-        ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+        ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
 
     with patch("src.services.ad_billing_service.stripe", _stripe_double()) as stripe_mock:
         result = ad_billing_service.invoice_advertiser(db, advertiser)
@@ -201,7 +201,7 @@ def test_each_broadcast_becomes_its_own_invoice_line(db, ad, salon, advertiser):
 
 
 def test_an_invoice_line_names_the_salon_and_the_date(db, ad, salon, advertiser):
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     with patch("src.services.ad_billing_service.stripe", _stripe_double()) as stripe_mock:
         ad_billing_service.invoice_advertiser(db, advertiser)
     description = stripe_mock.InvoiceItem.create.call_args.kwargs["description"]
@@ -210,7 +210,7 @@ def test_an_invoice_line_names_the_salon_and_the_date(db, ad, salon, advertiser)
 
 def test_invoicing_is_idempotent(db, ad, salon, advertiser):
     """A row is marked the moment its line exists, so a second run finds nothing to bill."""
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
 
     with patch("src.services.ad_billing_service.stripe", _stripe_double()):
         first = ad_billing_service.invoice_advertiser(db, advertiser)
@@ -227,7 +227,7 @@ def test_a_failure_partway_leaves_the_rest_for_the_next_run(db, ad, salon, adver
     ad.number_of_broadcasts_left = 3
     db.commit()
     for _ in range(3):
-        ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+        ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
 
     failing = _stripe_double()
     failing.InvoiceItem.create.side_effect = [MagicMock(id="ii_1"), Exception("boom")]
@@ -248,7 +248,7 @@ def test_a_free_broadcast_is_recorded_but_never_sent_to_stripe(db, ad, salon, ad
     original = settings.ad_broadcast_rate_cents
     settings.ad_broadcast_rate_cents = 0
     try:
-        ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+        ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     finally:
         settings.ad_broadcast_rate_cents = original
 
@@ -270,11 +270,11 @@ def test_a_customer_is_created_only_when_there_is_something_to_bill(db, advertis
 def test_the_customer_is_reused_on_the_second_invoice(db, ad, salon, advertiser):
     ad.number_of_broadcasts_left = 2
     db.commit()
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     with patch("src.services.ad_billing_service.stripe", _stripe_double()):
         ad_billing_service.invoice_advertiser(db, advertiser)
 
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     with patch("src.services.ad_billing_service.stripe", _stripe_double()) as second:
         ad_billing_service.invoice_advertiser(db, advertiser)
     assert second.Customer.create.call_count == 0
@@ -294,8 +294,8 @@ def test_one_advertiser_failing_does_not_stop_the_others(db, ad, salon, advertis
     db.commit()
     db.refresh(other_ad)
 
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
-    ad_billing_service.record_broadcast(db, ad=other_ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
+    ad_billing_service.record_broadcast(db, ad=other_ad, salon=salon)
 
     with patch("src.services.ad_billing_service.stripe", _stripe_double()):
         with patch.object(
@@ -310,7 +310,7 @@ def test_one_advertiser_failing_does_not_stop_the_others(db, ad, salon, advertis
 
 
 def test_invoice_all_reports_what_it_collected(db, ad, salon, advertiser):
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
     with patch("src.services.ad_billing_service.stripe", _stripe_double()):
         result = ad_billing_service.invoice_all(db)
     assert result["advertisers"] == 1
@@ -321,7 +321,7 @@ def test_the_handler_action_invoices_and_reports(db, ad, salon, advertiser):
     """EventBridge invokes this daily; the reported total is how anyone knows it collected."""
     from src import migrate_handler
 
-    ad_billing_service.record_broadcast(db, ad=ad, session=salon)
+    ad_billing_service.record_broadcast(db, ad=ad, salon=salon)
 
     with patch("src.services.ad_billing_service.stripe", _stripe_double()), \
          patch("src.database.SessionLocal", return_value=db), patch.object(db, "close"):
@@ -340,7 +340,7 @@ def test_a_reservation_costs_the_advertiser_nothing(db, ad, salon):
 
     ad.bid_cents = 500
     db.commit()
-    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=[""])
+    row = ad_auction_service.broadcast_winner(db, salon=salon, salon_topics=[""])
     assert row is not None
     assert row.delivered_at is None
 
@@ -359,7 +359,7 @@ def test_delivery_is_what_spends_and_bills(db, ad, salon):
 
     ad.bid_cents = 500
     db.commit()
-    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=[""])
+    row = ad_auction_service.broadcast_winner(db, salon=salon, salon_topics=[""])
     assert ad_auction_service.mark_delivered(db, row)
 
     db.expire_all()
@@ -378,7 +378,7 @@ def test_confirming_twice_spends_once(db, ad, salon):
 
     ad.bid_cents = 500
     db.commit()
-    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=[""])
+    row = ad_auction_service.broadcast_winner(db, salon=salon, salon_topics=[""])
     ad_auction_service.mark_delivered(db, row)
     ad_auction_service.mark_delivered(db, row)
 

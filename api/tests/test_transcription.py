@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.utterance import Utterance, UtteranceTranslation
 from src.models.user import User
 from src.services import translation_service, utterance_service
@@ -20,9 +20,9 @@ def host(db):
 
 
 @pytest.fixture
-def session(db, host):
+def salon(db, host):
     user, _ = host
-    s = SessionModel(
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-transcript",
         source_type="url",
@@ -39,7 +39,7 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _post(client, token, session, **overrides):
+def _post(client, token, salon, **overrides):
     body = {
         "speakerIdentity": "guest-3f2a1b4c-0000-0000-0000-000000000000",
         "speakerRole": "guest",
@@ -48,7 +48,7 @@ def _post(client, token, session, **overrides):
     }
     body.update(overrides)
     return client.post(
-        f"/sessions/{session.id}/utterances", json=body, headers=_auth(token)
+        f"/salons/{salon.id}/utterances", json=body, headers=_auth(token)
     )
 
 
@@ -81,94 +81,94 @@ def test_same_language_compares_primary_subtags_only():
 
 # ─── Storing speech ───────────────────────────────────────────────────────────
 
-def test_records_a_turn_with_its_sequence(client, host, session):
+def test_records_a_turn_with_its_sequence(client, host, salon):
     _, token = host
-    body = _post(client, token, session).json()
+    body = _post(client, token, salon).json()
     assert body["sequence"] == 1
     assert body["text"] == "Necesito el informe."
     assert body["language"] == "es"
 
 
-def test_sequence_increments_per_session(client, host, session):
+def test_sequence_increments_per_salon(client, host, salon):
     _, token = host
     for expected in (1, 2, 3):
-        assert _post(client, token, session).json()["sequence"] == expected
+        assert _post(client, token, salon).json()["sequence"] == expected
 
 
-def test_blank_text_is_rejected(client, host, session):
+def test_blank_text_is_rejected(client, host, salon):
     """A silent turn is not a caption, and an empty row would break the ordering."""
     _, token = host
-    assert _post(client, token, session, text="   ").status_code == 422
+    assert _post(client, token, salon, text="   ").status_code == 422
 
 
-def test_unknown_speaker_role_is_rejected(client, host, session):
+def test_unknown_speaker_role_is_rejected(client, host, salon):
     _, token = host
-    assert _post(client, token, session, speakerRole="moderator").status_code == 422
+    assert _post(client, token, salon, speakerRole="moderator").status_code == 422
 
 
-def test_another_hosts_session_is_not_writable(client, db, session):
-    """Ownership of the session is the authorisation, so a stranger's token must fail."""
+def test_another_hosts_salon_is_not_writable(client, db, salon):
+    """Ownership of the salon is the authorisation, so a stranger's token must fail."""
     other = User(email="stranger@example.com")
     db.add(other)
     db.commit()
     db.refresh(other)
-    assert _post(client, issue_token(str(other.id)), session).status_code == 404
+    assert _post(client, issue_token(str(other.id)), salon).status_code == 404
 
 
 # ─── Who a caption is attributed to ───────────────────────────────────────────
 
-def test_a_guest_is_labelled_not_named(client, host, session):
+def test_a_guest_is_labelled_not_named(client, host, salon):
     """The host typed that address to invite them; nobody else may read it."""
     _, token = host
-    assert _post(client, token, session).json()["speaker"] == "Guest 3F2A"
+    assert _post(client, token, salon).json()["speaker"] == "Guest 3F2A"
 
 
-def test_the_agent_is_labelled_vocaliz(client, host, session):
+def test_the_agent_is_labelled_vocaliz(client, host, salon):
     _, token = host
     body = _post(
-        client, token, session, speakerIdentity="agent", speakerRole="agent", text="Welcome."
+        client, token, salon, speakerIdentity="agent", speakerRole="agent", text="Welcome."
     ).json()
     assert body["speaker"] == "Vocaliz"
 
 
 # ─── Translating ──────────────────────────────────────────────────────────────
 
-def test_translation_is_returned_for_each_requested_language(client, host, session):
+def test_translation_is_returned_for_each_requested_language(client, host, salon):
     _, token = host
     with patch.object(translation_service, "translate", return_value="J'ai besoin du rapport."):
-        body = _post(client, token, session, targetLanguages=["fr"]).json()
+        body = _post(client, token, salon, targetLanguages=["fr"]).json()
     assert body["translations"] == {"fr": "J'ai besoin du rapport."}
     # The spoken text is never replaced by its translation.
     assert body["text"] == "Necesito el informe."
 
 
-def test_no_call_is_made_when_the_turn_is_already_in_that_language(client, host, session):
+def test_no_call_is_made_when_the_turn_is_already_in_that_language(client, host, salon):
     """Paying to turn Spanish into Spanish also risks it being quietly rephrased."""
     _, token = host
     with patch.object(translation_service, "translate") as translate:
-        body = _post(client, token, session, targetLanguages=["es"]).json()
+        body = _post(client, token, salon, targetLanguages=["es"]).json()
     translate.assert_not_called()
     assert body["translations"] == {"es": "Necesito el informe."}
 
 
-def test_a_failed_translation_is_absent_rather_than_echoed(client, host, session):
+def test_a_failed_translation_is_absent_rather_than_echoed(client, host, salon):
     """An absent key means 'not translated'. Echoing the original would hide the failure."""
     _, token = host
     with patch.object(translation_service, "translate", return_value=None):
-        body = _post(client, token, session, targetLanguages=["fr"]).json()
+        body = _post(client, token, salon, targetLanguages=["fr"]).json()
     assert body["translations"] == {}
     assert body["text"] == "Necesito el informe."
 
 
-def test_translations_are_cached_per_language(client, db, host, session):
+def test_translations_are_cached_per_language(client, db, host, salon):
     """A second viewer reading in the same language must not cost a second call."""
     _, token = host
     with patch.object(
         translation_service, "translate", return_value="J'ai besoin du rapport."
     ) as translate:
-        _post(client, token, session, targetLanguages=["fr"])
+        _post(client, token, salon, targetLanguages=["fr"])
         client.get(
-            f"/sessions/{session.id}/utterances?lang=fr", headers=_auth(token)
+            f"/salons/{salon.id}/utterances?lang=fr", headers=_auth(token)
         )
     assert translate.call_count == 1
     assert db.query(UtteranceTranslation).count() == 1
@@ -176,54 +176,54 @@ def test_translations_are_cached_per_language(client, db, host, session):
 
 # ─── Reading back ─────────────────────────────────────────────────────────────
 
-def test_transcript_returns_turns_in_order(client, host, session):
+def test_transcript_returns_turns_in_order(client, host, salon):
     _, token = host
-    _post(client, token, session, text="Primero.")
-    _post(client, token, session, text="Segundo.")
-    body = client.get(f"/sessions/{session.id}/utterances", headers=_auth(token)).json()
+    _post(client, token, salon, text="Primero.")
+    _post(client, token, salon, text="Segundo.")
+    body = client.get(f"/salons/{salon.id}/utterances", headers=_auth(token)).json()
     assert [u["text"] for u in body["utterances"]] == ["Primero.", "Segundo."]
 
 
-def test_after_skips_what_the_client_already_has(client, host, session):
+def test_after_skips_what_the_client_already_has(client, host, salon):
     """A sequence number, not a timestamp: a clock skew must not lose a turn."""
     _, token = host
-    _post(client, token, session, text="Primero.")
-    _post(client, token, session, text="Segundo.")
+    _post(client, token, salon, text="Primero.")
+    _post(client, token, salon, text="Segundo.")
     body = client.get(
-        f"/sessions/{session.id}/utterances?after=1", headers=_auth(token)
+        f"/salons/{salon.id}/utterances?after=1", headers=_auth(token)
     ).json()
     assert [u["sequence"] for u in body["utterances"]] == [2]
 
 
-def test_transcript_carries_the_spoken_words_beside_the_translation(client, host, session):
+def test_transcript_carries_the_spoken_words_beside_the_translation(client, host, salon):
     """A translation with no original is a claim the viewer cannot check."""
     _, token = host
-    _post(client, token, session)
+    _post(client, token, salon)
     with patch.object(translation_service, "translate", return_value="J'ai besoin du rapport."):
         body = client.get(
-            f"/sessions/{session.id}/utterances?lang=fr", headers=_auth(token)
+            f"/salons/{salon.id}/utterances?lang=fr", headers=_auth(token)
         ).json()
     turn = body["utterances"][0]
     assert turn["text"] == "J'ai besoin du rapport."
     assert turn["originalText"] == "Necesito el informe."
 
 
-def test_transcript_echoes_the_language_it_answered_in(client, host, session):
+def test_transcript_echoes_the_language_it_answered_in(client, host, salon):
     """A request in flight can answer after a newer one; the client must be able to tell."""
     _, token = host
     body = client.get(
-        f"/sessions/{session.id}/utterances?lang=de", headers=_auth(token)
+        f"/salons/{salon.id}/utterances?lang=de", headers=_auth(token)
     ).json()
     assert body["language"] == "de"
 
 
 # ─── Failure must never interrupt a conversation ──────────────────────────────
 
-def test_recording_returns_none_on_blank_text(db, session):
+def test_recording_returns_none_on_blank_text(db, salon):
     assert (
         utterance_service.record(
             db,
-            session_id=session.id,
+            salon_id=salon.id,
             speaker_identity="agent",
             speaker_role="agent",
             text="   ",
@@ -232,11 +232,11 @@ def test_recording_returns_none_on_blank_text(db, session):
     )
 
 
-def test_a_translator_outage_still_yields_a_caption(db, session):
+def test_a_translator_outage_still_yields_a_caption(db, salon):
     """Best-effort: an untranslated caption is a degraded conversation, not a broken one."""
     utterance = utterance_service.record(
         db,
-        session_id=session.id,
+        salon_id=salon.id,
         speaker_identity="agent",
         speaker_role="agent",
         text="Welcome.",
@@ -247,19 +247,19 @@ def test_a_translator_outage_still_yields_a_caption(db, session):
     assert db.query(UtteranceTranslation).count() == 0
 
 
-def test_only_finals_reach_the_table(client, host, session):
+def test_only_finals_reach_the_table(client, host, salon):
     """The endpoint stores what it is given; interim revisions never get posted.
 
     Guards the contract the agent relies on: one row per turn, not one per revision of a
     sentence the model was still hearing.
     """
     _, token = host
-    _post(client, token, session, text="Necesito el informe.")
-    assert db_count(session) == 1
+    _post(client, token, salon, text="Necesito el informe.")
+    assert db_count(salon) == 1
 
 
-def db_count(session):
+def db_count(salon):
     from tests.conftest import TestingSession
 
     with TestingSession() as s:
-        return s.query(Utterance).filter(Utterance.session_id == session.id).count()
+        return s.query(Utterance).filter(Utterance.salon_id == salon.id).count()

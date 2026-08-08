@@ -129,7 +129,7 @@ def test_a_paused_agent_still_lets_the_room_reach_itself():
     assert "identity=sender" in paused, "delivered, and attributed to whoever wrote it"
 
 
-def test_the_pause_is_tracked_rather_than_asked_of_the_session():
+def test_the_pause_is_tracked_rather_than_asked_of_the_salon():
     source = inspect.getsource(salon.entrypoint)
     assert 'paused = {"value": starts_paused}' in source
     assert 'paused["value"] = muted' in source
@@ -211,7 +211,7 @@ def test_the_arrival_asks_whether_to_hand_over():
 # ─── The voice connection reports itself ──────────────────────────────────────
 #
 # xAI offers no cheap voice call to probe: /v1/audio/speech answers 403 for this team, and a
-# realtime session is too costly to open every minute purely to ask whether it can be opened.
+# realtime salon is too costly to open every minute purely to ask whether it can be opened.
 # So the check is the real thing — this start() either reaches the realtime model or it does not.
 
 def test_the_voice_connection_is_reported_both_ways():
@@ -227,7 +227,7 @@ def test_a_failure_is_reported_before_it_is_re_raised():
     reason invisible from inside Vocaliz — the room looks normal to everyone in it."""
     source = inspect.getsource(salon.entrypoint)
     block = source[source.index("except Exception as exc:  # noqa: BLE001\n        # Reported") :]
-    block = block[: block.index("await _report_voice_health(api_url, session_id, host_token, ok=True)")]
+    block = block[: block.index("await _report_voice_health(api_url, salon_id, host_token, ok=True)")]
     assert block.index("_report_voice_health") < block.index("raise")
 
 

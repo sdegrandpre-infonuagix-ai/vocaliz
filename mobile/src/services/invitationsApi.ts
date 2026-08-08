@@ -5,7 +5,7 @@ const API_URL: string =
 
 export interface PendingInvitation {
   invitationId: string;
-  sessionId: string;
+  salonId: string;
   livekitRoomName: string;
   hostEmail: string;
   hostPhone?: string | null;
@@ -62,11 +62,11 @@ export async function getMyInvitations(token: string): Promise<PendingInvitation
  */
 export async function sendInvitation(
   token: string,
-  sessionId: string,
+  salonId: string,
   guestEmail?: string,
   guestPhone?: string,
 ): Promise<InvitationResult> {
-  const res = await fetch(`${API_URL}/sessions/${sessionId}/invitations`, {
+  const res = await fetch(`${API_URL}/salons/${salonId}/invitations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({

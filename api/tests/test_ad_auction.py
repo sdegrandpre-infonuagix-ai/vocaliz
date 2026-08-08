@@ -14,7 +14,7 @@ from src.models.ad import Ad
 from src.models.ad_broadcast import AdBroadcast
 from src.models.advertiser import Advertiser
 from src.models.region import AdvertiserRegion, Region, RegionGooglePlusCode
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import ad_auction_service, location_service
 
@@ -28,7 +28,7 @@ def salon(db):
     db.add(user)
     db.commit()
     db.refresh(user)
-    s = SessionModel(
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-auction",
         source_type="url",
@@ -264,7 +264,7 @@ def test_the_winner_is_recorded_at_the_price_it_won_for(db, salon):
     _ad(db, _advertiser(db, "Low"), bid=200, topic="coffee")
 
     row = ad_auction_service.broadcast_winner(
-        db, session=salon, salon_topics=["coffee"], salon_languages=["en"]
+        db, salon=salon, salon_topics=["coffee"], salon_languages=["en"]
     )
     assert row is not None
     assert row.amount_cents < 500, "the second price, not the bid"
@@ -276,7 +276,7 @@ def test_winning_reserves_without_spending(db, salon):
     ends, and an advertiser must pay nothing — neither money nor one of their broadcasts — for a
     sentence nobody heard."""
     ad = _ad(db, _advertiser(db, "Alone"), bid=500, topic="coffee", left=2)
-    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=["coffee"])
+    row = ad_auction_service.broadcast_winner(db, salon=salon, salon_topics=["coffee"])
     db.expire_all()
     assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 2
     assert db.get(AdBroadcast, row.id).delivered_at is None
@@ -284,12 +284,12 @@ def test_winning_reserves_without_spending(db, salon):
 
 def test_delivery_is_what_spends_the_allowance(db, salon):
     ad = _ad(db, _advertiser(db, "Alone"), bid=500, topic="coffee", left=2)
-    row = ad_auction_service.broadcast_winner(db, session=salon, salon_topics=["coffee"])
+    row = ad_auction_service.broadcast_winner(db, salon=salon, salon_topics=["coffee"])
     assert ad_auction_service.mark_delivered(db, row)
     db.expire_all()
     assert db.get(Ad, ad.ad_id).number_of_broadcasts_left == 1
 
 
 def test_nothing_is_recorded_when_nobody_is_eligible(db, salon):
-    assert ad_auction_service.broadcast_winner(db, session=salon, salon_topics=["x"]) is None
+    assert ad_auction_service.broadcast_winner(db, salon=salon, salon_topics=["x"]) is None
     assert db.query(AdBroadcast).count() == 0

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from src.models.invitation import Invitation
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -23,9 +23,9 @@ def host(db):
 
 
 @pytest.fixture
-def active_session(db, host):
+def active_salon(db, host):
     host_user, _ = host
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-guest-room",
         source_type="url",
@@ -39,14 +39,14 @@ def active_session(db, host):
     return sess
 
 
-def _make_invitation(db, host_user, session, *, status="pending", expired=False, token=None):
+def _make_invitation(db, host_user, salon, *, status="pending", expired=False, token=None):
     expires = (
         datetime.now(tz=timezone.utc) - timedelta(hours=1)
         if expired
         else datetime.now(tz=timezone.utc) + timedelta(hours=24)
     )
     inv = Invitation(
-        session_id=session.id,
+        salon_id=salon.id,
         host_user_id=host_user.id,
         guest_email="15145559999@example.com",
         guest_user_id=None,
@@ -63,31 +63,31 @@ def _make_invitation(db, host_user, session, *, status="pending", expired=False,
 
 # ─── Success case ─────────────────────────────────────────────────────────────
 
-def test_guest_join_returns_livekit_credentials(client, db, host, active_session):
+def test_guest_join_returns_livekit_credentials(client, db, host, active_salon):
     """Valid pending token returns LiveKit credentials."""
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session)
+    inv = _make_invitation(db, host_user, active_salon)
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
     assert resp.status_code == 200
     body = resp.json()
     assert "participantToken" in body
     assert body["participantToken"]
-    assert body["livekitRoomName"] == active_session.livekit_room_name
+    assert body["livekitRoomName"] == active_salon.livekit_room_name
     assert "livekitUrl" in body
-    assert body["sessionId"] == str(active_session.id)
+    assert body["salonId"] == str(active_salon.id)
 
 
-def test_guest_join_requires_no_authentication(client, db, host, active_session):
+def test_guest_join_requires_no_authentication(client, db, host, active_salon):
     """Endpoint must be accessible without any Authorization header."""
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session)
+    inv = _make_invitation(db, host_user, active_salon)
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
     assert resp.status_code == 200
 
 
 # ─── One-time use ─────────────────────────────────────────────────────────────
 
-def test_fetching_credentials_does_not_spend_the_token(client, db, host, active_session):
+def test_fetching_credentials_does_not_spend_the_token(client, db, host, active_salon):
     """Opening the page must not burn the link — only a working microphone does.
 
     This asserted the opposite. Consuming on fetch meant a guest whose browser refused the
@@ -95,17 +95,17 @@ def test_fetching_credentials_does_not_spend_the_token(client, db, host, active_
     link on a page they could never speak from.
     """
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session)
+    inv = _make_invitation(db, host_user, active_salon)
     client.get(f"/invitations/guest-join/{inv.join_token}")
     db.expire(inv)
     db.refresh(inv)
     assert inv.status == "pending"
 
 
-def test_confirm_spends_the_token(client, db, host, active_session):
+def test_confirm_spends_the_token(client, db, host, active_salon):
     """The confirm call is what the page makes once the microphone is live."""
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session)
+    inv = _make_invitation(db, host_user, active_salon)
     client.get(f"/invitations/guest-join/{inv.join_token}")
     resp = client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
     assert resp.status_code == 200
@@ -117,36 +117,36 @@ def test_confirm_spends_the_token(client, db, host, active_session):
     assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 410
 
 
-def test_confirm_is_idempotent(client, db, host, active_session):
+def test_confirm_is_idempotent(client, db, host, active_salon):
     """A retry or a duplicated call must not throw a connected guest out."""
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session)
+    inv = _make_invitation(db, host_user, active_salon)
     client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
     resp = client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
     assert resp.status_code == 200
     assert resp.json()["status"] == "accepted"
 
 
-def test_link_survives_a_failed_microphone(client, db, host, active_session):
+def test_link_survives_a_failed_microphone(client, db, host, active_salon):
     """The whole point: no confirm, so the link still opens elsewhere."""
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session)
+    inv = _make_invitation(db, host_user, active_salon)
     # First attempt: page opens, microphone never works, nothing is confirmed.
     assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 200
     # Reopened in a real browser — still valid.
     assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 200
 
 
-def test_guest_join_second_use_returns_410(client, db, host, active_session):
+def test_guest_join_second_use_returns_410(client, db, host, active_salon):
     """Attempting to reuse an already-used token returns 410 Gone."""
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session, status="accepted")
+    inv = _make_invitation(db, host_user, active_salon, status="accepted")
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
     assert resp.status_code == 410
     assert "already been used" in resp.json()["detail"]
 
 
-def test_second_fetch_blocked_once_confirmed(client, db, host, active_session):
+def test_second_fetch_blocked_once_confirmed(client, db, host, active_salon):
     """Reuse is refused after confirmation, not before.
 
     Between fetch and confirm the link stays open, which is what lets a guest retry in
@@ -155,7 +155,7 @@ def test_second_fetch_blocked_once_confirmed(client, db, host, active_session):
     """
     host_user, _ = host
     token = secrets.token_urlsafe(32)
-    _make_invitation(db, host_user, active_session, token=token)
+    _make_invitation(db, host_user, active_salon, token=token)
     assert client.get(f"/invitations/guest-join/{token}").status_code == 200
     client.post(f"/invitations/guest-join/{token}/confirm")
     assert client.get(f"/invitations/guest-join/{token}").status_code == 410
@@ -169,19 +169,19 @@ def test_guest_join_unknown_token_returns_404(client):
     assert resp.status_code == 404
 
 
-def test_guest_join_expired_token_returns_410(client, db, host, active_session):
+def test_guest_join_expired_token_returns_410(client, db, host, active_salon):
     """Expired token returns 410 Gone."""
     host_user, _ = host
-    inv = _make_invitation(db, host_user, active_session, expired=True)
+    inv = _make_invitation(db, host_user, active_salon, expired=True)
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
     assert resp.status_code == 410
     assert "expired" in resp.json()["detail"]
 
 
-def test_guest_join_ended_session_returns_410(client, db, host):
-    """Token for an ended session returns 410."""
+def test_guest_join_ended_salon_returns_410(client, db, host):
+    """Token for an ended salon returns 410."""
     host_user, _ = host
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-ended-guest",
         source_type="url",
@@ -250,7 +250,7 @@ def test_guest_web_page_disconnect_nulls_room(client):
 # ─── Host console page ───────────────────────────────────────────────────────
 
 def test_host_console_is_served(client):
-    """The host console is the only surface that can add a source mid-session today."""
+    """The host console is the only surface that can add a source mid-salon today."""
     resp = client.get("/host")
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]

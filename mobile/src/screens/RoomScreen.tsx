@@ -1,5 +1,5 @@
 /**
- * In-session screen — the host's live room: microphone, agent audio, mid-session sources
+ * In-salon screen — the host's live room: microphone, agent audio, mid-salon sources
  * (FR3) and guest invitations (FR2).
  * Palette: Salon Parisien (UX-DR1). WCAG AA touch targets (UX-DR7).
  */
@@ -35,14 +35,14 @@ import { useTranslationMute } from '../hooks/useTranslationMute';
 import { useCaptions } from '../hooks/useCaptions';
 import {
   addSourceFromUrl,
-  endSession,
+  endSalon,
   getAgentState,
-  joinSession,
+  joinSalon,
   sendHeartbeat,
   // Aliased because the component holds its own agent state, and a setter and a network call
   // sharing one name is the kind of collision that compiles in JavaScript and misbehaves.
   setAgentMuted as requestAgentMuted,
-} from '../services/sessionsApi';
+} from '../services/salonsApi';
 import { sendInvitation } from '../services/invitationsApi';
 import { getPublicConfig } from '../services/configApi';
 import { getMyProfile, saveLanguagePreferences } from '../services/userApi';
@@ -50,11 +50,11 @@ import { getMyProfile, saveLanguagePreferences } from '../services/userApi';
 const HEARTBEAT_SECONDS = 30;
 
 interface Props {
-  sessionId: string;
+  salonId: string;
   onLeft: () => void;
 }
 
-export default function RoomScreen({ sessionId, onLeft }: Props) {
+export default function RoomScreen({ salonId, onLeft }: Props) {
   const { token } = useAuth();
   const { t } = useLanguage();
 
@@ -94,25 +94,25 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
 
   useEffect(() => {
     if (!token) return;
-    getAgentState(token, sessionId)
+    getAgentState(token, salonId)
       .then((state) => setAgentMuted(state.muted))
       // The control keeps showing paused. A state that cannot be read is no reason to claim
       // the agent is listening.
       .catch(() => undefined);
-  }, [token, sessionId]);
+  }, [token, salonId]);
 
   const toggleAgent = useCallback(async () => {
     if (!token || agentBusy) return;
     setAgentBusy(true);
     try {
-      const state = await requestAgentMuted(token, sessionId, !agentMuted);
+      const state = await requestAgentMuted(token, salonId, !agentMuted);
       setAgentMuted(state.muted);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setAgentBusy(false);
     }
-  }, [token, sessionId, agentMuted, agentBusy]);
+  }, [token, salonId, agentMuted, agentBusy]);
 
   // Nobody reads while driving, so nothing is translated for them: the empty attribute
   // tells the agent to stop rendering turns this participant will never see. The choice
@@ -134,7 +134,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
   // The caption language this person chose, from whichever device they chose it on.
   //
   // Applied once. Compared against null rather than falsy because '' is itself a choice here —
-  // "as spoken" — and treating it as "nothing saved" would discard that decision every session.
+  // "as spoken" — and treating it as "nothing saved" would discard that decision every salon.
   const adoptedCaptionLang = useRef(false);
   useEffect(() => {
     if (!token || adoptedCaptionLang.current) return;
@@ -148,7 +148,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         }
       })
       .catch(() => {
-        // A profile that will not load costs a preference, not a session.
+        // A profile that will not load costs a preference, not a salon.
       });
     return () => {
       stale = true;
@@ -189,7 +189,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         // Required on native before connecting, otherwise the OS routes no audio at all.
         await AudioSession.startAudioSession();
 
-        const creds = await joinSession(token, sessionId);
+        const creds = await joinSalon(token, salonId);
         const r = new Room();
         await r.connect(creds.livekitUrl, creds.participantToken);
         await r.localParticipant.setMicrophoneEnabled(true);
@@ -201,7 +201,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
         connected = r;
         roomRef.current = r;
         // Cleared per connection, not once per mount: the guard is armed by the cleanup below,
-        // and a screen reused for a second session must be able to exit again.
+        // and a screen reused for a second salon must be able to exit again.
         leaving.current = false;
         setRoom(r);
       } catch (e: any) {
@@ -223,23 +223,23 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
       roomRef.current = null;
       AudioSession.stopAudioSession().catch(() => {});
     };
-  }, [sessionId, token, t.room.errorConnect]);
+  }, [salonId, token, t.room.errorConnect]);
 
   // Metering (Story 4.2). Sent from the client as well as the agent so host time keeps
   // accruing even if the agent worker drops out.
   useEffect(() => {
     if (!room || !token) return;
     const id = setInterval(() => {
-      sendHeartbeat(token, sessionId, HEARTBEAT_SECONDS).catch(() => {
-        // A missed heartbeat costs a little accuracy; it must not interrupt the session.
+      sendHeartbeat(token, salonId, HEARTBEAT_SECONDS).catch(() => {
+        // A missed heartbeat costs a little accuracy; it must not interrupt the salon.
       });
     }, HEARTBEAT_SECONDS * 1000);
     return () => clearInterval(id);
-  }, [room, token, sessionId]);
+  }, [room, token, salonId]);
 
-  // Backgrounding the app is how a phone session really ends — the host swipes away or
+  // Backgrounding the app is how a phone salon really ends — the host swipes away or
   // locks the screen rather than tapping Leave. Disconnecting stops the heartbeats and
-  // empties the room, which the agent watches to close the session server-side.
+  // empties the room, which the agent watches to close the salon server-side.
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
       if (state === 'background' && roomRef.current) {
@@ -256,7 +256,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     setBusy(true);
     setNotice(null);
     try {
-      await addSourceFromUrl(token, sessionId, sourceUrl.trim());
+      await addSourceFromUrl(token, salonId, sourceUrl.trim());
       setSourceUrl('');
       setNotice(t.room.sourceAdded);
     } catch (e: any) {
@@ -264,7 +264,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [token, sessionId, sourceUrl, t.room]);
+  }, [token, salonId, sourceUrl, t.room]);
 
   /**
    * Fill the fields from the phone's own address book.
@@ -307,7 +307,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     setNotice(null);
     setJoinLink(null);
     try {
-      const invite = await sendInvitation(token, sessionId, email || undefined, phone || undefined);
+      const invite = await sendInvitation(token, salonId, email || undefined, phone || undefined);
       setGuestEmail('');
       setGuestPhone('');
       // The link comes back whatever happens, so it is shown before any verdict on
@@ -338,7 +338,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [token, sessionId, guestEmail, guestPhone, smsEnabled, t.room]);
+  }, [token, salonId, guestEmail, guestPhone, smsEnabled, t.room]);
 
   // Guards every exit against running twice. Disconnecting fires the Disconnected event that
   // the effect below also listens on, and unmounting disconnects as well — so without this a
@@ -351,18 +351,18 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
     setBusy(true);
     try {
       if (roomRef.current) await roomRef.current.disconnect();
-      if (token) await endSession(token, sessionId);
+      if (token) await endSalon(token, salonId);
     } catch {
       // Leaving must always succeed locally, even if the API call fails.
     } finally {
       onLeft();
     }
-  }, [token, sessionId, onLeft]);
+  }, [token, salonId, onLeft]);
 
   // A salon can end without anybody tapping Leave: the ten-minute cap, or the agent closing a
   // room everybody had left. The API announces it just before deleting the room, so this does
   // not rest on that deletion succeeding — and it used to fail silently, leaving the app in a
-  // room with no session behind it and no way to notice.
+  // room with no salon behind it and no way to notice.
   useEffect(() => {
     if (!room) return;
 
@@ -371,7 +371,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
       leaving.current = true;
       roomRef.current = null;
       room.disconnect().catch(() => {});
-      // Deliberately no endSession call: the server is the party that ended it, and asking
+      // Deliberately no endSalon call: the server is the party that ended it, and asking
       // again answers 409 — an error shown for something that worked.
       onLeft();
     };
@@ -385,7 +385,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
       // Captions travel on their own topic; this message has none.
       if (topic) return;
       try {
-        if (JSON.parse(new TextDecoder().decode(payload))?.action === 'session_ended') over();
+        if (JSON.parse(new TextDecoder().decode(payload))?.action === 'salon_ended') over();
       } catch {
         // Somebody else's message, or not JSON at all.
       }
@@ -487,7 +487,7 @@ export default function RoomScreen({ sessionId, onLeft }: Props) {
           onLanguageChange={chooseCaptionLang}
         />
 
-        {/* ── Mid-session source (FR3) ── */}
+        {/* ── Mid-salon source (FR3) ── */}
         <Text style={styles.sectionTitle}>{t.room.sourceSection}</Text>
         <TextInput
           style={styles.input}

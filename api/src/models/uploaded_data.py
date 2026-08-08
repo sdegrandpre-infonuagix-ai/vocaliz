@@ -15,8 +15,8 @@ class UploadedData(Base):
     conversation cost and what it was about — nothing here drives behaviour.
 
     It exists because the schema records sources in two places and measures them in
-    neither: a session's first source lives on the sessions row, later ones in
-    session_sources, and neither carries a size.
+    neither: a salon's first source lives on the salons row, later ones in
+    salon_sources, and neither carries a size.
 
     This was briefly designed as a cache keyed on xAI file ids, to reuse embeddings across
     salons. That was dropped: a salon has one source and lasts ten minutes, so there is no
@@ -34,7 +34,7 @@ class UploadedData(Base):
     )
 
     salon_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False
     )
 
     # SHA-256 of the extracted text. Not used for anything today; it is what a future

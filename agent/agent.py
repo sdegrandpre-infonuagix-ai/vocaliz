@@ -32,7 +32,7 @@ logger = logging.getLogger("salon-agent")
 # by this exact name, and a mismatch means the agent is simply never dispatched.
 AGENT_NAME = "salon-agent"
 
-# How much of the session cap is left when the agent starts winding the conversation down.
+# How much of the salon cap is left when the agent starts winding the conversation down.
 # Slightly more than one heartbeat interval, so the warning cannot be skipped by landing
 # between two beats — at 30 s exactly, a heartbeat reporting 31 s then 1 s would jump the
 # threshold and the announcement would never fire.
@@ -52,14 +52,14 @@ _BASE_INSTRUCTIONS = (
     "NATURAL CONVERSATION (no wake word required): "
     "You respond whenever a participant finishes speaking — detected by a natural pause "
     "after their utterance. Never require a special invocation phrase. "
-    "In multi-participant sessions, wait for a genuine conversational pause before "
+    "In multi-participant salons, wait for a genuine conversational pause before "
     "speaking; do not interrupt a breath or a momentary hesitation. "
     "\n\n"
-    "INTERVENTION FREQUENCY (default — same-language sessions): "
+    "INTERVENTION FREQUENCY (default — same-language salons): "
     "Intervene at most once per minute. Keep each intervention brief and focused: "
     "one question or observation, then yield the floor. "
     "When a participant explicitly asks you to change your frequency, call "
-    "set_intervention_frequency immediately and honor the new mode for the rest of the session:\n"
+    "set_intervention_frequency immediately and honor the new mode for the rest of the salon:\n"
     "  • 'parle moins souvent', 'interviens moins', 'tais-toi un peu', "
     "'laisse-nous parler', 'moins souvent' → direction='less' (once every 3 minutes)\n"
     "  • 'parle plus souvent', 'interviens plus', 'anime plus', "
@@ -78,14 +78,14 @@ _BASE_INSTRUCTIONS = (
     "Polish, Ukrainian, Thai, Swedish or Hebrew gets answered in that language. "
     "The one thing you must never do is answer in a language they did not use because it "
     "was the closest one you had seen written down. "
-    "In multi-participant sessions where participants speak different languages, "
+    "In multi-participant salons where participants speak different languages, "
     "address each person in their own language. "
-    "Once a participant's language is detected, maintain it for the entire session "
+    "Once a participant's language is detected, maintain it for the entire salon "
     "unless they explicitly switch to a different language themselves. "
     "This applies to all facilitation, questions, source introductions, and confirmations. "
     "When you detect the HOST's language for the first time, call report_detected_language "
     "with the BCP-47 code (e.g. 'fr' for French, 'en' for English, 'es' for Spanish). "
-    "Call this tool only once per session — on first detection, not on every utterance. "
+    "Call this tool only once per salon — on first detection, not on every utterance. "
     "\n"
     "Separately, the FIRST time you hear ANY participant speak — host and guests alike "
     "— call report_participant_language once with their LiveKit identity and that "
@@ -184,7 +184,7 @@ _BASE_INSTRUCTIONS = (
     "salon they were given to. If asked for one, say that rather than searching and reporting\n"
     "nothing found — \"not found\" sounds like it exists somewhere and you failed to reach it.\n"
     "\n\n"
-    "SIMULTANEOUS TRANSLATION (multilingual sessions):\n"
+    "SIMULTANEOUS TRANSLATION (multilingual salons):\n"
     "When participants speak different languages, translate each utterance for the listener(s):\n"
     "1. Wait for the speaker to finish (natural pause) — NEVER interrupt mid-sentence.\n"
     "2. Call mute_translation_recipient to prevent echo before you speak.\n"
@@ -226,7 +226,7 @@ _BASE_INSTRUCTIONS = (
     "If the call fails outright, say you could not invite that contact, and ask them to\n"
     "check the address or the number.\n"
     "\n\n"
-    "SESSION EXIT (vocal command — any language):\n"
+    "SALON EXIT (vocal command — any language):\n"
     "When any participant says a phrase indicating they want to leave, such as:\n"
     "  FR: 'Je quitte le Salon', 'je m'en vais', 'je dois partir', 'au revoir'\n"
     "  EN: 'I'm leaving the Salon', 'I have to go', 'goodbye', 'I'm done'\n"
@@ -246,11 +246,11 @@ _BASE_INSTRUCTIONS = (
     "   mistake. English is the fallback when you genuinely could not tell what they speak —\n"
     "   the same default the interface uses.\n"
     "3. After they reply (or after a natural pause of ~3 seconds if no reply),\n"
-    "   thank them briefly and call end_session to close the session. Pass their\n"
+    "   thank them briefly and call end_salon to close the salon. Pass their\n"
     "   answer as `enjoyed`: true if positive, false if negative, and leave it unset\n"
     "   if they did not answer — silence is not a complaint.\n"
-    "IMPORTANT: You MUST ask the satisfaction question before calling end_session.\n"
-    "Do NOT skip directly to end_session — the question is mandatory.\n"
+    "IMPORTANT: You MUST ask the satisfaction question before calling end_salon.\n"
+    "Do NOT skip directly to end_salon — the question is mandatory.\n"
     "\n\n"
     "GUESTS WITHOUT AN ACCOUNT (display name 'Guest' followed by four characters):\n"
     "Two kinds arrive this way. Most were invited to an address the host typed in, so the\n"
@@ -267,12 +267,12 @@ _BASE_INSTRUCTIONS = (
     "  characters distinguish one guest from another.\n"
     "- Treat a guest without an account as a full participant for facilitation and exit.\n"
     "- ON THE WAY OUT, once you have asked the satisfaction question and before you close\n"
-    "  the session, offer them an account — ONE sentence, in their language. Say what it is\n"
+    "  the salon, offer them an account — ONE sentence, in their language. Say what it is\n"
     "  actually for: the language they chose to read in, and the language they chose for the\n"
     "  captions, are remembered so they do not have to set them again. Tell them the button\n"
     "  is at the top right of their screen.\n"
     "  Offered once, and never pressed. If they say no, or say nothing, thank them and close\n"
-    "  the session as usual — a parting sales pitch is a worse memory of the conversation\n"
+    "  the salon as usual — a parting sales pitch is a worse memory of the conversation\n"
     "  than no offer at all, and somebody who declined has answered.\n"
     "  Never offer it to a participant who already has an account, and never ask anybody to\n"
     "  say an email address out loud: other people are in the room and it would be\n"
@@ -319,13 +319,13 @@ def _build_instructions(
     additional_sources: list[dict] | None = None,
     source_summary: str | None = None,
 ) -> str:
-    """Build agent instructions, injecting session content for facilitation and contrast.
+    """Build agent instructions, injecting salon content for facilitation and contrast.
 
     The summary is preferred over the raw text, and that is the whole point: the first
     2 500 characters of a forty-page document were its table of contents, so the agent
     opened conversations on a page and a half it mistook for the whole thing. The summary
     covers all of it, in the host's language, for a fraction of the context — which
-    matters because a realtime session reprocesses that context on every turn.
+    matters because a realtime salon reprocesses that context on every turn.
 
     The truncation remains as the fallback. A summariser that is unreachable or
     unconfigured must degrade to the old behaviour, not to silence.
@@ -346,7 +346,7 @@ def _build_instructions(
 
         instructions += (
             "\n\n"
-            "SESSION CONTENT:\n"
+            "SALON CONTENT:\n"
             f"Source: {source_label}\n\n"
             f"{preview}{ellipsis}\n\n"
             "OPENING BEHAVIOR — do this IMMEDIATELY when the first participant joins:\n"
@@ -359,13 +359,13 @@ def _build_instructions(
     else:
         instructions += (
             "\n\n"
-            "No source content was attached to this session. "
+            "No source content was attached to this salon. "
             "Greet participants and invite them to share what they would like to discuss. "
             "Facilitate naturally from there.\n"
         )
 
     if additional_sources:
-        instructions += "\n\nADDITIONAL SOURCES (added during session):\n"
+        instructions += "\n\nADDITIONAL SOURCES (added during salon):\n"
         for i, src in enumerate(additional_sources, 1):
             summary = src.get("sourceSummary")
             content = src.get("sourceContent") or ""
@@ -398,7 +398,7 @@ class SalonAgent(Agent):
 
     def __init__(
         self,
-        session_id: str | None = None,
+        salon_id: str | None = None,
         api_url: str | None = None,
         host_token: str | None = None,
         source_content: str | None = None,
@@ -410,7 +410,7 @@ class SalonAgent(Agent):
         forced_language: str = "auto",
     ) -> None:
         # Kept so a rebuild after source_added does not quietly drop the constraint. That
-        # path builds fresh instructions from the session detail, and a language held only
+        # path builds fresh instructions from the salon detail, and a language held only
         # in the first build would vanish the moment a host added a link.
         self._forced_language = forced_language
         instructions = _build_instructions(
@@ -421,7 +421,7 @@ class SalonAgent(Agent):
             source_summary=source_summary,
         ) + _language_override(forced_language)
         super().__init__(instructions=instructions)
-        self._session_id = session_id
+        self._salon_id = salon_id
         self._api_url = api_url
         self._host_token = host_token
         self._frequency_preference: str = "normal"
@@ -429,9 +429,9 @@ class SalonAgent(Agent):
         self._heartbeat_task: asyncio.Task | None = None
         self._heartbeat_interval: int = 30
         self._ending_announced: bool = False
-        # Set by the entrypoint, which is where the job context lives. Ending a session and
+        # Set by the entrypoint, which is where the job context lives. Ending a salon and
         # leaving the room were previously two unrelated things, and only the first happened:
-        # the agent marked the session over and stayed sitting in it.
+        # the agent marked the salon over and stayed sitting in it.
         self._leave: Callable[[str], None] | None = None
         self._left: bool = False
 
@@ -447,7 +447,7 @@ class SalonAgent(Agent):
         """Adjust how often the agent intervenes in the conversation.
 
         Call this immediately when a participant requests a frequency change,
-        then honor the new mode for the remainder of the session.
+        then honor the new mode for the remainder of the salon.
         Speak the returned confirmation message aloud so participants know their
         preference was registered.
         """
@@ -513,10 +513,10 @@ class SalonAgent(Agent):
         Returns the matching passages, or nothing when the words do not appear. Nothing
         found is a real answer: say the source does not seem to address it.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
-            return "no_session_context"
+        if not self._salon_id or not self._api_url or not self._host_token:
+            return "no_salon_context"
 
-        url = f"{self._api_url}/sessions/{self._session_id}/search"
+        url = f"{self._api_url}/salons/{self._salon_id}/search"
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(
@@ -558,13 +558,13 @@ class SalonAgent(Agent):
         Safe if called twice by accident: the second call returns "no_ad" rather than reserving
         anything else.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
+        if not self._salon_id or not self._api_url or not self._host_token:
             return "no_ad"
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
-                    f"{self._api_url}/sessions/{self._session_id}/ad",
+                    f"{self._api_url}/salons/{self._salon_id}/ad",
                     headers={"Authorization": f"Bearer {self._host_token}"},
                 )
             if resp.status_code != 200:
@@ -587,13 +587,13 @@ class SalonAgent(Agent):
         Never call it if you did not say the pitch, or if request_ad returned "no_ad". Claiming a
         delivery that did not happen bills somebody for silence.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
+        if not self._salon_id or not self._api_url or not self._host_token:
             return "not_confirmed"
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
-                    f"{self._api_url}/sessions/{self._session_id}/ad/delivered",
+                    f"{self._api_url}/salons/{self._salon_id}/ad/delivered",
                     headers={"Authorization": f"Bearer {self._host_token}"},
                 )
             if resp.status_code != 200:
@@ -635,8 +635,8 @@ class SalonAgent(Agent):
         Uploaded documents are not here and cannot be: a file stays in the salon it was given
         to. This can never reach one, so there is nothing to check.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
-            return "no_session_context"
+        if not self._salon_id or not self._api_url or not self._host_token:
+            return "no_salon_context"
 
         try:
             async with httpx.AsyncClient(timeout=12.0) as client:
@@ -694,7 +694,7 @@ class SalonAgent(Agent):
         page does not address it, not that you should guess.
         """
         if not self._api_url or not self._host_token:
-            return "no_session_context"
+            return "no_salon_context"
 
         try:
             async with httpx.AsyncClient(timeout=12.0) as client:
@@ -730,10 +730,10 @@ class SalonAgent(Agent):
         Returns "first_salon" or "returning". On any doubt it answers "first_salon" —
         saying it once too often is a smaller failure than never saying it.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
+        if not self._salon_id or not self._api_url or not self._host_token:
             return "first_salon"
 
-        url = f"{self._api_url}/sessions/{self._session_id}/participant-history"
+        url = f"{self._api_url}/salons/{self._salon_id}/participant-history"
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(
@@ -768,10 +768,10 @@ class SalonAgent(Agent):
 
         Reporting again is harmless; the first value is kept.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
-            return "no_session_context"
+        if not self._salon_id or not self._api_url or not self._host_token:
+            return "no_salon_context"
 
-        url = f"{self._api_url}/sessions/{self._session_id}/participant-language"
+        url = f"{self._api_url}/salons/{self._salon_id}/participant-language"
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
@@ -802,9 +802,9 @@ class SalonAgent(Agent):
         Call this once when you first identify the language the host is speaking.
         The mobile app reads this to display its interface in the detected language.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
-            logger.warning("report_detected_language called but agent has no session context")
-            return "no_session_context"
+        if not self._salon_id or not self._api_url or not self._host_token:
+            logger.warning("report_detected_language called but agent has no salon context")
+            return "no_salon_context"
 
         url = f"{self._api_url}/me/language"
         headers = {"Authorization": f"Bearer {self._host_token}"}
@@ -823,7 +823,7 @@ class SalonAgent(Agent):
             return "error:network"
 
     @function_tool
-    async def end_session(
+    async def end_salon(
         self,
         enjoyed: Annotated[
             bool | None,
@@ -832,39 +832,39 @@ class SalonAgent(Agent):
             "None rather than guessing, since an unanswered question is not a complaint.",
         ] = None,
     ) -> str:
-        """Mark the current session as ended in the API.
+        """Mark the current salon as ended in the API.
 
-        Call this as the final step of the session exit flow — AFTER acknowledging
+        Call this as the final step of the salon exit flow — AFTER acknowledging
         the participant's departure and asking the satisfaction question.
-        This closes the session and signals all clients to disconnect.
+        This closes the salon and signals all clients to disconnect.
 
         Pass along the answer to the satisfaction question: the agent is the only party
         that hears it, so it is the only one that can record it.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
-            logger.warning("end_session called but agent has no session context")
-            return "no_session_context"
+        if not self._salon_id or not self._api_url or not self._host_token:
+            logger.warning("end_salon called but agent has no salon context")
+            return "no_salon_context"
 
-        url = f"{self._api_url}/sessions/{self._session_id}/end"
+        url = f"{self._api_url}/salons/{self._salon_id}/end"
         headers = {"Authorization": f"Bearer {self._host_token}"}
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, headers=headers, json={"enjoyed": enjoyed})
             if resp.status_code == 200:
-                logger.info("Session %s marked as ended", self._session_id)
-                self.leave("the session was ended")
-                return "session_ended"
+                logger.info("Salon %s marked as ended", self._salon_id)
+                self.leave("the salon was ended")
+                return "salon_ended"
             if resp.status_code == 409:
-                # Already ended — by the cap, by the host, or by a previous call. The session
+                # Already ended — by the cap, by the host, or by a previous call. The salon
                 # being over is exactly the case for leaving, so this is not a failure.
-                self.leave("the session was already over")
-                return "session_ended"
+                self.leave("the salon was already over")
+                return "salon_ended"
             detail = resp.json().get("detail", "unknown error")
-            logger.error("end_session failed %s: %s", resp.status_code, detail)
+            logger.error("end_salon failed %s: %s", resp.status_code, detail)
             return f"error:{detail}"
         except Exception as exc:  # noqa: BLE001
-            logger.exception("end_session exception: %s", exc)
+            logger.exception("end_salon exception: %s", exc)
             return "error:network"
 
     def set_departure(self, leave: Callable[[str], None]) -> None:
@@ -872,7 +872,7 @@ class SalonAgent(Agent):
         self._leave = leave
 
     def leave(self, reason: str) -> None:
-        """Actually go. Marking a session ended is bookkeeping; this is departure.
+        """Actually go. Marking a salon ended is bookkeeping; this is departure.
 
         Reported: the agent ended the salon on inactivity or at the ten-minute cap and stayed
         in the room. Every server path does delete the room, which disconnects everybody — but
@@ -887,9 +887,9 @@ class SalonAgent(Agent):
         self._left = True
         self.stop_heartbeat()
         if self._leave is None:
-            logger.warning("Nothing to leave with (session %s): %s", self._session_id, reason)
+            logger.warning("Nothing to leave with (salon %s): %s", self._salon_id, reason)
             return
-        logger.info("Leaving the room (session %s): %s", self._session_id, reason)
+        logger.info("Leaving the room (salon %s): %s", self._salon_id, reason)
         try:
             self._leave(reason)
         except Exception as exc:  # noqa: BLE001
@@ -899,13 +899,13 @@ class SalonAgent(Agent):
         """Start the 30-second metering heartbeat background task."""
         if self._heartbeat_task is None or self._heartbeat_task.done():
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-            logger.info("Heartbeat task started for session %s", self._session_id)
+            logger.info("Heartbeat task started for salon %s", self._salon_id)
 
     def stop_heartbeat(self) -> None:
         """Cancel the metering heartbeat task."""
         if self._heartbeat_task and not self._heartbeat_task.done():
             self._heartbeat_task.cancel()
-            logger.info("Heartbeat task stopped for session %s", self._session_id)
+            logger.info("Heartbeat task stopped for salon %s", self._salon_id)
         self._heartbeat_task = None
 
     async def _heartbeat_loop(self) -> None:
@@ -919,31 +919,31 @@ class SalonAgent(Agent):
 
     async def _send_heartbeat(self) -> None:
         """POST elapsed seconds to the API heartbeat endpoint."""
-        if not self._session_id or not self._api_url or not self._host_token:
+        if not self._salon_id or not self._api_url or not self._host_token:
             return
-        url = f"{self._api_url}/sessions/{self._session_id}/heartbeat"
+        url = f"{self._api_url}/salons/{self._salon_id}/heartbeat"
         headers = {"Authorization": f"Bearer {self._host_token}"}
         payload = {"seconds": self._heartbeat_interval}
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code != 200:
-                logger.warning("Heartbeat returned %s for session %s", resp.status_code, self._session_id)
+                logger.warning("Heartbeat returned %s for salon %s", resp.status_code, self._salon_id)
             else:
-                logger.debug("Heartbeat sent for session %s", self._session_id)
+                logger.debug("Heartbeat sent for salon %s", self._salon_id)
                 body = resp.json()
-                # The API closes a session that has reached its cap and says so here. Ignoring
+                # The API closes a salon that has reached its cap and says so here. Ignoring
                 # that flag was the bug: the room deletion it performs is best-effort, so when
                 # it failed nothing else told the agent the conversation was over.
-                if body.get("sessionEnded"):
-                    self.leave("the session reached its cap")
+                if body.get("salonEnded"):
+                    self.leave("the salon reached its cap")
                     return
                 self._maybe_announce_ending(body.get("secondsRemaining"))
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Heartbeat failed for session %s: %s", self._session_id, exc)
+            logger.warning("Heartbeat failed for salon %s: %s", self._salon_id, exc)
 
     def _maybe_announce_ending(self, seconds_remaining: int | None) -> None:
-        """Have the agent wind the conversation down before the session cap cuts it off.
+        """Have the agent wind the conversation down before the salon cap cuts it off.
 
         The cap closes the room server-side, mid-sentence, with no warning — correct as a
         spending guard, brutal as an experience. The API reports the time left on every
@@ -960,7 +960,7 @@ class SalonAgent(Agent):
 
         self._ending_announced = True
         try:
-            self.session.generate_reply(
+            self.salon.generate_reply(
                 instructions=(
                     "The conversation must end in about a minute. Bring it to a natural "
                     "close: say briefly that little time is left, offer a short parting "
@@ -969,7 +969,7 @@ class SalonAgent(Agent):
                     "quotas or technical reasons."
                 )
             )
-            logger.info("Ending announced for session %s", self._session_id)
+            logger.info("Ending announced for salon %s", self._salon_id)
         except Exception as exc:  # noqa: BLE001
             # A failed announcement must not disturb a working conversation.
             logger.warning("Could not announce the ending: %s", exc)
@@ -988,7 +988,7 @@ class SalonAgent(Agent):
             "another country. Empty string if none was given.",
         ] = "",
     ) -> str:
-        """Invite a contact to the current session, by email or by text message.
+        """Invite a contact to the current salon, by email or by text message.
 
         One of the two is required; giving both sends by both. Call this when the host
         says "invite [name]" and has supplied an address or a number.
@@ -996,16 +996,16 @@ class SalonAgent(Agent):
         Returns a short status describing what happened, including which channels
         actually went out — say so plainly rather than claiming an invitation arrived.
         """
-        if not self._session_id or not self._api_url or not self._host_token:
-            logger.warning("invite_contact called but agent has no session context")
-            return "no_session_context"
+        if not self._salon_id or not self._api_url or not self._host_token:
+            logger.warning("invite_contact called but agent has no salon context")
+            return "no_salon_context"
 
         email = (email or "").strip()
         phone = (phone or "").strip()
         if not email and not phone:
             return "error:need_email_or_phone"
 
-        url = f"{self._api_url}/sessions/{self._session_id}/invitations"
+        url = f"{self._api_url}/salons/{self._salon_id}/invitations"
         headers = {"Authorization": f"Bearer {self._host_token}"}
         # Omitted rather than sent empty: an empty string is not an address, and the API
         # would have to guess whether it was a channel the host meant to use.
@@ -1042,7 +1042,7 @@ class SalonAgent(Agent):
 
 async def _report_voice_health(
     api_url: str | None,
-    session_id: str | None,
+    salon_id: str | None,
     host_token: str | None,
     *,
     ok: bool,
@@ -1054,38 +1054,38 @@ async def _report_voice_health(
     than no monitor: a Salon must never fail to start because a health report could not be
     posted.
     """
-    if not (api_url and session_id and host_token):
+    if not (api_url and salon_id and host_token):
         return
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             await client.post(
-                f"{api_url}/sessions/{session_id}/voice-health",
+                f"{api_url}/salons/{salon_id}/voice-health",
                 json={"ok": ok, "detail": detail[:500]},
                 headers={"Authorization": f"Bearer {host_token}"},
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not report voice health: %s", exc)
 
-async def _fetch_session_detail(api_url: str, session_id: str, host_token: str) -> dict | None:
-    """Fetch session content from the API so the agent can read it aloud."""
-    url = f"{api_url}/sessions/{session_id}"
+async def _fetch_salon_detail(api_url: str, salon_id: str, host_token: str) -> dict | None:
+    """Fetch salon content from the API so the agent can read it aloud."""
+    url = f"{api_url}/salons/{salon_id}"
     headers = {"Authorization": f"Bearer {host_token}"}
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url, headers=headers)
         if resp.status_code == 200:
             return resp.json()
-        logger.warning("_fetch_session_detail returned %s", resp.status_code)
+        logger.warning("_fetch_salon_detail returned %s", resp.status_code)
     except Exception as exc:  # noqa: BLE001
-        logger.exception("_fetch_session_detail failed: %s", exc)
+        logger.exception("_fetch_salon_detail failed: %s", exc)
     return None
 
 
 async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
-    # Parse session context injected by API when dispatching this job
-    session_id: str | None = None
+    # Parse salon context injected by API when dispatching this job
+    salon_id: str | None = None
     api_url: str | None = None
     host_token: str | None = None
 
@@ -1093,13 +1093,13 @@ async def entrypoint(ctx: agents.JobContext):
     if raw_metadata:
         try:
             meta = json.loads(raw_metadata)
-            session_id = meta.get("session_id")
+            salon_id = meta.get("salon_id")
             api_url = meta.get("api_url")
             host_token = meta.get("host_token")
         except (json.JSONDecodeError, AttributeError):
             logger.warning("Could not parse job metadata: %r", raw_metadata)
 
-    # Fetch session content so the agent can read it aloud and introduce contrast
+    # Fetch salon content so the agent can read it aloud and introduce contrast
     source_content: str | None = None
     source_summary: str | None = None
     source_type: str | None = None
@@ -1115,8 +1115,8 @@ async def entrypoint(ctx: agents.JobContext):
     forced_language = "auto"
     front_desk = False
 
-    if session_id and api_url and host_token:
-        detail = await _fetch_session_detail(api_url, session_id, host_token)
+    if salon_id and api_url and host_token:
+        detail = await _fetch_salon_detail(api_url, salon_id, host_token)
         if detail:
             source_content = detail.get("sourceContent")
             source_summary = detail.get("sourceSummary")
@@ -1148,19 +1148,23 @@ async def entrypoint(ctx: agents.JobContext):
     )
 
     agent_session = AgentSession(
-        # Pinned, not aliased. `grok-voice-latest` pointed at grok-voice-think-fast-1.0 and
-        # xAI's own documentation says it "updates to grok-voice-think-fast-2.0 on August 5,
-        # 2026" — the day this was written. An alias means the model can change under a running
-        # product without a deploy, and a voice, a latency and a price changing on their own is
-        # a behaviour change nobody can attribute afterwards: was it the new model, or was it
+        # Pinned, not aliased. An alias means the model can change under a running product
+        # without a deploy, and a voice, a latency and a price changing on their own is a
+        # behaviour change nobody can attribute afterwards: was it the new model, or was it
         # one of today's twenty edits?
         #
-        # 2.0 by choice rather than by a date passing. Moving to a different model is now a
-        # commit, which is where a change of this size belongs.
+        # 1.0 rather than 2.0, and the reason is the price. 2.0 is $0.08/min — $4.80/h —
+        # against a Mode A sold at $5/h. That leaves twenty cents to pay for LiveKit, the
+        # orchestrator, Stripe and the pivot translation, so the tier loses money on every
+        # second it runs. 1.0 is $0.05/min, $3.00/h, and the same tier clears about $1.30/h.
+        # The trade is voice quality on the ad-supported tier.
+        #
+        # Not a permanent verdict: once the interpreter port lands, the adapter can differ
+        # per tier and Mode B — which has the margin for it — goes back to 2.0.
         #
         # Voice ids are lowercase — "Ara" is not a valid identifier.
         llm=xai.realtime.RealtimeModel(
-            model="grok-voice-think-fast-2.0", voice="ara", api_key=xai_key or None
+            model="grok-voice-think-fast-1.0", voice="ara", api_key=xai_key or None
         ),
         vad=silero.VAD.load(),
         # The multilingual turn detector that used to sit here never actually ran: it
@@ -1182,7 +1186,7 @@ async def entrypoint(ctx: agents.JobContext):
     )
 
     salon_agent = SalonAgent(
-        session_id=session_id,
+        salon_id=salon_id,
         api_url=api_url,
         host_token=host_token,
         source_content=source_content,
@@ -1201,9 +1205,9 @@ async def entrypoint(ctx: agents.JobContext):
     salon_agent.set_departure(ctx.shutdown)
 
     # Sources added mid-conversation (FR3): the API publishes a data message, since the
-    # session detail above is fetched once and would otherwise never be re-read.
+    # salon detail above is fetched once and would otherwise never be re-read.
     async def _reload_sources() -> None:
-        detail = await _fetch_session_detail(api_url, session_id, host_token)
+        detail = await _fetch_salon_detail(api_url, salon_id, host_token)
         if not detail:
             return
         await salon_agent.update_instructions(
@@ -1253,7 +1257,7 @@ async def entrypoint(ctx: agents.JobContext):
                     "Then wait. Answer what they ask, and say nothing else unprompted."
                 )
             )
-            logger.info("Answered a front-desk call (session %s)", session_id)
+            logger.info("Answered a front-desk call (salon %s)", salon_id)
             return
 
         agent_session.generate_reply(
@@ -1268,13 +1272,13 @@ async def entrypoint(ctx: agents.JobContext):
                 "the fact that you were paused."
             )
         )
-        logger.info("Opened the conversation on the host's signal (session %s)", session_id)
+        logger.info("Opened the conversation on the host's signal (salon %s)", salon_id)
 
-    # Fires once per session: a host who pauses and resumes is picking the conversation back
+    # Fires once per salon: a host who pauses and resumes is picking the conversation back
     # up, not starting a new one, and being greeted from the top each time would be absurd.
     # Speech before it lands stands it down — see src/opening.py for why that produces no
     # reply of its own.
-    opening = OpeningGate(_speak_the_opening, label=f"session {session_id}")
+    opening = OpeningGate(_speak_the_opening, label=f"salon {salon_id}")
     if not starts_paused:
         # Opens on arrival. A Salon starts with its agent listening, so there is no button
         # coming and nothing to wait for — waiting would be silence the host cannot end.
@@ -1292,14 +1296,14 @@ async def entrypoint(ctx: agents.JobContext):
     # either way, but a paused agent must not answer it.
     paused = {"value": starts_paused}
 
-    # Assigned further down, once the session has started. Named here so the data handler can
+    # Assigned further down, once the salon has started. Named here so the data handler can
     # close over it: the handler is registered before that point and would otherwise capture
     # nothing. It returns early while this is None, which is the same condition that already
-    # guards it — no session id means no captions either.
+    # guards it — no salon id means no captions either.
     captions: CaptionPublisher | None = None
 
     def _on_data(packet) -> None:
-        if not (session_id and api_url and host_token):
+        if not (salon_id and api_url and host_token):
             return
         try:
             msg = json.loads(bytes(packet.data).decode("utf-8"))
@@ -1328,11 +1332,11 @@ async def entrypoint(ctx: agents.JobContext):
                 # called outright: the gate is what guarantees this happens once, and going
                 # around it would greet the room again after every pause.
                 opening.schedule(0)
-        elif isinstance(msg, dict) and msg.get("action") == "session_ended":
+        elif isinstance(msg, dict) and msg.get("action") == "salon_ended":
             # Published by the API just before it deletes the room. A third way of learning
-            # the conversation is over, alongside end_session and the heartbeat flag — and the
+            # the conversation is over, alongside end_salon and the heartbeat flag — and the
             # only one that arrives when the host ends a salon the agent had no part in.
-            salon_agent.leave("the API announced the session had ended")
+            salon_agent.leave("the API announced the salon had ended")
         elif isinstance(msg, dict) and msg.get("action") == "source_added":
             asyncio.create_task(_reload_sources())
         elif isinstance(msg, dict) and msg.get("action") == "text_message":
@@ -1406,7 +1410,7 @@ async def entrypoint(ctx: agents.JobContext):
     ctx.room.on("data_received", _on_data)
 
     # Registered separately from the caption handler below: cancelling the wait is not a
-    # captions feature, and it must keep working in a session that publishes none.
+    # captions feature, and it must keep working in a salon that publishes none.
     @agent_session.on("user_input_transcribed")
     def _speech_stands_down_the_opening(event) -> None:
         # Finals only, for the same reason as the captions: an interim transcript can be
@@ -1414,10 +1418,10 @@ async def entrypoint(ctx: agents.JobContext):
         if getattr(event, "is_final", False):
             opening.stand_down()
 
-    # Closing the browser or killing the app ends no session by itself: the client simply
-    # stops sending heartbeats, leaving the session active. The agent is the only party
-    # always present server-side, so it closes the session when the room empties —
-    # otherwise the host keeps an open session they believe they left (FR25).
+    # Closing the browser or killing the app ends no salon by itself: the client simply
+    # stops sending heartbeats, leaving the salon active. The agent is the only party
+    # always present server-side, so it closes the salon when the room empties —
+    # otherwise the host keeps an open salon they believe they left (FR25).
     def _on_participant_disconnected(_participant) -> None:
         # Any human leaving ends the Salon, not only the last one.
         #
@@ -1432,9 +1436,9 @@ async def entrypoint(ctx: agents.JobContext):
         # the other person's Salon with them, and that is the deliberate trade.
         remaining = len(ctx.room.remote_participants)
         logger.info(
-            "A participant left session %s; %d human(s) remain", session_id, remaining
+            "A participant left salon %s; %d human(s) remain", salon_id, remaining
         )
-        asyncio.create_task(salon_agent.end_session())
+        asyncio.create_task(salon_agent.end_salon())
 
     ctx.room.on("participant_disconnected", _on_participant_disconnected)
 
@@ -1501,7 +1505,7 @@ async def entrypoint(ctx: agents.JobContext):
     # The voice connection is reported, not probed.
     #
     # xAI offers no cheap voice call to test: /v1/audio/speech answers 403 for this team, and a
-    # realtime session is the only alternative — too costly to open every minute purely to ask
+    # realtime salon is the only alternative — too costly to open every minute purely to ask
     # whether it can be opened. So the check is the real thing. This start() either reaches the
     # realtime model or it does not, and whichever happens is what gets reported.
     #
@@ -1526,10 +1530,10 @@ async def entrypoint(ctx: agents.JobContext):
         # that a Salon just failed for a reason invisible from inside Vocaliz — the room looks
         # normal to everyone in it.
         await _report_voice_health(
-            api_url, session_id, host_token, ok=False, detail=f"{type(exc).__name__}: {exc}"
+            api_url, salon_id, host_token, ok=False, detail=f"{type(exc).__name__}: {exc}"
         )
         raise
-    await _report_voice_health(api_url, session_id, host_token, ok=True)
+    await _report_voice_health(api_url, salon_id, host_token, ok=True)
 
     # RoomIO hears only the participant it linked to, so the agent was deaf to everyone
     # else in the room. This mixes every remote participant into one stream instead.
@@ -1549,7 +1553,7 @@ async def entrypoint(ctx: agents.JobContext):
     if starts_paused:
         agent_session.input.set_audio_enabled(False)
         agent_session.output.set_audio_enabled(False)
-        logger.info("Joined paused; waiting for the host to activate (session %s)", session_id)
+        logger.info("Joined paused; waiting for the host to activate (salon %s)", salon_id)
 
     async def _close_mixer() -> None:
         await mixed_input.aclose()
@@ -1557,12 +1561,12 @@ async def entrypoint(ctx: agents.JobContext):
     ctx.add_shutdown_callback(_close_mixer)
 
     # ── Live captions ─────────────────────────────────────────────────────────
-    # The realtime session already transcribes what it hears — input transcription is on
+    # The realtime salon already transcribes what it hears — input transcription is on
     # by default in the xAI plugin — and until now the agent received that text and threw
     # it away. Each finalised turn is now stored and published to the room, translated
     # into whatever language each participant says they are reading.
-    if session_id and api_url and host_token:
-        captions = CaptionPublisher(ctx.room, api_url, session_id, host_token)
+    if salon_id and api_url and host_token:
+        captions = CaptionPublisher(ctx.room, api_url, salon_id, host_token)
         # Attribution comes from LiveKit, not from the model: every participant is mixed
         # into one audio stream, so the realtime model cannot say who spoke.
         captions.track_active_speakers()
@@ -1608,7 +1612,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Start metering heartbeat — sends elapsed seconds every 30 s so trial time
     # is committed incrementally and survives unexpected disconnects.
-    if session_id and api_url and host_token:
+    if salon_id and api_url and host_token:
         salon_agent.start_heartbeat()
 
         @ctx.room.on("disconnected")
@@ -1620,7 +1624,7 @@ async def entrypoint(ctx: agents.JobContext):
 
 if __name__ == "__main__":
     # agent_name makes this worker dispatch-only: the API creates an explicit dispatch
-    # carrying the session context (session id, API url, host token) in job metadata,
+    # carrying the salon context (salon id, API url, host token) in job metadata,
     # which participants cannot read. Without a name the worker would be dispatched
     # automatically and run context-free — unable to read sources or send invitations.
     agents.cli.run_app(

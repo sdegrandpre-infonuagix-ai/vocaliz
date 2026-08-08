@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import boto3
 from botocore.exceptions import ClientError
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as DbSession
 
 from src.config import settings
 from src.models.user import User
@@ -20,7 +20,7 @@ def _generate_otp() -> str:
     return "".join(random.choices(string.digits, k=6))
 
 
-def send_otp(email: str, db: Session) -> None:
+def send_otp(email: str, db: DbSession) -> None:
     """Generate OTP, persist it, and email it via AWS SES."""
     user = db.query(User).filter(User.email == email).first()
     if user is None:
@@ -36,7 +36,7 @@ def send_otp(email: str, db: Session) -> None:
     _send_email(email, code)
 
 
-def verify_otp(email: str, code: str, db: Session) -> User:
+def verify_otp(email: str, code: str, db: DbSession) -> User:
     """Verify OTP code. Returns the user on success, raises HTTPException on failure."""
     user = db.query(User).filter(User.email == email).first()
 
@@ -71,7 +71,7 @@ def verify_otp(email: str, code: str, db: Session) -> User:
     return user
 
 
-def _clear_otp(user: User, db: Session) -> None:
+def _clear_otp(user: User, db: DbSession) -> None:
     user.otp_code = None
     user.otp_expires_at = None
     user.otp_attempts = 0

@@ -21,7 +21,7 @@ import logging
 
 import boto3
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as DbSession
 
 from src.config import settings
 from src.models.salon_event import SalonEvent
@@ -62,7 +62,7 @@ def _label(identity: str) -> str:
     return identity
 
 
-def collect(db: Session) -> list[dict]:
+def collect(db: DbSession) -> list[dict]:
     """One row per person, newest first.
 
     Grouped on the identity pair rather than on the email alone: a guest reached only by text
@@ -260,7 +260,7 @@ def as_html(rows: list[dict]) -> str:
     )
 
 
-def send(db: Session, recipient: str) -> dict:
+def send(db: DbSession, recipient: str) -> dict:
     """Build the report and mail it. Never raises: a failed report is not worth an alarm."""
     rows = collect(db)
     try:

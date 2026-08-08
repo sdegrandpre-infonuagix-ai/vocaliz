@@ -88,10 +88,10 @@ def requested_languages(room: rtc.Room) -> list[str]:
 class CaptionPublisher:
     """Posts finalised turns to the API and publishes the result to the room."""
 
-    def __init__(self, room: rtc.Room, api_url: str, session_id: str, host_token: str) -> None:
+    def __init__(self, room: rtc.Room, api_url: str, salon_id: str, host_token: str) -> None:
         self._room = room
         self._api_url = api_url
-        self._session_id = session_id
+        self._salon_id = salon_id
         self._host_token = host_token
         # Who spoke last, according to LiveKit. Kept rather than read on demand because
         # by the time a transcript is final the speaker has usually stopped talking and
@@ -147,7 +147,7 @@ class CaptionPublisher:
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
                 response = await client.post(
-                    f"{self._api_url}/sessions/{self._session_id}/utterances",
+                    f"{self._api_url}/salons/{self._salon_id}/utterances",
                     json=payload,
                     headers={"Authorization": f"Bearer {self._host_token}"},
                 )
@@ -188,6 +188,6 @@ class CaptionPublisher:
         """Fire and forget, for use from synchronous event handlers.
 
         The SDK dispatches events synchronously; awaiting the API from inside one would
-        stall the session for the duration of a network call.
+        stall the salon for the duration of a network call.
         """
         asyncio.create_task(self.publish(text=text, identity=identity, language=language))

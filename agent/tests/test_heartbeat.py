@@ -42,7 +42,7 @@ def test_salon_agent_heartbeat_task_starts_as_none():
 
 def test_start_heartbeat_creates_task():
     a = salon.SalonAgent(
-        session_id="sess-1",
+        salon_id="sess-1",
         api_url="http://api",
         host_token="tok",
     )
@@ -60,7 +60,7 @@ def test_start_heartbeat_creates_task():
 
 def test_stop_heartbeat_cancels_task():
     a = salon.SalonAgent(
-        session_id="sess-1",
+        salon_id="sess-1",
         api_url="http://api",
         host_token="tok",
     )
@@ -80,7 +80,7 @@ def test_stop_heartbeat_cancels_task():
 def test_start_heartbeat_idempotent():
     """Calling start_heartbeat twice does not create a second task."""
     a = salon.SalonAgent(
-        session_id="sess-1",
+        salon_id="sess-1",
         api_url="http://api",
         host_token="tok",
     )
@@ -99,7 +99,7 @@ def test_start_heartbeat_idempotent():
 
 def test_send_heartbeat_posts_correct_url_and_payload():
     a = salon.SalonAgent(
-        session_id="sess-abc",
+        salon_id="sess-abc",
         api_url="http://api.test",
         host_token="bearer-tok",
     )
@@ -118,7 +118,7 @@ def test_send_heartbeat_posts_correct_url_and_payload():
             await a._send_heartbeat()
 
             mock_client.post.assert_called_once_with(
-                "http://api.test/sessions/sess-abc/heartbeat",
+                "http://api.test/salons/sess-abc/heartbeat",
                 json={"seconds": 30},
                 headers={"Authorization": "Bearer bearer-tok"},
             )
@@ -126,8 +126,8 @@ def test_send_heartbeat_posts_correct_url_and_payload():
     asyncio.run(_run())
 
 
-def test_send_heartbeat_no_op_without_session_context():
-    """_send_heartbeat silently skips when session context is missing."""
+def test_send_heartbeat_no_op_without_salon_context():
+    """_send_heartbeat silently skips when salon context is missing."""
     a = salon.SalonAgent()
 
     async def _run():
@@ -141,7 +141,7 @@ def test_send_heartbeat_no_op_without_session_context():
 def test_send_heartbeat_swallows_network_errors():
     """A network failure during heartbeat does not raise."""
     a = salon.SalonAgent(
-        session_id="sess-x",
+        salon_id="sess-x",
         api_url="http://api.test",
         host_token="tok",
     )
@@ -163,7 +163,7 @@ def test_send_heartbeat_swallows_network_errors():
 def test_send_heartbeat_swallows_non_200_response():
     """A 4xx/5xx response from heartbeat does not raise."""
     a = salon.SalonAgent(
-        session_id="sess-y",
+        salon_id="sess-y",
         api_url="http://api.test",
         host_token="tok",
     )
@@ -186,56 +186,56 @@ def test_send_heartbeat_swallows_non_200_response():
 
 # ─── Winding the conversation down before the cap ────────────────────────────
 
-def _agent_with_session():
+def _agent_with_salon():
     """A SalonAgent whose AgentSession is observable.
 
-    `session` is a read-only property on the real Agent base class; the test stub makes it
+    `salon` is a read-only property on the real Agent base class; the test stub makes it
     a plain attribute, which is what lets us watch generate_reply here.
     """
     from unittest.mock import MagicMock
 
     a = salon.SalonAgent()
-    a.session = MagicMock()
-    a._session_id = "sess-1"
+    a.salon = MagicMock()
+    a._salon_id = "sess-1"
     return a
 
 
 def test_no_announcement_while_time_remains():
-    a = _agent_with_session()
+    a = _agent_with_salon()
     a._maybe_announce_ending(salon.ENDING_WARNING_SECONDS + 30)
-    a.session.generate_reply.assert_not_called()
+    a.salon.generate_reply.assert_not_called()
     assert a._ending_announced is False
 
 
 def test_announces_when_the_cap_is_near():
-    a = _agent_with_session()
+    a = _agent_with_salon()
     a._maybe_announce_ending(salon.ENDING_WARNING_SECONDS - 5)
-    a.session.generate_reply.assert_called_once()
+    a.salon.generate_reply.assert_called_once()
     # Phrased as instructions so the model answers in the language being spoken, and told
     # not to blame a timer — the participants did not ask about our billing.
-    instructions = a.session.generate_reply.call_args.kwargs["instructions"]
+    instructions = a.salon.generate_reply.call_args.kwargs["instructions"]
     assert "language of the conversation" in instructions
     assert "quotas" in instructions
 
 
 def test_announces_only_once():
-    a = _agent_with_session()
+    a = _agent_with_salon()
     a._maybe_announce_ending(30)
     a._maybe_announce_ending(10)
     a._maybe_announce_ending(0)
-    assert a.session.generate_reply.call_count == 1
+    assert a.salon.generate_reply.call_count == 1
 
 
 def test_missing_remaining_is_ignored():
     """An older API, or a failed parse, must not trigger a spurious goodbye."""
-    a = _agent_with_session()
+    a = _agent_with_salon()
     a._maybe_announce_ending(None)
-    a.session.generate_reply.assert_not_called()
+    a.salon.generate_reply.assert_not_called()
 
 
 def test_a_failing_announcement_does_not_propagate():
     """A working conversation must not be broken by a failed courtesy."""
-    a = _agent_with_session()
-    a.session.generate_reply.side_effect = RuntimeError("realtime unavailable")
+    a = _agent_with_salon()
+    a.salon.generate_reply.side_effect = RuntimeError("realtime unavailable")
     a._maybe_announce_ending(10)   # must not raise
     assert a._ending_announced is True

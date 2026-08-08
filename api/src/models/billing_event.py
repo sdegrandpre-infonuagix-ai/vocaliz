@@ -9,9 +9,9 @@ from src.database import Base
 
 
 class BillingEvent(Base):
-    """Audit record of a post-trial charge attempt for a host session.
+    """Audit record of a post-trial charge attempt for a host salon.
 
-    One row per billing attempt made when a session ends and the host has
+    One row per billing attempt made when a salon ends and the host has
     metered time beyond their free trial hour. Records both successes and
     failures so charges can be reconciled with Stripe. Guests are never
     billed, so a BillingEvent always references a host.
@@ -25,8 +25,8 @@ class BillingEvent(Base):
     host_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    session_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    salon_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("salons.id", ondelete="SET NULL"), nullable=True, index=True
     )
     billable_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)

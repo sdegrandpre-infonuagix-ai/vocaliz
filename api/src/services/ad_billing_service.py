@@ -20,11 +20,12 @@ from src.config import settings
 from src.models.ad import Ad
 from src.models.ad_broadcast import AdBroadcast
 from src.models.advertiser import Advertiser
+from src.services.stripe_metadata import namespaced
 
 logger = logging.getLogger(__name__)
 
 
-def record_broadcast(db: DbSession, *, ad: Ad, session=None) -> AdBroadcast | None:
+def record_broadcast(db: DbSession, *, ad: Ad, salon=None) -> AdBroadcast | None:
     """Note that an ad was spoken, and spend one of its allowance.
 
     Returns None when the ad had nothing left. That is the caller's signal not to speak it —
@@ -43,8 +44,8 @@ def record_broadcast(db: DbSession, *, ad: Ad, session=None) -> AdBroadcast | No
         row = AdBroadcast(
             ad_id=ad.ad_id,
             advertiser_id=ad.advertiser_id,
-            session_id=getattr(session, "id", None),
-            salon_name=getattr(session, "livekit_room_name", "") or "",
+            salon_id=getattr(salon, "id", None),
+            salon_name=getattr(salon, "livekit_room_name", "") or "",
             amount_cents=settings.ad_broadcast_rate_cents,
             currency=settings.billing_currency,
             broadcast_at=datetime.now(tz=timezone.utc),
@@ -78,7 +79,7 @@ def _stripe_customer(advertiser: Advertiser, db: DbSession) -> str:
     customer = stripe.Customer.create(
         email=advertiser.email,
         name=advertiser.company,
-        metadata={"advertiser_id": str(advertiser.advertiser_id)},
+        metadata=namespaced(advertiser_id=advertiser.advertiser_id),
     )
     advertiser.stripe_customer_id = customer.id
     db.commit()
@@ -137,7 +138,7 @@ def invoice_advertiser(db: DbSession, advertiser: Advertiser) -> dict:
                 amount=row.amount_cents,
                 currency=row.currency,
                 description=description,
-                metadata={"ad_id": str(row.ad_id), "broadcast_id": str(row.id)},
+                metadata=namespaced(ad_id=row.ad_id, broadcast_id=row.id),
             )
         except stripe.StripeError as exc:
             # Stop rather than skip. Continuing past a failure would produce an invoice

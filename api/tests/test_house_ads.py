@@ -5,7 +5,7 @@ from src.config import settings
 from src.models.ad import Ad
 from src.models.ad_broadcast import AdBroadcast
 from src.models.advertiser import Advertiser
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services import ad_auction_service, ad_billing_service, house_ads
 
@@ -16,7 +16,7 @@ def salon(db):
     db.add(user)
     db.commit()
     db.refresh(user)
-    s = SessionModel(
+    s = Salon(
         host_user_id=user.id,
         livekit_room_name="salon-house",
         source_type="url",
@@ -89,7 +89,7 @@ def test_a_paying_ad_wins_over_the_house(db, salon):
     )
     db.commit()
 
-    row = ad_auction_service.broadcast_winner(db, session=salon, salon_languages=["en"])
+    row = ad_auction_service.broadcast_winner(db, salon=salon, salon_languages=["en"])
     assert row is not None
     assert row.advertiser_id == payer.advertiser_id
     assert row.amount_cents == settings.ad_broadcast_rate_cents
@@ -97,14 +97,14 @@ def test_a_paying_ad_wins_over_the_house(db, salon):
 
 def test_the_house_ad_fills_the_silence_when_nobody_bids(db, salon):
     house_ads.seed(db)
-    row = ad_auction_service.broadcast_winner(db, session=salon, salon_languages=["fr"])
+    row = ad_auction_service.broadcast_winner(db, salon=salon, salon_languages=["fr"])
     assert row is not None
     assert row.amount_cents == 0
 
 
 def test_nothing_plays_when_the_house_ads_are_not_seeded(db, salon):
     """A salon then hears no advertising, which is what happened before they existed."""
-    assert ad_auction_service.broadcast_winner(db, session=salon, salon_languages=["en"]) is None
+    assert ad_auction_service.broadcast_winner(db, salon=salon, salon_languages=["en"]) is None
 
 
 # ─── Free means no Stripe object at all ───────────────────────────────────────
@@ -113,7 +113,7 @@ def test_a_house_broadcast_is_recorded_but_never_invoiced(db, salon):
     """Better than a 100%-discounted invoice: that would still cost an API call and leave a
     zero-dollar invoice in the history every single day."""
     house_ads.seed(db)
-    ad_auction_service.broadcast_winner(db, session=salon, salon_languages=["en"])
+    ad_auction_service.broadcast_winner(db, salon=salon, salon_languages=["en"])
 
     assert db.query(AdBroadcast).count() == 1, "the count and the reporting stay true"
     advertiser = db.query(Advertiser).filter(Advertiser.email == house_ads.HOUSE_EMAIL).one()

@@ -24,7 +24,7 @@ export interface Translations {
     resendWaitingLabel: string;
     resend: string;
   };
-  session: {
+  salon: {
     title: string;
     subtitle: string;
     urlLabel: string;
@@ -114,13 +114,13 @@ const fr: Translations = {
     resendWaitingLabel: 'Renvoyer le code dans {n} secondes',
     resend: 'Renvoyer le code',
   },
-  session: {
-    title: 'Nouvelle session',
+  salon: {
+    title: 'Nouvelle salon',
     subtitle: "Partagez une URL d'article pour démarrer une discussion guidée par l'agent.",
     urlLabel: "URL de l'article",
     urlInputLabel: "URL de l'article source",
     urlInputHint: "Entrez l'adresse web de l'article à discuter",
-    startButton: 'Démarrer la session',
+    startButton: 'Démarrer la salon',
     or: 'ou',
     uploadButton: '📄  Téléverser un document',
     uploadButtonLabel: 'Téléverser un document',
@@ -129,10 +129,10 @@ const fr: Translations = {
     uploadComingSoonMsg:
       'Le téléversement de documents sera disponible dans la prochaine mise à jour.',
     noSourceButton: 'Démarrer sans source',
-    noSourceButtonLabel: 'Démarrer une session sans document ni URL',
+    noSourceButtonLabel: 'Démarrer une salon sans document ni URL',
     noSourceButtonHint:
       "L'agent vous demandera de quoi vous souhaitez discuter",
-    errorGeneric: 'Impossible de créer la session.',
+    errorGeneric: 'Impossible de créer la salon.',
   },
   room: {
     title: 'Vous animez le Salon',
@@ -142,7 +142,7 @@ const fr: Translations = {
     sourceSection: 'Ajouter une source',
     sourceInputLabel: "URL de l'article à ajouter",
     sourceInputHint: "L'agent en tiendra compte sans interrompre la conversation",
-    sourceButton: 'Ajouter à la session',
+    sourceButton: 'Ajouter à la salon',
     sourceAdded: "Source ajoutée. L'agent en a été prévenu.",
     inviteSection: 'Inviter',
     inviteInputLabel: "Adresse courriel de l'invité",
@@ -152,7 +152,7 @@ const fr: Translations = {
     inviteInApp:
       'Courriel envoyé. Ce contact est inscrit dans Vocaliz : il reçoit aussi une notification.',
     inviteEmailFailed: "Le courriel n'a pas pu partir — partagez le lien ci-dessous vous-même.",
-    leaveButton: 'Quitter la session',
+    leaveButton: 'Quitter la salon',
     errorConnect: 'Impossible de rejoindre le salon.',
     errorGeneric: 'Une erreur est survenue.',
     captionsTitle: 'Sous-titres en direct',
@@ -208,13 +208,13 @@ const en: Translations = {
     resendWaitingLabel: 'Resend code in {n} seconds',
     resend: 'Resend code',
   },
-  session: {
-    title: 'New Session',
+  salon: {
+    title: 'New Salon',
     subtitle: 'Share an article URL to start an agent-guided discussion.',
     urlLabel: 'Article URL',
     urlInputLabel: 'Source article URL',
     urlInputHint: 'Enter the web address of the article to discuss',
-    startButton: 'Start Session',
+    startButton: 'Start Salon',
     or: 'or',
     uploadButton: '📄  Upload a document',
     uploadButtonLabel: 'Upload a document',
@@ -222,9 +222,9 @@ const en: Translations = {
     uploadComingSoonTitle: 'Coming soon',
     uploadComingSoonMsg: 'Document upload will be available in the next update.',
     noSourceButton: 'Start without a source',
-    noSourceButtonLabel: 'Start a session with no document or URL',
+    noSourceButtonLabel: 'Start a salon with no document or URL',
     noSourceButtonHint: 'The agent will ask what you would like to discuss',
-    errorGeneric: 'Unable to create the session.',
+    errorGeneric: 'Unable to create the salon.',
   },
   room: {
     title: 'You are hosting the Salon',
@@ -234,7 +234,7 @@ const en: Translations = {
     sourceSection: 'Add a source',
     sourceInputLabel: 'URL of the article to add',
     sourceInputHint: 'The agent picks it up without interrupting the conversation',
-    sourceButton: 'Add to session',
+    sourceButton: 'Add to salon',
     sourceAdded: 'Source added. The agent has been notified.',
     inviteSection: 'Invite',
     inviteInputLabel: "Guest's email address",
@@ -243,7 +243,7 @@ const en: Translations = {
     inviteEmailed: 'Email sent with the join link.',
     inviteInApp: 'Email sent. This contact has a Vocaliz account: they also get a notification.',
     inviteEmailFailed: 'The email could not be sent — share the link below yourself.',
-    leaveButton: 'Leave session',
+    leaveButton: 'Leave salon',
     errorConnect: 'Unable to join the room.',
     errorGeneric: 'Something went wrong.',
     captionsTitle: 'Live captions',

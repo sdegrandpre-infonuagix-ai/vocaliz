@@ -11,7 +11,7 @@ opening representable at all, and with it the two orderings this module exists t
 somebody who speaks first has already solved the problem the opening existed for, and both
 ignoring them and greeting them afterwards read as broken. Speech therefore stands it down.
 
-Standing down deliberately generates no reply. The session answers speech on its own, and
+Standing down deliberately generates no reply. The salon answers speech on its own, and
 that answer is the first turn — which the standing instructions already order as welcome,
 announcement, then source. Forcing a second reply on top would have the agent talk over
 itself, which is worse than the silence being fixed.
@@ -35,7 +35,7 @@ class OpeningGate:
 
     def __init__(self, speak: Callable[[], Any], *, label: str = "") -> None:
         # Called with no arguments so this holds no opinion about how the opening is worded
-        # or which session says it.
+        # or which salon says it.
         self._speak = speak
         self._label = label
         self._spoken = False
@@ -106,7 +106,7 @@ class OpeningGate:
             if isinstance(result, Awaitable):
                 await result
         except Exception as exc:  # noqa: BLE001
-            # A failed opening must not disturb a session that is otherwise working.
+            # A failed opening must not disturb a salon that is otherwise working.
             logger.warning("Could not open the conversation after an invitation: %s", exc)
 
     def cancel(self) -> None:

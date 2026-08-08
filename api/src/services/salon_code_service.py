@@ -115,13 +115,13 @@ def release(db: DbSession, codes) -> int:
         return 0
 
 
-def release_for_session(db: DbSession, session_id) -> int:
+def release_for_salon(db: DbSession, salon_id) -> int:
     """Return every code issued for one salon's invitations to the pool.
 
-    Called when the session ends. Without it a code stays reserved for a conversation that
+    Called when the salon ends. Without it a code stays reserved for a conversation that
     is over, and the pool drains one salon at a time.
 
-    The codes are found through the invitations rather than stored against the session,
+    The codes are found through the invitations rather than stored against the salon,
     because that is where the mapping already lives — duplicating it here is what would
     eventually let the two disagree.
     """
@@ -129,11 +129,11 @@ def release_for_session(db: DbSession, session_id) -> int:
         codes = [
             row.phone_pin
             for row in db.query(Invitation.phone_pin)
-            .filter(Invitation.session_id == session_id, Invitation.phone_pin.isnot(None))
+            .filter(Invitation.salon_id == salon_id, Invitation.phone_pin.isnot(None))
             .all()
         ]
     except Exception:  # noqa: BLE001
-        logger.warning("Could not list codes for salon %s", session_id, exc_info=True)
+        logger.warning("Could not list codes for salon %s", salon_id, exc_info=True)
         return 0
     return release(db, codes)
 

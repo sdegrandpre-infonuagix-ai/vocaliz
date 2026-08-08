@@ -63,7 +63,7 @@ def _fresh_db():
 def _no_livekit_side_calls(request):
     """Stop agent dispatch and room notifications from reaching LiveKit in tests.
 
-    Both swallow their own exceptions, so without this every session-creating test
+    Both swallow their own exceptions, so without this every salon-creating test
     would silently attempt a real connection to the configured LiveKit URL — slow and
     dependent on the network.
 
@@ -91,9 +91,9 @@ def client():
 
 @pytest.fixture
 def db():
-    session = TestingSession()
-    yield session
-    session.close()
+    salon = TestingSession()
+    yield salon
+    salon.close()
 
 
 @pytest.fixture(autouse=True)

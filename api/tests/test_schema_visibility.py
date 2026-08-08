@@ -72,6 +72,17 @@ def _created_by_migrations() -> dict[str, tuple[str, str]]:
             created[name] = (path.name, "unique index" if kind == "index" else kind)
         for match in re.finditer(r'op\.drop_(?:index|constraint)\(\s*\n?\s*"([^"]+)"', text):
             dropped.add(match.group(1))
+        # A renamed object is the same object under a new name, and the models only ever
+        # declare the current one. Without this the census would report the old name as
+        # existing in production forever — and, worse, miss the new name entirely, so a
+        # constraint could be renamed out of sight of the very test that guards it.
+        for match in re.finditer(
+            r'ALTER INDEX (\w+) RENAME TO (\w+)', text
+        ):
+            old, new = match.group(1), match.group(2)
+            if old in created:
+                origin, kind = created.pop(old)
+                created[new] = (f"{origin} → {path.name}", kind)
 
     return {name: v for name, v in created.items() if name not in dropped}
 
@@ -97,7 +108,7 @@ def test_the_census_actually_reads_the_migrations():
     stopped matching one of the two forms."""
     created = _created_by_migrations()
     for expected in (
-        "uq_utterances_session_sequence",          # op.create_index(unique=True)
+        "uq_utterances_salon_sequence",          # op.create_index(unique=True)
         "ck_advertisers_company_not_blank",        # op.create_check_constraint
         "ck_users_caption_scale",                  # the most recent of them
     ):

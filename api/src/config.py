@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     livekit_api_key: str = "devkey"
     livekit_api_secret: str  # required — set LIVEKIT_API_SECRET env var
 
-    # Session settings
+    # Salon settings
     # Two humans and the agent. Down from four, and the reduction is what makes the room
     # trustworthy rather than merely smaller.
     #
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     # Invitation join links sent via SMS to non-registered contacts
     salon_web_base_url: str = "https://salon.app"
 
-    # App installation link sent to guests without an account after their first session
+    # App installation link sent to guests without an account after their first salon
     salon_install_url: str = "https://salon.app/install"
 
     # Free trial cap: 1 hour (3 600 s) of cumulative host-role time per account
@@ -118,10 +118,10 @@ class Settings(BaseSettings):
     summary_target_chars: int = 3000
 
     # Hard cap on a single conversation, independent of the trial above. The trial bounds
-    # what one account can spend in total; this bounds what one runaway session can spend
+    # what one account can spend in total; this bounds what one runaway salon can spend
     # in one go — a room left open with the agent talking bills realtime voice by the
     # minute. Ten minutes while the product is being tested.
-    max_session_seconds: int = 600
+    max_salon_seconds: int = 600
 
     # How long a call to the front desk rings before it is given up on.
     #
@@ -132,10 +132,10 @@ class Settings(BaseSettings):
     # expensive one.
     unanswered_call_seconds: int = 300
 
-    # Upper bound on the span billed after the last heartbeat when a session ends.
-    # Heartbeats arrive every 30 s, so a gap beyond this means the session was already
+    # Upper bound on the span billed after the last heartbeat when a salon ends.
+    # Heartbeats arrive every 30 s, so a gap beyond this means the salon was already
     # dead — a closed laptop, a killed app, a crashed worker. Without this clamp the
-    # whole abandoned period would be billed the moment the session is finally ended.
+    # whole abandoned period would be billed the moment the salon is finally ended.
     metering_grace_seconds: int = 90
 
     # How precise a recorded position is allowed to be, as an Open Location Code length.

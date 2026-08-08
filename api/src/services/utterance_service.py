@@ -33,7 +33,7 @@ def display_label(identity: str, role: str) -> str:
 def record(
     db: DbSession,
     *,
-    session_id: uuid.UUID,
+    salon_id: uuid.UUID,
     speaker_identity: str,
     speaker_role: str,
     text: str,
@@ -56,11 +56,11 @@ def record(
         try:
             highest = (
                 db.query(func.max(Utterance.sequence))
-                .filter(Utterance.session_id == session_id)
+                .filter(Utterance.salon_id == salon_id)
                 .scalar()
             )
             utterance = Utterance(
-                session_id=session_id,
+                salon_id=salon_id,
                 speaker_identity=speaker_identity,
                 speaker_role=speaker_role,
                 text=text,
@@ -76,20 +76,20 @@ def record(
             db.rollback()
             if attempt == 2:
                 logger.warning(
-                    "Could not record an utterance for session %s", session_id, exc_info=True
+                    "Could not record an utterance for salon %s", salon_id, exc_info=True
                 )
                 return None
         except Exception:  # noqa: BLE001
             db.rollback()
             logger.warning(
-                "Could not record an utterance for session %s", session_id, exc_info=True
+                "Could not record an utterance for salon %s", salon_id, exc_info=True
             )
             return None
     return None
 
 
 def transcript(
-    db: DbSession, *, session_id: uuid.UUID, language: str | None = None, after: int = 0
+    db: DbSession, *, salon_id: uuid.UUID, language: str | None = None, after: int = 0
 ) -> list[dict]:
     """A salon's turns in order, translated when a language is asked for.
 
@@ -99,7 +99,7 @@ def transcript(
     """
     rows = (
         db.query(Utterance)
-        .filter(Utterance.session_id == session_id, Utterance.sequence > after)
+        .filter(Utterance.salon_id == salon_id, Utterance.sequence > after)
         .order_by(Utterance.sequence)
         .all()
     )

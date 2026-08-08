@@ -39,8 +39,8 @@ class Utterance(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    salon_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("salons.id", ondelete="CASCADE"), nullable=False
     )
 
     # The LiveKit identity, which is the only handle available at the moment of speech:
@@ -58,7 +58,7 @@ class Utterance(Base):
     # translator detects the source itself, so a missing value costs nothing.
     language: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
-    # Monotonic within a session, assigned on insert. Timestamps alone cannot order two
+    # Monotonic within a salon, assigned on insert. Timestamps alone cannot order two
     # turns transcribed in the same millisecond, and captions arriving out of order read
     # as a different conversation.
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -71,8 +71,8 @@ class Utterance(Base):
         CheckConstraint(
             "speaker_role IN ('host', 'guest', 'agent')", name="ck_utterances_speaker_role"
         ),
-        # Two turns of one session cannot share a position in the order.
-        Index("uq_utterances_session_sequence", "session_id", "sequence", unique=True),
+        # Two turns of one salon cannot share a position in the order.
+        Index("uq_utterances_salon_sequence", "salon_id", "sequence", unique=True),
     )
 
 

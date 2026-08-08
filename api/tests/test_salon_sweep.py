@@ -1,8 +1,8 @@
-"""Closing sessions that outlived their cap, whatever their heartbeats say.
+"""Closing salons that outlived their cap, whatever their heartbeats say.
 
 The cap used to be evaluated only when a heartbeat arrived, which meant it was not
 evaluated at all in the most ordinary failure: a host closes their laptop, or the agent
-worker dies. The session then stayed active for good, leaking an open session, a reserved
+worker dies. The salon then stayed active for good, leaking an open salon, a reserved
 telephone code and a span of metered time never settled.
 """
 import asyncio
@@ -14,9 +14,9 @@ import pytest
 from src.config import settings
 from src.models.invitation import Invitation
 from src.models.salon_code import CodeAvailable
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
-from src.services import salon_code_service, session_lifecycle
+from src.services import salon_code_service, salon_lifecycle
 
 
 @pytest.fixture
@@ -28,8 +28,8 @@ def host(db):
     return u
 
 
-def _session(db, host, *, age_seconds: int, room="salon-sweep", status="active"):
-    s = SessionModel(
+def _salon(db, host, *, age_seconds: int, room="salon-sweep", status="active"):
+    s = Salon(
         host_user_id=host.id,
         livekit_room_name=room,
         source_type="url",
@@ -45,43 +45,43 @@ def _session(db, host, *, age_seconds: int, room="salon-sweep", status="active")
 
 def _sweep(db):
     with patch.object(
-        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+        salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ) as delete_room:
-        closed = asyncio.run(session_lifecycle.close_expired_sessions(db))
+        closed = asyncio.run(salon_lifecycle.close_expired_salons(db))
     return closed, delete_room
 
 
 # ─── What gets closed ─────────────────────────────────────────────────────────
 
-def test_a_session_past_the_cap_is_closed(db, host):
-    session = _session(db, host, age_seconds=settings.max_session_seconds + 60)
+def test_a_salon_past_the_cap_is_closed(db, host):
+    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 60)
     closed, _ = _sweep(db)
-    assert closed == [str(session.id)]
+    assert closed == [str(salon.id)]
     db.expire_all()
-    assert db.get(SessionModel, session.id).status == "ended"
+    assert db.get(Salon, salon.id).status == "ended"
 
 
-def test_a_session_inside_the_cap_is_left_alone(db, host):
-    session = _session(db, host, age_seconds=60)
+def test_a_salon_inside_the_cap_is_left_alone(db, host):
+    salon = _salon(db, host, age_seconds=60)
     closed, _ = _sweep(db)
     assert closed == []
     db.expire_all()
-    assert db.get(SessionModel, session.id).status == "active"
+    assert db.get(Salon, salon.id).status == "active"
 
 
 def test_heartbeats_are_irrelevant(db, host):
-    """Driven by age, not by silence. A session running eleven minutes is over whether or
+    """Driven by age, not by silence. A salon running eleven minutes is over whether or
     not somebody was talking a second ago — and the whole point is that no heartbeat is
     arriving at all."""
-    session = _session(db, host, age_seconds=settings.max_session_seconds + 5)
-    session.last_heartbeat_at = datetime.now(tz=timezone.utc)
+    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 5)
+    salon.last_heartbeat_at = datetime.now(tz=timezone.utc)
     db.commit()
     closed, _ = _sweep(db)
-    assert closed == [str(session.id)]
+    assert closed == [str(salon.id)]
 
 
-def test_an_already_ended_session_is_not_touched_again(db, host):
-    _session(db, host, age_seconds=99999, status="ended")
+def test_an_already_ended_salon_is_not_touched_again(db, host):
+    _salon(db, host, age_seconds=99999, status="ended")
     closed, _ = _sweep(db)
     assert closed == []
 
@@ -89,20 +89,20 @@ def test_an_already_ended_session_is_not_touched_again(db, host):
 def test_the_room_is_deleted_which_is_what_stops_the_agent(db, host):
     """Marking the row ended only settles the accounting; deleting the room is what
     actually silences a worker still talking into it."""
-    session = _session(db, host, age_seconds=settings.max_session_seconds + 1)
+    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
     _, delete_room = _sweep(db)
-    delete_room.assert_awaited_once_with(session.livekit_room_name)
+    delete_room.assert_awaited_once_with(salon.livekit_room_name)
 
 
 # ─── What the leak actually cost ──────────────────────────────────────────────
 
 def test_the_telephone_code_returns_to_the_pool(db, host):
     """The visible symptom of the leak: a code reserved for a conversation that is over."""
-    session = _session(db, host, age_seconds=settings.max_session_seconds + 1)
+    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
     code = salon_code_service.claim(db)
     db.add(
         Invitation(
-            session_id=session.id,
+            salon_id=salon.id,
             host_user_id=host.id,
             guest_email="guest@example.com",
             guest_phone="",
@@ -121,8 +121,8 @@ def test_the_telephone_code_returns_to_the_pool(db, host):
 
 
 def test_metered_time_is_settled(db, host):
-    """A session abandoned mid-conversation used to leave its span unbilled for good."""
-    _session(db, host, age_seconds=settings.max_session_seconds + 1)
+    """A salon abandoned mid-conversation used to leave its span unbilled for good."""
+    _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
     _sweep(db)
     db.expire_all()
     assert db.get(User, host.id).trial_seconds_used > 0
@@ -130,25 +130,25 @@ def test_metered_time_is_settled(db, host):
 
 # ─── Robustness of the sweep itself ───────────────────────────────────────────
 
-def test_one_stubborn_session_does_not_stop_the_others(db, host):
+def test_one_stubborn_salon_does_not_stop_the_others(db, host):
     """A sweep that aborts halfway is worse than no sweep: the remainder is silently
     skipped on every single run."""
-    first = _session(db, host, age_seconds=settings.max_session_seconds + 10, room="salon-a")
-    second = _session(db, host, age_seconds=settings.max_session_seconds + 20, room="salon-b")
+    first = _salon(db, host, age_seconds=settings.max_salon_seconds + 10, room="salon-a")
+    second = _salon(db, host, age_seconds=settings.max_salon_seconds + 20, room="salon-b")
 
     calls = {"n": 0}
 
-    def _explode_once(session, db_):
+    def _explode_once(salon, db_):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("accounting failed")
         return None
 
-    with patch.object(session_lifecycle, "finalize_session", side_effect=_explode_once), \
-         patch.object(session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock):
-        closed = asyncio.run(session_lifecycle.close_expired_sessions(db))
+    with patch.object(salon_lifecycle, "finalize_salon", side_effect=_explode_once), \
+         patch.object(salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock):
+        closed = asyncio.run(salon_lifecycle.close_expired_salons(db))
 
-    assert len(closed) == 1, "the second session was still reached"
+    assert len(closed) == 1, "the second salon was still reached"
     assert {first.id, second.id}
 
 
@@ -163,12 +163,12 @@ def test_the_handler_action_reports_what_it_closed(db, host):
     """EventBridge invokes this every five minutes; the count is how anyone knows it ran."""
     from src import migrate_handler
 
-    _session(db, host, age_seconds=settings.max_session_seconds + 1)
+    _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
 
     with patch.object(
-        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+        salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ), patch("src.database.SessionLocal", return_value=db), patch.object(db, "close"):
-        result = migrate_handler.handler({"action": "sweep_sessions"}, None)
+        result = migrate_handler.handler({"action": "sweep_salons"}, None)
 
     assert result["status"] == "ok"
     assert result["closed"] == 1
@@ -186,7 +186,7 @@ def _desk_call(db, *, age_seconds: int, answered: bool):
 
     from src.config import settings as cfg
     from src.models.invitation import Invitation
-    from src.models.session import SessionModel
+    from src.models.salon import Salon
     from src.models.user import User
 
     desk = db.query(User).filter(User.email == cfg.front_desk_email).first()
@@ -197,7 +197,7 @@ def _desk_call(db, *, age_seconds: int, answered: bool):
         db.refresh(desk)
 
     born = datetime.now(tz=timezone.utc) - timedelta(seconds=age_seconds)
-    salon = SessionModel(
+    salon = Salon(
         host_user_id=desk.id,
         livekit_room_name=f"salon-desk-{age_seconds}-{answered}",
         source_type="none",
@@ -211,7 +211,7 @@ def _desk_call(db, *, age_seconds: int, answered: bool):
 
     db.add(
         Invitation(
-            session_id=salon.id,
+            salon_id=salon.id,
             host_user_id=desk.id,
             guest_email=cfg.front_desk_email,
             guest_phone="",
@@ -230,9 +230,9 @@ async def test_an_unanswered_call_is_given_up_on_before_the_cap(db):
     """Five minutes, not ten. Nobody clicked the link, so nobody is coming."""
     salon = _desk_call(db, age_seconds=settings.unanswered_call_seconds + 5, answered=False)
     with patch.object(
-        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+        salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ):
-        closed = await session_lifecycle.close_expired_sessions(db)
+        closed = await salon_lifecycle.close_expired_salons(db)
     assert str(salon.id) in closed
 
 
@@ -241,9 +241,9 @@ async def test_an_answered_call_keeps_the_full_cap(db):
     """Somebody picked up. It is a conversation now, and a conversation gets ten minutes."""
     salon = _desk_call(db, age_seconds=settings.unanswered_call_seconds + 5, answered=True)
     with patch.object(
-        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+        salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ):
-        closed = await session_lifecycle.close_expired_sessions(db)
+        closed = await salon_lifecycle.close_expired_salons(db)
     assert str(salon.id) not in closed
 
 
@@ -252,19 +252,19 @@ async def test_a_call_still_ringing_is_left_alone(db):
     """Under five minutes is somebody who has not read their email yet."""
     salon = _desk_call(db, age_seconds=30, answered=False)
     with patch.object(
-        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+        salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ):
-        closed = await session_lifecycle.close_expired_sessions(db)
+        closed = await salon_lifecycle.close_expired_salons(db)
     assert str(salon.id) not in closed
 
 
 @pytest.mark.asyncio
 async def test_a_salon_in_both_lists_is_closed_once(db):
-    """Old enough for the cap and unanswered as well. Finalising twice would bill a session
+    """Old enough for the cap and unanswered as well. Finalising twice would bill a salon
     that had already been settled."""
-    salon = _desk_call(db, age_seconds=settings.max_session_seconds + 60, answered=False)
+    salon = _desk_call(db, age_seconds=settings.max_salon_seconds + 60, answered=False)
     with patch.object(
-        session_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
+        salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ):
-        closed = await session_lifecycle.close_expired_sessions(db)
+        closed = await salon_lifecycle.close_expired_salons(db)
     assert closed.count(str(salon.id)) == 1

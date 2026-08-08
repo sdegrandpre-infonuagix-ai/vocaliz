@@ -49,20 +49,20 @@ async def create_room(room_name: str) -> None:
 SALON_AGENT_NAME = "salon-agent"
 
 
-async def dispatch_agent(room_name: str, *, session_id: str, host_token: str) -> None:
-    """Dispatch the Salon agent into a room, handing it the session context it needs.
+async def dispatch_agent(room_name: str, *, salon_id: str, host_token: str) -> None:
+    """Dispatch the Salon agent into a room, handing it the salon context it needs.
 
     Explicit dispatch rather than room metadata: the agent needs the host's JWT to read
-    session sources and send invitations on the host's behalf, and room metadata is
+    salon sources and send invitations on the host's behalf, and room metadata is
     readable by every participant — including browser guests. Job metadata is
     not, so the token stays out of reach.
 
     Failure is not fatal: the room already exists and participants can talk. The agent
-    simply will not join, which is logged rather than surfaced as a session error.
+    simply will not join, which is logged rather than surfaced as a salon error.
     """
     payload = json.dumps(
         {
-            "session_id": session_id,
+            "salon_id": salon_id,
             "api_url": settings.salon_web_base_url,
             "host_token": host_token,
         }
@@ -96,24 +96,24 @@ async def delete_room(room_name: str) -> bool:
     """Get everyone out of a room: tell them it is over, then delete it.
 
     Deleting the room is what disconnects the participants and stops the agent — ending the
-    session row only settles the accounting. So this is the single point where a conversation
+    salon row only settles the accounting. So this is the single point where a conversation
     actually stops, and it used to swallow its failures into a warning nobody reads.
 
     Announced before deletion, not after, for two reasons. A deleted room cannot be sent
     anything, so afterwards is too late. And it makes the clients independent of this call
     succeeding: they leave because they were told to, not only because their transport
     dropped. That matters because a failure here left everybody sitting in a room with no
-    agent and no session behind it.
+    agent and no salon behind it.
 
     Retried, because a transient LiveKit error is exactly the case that used to strand a
     room permanently — nothing ever tried again.
 
     Returns whether the room is known to be gone, so a caller can react. Still non-fatal: a
-    room that outlives its session must not block the host from opening the next one.
+    room that outlives its salon must not block the host from opening the next one.
     """
     # Best-effort and deliberately not retried: if the room is already gone this fails, which
     # is not worth a second attempt. The deletion below is the part that must be certain.
-    await notify_room(room_name, {"action": "session_ended"})
+    await notify_room(room_name, {"action": "salon_ended"})
 
     last: Exception | None = None
     for attempt in range(1, DELETE_ROOM_ATTEMPTS + 1):
@@ -136,7 +136,7 @@ async def delete_room(room_name: str) -> bool:
         if attempt < DELETE_ROOM_ATTEMPTS:
             await asyncio.sleep(DELETE_ROOM_BACKOFF_SECONDS * attempt)
 
-    # Error, not warning: this leaves participants connected to a room whose session is over,
+    # Error, not warning: this leaves participants connected to a room whose salon is over,
     # and the only reason it was survivable before is that nobody noticed.
     logger.error(
         "LiveKit delete_room failed for %s after %d attempts: %s",
@@ -209,8 +209,8 @@ async def notify_room(
 ) -> None:
     """Publish a JSON data message to a room, or to named participants within it.
 
-    Used to tell the agent that session state changed mid-conversation (a source was
-    added), since it otherwise only reads the session once, at job start.
+    Used to tell the agent that salon state changed mid-conversation (a source was
+    added), since it otherwise only reads the salon once, at job start.
 
     `identities` narrows delivery to those participants; omitting it broadcasts. Note that
     an *empty* list is LiveKit's own way of saying "everyone", so passing a filtered list

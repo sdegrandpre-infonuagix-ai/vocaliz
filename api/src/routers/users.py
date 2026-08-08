@@ -32,7 +32,7 @@ def get_my_profile(current_user: User = Depends(get_current_user)) -> UserProfil
 def get_trial_status(current_user: User = Depends(get_current_user)) -> TrialStatusResponse:
     """Return the authenticated host's free trial usage and remaining time.
 
-    Guests never accumulate trial time — only host-role session seconds count.
+    Guests never accumulate trial time — only host-role salon seconds count.
     """
     limit = settings.free_trial_limit_seconds
     used = current_user.trial_seconds_used
@@ -52,9 +52,9 @@ def get_previous_partners(
 ) -> PreviousPartnersResponse:
     """List the authenticated user's previous discussion partners (Story 5.2).
 
-    Powers quick-start: the app shows this list so the user can begin a new session
+    Powers quick-start: the app shows this list so the user can begin a new salon
     with a known partner without repeating the full voice-invitation flow. Pass the
-    chosen partner's phone number as `partner_phone` to POST /sessions to auto-invite.
+    chosen partner's phone number as `partner_phone` to POST /salons to auto-invite.
     """
     partners = partner_service.get_previous_partners(current_user, db)
     return PreviousPartnersResponse(
@@ -72,7 +72,7 @@ def add_payment_method(
 
     The mobile app collects the card via Stripe Elements and passes the
     resulting PaymentMethod ID here. A Stripe Customer is created on first call.
-    Required before creating a new session once the free trial is exhausted.
+    Required before creating a new salon once the free trial is exhausted.
     """
     try:
         stripe_service.attach_payment_method(current_user, body.paymentMethodId, db)

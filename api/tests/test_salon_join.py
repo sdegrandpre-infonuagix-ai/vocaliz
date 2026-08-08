@@ -1,11 +1,11 @@
-"""Tests for POST /sessions/{session_id}/join (Story 2.6)."""
+"""Tests for POST /salons/{salon_id}/join (Story 2.6)."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from src.models.invitation import Invitation
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -31,9 +31,9 @@ def guest(db):
 
 
 @pytest.fixture
-def active_session(db, host):
+def active_salon(db, host):
     host_user, _ = host
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-join-room",
         source_type="url",
@@ -48,9 +48,9 @@ def active_session(db, host):
 
 
 @pytest.fixture
-def ended_session(db, host):
+def ended_salon(db, host):
     host_user, _ = host
-    sess = SessionModel(
+    sess = Salon(
         host_user_id=host_user.id,
         livekit_room_name="salon-ended",
         source_type="url",
@@ -64,11 +64,11 @@ def ended_session(db, host):
 
 
 @pytest.fixture
-def pending_invitation(db, active_session, guest):
+def pending_invitation(db, active_salon, guest):
     guest_user, _ = guest
     inv = Invitation(
-        session_id=active_session.id,
-        host_user_id=active_session.host_user_id,
+        salon_id=active_salon.id,
+        host_user_id=active_salon.host_user_id,
         guest_email=guest_user.phone_number.lstrip("+") + "@example.com",
         guest_user_id=guest_user.id,
         invitation_type="salon_friend",
@@ -84,26 +84,26 @@ def pending_invitation(db, active_session, guest):
 
 # ─── Auth guard ──────────────────────────────────────────────────────────────
 
-def test_join_requires_auth(client, active_session):
-    resp = client.post(f"/sessions/{active_session.id}/join")
+def test_join_requires_auth(client, active_salon):
+    resp = client.post(f"/salons/{active_salon.id}/join")
     assert resp.status_code == 401
 
 
-# ─── Session status ───────────────────────────────────────────────────────────
+# ─── Salon status ───────────────────────────────────────────────────────────
 
-def test_join_ended_session_returns_409(client, host, ended_session):
+def test_join_ended_salon_returns_409(client, host, ended_salon):
     _, token = host
     resp = client.post(
-        f"/sessions/{ended_session.id}/join",
+        f"/salons/{ended_salon.id}/join",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 409
 
 
-def test_join_unknown_session_returns_404(client, host):
+def test_join_unknown_salon_returns_404(client, host):
     _, token = host
     resp = client.post(
-        f"/sessions/{uuid.uuid4()}/join",
+        f"/salons/{uuid.uuid4()}/join",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 404
@@ -111,10 +111,10 @@ def test_join_unknown_session_returns_404(client, host):
 
 # ─── Host rejoins ────────────────────────────────────────────────────────────
 
-def test_host_can_join_own_session(client, host, active_session):
+def test_host_can_join_own_salon(client, host, active_salon):
     _, token = host
     resp = client.post(
-        f"/sessions/{active_session.id}/join",
+        f"/salons/{active_salon.id}/join",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -126,10 +126,10 @@ def test_host_can_join_own_session(client, host, active_session):
 
 # ─── Invited guest joins ──────────────────────────────────────────────────────
 
-def test_invited_guest_can_join(client, guest, active_session, pending_invitation, db):
+def test_invited_guest_can_join(client, guest, active_salon, pending_invitation, db):
     _, token = guest
     resp = client.post(
-        f"/sessions/{active_session.id}/join",
+        f"/salons/{active_salon.id}/join",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -141,7 +141,7 @@ def test_invited_guest_can_join(client, guest, active_session, pending_invitatio
     assert pending_invitation.status == "accepted"
 
 
-def test_uninvited_user_cannot_join(client, db, active_session):
+def test_uninvited_user_cannot_join(client, db, active_salon):
     stranger = User(email="15149999999@example.com", phone_number="+15149999999")
     db.add(stranger)
     db.commit()
@@ -149,17 +149,17 @@ def test_uninvited_user_cannot_join(client, db, active_session):
     token = issue_token(str(stranger.id))
 
     resp = client.post(
-        f"/sessions/{active_session.id}/join",
+        f"/salons/{active_salon.id}/join",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
 
 
-def test_expired_invitation_cannot_join(client, db, guest, active_session):
+def test_expired_invitation_cannot_join(client, db, guest, active_salon):
     guest_user, token = guest
     inv = Invitation(
-        session_id=active_session.id,
-        host_user_id=active_session.host_user_id,
+        salon_id=active_salon.id,
+        host_user_id=active_salon.host_user_id,
         guest_email=guest_user.phone_number.lstrip("+") + "@example.com",
         guest_user_id=guest_user.id,
         invitation_type="salon_friend",
@@ -171,7 +171,7 @@ def test_expired_invitation_cannot_join(client, db, guest, active_session):
     db.commit()
 
     resp = client.post(
-        f"/sessions/{active_session.id}/join",
+        f"/salons/{active_salon.id}/join",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403

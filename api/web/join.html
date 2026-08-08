@@ -748,13 +748,24 @@
     }
   }
 
-  var LANG_KEY = 'salon_lang';
+  var LANG_KEY = 'vocaliz.lang';
+  // Written under the old project's name until the rename. Carried across on first read
+  // rather than dropped: it is an explicit choice the visitor made, and losing it would
+  // show somebody their own site in the wrong language for no reason they could see.
+  var LEGACY_LANG_KEY = 'salon_lang';
 
   // Precedence: a choice made here, then the browser's own languages, then English.
   function storedLang() {
     // localStorage throws outright under some privacy settings, not just return null.
     try {
       var v = localStorage.getItem(LANG_KEY);
+      if (v === null) {
+        v = localStorage.getItem(LEGACY_LANG_KEY);
+        if (v !== null) {
+          localStorage.setItem(LANG_KEY, v);
+          localStorage.removeItem(LEGACY_LANG_KEY);
+        }
+      }
       // Checked against every supported language, not against what is loaded: a stored
       // choice of Japanese is valid even though its dictionary has not been fetched yet.
       return isSupported(v) ? v : null;
@@ -799,11 +810,11 @@
       return;
     }
     lang = next;
-    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: session only */ }
+    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: this browsing session only */ }
     applyLang();
   }
 
-  // Re-renders static and stateful copy alike. A guest who switches language mid-session
+  // Re-renders static and stateful copy alike. A guest who switches language mid-salon
   // must not be left with a half-translated page, and the parts most likely to matter to
   // them — the microphone line, an error reason — are exactly the stateful ones.
 
@@ -1154,9 +1165,9 @@
     if (!msg) return;
     // Sent by the API just before it deletes the room, so this page learns the salon is over
     // even when that deletion fails — which it used to do silently, leaving a guest connected
-    // to a room with no session behind it. Disconnecting ourselves reuses the Disconnected
+    // to a room with no salon behind it. Disconnecting ourselves reuses the Disconnected
     // handler below rather than duplicating a teardown it already does correctly.
-    if (msg.action === 'session_ended') {
+    if (msg.action === 'salon_ended') {
       if (room) { try { room.disconnect(); } catch (e) { } }
       return;
     }
@@ -1364,7 +1375,7 @@
         // Reset here rather than in leaveNow() so every way out is covered — the Leave
         // button, a dropped network, a deleted room. Otherwise the state stays frozen on
         // "Microphone actif" with the dot still pulsing, asserting something untrue about
-        // a session that no longer exists.
+        // a salon that no longer exists.
         micState = { on: false, denied: false, starting: false, retried: false };
         // Nothing left to hear: the control would offer to unmute a room that is gone.
         audioElements = [];
@@ -1384,7 +1395,7 @@
       await room.connect(creds.livekitUrl, creds.participantToken);
 
       // Reported separately from the connection: a refused microphone still leaves a
-      // usable session (you can hear), and lumping it into the connection error told
+      // usable salon (you can hear), and lumping it into the connection error told
       // the participant the wrong thing. Same path as the retry button, so the first
       // attempt and every later one behave identically.
       await retryMic();
@@ -1566,7 +1577,7 @@
   // see that.
   //
   // A category, never the user agent itself. The header carries browser build, engine version
-  // and often the exact model, which together identify somebody across sessions; the shape of
+  // and often the exact model, which together identify somebody across salons; the shape of
   // their screen does not.
   function deviceType() {
     try {
@@ -1700,7 +1711,7 @@
   function openConsole() {
     if (room && !confirm(T('consoleLeaves'))) return;
     try {
-      if (accountToken) sessionStorage.setItem('salon_host_jwt', accountToken);
+      if (accountToken) sessionStorage.setItem('vocaliz.hostJwt', accountToken);
     } catch (e) {
       // Private mode refuses storage; the console will simply ask them to sign in.
     }

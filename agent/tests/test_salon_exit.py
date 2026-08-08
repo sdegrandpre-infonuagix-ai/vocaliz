@@ -1,4 +1,4 @@
-"""Tests for Story 2.11 + 2.12 + 3.3 — Vocal Session Exit, Satisfaction Question, Anonymous Guest."""
+"""Tests for Story 2.11 + 2.12 + 3.3 — Vocal Salon Exit, Satisfaction Question, Anonymous Guest."""
 import os
 import sys
 
@@ -6,10 +6,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import agent as salon  # noqa: E402
 
 
-# ─── SESSION EXIT instructions present ───────────────────────────────────────
+# ─── SALON EXIT instructions present ───────────────────────────────────────
 
-def test_base_instructions_contain_session_exit_section():
-    assert "SESSION EXIT" in salon._BASE_INSTRUCTIONS
+def test_base_instructions_contain_salon_exit_section():
+    assert "SALON EXIT" in salon._BASE_INSTRUCTIONS
 
 
 def test_base_instructions_list_french_exit_phrase():
@@ -41,17 +41,17 @@ def test_base_instructions_contain_spanish_satisfaction_question():
     assert "¿Fue tu conversación en Vocaliz una bella experiencia?" in salon._BASE_INSTRUCTIONS
 
 
-def test_base_instructions_satisfaction_question_before_end_session():
-    """Satisfaction question step must appear before the end_session call in instructions."""
+def test_base_instructions_satisfaction_question_before_end_salon():
+    """Satisfaction question step must appear before the end_salon call in instructions."""
     instructions = salon._BASE_INSTRUCTIONS
     question_pos = instructions.find(
         "Est-ce que votre conversation dans Vocaliz a été une belle expérience ?"
     )
-    end_session_pos = instructions.find("end_session")
+    end_salon_pos = instructions.find("end_salon")
     assert question_pos != -1
-    assert end_session_pos != -1
-    assert question_pos < end_session_pos, (
-        "Satisfaction question must be described before end_session call in instructions"
+    assert end_salon_pos != -1
+    assert question_pos < end_salon_pos, (
+        "Satisfaction question must be described before end_salon call in instructions"
     )
 
 
@@ -60,27 +60,27 @@ def test_base_instructions_satisfaction_question_mandatory():
     assert "MUST ask the satisfaction question" in salon._BASE_INSTRUCTIONS
 
 
-# ─── end_session function_tool is callable ───────────────────────────────────
+# ─── end_salon function_tool is callable ───────────────────────────────────
 
-def test_salon_agent_has_end_session_tool():
+def test_salon_agent_has_end_salon_tool():
     agent = salon.SalonAgent()
-    assert hasattr(agent, "end_session")
-    assert callable(agent.end_session)
+    assert hasattr(agent, "end_salon")
+    assert callable(agent.end_salon)
 
 
-def test_end_session_tool_is_function_tool():
-    """end_session should be registered as a function_tool (has _is_tool marker or similar)."""
+def test_end_salon_tool_is_function_tool():
+    """end_salon should be registered as a function_tool (has _is_tool marker or similar)."""
     agent = salon.SalonAgent()
     # livekit @function_tool wraps the method — verify the attribute exists
-    assert hasattr(agent, "end_session")
+    assert hasattr(agent, "end_salon")
 
 
-def test_end_session_returns_no_session_context_without_config():
-    """When agent has no session_id/api_url/host_token, end_session returns a known sentinel."""
+def test_end_salon_returns_no_salon_context_without_config():
+    """When agent has no salon_id/api_url/host_token, end_salon returns a known sentinel."""
     import asyncio
     agent = salon.SalonAgent()
-    result = asyncio.run(agent.end_session())
-    assert result == "no_session_context"
+    result = asyncio.run(agent.end_salon())
+    assert result == "no_salon_context"
 
 
 # ─── Story 3.3: satisfaction question for anonymous guests ────────────────────
@@ -227,7 +227,7 @@ def test_the_agent_can_request_an_ad():
     assert callable(getattr(salon.SalonAgent(), "request_ad", None))
 
 
-def test_requesting_an_ad_without_a_session_says_nothing():
+def test_requesting_an_ad_without_a_salon_says_nothing():
     import asyncio
 
     assert asyncio.run(salon.SalonAgent().request_ad()) == "no_ad"
@@ -355,7 +355,7 @@ def test_instructions_forbid_claiming_an_invitation_that_did_not_leave():
 def test_invite_with_neither_contact_is_refused_before_any_call():
     import asyncio
 
-    agent = salon.SalonAgent(session_id="s", api_url="http://x", host_token="t")
+    agent = salon.SalonAgent(salon_id="s", api_url="http://x", host_token="t")
     assert asyncio.run(agent.invite_contact()) == "error:need_email_or_phone"
 
 
@@ -420,17 +420,17 @@ def test_no_results_is_a_real_answer():
     assert "half remember" in section
 
 
-def test_corpus_tools_refuse_without_session_context():
+def test_corpus_tools_refuse_without_salon_context():
     import asyncio
 
     bare = salon.SalonAgent()
-    assert asyncio.run(bare.search_platform(query="iran")) == "no_session_context"
-    assert asyncio.run(bare.read_shared_page(source_id="x", query="y")) == "no_session_context"
+    assert asyncio.run(bare.search_platform(query="iran")) == "no_salon_context"
+    assert asyncio.run(bare.read_shared_page(source_id="x", query="y")) == "no_salon_context"
 
 
 def test_translation_guidance_no_longer_assumes_three_people():
     """The room now holds a host, three guests and the agent."""
-    assert "3-way session" not in salon._BASE_INSTRUCTIONS
+    assert "3-way salon" not in salon._BASE_INSTRUCTIONS
     assert "Up to three people may be in the room" in salon._BASE_INSTRUCTIONS
 
 
@@ -452,7 +452,7 @@ def test_the_prompt_ties_the_charge_to_the_confirmation():
     assert "bills somebody" in section
 
 
-def test_confirming_without_a_session_does_nothing():
+def test_confirming_without_a_salon_does_nothing():
     import asyncio
 
     assert asyncio.run(salon.SalonAgent().confirm_ad_delivered()) == "not_confirmed"

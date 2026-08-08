@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import stripe
 
-from src.models.session import SessionModel
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -119,7 +119,7 @@ def test_add_payment_method_requires_auth(client):
     assert resp.status_code == 401
 
 
-# ─── Session creation gating ─────────────────────────────────────────────────
+# ─── Salon creation gating ─────────────────────────────────────────────────
 
 @pytest.fixture
 def exhausted_host(db):
@@ -130,12 +130,12 @@ def exhausted_host(db):
     return u, issue_token(str(u.id))
 
 
-def test_create_session_blocked_when_trial_exhausted_and_no_payment_method(client, exhausted_host):
-    """POST /sessions returns 402 when trial is exhausted and no payment method exists."""
+def test_create_salon_blocked_when_trial_exhausted_and_no_payment_method(client, exhausted_host):
+    """POST /salons returns 402 when trial is exhausted and no payment method exists."""
     _, token = exhausted_host
 
     resp = client.post(
-        "/sessions",
+        "/salons",
         data={"source_url": "https://example.com/article"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -143,8 +143,8 @@ def test_create_session_blocked_when_trial_exhausted_and_no_payment_method(clien
     assert "trial" in resp.json()["detail"].lower() or "payment" in resp.json()["detail"].lower()
 
 
-def test_create_session_allowed_when_trial_exhausted_with_payment_method(client, db, exhausted_host):
-    """POST /sessions succeeds when trial is exhausted but a payment method exists."""
+def test_create_salon_allowed_when_trial_exhausted_with_payment_method(client, db, exhausted_host):
+    """POST /salons succeeds when trial is exhausted but a payment method exists."""
     host_user, token = exhausted_host
     host_user.stripe_payment_method_id = "pm_existing_method"
     db.commit()
@@ -159,7 +159,7 @@ def test_create_session_allowed_when_trial_exhausted_with_payment_method(client,
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
     ):
         resp = client.post(
-            "/sessions",
+            "/salons",
             data={"source_url": "https://example.com/article"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -167,8 +167,8 @@ def test_create_session_allowed_when_trial_exhausted_with_payment_method(client,
     assert resp.status_code == 201
 
 
-def test_create_session_allowed_when_trial_not_exhausted(client, host):
-    """POST /sessions is not gated when trial has remaining time."""
+def test_create_salon_allowed_when_trial_not_exhausted(client, host):
+    """POST /salons is not gated when trial has remaining time."""
     _, token = host
 
     with (
@@ -181,7 +181,7 @@ def test_create_session_allowed_when_trial_not_exhausted(client, host):
         patch("src.services.livekit_service.generate_participant_token", return_value="tok"),
     ):
         resp = client.post(
-            "/sessions",
+            "/salons",
             data={"source_url": "https://example.com/article"},
             headers={"Authorization": f"Bearer {token}"},
         )

@@ -1,6 +1,6 @@
 """The opening delay is a maximum, not a promise of silence.
 
-Reported from a real session: speaking before the fifteen seconds elapsed got a reply, while
+Reported from a real salon: speaking before the fifteen seconds elapsed got a reply, while
 the counter on screen carried on down to zero — so the wait was visibly a fiction. The fix is
 not to make the agent ignore whoever spoke; it is to stop pretending anyone is still waiting.
 
@@ -17,7 +17,7 @@ from src.opening import OpeningGate
 
 
 class Spoken:
-    """Records openings instead of calling a realtime session."""
+    """Records openings instead of calling a realtime salon."""
 
     def __init__(self, fail: bool = False) -> None:
         self.count = 0
@@ -26,7 +26,7 @@ class Spoken:
     def __call__(self) -> None:
         self.count += 1
         if self._fail:
-            raise RuntimeError("the session refused")
+            raise RuntimeError("the salon refused")
 
 
 async def _settle(seconds: float = 0.05) -> None:
@@ -59,8 +59,8 @@ async def test_inviting_two_people_greets_once():
 
 
 @pytest.mark.asyncio
-async def test_a_refused_opening_does_not_break_the_session():
-    """A session that is otherwise working must survive an opening that fails."""
+async def test_a_refused_opening_does_not_break_the_salon():
+    """A salon that is otherwise working must survive an opening that fails."""
     speak = Spoken(fail=True)
     gate = OpeningGate(speak)
     gate.schedule(0.01)
@@ -87,7 +87,7 @@ async def test_speaking_first_cancels_the_opening():
 async def test_no_reply_is_generated_when_standing_down():
     """Deliberate, and the reason the fix is a cancellation rather than a reschedule.
 
-    The session answers speech on its own, and that answer is the first turn — which the
+    The salon answers speech on its own, and that answer is the first turn — which the
     standing instructions already order as welcome, announcement, then source. Generating a
     second reply on top would have the agent talking over itself.
     """
@@ -148,7 +148,7 @@ async def test_an_invitation_after_speech_still_opens():
     await _settle(0.1)
     assert speak.count == 0
     # A second invitation is refused, because the gate has been spoken for. This is the
-    # deliberate trade: at most one automatic opening per session.
+    # deliberate trade: at most one automatic opening per salon.
     assert gate.schedule(0.01) is False
     await _settle()
     assert speak.count == 0
