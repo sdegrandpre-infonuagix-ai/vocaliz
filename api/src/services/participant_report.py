@@ -73,7 +73,7 @@ def collect(db: DbSession) -> list[dict]:
             SalonEvent.participant_identity,
             func.max(SalonEvent.email).label("email"),
             func.max(SalonEvent.phone).label("phone"),
-            func.count(func.distinct(SalonEvent.salon_name)).label("salons"),
+            func.count(func.distinct(SalonEvent.salon_id)).label("salons"),
             func.max(SalonEvent.entered_at).label("last_seen"),
         )
         .group_by(SalonEvent.participant_identity)
@@ -158,7 +158,7 @@ def collect(db: DbSession) -> list[dict]:
         for token, count in (
             db.query(
                 SalonEvent.device_token,
-                func.count(func.distinct(SalonEvent.salon_name)),
+                func.count(func.distinct(SalonEvent.salon_id)),
             )
             .filter(SalonEvent.device_token.in_(set(token_of.values())))
             .group_by(SalonEvent.device_token)

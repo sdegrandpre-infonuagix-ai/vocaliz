@@ -70,7 +70,7 @@ def list_participants(
             SalonEvent.participant_identity,
             func.max(SalonEvent.email).label("email"),
             func.max(SalonEvent.phone).label("phone"),
-            func.count(func.distinct(SalonEvent.salon_name)).label("salons"),
+            func.count(func.distinct(SalonEvent.salon_id)).label("salons"),
             func.min(SalonEvent.entered_at).label("first_seen"),
             func.max(SalonEvent.entered_at).label("last_seen"),
         )

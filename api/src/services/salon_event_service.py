@@ -47,6 +47,27 @@ def _country(value: str | None) -> str:
     return code if len(code) == 2 and code.isalpha() else ""
 
 
+def _find(db: DbSession, identity: str, salon_id, salon_name: str) -> SalonEvent | None:
+    """The participation of one person in one Salon.
+
+    By id when there is one, which is the only lookup that survives a reconnection into a
+    different room. The fall back to the room name is for callers that have not been given
+    an id yet, and for rows written before salon_id existed.
+    """
+    if salon_id is not None:
+        row = (
+            db.query(SalonEvent)
+            .filter(
+                SalonEvent.participant_identity == identity,
+                SalonEvent.salon_id == salon_id,
+            )
+            .first()
+        )
+        if row is not None:
+            return row
+    return db.get(SalonEvent, (identity, salon_name))
+
+
 def record_entry(
     db: DbSession,
     *,
@@ -55,6 +76,7 @@ def record_entry(
     phone: str = "",
     user_type: str,
     salon_name: str,
+    salon_id=None,
     latitude: float | None = None,
     longitude: float | None = None,
     first_spoken_language: str | None = None,
@@ -65,8 +87,11 @@ def record_entry(
 ) -> None:
     """Note that someone joined a salon.
 
-    Keyed on (participant_identity, salon_name), so re-entering the same salon updates
-    the existing row instead of adding a second one. The absent half of the identity is an
+    Looked up by (participant_identity, salon_id), so re-entering the same Salon updates
+    the existing row instead of adding a second one — including a reconnection that lands
+    in a different room, which under multi-rooms is what a re-entry usually looks like.
+    salon_name is left at whatever room was seen first: it is still part of the primary
+    key, and the interesting room is the one they arrived in. The absent half of the identity is an
     empty string, never None: it is part of a primary key, which cannot hold NULL.
 
     A participant with neither is not recorded at all. The database forbids it, and
@@ -96,7 +121,7 @@ def record_entry(
         return
 
     try:
-        row = db.get(SalonEvent, (identity, salon_name))
+        row = _find(db, identity, salon_id, salon_name)
         if row is None:
             db.add(
                 SalonEvent(
@@ -105,6 +130,7 @@ def record_entry(
                     phone=phone,
                     user_type=user_type,
                     salon_name=salon_name,
+                    salon_id=salon_id,
                     plus_code=code,
                     device_type=device_service.normalise(device_type),
                     country=_country(country),
@@ -150,7 +176,7 @@ def record_entry(
         logger.warning("Could not record entry for %s in %s", user_type, salon_name, exc_info=True)
 
 
-def record_salon_exit(db: DbSession, salon_name: str, *, enjoyed: bool | None = None) -> int:
+def record_salon_exit(db: DbSession, salon_name: str, *, salon_id=None, enjoyed: bool | None = None) -> int:
     """Close every open participation in a salon, and record the closing answer.
 
     Called when the salon ends, which is the only moment the API reliably learns that
@@ -162,7 +188,12 @@ def record_salon_exit(db: DbSession, salon_name: str, *, enjoyed: bool | None = 
     try:
         rows = (
             db.query(SalonEvent)
-            .filter(SalonEvent.salon_name == salon_name, SalonEvent.exited_at.is_(None))
+            .filter(
+                SalonEvent.salon_id == salon_id
+                if salon_id is not None
+                else SalonEvent.salon_name == salon_name,
+                SalonEvent.exited_at.is_(None),
+            )
             .all()
         )
         now = datetime.now(tz=timezone.utc)
@@ -181,7 +212,7 @@ def record_salon_exit(db: DbSession, salon_name: str, *, enjoyed: bool | None = 
 
 
 def record_first_language(
-    db: DbSession, *, salon_name: str, participant_identity: str, language: str
+    db: DbSession, *, salon_name: str, participant_identity: str, language: str, salon_id=None
 ) -> bool:
     """Note the first language heard from one participant of one salon.
 
@@ -193,11 +224,16 @@ def record_first_language(
     entered is noise. Returns whether anything was written.
     """
     try:
-        email, phone, user_type = _resolve_participant(db, participant_identity)
-        if not email and not phone:
+        identity = (participant_identity or "").strip()
+        if not identity:
             return False
 
-        row = db.get(SalonEvent, (email, phone, user_type, salon_name))
+        # This looked the row up with a four-value tuple — (email, phone, user_type,
+        # salon_name) — against a two-column primary key. SQLAlchemy raised every time, the
+        # blanket `except` below swallowed it, and the function returned False: no language
+        # was ever recorded, and nothing said so. The key stopped being those four columns
+        # when the table was rekeyed on the LiveKit identity; this call was not moved with it.
+        row = _find(db, identity, salon_id, salon_name)
         if row is None or row.first_spoken_language is not None:
             return False
 
@@ -210,7 +246,9 @@ def record_first_language(
         return False
 
 
-def is_first_salon(db: DbSession, *, salon_name: str, participant_identity: str) -> bool:
+def is_first_salon(
+    db: DbSession, *, salon_name: str, participant_identity: str, salon_id=None
+) -> bool:
     """Whether this person has ever taken part in a salon other than this one.
 
     The row for the current salon already exists by the time anyone asks — entry is
@@ -230,11 +268,15 @@ def is_first_salon(db: DbSession, *, salon_name: str, participant_identity: str)
         identity = (
             (SalonEvent.email == email) if email else (SalonEvent.phone == phone)
         )
-        prior = (
-            db.query(SalonEvent)
-            .filter(identity, SalonEvent.salon_name != salon_name)
-            .first()
+        # Compared on the Salon, not the room: under multi-rooms every other participant
+        # of *this* conversation sits under a different room name, and comparing those
+        # would report a first-timer as a returning one.
+        elsewhere = (
+            SalonEvent.salon_id != salon_id
+            if salon_id is not None
+            else SalonEvent.salon_name != salon_name
         )
+        prior = db.query(SalonEvent).filter(identity, elsewhere).first()
         return prior is None
     except Exception:  # noqa: BLE001
         logger.warning("Could not check salon history for %s", participant_identity, exc_info=True)

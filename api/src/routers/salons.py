@@ -619,6 +619,7 @@ def join_salon(
         phone=current_user.phone_number or "",
         user_type="host" if is_host else "guest",
         salon_name=salon.livekit_room_name,
+        salon_id=salon.id,
         latitude=body.latitude if body else None,
         longitude=body.longitude if body else None,
         first_spoken_language=current_user.detected_language,
@@ -805,6 +806,7 @@ def participant_history(
         "firstSalon": salon_event_service.is_first_salon(
             db,
             salon_name=salon.livekit_room_name,
+        salon_id=salon.id,
             participant_identity=identity,
         )
     }
@@ -877,6 +879,7 @@ def record_participant_language(
     written = salon_event_service.record_first_language(
         db,
         salon_name=salon.livekit_room_name,
+        salon_id=salon.id,
         participant_identity=body.participantIdentity,
         language=body.language,
     )
@@ -1084,7 +1087,7 @@ def request_ad(
     # as admitting everything, so an ad still plays.
     participations = (
         db.query(SalonEvent.plus_code, SalonEvent.first_spoken_language)
-        .filter(SalonEvent.salon_name == salon.livekit_room_name)
+        .filter(SalonEvent.salon_id == salon.id)
         .all()
     )
     participant_codes = [row[0] for row in participations]
@@ -1307,6 +1310,7 @@ def report_microphone_working(
         phone=current_user.phone_number or "",
         user_type="host",
         salon_name=salon.livekit_room_name,
+        salon_id=salon.id,
         microphone_enabled=True,
     )
     return Response(status_code=204)

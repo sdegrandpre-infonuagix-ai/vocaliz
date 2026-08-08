@@ -226,6 +226,7 @@ def confirm_guest_join(
             phone=invitation.guest_phone or "",
             user_type="guest",
             salon_name=salon.livekit_room_name,
+        salon_id=salon.id,
             latitude=body.latitude if body else None,
             longitude=body.longitude if body else None,
             # The client's own answer when it gave one, the header only as a fallback: an iPad
@@ -348,6 +349,7 @@ def dial_in(code: str, db: DbSession = Depends(get_db)):
         phone=invitation.guest_phone or "",
         user_type="guest",
         salon_name=salon.livekit_room_name,
+        salon_id=salon.id,
         latitude=None,
         longitude=None,
         first_spoken_language="",

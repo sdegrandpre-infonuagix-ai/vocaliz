@@ -1,6 +1,17 @@
+import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
@@ -50,7 +61,23 @@ class SalonEvent(Base):
     # user_type is deliberately no longer part of the key: one identity is one participant in
     # one salon, and the same identity cannot be both host and guest of it.
     participant_identity: Mapped[str] = mapped_column(String(200), primary_key=True)
+    # The LiveKit room. Still part of the key because it is still unique per participant and
+    # because rows whose Salon predates deletion have no id to key on — but it is no longer
+    # what a participation is *about*. Under multi-rooms one Salon spans three room names.
     salon_name: Mapped[str] = mapped_column(String(100), primary_key=True)
+
+    # Which Salon this participation belongs to. This is the grouping key: counting distinct
+    # salons, listing who was in one, closing them all at the end.
+    #
+    # Nullable only for rows written before the Salon was keyed here, or whose Salon was
+    # deleted before the foreign key existed. Everything written from now on has one, and
+    # CASCADE keeps it that way.
+    salon_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("salons.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 
     # Who they are, when that is known. Ordinary columns now rather than key material: they say
     # how to reach somebody, which is a different question from which participant a row is
@@ -156,5 +183,15 @@ class SalonEvent(Base):
         # old rule about contact details, and stronger about presence.
         CheckConstraint(
             "participant_identity <> ''", name="ck_salon_events_identified"
+        ),
+        # One participant, one participation per Salon — whatever room they reconnect into.
+        # Partial because orphaned rows share a NULL salon_id and must not collide.
+        Index(
+            "uq_salon_events_participant_salon",
+            "participant_identity",
+            "salon_id",
+            unique=True,
+            postgresql_where=text("salon_id IS NOT NULL"),
+            sqlite_where=text("salon_id IS NOT NULL"),
         ),
     )

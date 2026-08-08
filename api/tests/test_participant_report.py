@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.models.salon import Salon
 from src.models.salon_event import SalonEvent
 from src.models.user import User
 from src.services import participant_report
@@ -19,9 +20,34 @@ from src.services import participant_report
 NOW = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
 
 
+def _salon(db, room_name):
+    """A real Salon row for a room name, created once and reused.
+
+    The report counts distinct Salons, not distinct rooms — under multi-rooms one
+    conversation spans three room names — so a participation now needs a Salon to point at,
+    and `salon_events.salon_id` carries a foreign key that the test database enforces.
+    """
+    existing = db.query(Salon).filter(Salon.livekit_room_name == room_name).first()
+    if existing is not None:
+        return existing
+    host = User(email=f"host-{room_name}@example.com")
+    db.add(host)
+    db.flush()
+    salon = Salon(
+        host_user_id=host.id,
+        livekit_room_name=room_name,
+        source_type="none",
+        status="active",
+    )
+    db.add(salon)
+    db.flush()
+    return salon
+
+
 def _event(db, email, salon, **kw):
     db.add(
         SalonEvent(
+            salon_id=_salon(db, salon).id,
             # Stable per person by default, which is how a host behaves: they join every
             # salon as their own account UUID, so their salons aggregate into one line. A test
             # about several identities passes them explicitly.

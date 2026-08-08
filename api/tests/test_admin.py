@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from src.config import settings
+from src.models.salon import Salon
 from src.models.salon_event import SalonEvent
 from src.models.user import User
 from src.services.jwt_service import issue_token
@@ -30,12 +31,36 @@ def ordinary(db):
     return _user(db, "someone@example.com")
 
 
+def _salon(db, room_name):
+    """A real Salon row for a room name, created once and reused.
+
+    The console counts distinct Salons, not distinct rooms — one conversation spans three
+    room names under multi-rooms — and salon_events.salon_id carries an enforced foreign key.
+    """
+    existing = db.query(Salon).filter(Salon.livekit_room_name == room_name).first()
+    if existing is not None:
+        return existing
+    host = User(email=f"host-{room_name}@example.com")
+    db.add(host)
+    db.flush()
+    salon = Salon(
+        host_user_id=host.id,
+        livekit_room_name=room_name,
+        source_type="none",
+        status="active",
+    )
+    db.add(salon)
+    db.flush()
+    return salon
+
+
 def _event(
     db, email, salon, *, user_type="host", entered=NOW, language=None, device="",
     identity=None,
 ):
     db.add(
         SalonEvent(
+            salon_id=_salon(db, salon).id,
             # Stable per person by default, which is how a host behaves: they join every salon
             # as their own account UUID, so their salons aggregate into one entry. A test about
             # several identities — two anonymous guests, say — passes them explicitly.
