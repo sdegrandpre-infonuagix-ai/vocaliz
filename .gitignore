@@ -6,3 +6,7 @@
 .ralph/progress.json
 .ralph/status.json
 bmalph/state/
+
+# Byte-compiled files are build output, never source.
+__pycache__/
+*.pyc
