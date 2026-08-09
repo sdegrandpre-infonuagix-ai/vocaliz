@@ -42,6 +42,8 @@ DATA = [
 
 REFERENCE = [
     "code_available",
+    "ads_substitutions",
+    "ads_languages",
     "ads_regions",
     "ads",
     "advertisers_regions",

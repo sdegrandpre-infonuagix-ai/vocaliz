@@ -6,7 +6,6 @@ from sqlalchemy import (
     JSON,
     CheckConstraint,
     DateTime,
-    Numeric,
     String,
     func,
 )
@@ -30,9 +29,10 @@ class Advertiser(Base):
     thing while sorting differently in every query, and one of the two would eventually
     be written by accident.
 
-    Three of the four dimensions are matched against participants, not against the salon:
-    the audience is the people in the room. The keyword list is the exception — it
-    describes what was talked about.
+    The language list is matched against participants rather than against the salon: the
+    audience is the people in the room. The keyword list is the exception — it describes
+    what was talked about. Where an advertiser wants to be heard is said through
+    `advertisers_regions`, in cells, and nowhere else.
 
     Encryption at rest is the Aurora cluster's, as everywhere else: KMS covers the
     storage, its snapshots and its backups, and the contact details are readable in clear
@@ -65,20 +65,9 @@ class Advertiser(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="paused")
 
     # ── Where ─────────────────────────────────────────────────────────────────
-    # ISO 3166-1 alpha-2, uppercase. Matched against the country a participant was
-    # placed in — which is derived from their IP address or their GPS position, and is
-    # NOT a column anywhere yet. See the note at the foot of this class.
-    target_countries: Mapped[list] = mapped_column(StringList, nullable=False, default=list)
-    # ISO 3166-2 subdivisions, for advertisers who want a province rather than a country.
-    target_regions: Mapped[list] = mapped_column(StringList, nullable=False, default=list)
-
-    # A circle, for advertisers whose catchment is a neighbourhood rather than a border:
-    # a restaurant does not want a province. This can only ever match participants who
-    # granted their position — an IP-derived country cannot be tested against a radius of
-    # two kilometres with any honesty.
-    target_latitude: Mapped[float | None] = mapped_column(Numeric(8, 6), nullable=True)
-    target_longitude: Mapped[float | None] = mapped_column(Numeric(9, 6), nullable=True)
-    target_radius_km: Mapped[float | None] = mapped_column(Numeric(7, 2), nullable=True)
+    # Through `advertisers_regions` and nothing else. The JSONB country and subdivision
+    # lists, and the circle, were removed in Story 9.2: see the note at the foot of this
+    # class.
 
     # ── Who ───────────────────────────────────────────────────────────────────
     # BCP-47, lowercase. Matched against a participant's most frequent first-heard
@@ -114,20 +103,6 @@ class Advertiser(Base):
         # can act on.
         CheckConstraint("trim(company) <> ''", name="ck_advertisers_company_not_blank"),
         CheckConstraint("trim(email) <> ''", name="ck_advertisers_email_not_blank"),
-        # A circle is three numbers or none. Two of the three describes nothing, and a
-        # half-written circle would silently match everyone or no one depending on which
-        # part of the query read it first.
-        CheckConstraint(
-            "(target_latitude IS NULL AND target_longitude IS NULL "
-            " AND target_radius_km IS NULL) OR "
-            "(target_latitude IS NOT NULL AND target_longitude IS NOT NULL "
-            " AND target_radius_km IS NOT NULL)",
-            name="ck_advertisers_circle_complete",
-        ),
-        CheckConstraint(
-            "target_radius_km IS NULL OR target_radius_km > 0",
-            name="ck_advertisers_radius_positive",
-        ),
     )
 
 
@@ -140,18 +115,19 @@ class Advertiser(Base):
 #   target_languages  — WORKS. salon_events.first_spoken_language is populated by the
 #                       agent, and the most frequent value per email is one GROUP BY.
 #
-#   target_countries  — NOT YET. salon_events stores a Plus Code, which is a grid cell
-#   target_regions      and not a political boundary. Naming the country or subdivision
-#                       a cell falls in needs reverse geocoding, which does not exist
-#                       here. These lists can be stored and cannot be applied.
+#   where             — THROUGH advertisers_regions, which resolves to Open Location Code
+#                       cells comparable against salon_events.plus_code as strings.
 #
-#   target_radius_km  — COARSELY, AND ONLY DOWN TO A FEW KILOMETRES. A participant's
-#                       position is a cell about five and a half kilometres across, so
-#                       the distance available is from the centre of that cell with its
-#                       own size as the error bar. A radius under that cannot mean
-#                       anything, and a restaurant wanting two kilometres will not get
-#                       it. Everyone who declined the location prompt — the common case
-#                       — is invisible to a circle at any radius.
+#                       The JSONB target_countries and target_regions lists, and the
+#                       target_latitude / target_longitude / target_radius_km circle, were
+#                       dropped in Story 9.2. They were storable and never applicable:
+#                       salon_events holds a grid cell, not a political boundary, and
+#                       naming the country a cell falls in needs reverse geocoding that
+#                       does not exist here. The circle failed for a second reason — a
+#                       position is a cell about five and a half kilometres across, so a
+#                       restaurant asking for two kilometres could never have been served
+#                       honestly, and everyone who declined the location prompt was
+#                       invisible to it at any radius.
 #
 #   target_keywords   — NOT AT ALL. Nothing in the schema describes what a salon was
 #                       about. Conversations are never transcribed or stored, so the

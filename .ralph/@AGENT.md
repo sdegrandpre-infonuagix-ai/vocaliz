@@ -156,9 +156,24 @@ never a preference — silence is not an available outcome. `rendered_text` retu
 `(text, verbatim)`: a substitution applies to one language only and, when it does, no
 cleaning, condensation or shortening may touch it.
 
-**Not done in 9.2:** the `ad_languages` and substitution tables (the module takes them as
-plain attributes), and the removal of the dead `advertisers.target_countries` /
-`target_regions` / `circle` JSONB columns.
+The inventory is real (migration 051). `ads_languages` names the languages an ad is meant to
+be heard in — a targeting criterion about the humans, not a property of the text — and
+`ads_substitutions` holds wording required word for word in one language. Rows rather than
+lists, matching `ads_regions`: one ad addresses several regions and several languages with no
+row per combination. **Empty on a dimension means unrestricted there; empty on both is what
+makes an ad generic**, derived rather than stored, so nothing can claim to be generic while
+carrying targeting. `ads.indicative_seconds` is indicative and never contractual — what counts
+in the lag is the duration actually rendered.
+
+`inventory(db)` reads the tables into frozen values (no ORM row ever reaches selection, so
+nothing lazy-loads mid-Salon); `heard_in_salon(db, salon_id)` reads `ad_broadcasts` for the
+**last delivery** of each ad, delivered ones only — the same distinction that stops an
+advertiser being charged for a sentence nobody heard.
+
+Migration 051 also drops the third geography: `advertisers.target_countries`, `target_regions`
+and the lat/long/radius circle. They were storable and never applicable — `salon_events` holds
+a grid cell, not a political boundary. Two ways remain, `ads_regions` and `advertisers_regions`,
+both resolving to strings.
 
 ### API — location consent (Story 9.1 / FR50)
 

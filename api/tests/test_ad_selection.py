@@ -23,28 +23,27 @@ somewhere they did not choose.
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from src.ad_selection import CELL_DIGITS, choose_ad, rendered_text
+from src.ad_selection import CELL_DIGITS, Advertisement, choose_ad, rendered_text
 
 NOW = datetime(2026, 3, 1, tzinfo=timezone.utc)
 
 
-class FakeAd:
-    """Enough of an advertisement to choose between them."""
+def _ad(name, *, cells=("87G8Q2",), languages=("en",), pitch=None,
+        spoken_language="en", substitutions=None, seconds=0):
+    """One advertisement, as selection sees it — the same value `inventory()` produces.
 
-    def __init__(self, name, *, cells=("87G8Q2",), languages=("en",), pitch=None,
-                 spoken_language="en", substitutions=None, generic=False):
-        self.id = uuid.uuid4()
-        self.name = name
-        self.cells = set(cells)
-        self.languages = set(languages)
-        self.sales_pitch = pitch or f"{name} is worth your time."
-        self.spoken_language = spoken_language
-        self.substitutions = substitutions or {}
-        self.generic = generic
-
-
-def _ad(name, **kwargs):
-    return FakeAd(name, **kwargs)
+    Empty on a dimension means unrestricted there; empty on both is what makes an
+    advertisement generic, which is why no test sets that flag by hand.
+    """
+    return Advertisement(
+        id=uuid.uuid4(),
+        cells=frozenset(cells),
+        languages=frozenset(languages),
+        sales_pitch=pitch or f"{name} is worth your time.",
+        spoken_language=spoken_language,
+        substitutions=substitutions or {},
+        indicative_seconds=seconds,
+    )
 
 
 # ── Two criteria, and only two ────────────────────────────────────────────────
@@ -124,10 +123,24 @@ def test_the_comparison_is_exact_rather_than_by_prefix():
 def test_a_participant_with_no_cell_still_gets_something():
     """Somebody who refused geolocation (Story 9.1). They hear untargeted advertising, never
     silence."""
-    generic = _ad("generic", generic=True)
+    generic = _ad("generic", cells=(), languages=())
     local = _ad("local", cells=("87G8Q2",), languages=("fr",))
 
     assert choose_ad([generic, local], cell="", language="fr", heard={}) is generic
+
+
+def test_an_ad_naming_no_cell_reaches_every_cell():
+    """Empty means unrestricted on that dimension, as it already does for an advertiser's
+    lists. Anything else leaves a language-only campaign matching nobody at all."""
+    anywhere = _ad("anywhere", cells=(), languages=("fr",))
+
+    assert choose_ad([anywhere], cell="87G8Q2", language="fr", heard={}) is anywhere
+
+
+def test_an_ad_naming_no_language_reaches_every_language():
+    local = _ad("local", cells=("87G8Q2",), languages=())
+
+    assert choose_ad([local], cell="87G8Q2", language="de", heard={}) is local
 
 
 # ── Nothing heard twice while anything is unheard ─────────────────────────────
@@ -178,14 +191,14 @@ def test_the_choice_is_settled_when_two_were_heard_at_the_same_moment():
 
 def test_a_generic_ad_is_served_when_nothing_matches():
     """Rather than a silence or an error. The slot exists because the tier sells it."""
-    generic = _ad("generic", generic=True)
+    generic = _ad("generic", cells=(), languages=())
     elsewhere = _ad("elsewhere", cells=("9C3XGV",), languages=("de",))
 
     assert choose_ad([generic, elsewhere], cell="87G8Q2", language="fr", heard={}) is generic
 
 
 def test_a_targeted_ad_beats_a_generic_one():
-    generic = _ad("generic", generic=True)
+    generic = _ad("generic", cells=(), languages=())
     local = _ad("local", cells=("87G8Q2",), languages=("fr",))
 
     assert choose_ad([generic, local], cell="87G8Q2", language="fr", heard={}) is local

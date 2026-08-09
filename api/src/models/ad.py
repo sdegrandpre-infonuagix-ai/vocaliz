@@ -79,6 +79,12 @@ class Ad(Base):
     # this module.
     topic: Mapped[str] = mapped_column(String(200), nullable=False, default="")
 
+    # Roughly how long the creative takes to say. Indicative and never contractual: the same
+    # text translated runs to different lengths in different languages, so what counts in an
+    # interpreter's lag is the duration actually rendered, not this. Zero means nobody
+    # estimated it, which is more honest than a made-up figure.
+    indicative_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -100,6 +106,9 @@ class Ad(Base):
             "number_of_broadcasts_left >= 0", name="ck_ads_broadcasts_not_negative"
         ),
         CheckConstraint("bid_cents >= 0", name="ck_ads_bid_not_negative"),
+        CheckConstraint(
+            "indicative_seconds >= 0", name="ck_ads_indicative_seconds_not_negative"
+        ),
     )
 
 
@@ -128,6 +137,72 @@ class AdRegion(Base):
     )
 
 
+class AdLanguage(Base):
+    """One language an ad is meant to be heard in.
+
+    A targeting criterion, at the same level as a cell: it names the languages spoken by the
+    humans the ad will be read to, and not a property of the text — the creative is written
+    once in `spoken_language` and translated for whoever is listening, exactly as a turn of
+    speech is.
+
+    A row per language rather than a list on the ad, matching `ads_regions`: one ad addresses
+    several regions and several languages without a row per combination.
+
+    An ad with no rows here is unrestricted by language, the same way an advertiser's empty
+    list means "no restriction on this dimension". An ad with no rows in either table is
+    generic, and generic is the fallback served when nothing matches a participant's segment.
+    """
+
+    __tablename__ = "ads_languages"
+
+    ad_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ads.ad_id", ondelete="CASCADE"), primary_key=True
+    )
+    # BCP-47, lowercase, as everywhere else.
+    language: Mapped[str] = mapped_column(String(10), primary_key=True)
+
+    __table_args__ = (
+        CheckConstraint("trim(language) <> ''", name="ck_ads_languages_not_blank"),
+    )
+
+
+class AdSubstitution(Base):
+    """Wording an advertiser requires word for word, in one language.
+
+    A brand form or a legal order. When one exists for the language a participant is heard
+    in, it replaces the translated creative and no interpretation step may touch it — no
+    disfluency cleaning, no condensation, no shortening for lag. All three would alter
+    wording supplied precisely because it must not be altered, which is the whole of what a
+    substitution guarantees.
+
+    One language only. The others carry on being translated from the canonical creative, so
+    an advertiser constrained in French is not forced to author every other language too.
+    """
+
+    __tablename__ = "ads_substitutions"
+
+    ad_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ads.ad_id", ondelete="CASCADE"), primary_key=True
+    )
+    language: Mapped[str] = mapped_column(String(10), primary_key=True)
+
+    # Text, and bounded by the same CHECK as the pitch it stands in for.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "trim(language) <> ''", name="ck_ads_substitutions_language_not_blank"
+        ),
+        # A blank substitution would be read out as a silence exactly where the canonical
+        # creative would have been said — worse than having no substitution at all.
+        CheckConstraint("trim(text) <> ''", name="ck_ads_substitutions_text_not_blank"),
+        CheckConstraint(
+            f"length(text) BETWEEN 1 AND {SALES_PITCH_MAX}",
+            name="ck_ads_substitutions_text_length",
+        ),
+    )
+
+
 # ─── What these tables are not yet wired to ──────────────────────────────────
 #
 #   ads_regions       WORKS against salon_events.plus_code, provided the codes are stored
@@ -145,17 +220,17 @@ class AdRegion(Base):
 #   owner             PRESENT. advertiser_id ties an ad to its advertiser, and through
 #                     advertisers_regions to the named regions that advertiser bought.
 #
-#   GEOGRAPHY, THREE WAYS. There are now three ways to say where an ad may be heard, and
-#   that is one too many:
+#   ads_languages     WORKS. The languages the ad is meant to be heard in, a targeting
+#                     criterion at the same level as a cell.
+#
+#   GEOGRAPHY, TWO WAYS. There were three, and the third is gone as of Story 9.2:
 #
 #     ads_regions                  cells listed directly on the ad
 #     advertisers_regions          named regions bought by the advertiser, resolving to
 #       + region_google_plus_codes cells through the region
-#     advertisers.target_countries the original JSONB lists and circle — which never had
-#       target_regions, circle     any data behind them, because naming the country a
-#                                  cell falls in needs reverse geocoding that does not
-#                                  exist here
 #
-#   The third should go. The first two answer the same question at different grains — an
-#   ad covering one street versus an advertiser covering a city — and both resolve to
-#   strings comparable against salon_events.plus_code with no geometry involved.
+#   The two answer the same question at different grains — an ad covering one street
+#   versus an advertiser covering a city — and both resolve to strings comparable against
+#   salon_events.plus_code with no geometry involved. The JSONB lists and circle that used
+#   to sit beside them on `advertisers` never had data behind them and never could: naming
+#   the country a cell falls in needs reverse geocoding that does not exist here.

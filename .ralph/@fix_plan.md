@@ -89,7 +89,7 @@
 > Goal: Les participants en Base et en Mode A entendent des annonces pertinentes pour leur région, dans leur langue, glissées entre deux messages et jamais au milieu d'une pensée.
 
 - [x] Story 9.1: Consentement de Géolocalisation à l'Inscription
-- [ ] Story 9.2: Adaptation de l'Échange Publicitaire Hérité
+- [x] Story 9.2: Adaptation de l'Échange Publicitaire Hérité
   > As a exploitant de Vocaliz
   > I want conserver l'échange publicitaire de Salon et l'adapter à la topologie multi-rooms
   > So that je ne remplace pas un système d'enchères par une table d'inventaire.
