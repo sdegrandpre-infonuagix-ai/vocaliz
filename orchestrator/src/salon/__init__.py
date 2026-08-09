@@ -3,6 +3,7 @@
 `rooms` is what makes echo unavailable rather than cancelled — one human per room, always.
 `conductor` is what ties that to the journal of Story 6.3 and the Interpreter port of 6.2.
 """
+from src.salon.advertising import Diffusion, Regie, RegieFake
 from src.salon.conductor import NotTheHost, Salon
 from src.salon.history import (
     DEFAULT_HISTORY_FOR_ARRIVALS,
@@ -47,6 +48,7 @@ __all__ = [
     "HistoryAccess",
     "AS_SPOKEN",
     "DEFAULT_CAPTION_SCALE",
+    "Diffusion",
     "InMemoryRoomProvisioner",
     "InMemoryVideoPath",
     "MAX_VIDEO_BITRATE_KBPS",
@@ -61,6 +63,8 @@ __all__ = [
     "RoomClosed",
     "RoomProvisioner",
     "Pair",
+    "Regie",
+    "RegieFake",
     "Salon",
     "SpeakingBoard",
     "Voice",

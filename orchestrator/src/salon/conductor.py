@@ -32,6 +32,7 @@ from src.salon.notices import (
     vocaliz_is_busy,
     on_the_telephone,
 )
+from src.salon.advertising import Regie
 from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
 from src.salon.rooms import Room, RoomProvisioner
 from src.salon.meta_speech import MetaSpeechQueue, Urgency
@@ -94,6 +95,14 @@ class Seat:
     # by, in seconds of content. Reset at every seam, so it measures one continuous
     # intervention rather than how much somebody has said all evening.
     monologue_seconds: float = 0.0
+    # Story 9.3. Whether a broadcast is owed to this listener. Set when the moment comes and
+    # spent at the next placement, which may be several messages later — the frequency is
+    # the tier's business (FR33) and the placement is this Salon's.
+    owes_advert: bool = False
+    # Who this listener last actually heard. Their own messages never reach them, so their
+    # own identifier can never appear here — which is what keeps two of somebody's messages
+    # either side of their own from looking like a change of speaker.
+    last_heard: str = ""
 
 
 class Salon:
@@ -111,6 +120,7 @@ class Salon:
         unblock_threshold_seconds: float | None = None,
         monologue_ceiling_seconds: float | None = None,
         video: VideoPath | None = None,
+        regie: Regie | None = None,
         settings: SalonSettings | None = None,
     ) -> None:
         # Story 7.1. The persisted parameters supply the operational numbers; either can
@@ -157,6 +167,9 @@ class Salon:
         )
         # Optional: a deployment without it loses the pictures and nothing else.
         self._video = video
+        # Story 9.3. Optional in the same way: a deployment without an exchange hears no
+        # advertising and is otherwise identical.
+        self._regie = regie
         # Story 6.15. LiveKit publishes speaking state per room; the humans share none, so
         # this is what carries it between them.
         self._speaking = SpeakingBoard()
@@ -580,6 +593,11 @@ class Salon:
             return True
 
         await self.log.advance(participant_id, pending[-1].sequence)
+        # Story 9.3. A summary is not a message from a person, so nothing spans it: the next
+        # message is not a change of speaker whatever came before, and an advertisement
+        # immediately after being told the gist of four people is not what this listener
+        # needs to hear next.
+        seat.last_heard = ""
         await self._say_held(seat)
         return True
 
@@ -610,6 +628,17 @@ class Salon:
             # already know, and a journal every reader reads is exactly what would say it
             # back to them.
             if entry.participant_id != participant_id:
+                # Story 9.3. Before the introduction, not after: the introduction belongs to
+                # the message it precedes, and an advertisement between "Sofia says" and what
+                # Sofia said would be inside that pair rather than between two messages.
+                if self._advert_slot(seat, speaker=entry.participant_id):
+                    await self._broadcast(seat)
+                    # The conversation did not stop while it was read. If that has put this
+                    # listener past the threshold, the backlog is said in substance and the
+                    # cursor jumps past it — so there is nothing left of this batch to render.
+                    if await self._condense_if_far_behind(seat):
+                        return
+
                 # Who is speaking, before what they said (Story 6.9). Failing to say it must
                 # not cost the message it introduces, so this does not raise.
                 await self._introduce(seat, entry.participant_id)
@@ -623,6 +652,9 @@ class Salon:
                     return
 
                 seat.mid_run = entry.mid_run
+                # Story 9.3. Who they last actually heard, which is what makes the next
+                # message either a change of speaker or a continuation.
+                seat.last_heard = entry.participant_id
                 # Story 7.4. One continuous intervention, so it accumulates across the
                 # pieces of a run and is cleared at the seam below.
                 seat.monologue_seconds += content_seconds(entry.text)
@@ -673,6 +705,89 @@ class Salon:
         seat.held.add(annonce, urgency=urgency)
         if self._may_interrupt(seat):
             await self._say_held(seat)
+
+    # ── Advertising ───────────────────────────────────────────────────────────
+
+    @property
+    def regie(self) -> Regie | None:
+        return self._regie
+
+    def advertising_due(self, participant_id: str) -> None:
+        """The moment to broadcast has come for one listener (FR33).
+
+        It records a debt and nothing more. Nothing is drawn and nothing is said here: the
+        advertisement goes at the next placement, which may be several messages away, and
+        drawing now would choose against a record of what this listener has heard that is
+        already going stale. How often this is called is the tier's business; where the
+        result lands is this Salon's.
+
+        Not a coroutine, because nothing about it can fail or wait.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is not None:
+            seat.owes_advert = True
+
+    def _advert_slot(self, seat: Seat, *, speaker: str) -> bool:
+        """Whether an advertisement may go in immediately before this speaker's message.
+
+        Between two messages from two *different* people. A seam is not enough on its own —
+        somebody may carry straight on with a second message, and wedging an advertisement
+        between two of their sentences is barely better than cutting one in half. A change of
+        speaker is a place a listener already expects to be interrupted at.
+
+        The exception is the monologue ceiling (Story 7.4). Past it there may be no change of
+        speaker for a very long time, and honouring the placement rule would mean one person
+        talking at length makes the room unreachable — which is the same failure the ceiling
+        exists to stop, arriving by another route.
+        """
+        if not seat.owes_advert:
+            return False
+        if seat.monologue_seconds > self._monologue_ceiling:
+            return True
+        if not self._may_interrupt(seat):
+            return False
+        # An empty `last_heard` is a listener who has heard nothing yet: there is only one
+        # message, so there is no *between* to put anything in.
+        return bool(seat.last_heard) and seat.last_heard != speaker
+
+    async def _broadcast(self, seat: Seat) -> None:
+        """Draw one advertisement and say it. The slot is spent either way.
+
+        Spent whatever came of it — an empty inventory, an unreachable exchange, an adapter
+        that could not speak. A debt that survived its own attempt would be retried at every
+        boundary for the rest of the Salon, which is how one missed slot becomes a listener
+        hearing advertising continuously.
+        """
+        seat.owes_advert = False
+        if self._regie is None:
+            return
+
+        try:
+            diffusion = await self._regie.draw(
+                seat.participant.id, language=seat.participant.language
+            )
+        except Exception:  # noqa: BLE001
+            # Deliberately everything. A Salon must not go down because an advertising
+            # exchange did: the conversation is the product, and this is how one tier of it
+            # is paid for.
+            return
+
+        if diffusion is None:
+            return
+
+        try:
+            await seat.interpreter.insert_annonce(diffusion.annonce)
+        except InterpreteError:
+            # Never spoken, so never confirmed and never billed. That is the whole purpose
+            # of `ad_broadcasts.delivered_at` being separate from the reservation.
+            return
+
+        try:
+            await self._regie.delivered(diffusion)
+        except Exception:  # noqa: BLE001
+            # The listener heard it; the exchange did not hear that they did. Failing
+            # towards not billing is the right direction to fail in.
+            return
 
     def _may_interrupt(self, seat: Seat) -> bool:
         """Whether something third-party may be said to this listener right now.

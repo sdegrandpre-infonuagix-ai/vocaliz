@@ -137,6 +137,36 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### Orchestrator — where an advertisement goes (Story 9.3 / FR39, FR33)
+
+`orchestrator/src/salon/advertising.py` (the `Regie` port, `Diffusion`, `RegieFake`) plus the
+placement in `conductor.py`. The exchange is inherited and lives on the API side; this is the
+port an interpreter reaches it through and the whole of what the conversation process knows
+about advertising.
+
+`Salon.advertising_due(participant_id)` records a **debt** and nothing else — not a coroutine,
+because nothing about it can fail or wait. Frequency is the tier's business (FR33); placement
+is the Salon's. The draw happens at the placement, not when the moment comes, so the choice is
+made against a current record of what this listener has heard.
+
+**The placement rule:** between two messages from two *different* people. A seam alone is not
+enough — somebody may carry straight on, and wedging an ad between two of their sentences is
+barely better than cutting one in half. The listener's own messages are never one side of the
+boundary (they never hear them), a first message has no *between*, and nothing spans a
+summary. Past `monologue_ceiling_seconds` the rule is suspended, or one person talking at
+length would make the room unreachable by another route.
+
+`_broadcast` spends the slot **whatever came of it** — empty inventory, unreachable exchange,
+adapter that could not speak. A debt surviving its own attempt would be retried at every
+boundary for the rest of the Salon. `delivered` is called only after the words were actually
+spoken, so nothing is billed that nobody heard; both exchange calls swallow exceptions, since
+a Salon must not go down because an ad exchange did.
+
+After the ad, `_condense_if_far_behind` runs again: the conversation did not stop while it was
+read, and past `condensation_threshold` the backlog is said in substance. No verbatim flag is
+needed anywhere — an ad is inserted, never journalled, so no condensation or shortening can
+reach the wording Story 9.2 promised word for word.
+
 ### API — choosing an advertisement (Story 9.2 / FR39, FR50)
 
 `api/src/ad_selection.py`. The inherited exchange is untouched — auction, billing and proof of
