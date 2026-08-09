@@ -16,6 +16,12 @@ present. Somebody invited by telephone has a number and no address, and demandin
 would be demanding a second identifier to prove the first. The CHECK is what keeps "either"
 from becoming "neither" — which is the anonymous access this story exists to remove.
 
+**The downgrade will fail once anybody has signed up by telephone alone**, and that is a
+property of the change rather than a defect in the reversal: `SET NOT NULL` cannot succeed
+while rows hold a NULL address. Reversing it means deciding what becomes of those accounts,
+which is not a decision a migration should make silently — so it raises rather than inventing
+an address for them.
+
 Revision ID: 052
 Revises: 051
 """
