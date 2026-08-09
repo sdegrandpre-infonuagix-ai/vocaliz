@@ -119,6 +119,26 @@ through somebody's sentence. `Salon.announce` holds an announcement back while a
 is mid-run and says it at the seam's end: an announcement dropped between two halves of a
 sentence is worse than the same announcement a second later.
 
+## Who speaks when
+
+Nobody is given the floor. There is no turn, no request to speak and no allocation by the
+agent — FR9 is not unimplemented, it is removed — and `test_arrival_order.py` asserts that
+no method on `Salon` could hand somebody the right to speak.
+
+The order of the journal *is* the order of arrival, because positions are assigned
+monotonically as messages arrive. No second structure is kept in step with it, and reading
+follows the positions rather than the clock: NTP moves a drifting clock backwards, and what
+was already said must not become something said later.
+
+`arrival_key` is for comparing messages that did not come from the same journal — the
+arrival timestamp decides, and the position settles ties. There are plenty of those: a
+clock has finite resolution, two rooms can hand over inside the same microsecond, and the
+pieces of one split intervention deliberately share a single instant.
+
+Positions are assigned before the first `await`, so two arrivals genuinely in flight
+together cannot land on the same one, and two long interventions arriving at once still
+occupy two unbroken stretches.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and
