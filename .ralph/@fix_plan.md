@@ -77,12 +77,7 @@
 - [x] Story 8.3: Configuration des Trois Options par l'Hôte à la Création
 - [x] Story 8.4: Configuration des Trois Options par le Participant à la Jonction
 - [x] Story 8.5: Salon Mixte et Persistance du Mode
-  > As a participant
-  > I want conserver mon mode tout le Salon
-  > So that mon expérience reste stable et prévisible.
-  > AC: Given trois participants ont choisi trois modes différents, When le Salon se déroule, Then chacun vit son propre mode et l'orchestrateur ne fait aucune distinction entre eux, And Given un participant a choisi son mode, When le Salon se poursuit, Then ce mode persiste jusqu'à la fin, sauf changement explicite de sa part, And Given un participant change explicitement de mode en cours de Salon, When le changement est appliqué, Then l'adaptateur de sa room est remplacé sans rupture de Salon
-  > Spec: specs/planning-artifacts/epics.md#story-8-5
-- [ ] Story 8.6: Facturation par Mode et Option « L'Hôte Paie Tout »
+- [x] Story 8.6: Facturation par Mode et Option « L'Hôte Paie Tout »
   > > ⚠️ **À ADAPTER — la facturation existe, mais post-payée et à tarif unique.** `services/stripe_service.py`, `users.billed_seconds`, `users.stripe_customer_id`, `users.stripe_payment_method_id` et la table `billing_events` fonctionnent : Salon facture l'hôte après le Salon, 5 USD/h au-delà de l'essai.
   > > **Le changement :** quatre paliers, chacun payant le sien, et un **prépayé** qui inverse le sens du flux.
   > L'intégration Stripe et le moyen de paiement enregistré se reprennent tels quels ; la logique de calcul, non.

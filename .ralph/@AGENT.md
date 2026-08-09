@@ -137,6 +137,24 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — billing by mode (Story 8.6 / FR22, FR42)
+
+`api/src/billing.py`. `cost_cents(tier, seconds)` prorates to the second and rounds **down**
+— a bill should never exceed the thing it is for. `charge_for` takes it from the balance via
+`credit.debit` (gifted first) and is **capped at what is there**: the uncovered part is
+reported as `shortfall_cents` and `ends_salon`, never owed. That cap is the whole prepaid
+design — a system able to invoice past the balance would collect more and would also let
+somebody walk away owing money they never agreed to spend.
+
+`charge_for(..., heads=N)` is how the host covering the room is billed: Mode B per head, out
+of the host's balance, with every guest's own balance untouched. `host_pays_quote` states the
+**maximum** hourly cost in money and `requires_confirmation` until `confirmed()` — "the host
+pays" without a number is an option somebody agrees to without knowing what they agreed to.
+
+**Not done in 8.6:** nothing calls `charge_for` yet. The old post-paid path
+(`stripe_service`, `users.billed_seconds`, `billing_events`) still runs; this is the new
+calculation sitting beside it, not a cutover.
+
 ### API — per-participant options (Story 8.4 / FR35, FR42)
 
 `api/src/participation.py` + `salon_participant_options` (migration 049). `join_options`
