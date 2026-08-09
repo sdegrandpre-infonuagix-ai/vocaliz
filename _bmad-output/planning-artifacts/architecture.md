@@ -951,3 +951,15 @@ Un second garde-fou interdit à `conductor.py` d'appeler `seat.interpreter.rende
 **Le curseur avance à la remise du script, pas à la confirmation de l'agent.** Cela ressemble à un message perdu en puissance et n'en est pas un : dans cette topologie une room tient un humain et son agent, donc un agent qui meurt emporte la room, et il ne reste personne pour avoir manqué quoi que ce soit. Livrer deux fois, ce que l'autre choix risque, est en revanche une panne qu'un auditeur remarque — il ne distingue pas une répétition de quelqu'un qui redit la même chose.
 
 Il reste donc **deux appels HTTP et non trois** : demander son script, rapporter ce que l'humain a dit.
+
+### Qui tient quel Salon, et pourquoi c'est écrit
+
+Un Salon est fait de trois choses, pas de deux. L'hôte crée sa room LiveKit et son Salon d'un même geste ; l'API désigne dans la foulée l'orchestrateur qui prend la conversation, et écrit son adresse dans `salons.orchestrator_url`.
+
+**Écrite plutôt que déduite.** Un Salon est étatique là où une room ne l'est pas : le journal, la position de chaque lecteur, qui a été présenté à qui. Une seule instance tient cela à la fois, et toute autre instance répondant pour le même Salon servirait une seconde version, plus vide, de la même conversation. Un répartiteur en tourniquet produirait exactement cela. Tous les agents d'un Salon doivent joindre la même adresse, et cette adresse est un fait à propos de ce Salon.
+
+**Jamais sur le chemin critique.** L'appel est un `PUT` idempotent, et son échec — injoignable, en drain, lent, absent — n'empêche pas le Salon de s'ouvrir. Il s'ouvre sans traduction et la colonne nulle le dit franchement. Un hôte ne doit pas être arrêté parce qu'un second service redémarre.
+
+**Nul est aussi l'état normal aujourd'hui**, aucun orchestrateur n'étant déployé. `ORCHESTRATOR_BASE_URL` vide rend l'appel inerte : aucune requête n'est faite. Une adresse par défaut ne résolvant vers rien transformerait chaque création de Salon en attente d'un refus de connexion, ce qui dit « pas encore construit » plus mal que de ne rien faire.
+
+`orchestrator_url` redevient nul quand l'instance qui tenait le Salon est drainée sans reprise. Le journal survit à cela (NFR8), l'affinité non — et cette asymétrie est précisément ce qui fait de l'affinité une préférence plutôt qu'une condition de survie.
