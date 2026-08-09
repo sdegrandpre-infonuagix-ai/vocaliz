@@ -137,6 +137,29 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — prepaid metering (Story 8.7 / FR63)
+
+`api/src/metering.py`. Consumption accumulates in whole **cent-seconds** (rate/hour ×
+seconds) and becomes cents exactly once, at the boundary, by integer division — no float ever
+touches the ledger, because a balance built out of unrepresentable fractions drifts in a
+direction nobody chose. `Meter.take_cents()` hands over the whole cents and *keeps the
+remainder*, so nothing is lost, only deferred.
+
+`billable_seconds` floors to whole `SAMPLE_SECONDS` (5) blocks: a partial block was never
+measured, and billing an unmeasured duration is what gets contested. Under five seconds bills
+nothing — an accepted consequence, not an oversight. Rounding is downward in the customer's
+favour, deliberately *not* the same as FR63's verification rounding, which goes up.
+
+`effective_rate_cents_per_hour` sums every tier a payer carries plus any telephone
+supplement, recomputed instantly when the room changes — free, because the balance stays in
+cents and only the rate moves. `remaining_seconds` is a *view* of the cents, never a stored
+unit, and returns `None` at a zero rate rather than dividing by it.
+
+**Not done in 8.7:** the recharge flow itself — voice consent, Stripe off-session
+`PaymentIntent`, the link fallback across channels, refusal and the 5-minute expiry. Only
+`top_up_cents` and the weekly/monthly granularity exist. That half needs Stripe and the
+interpreter's voice path.
+
 ### API — billing by mode (Story 8.6 / FR22, FR42)
 
 `api/src/billing.py`. `cost_cents(tier, seconds)` prorates to the second and rounds **down**

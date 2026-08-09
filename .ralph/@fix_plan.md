@@ -78,12 +78,7 @@
 - [x] Story 8.4: Configuration des Trois Options par le Participant à la Jonction
 - [x] Story 8.5: Salon Mixte et Persistance du Mode
 - [x] Story 8.6: Facturation par Mode et Option « L'Hôte Paie Tout »
-  > > ⚠️ **À ADAPTER — la facturation existe, mais post-payée et à tarif unique.** `services/stripe_service.py`, `users.billed_seconds`, `users.stripe_customer_id`, `users.stripe_payment_method_id` et la table `billing_events` fonctionnent : Salon facture l'hôte après le Salon, 5 USD/h au-delà de l'essai.
-  > > **Le changement :** quatre paliers, chacun payant le sien, et un **prépayé** qui inverse le sens du flux.
-  > L'intégration Stripe et le moyen de paiement enregistré se reprennent tels quels ; la logique de calcul, non.
-  > AC: Given un participant consomme un mode payant au-delà de son quota, When le Salon se déroule, Then il est facturé au tarif de son propre mode, au prorata de la seconde (remplace FR22), And Given un participant sans moyen de paiement valide, When son solde est épuisé, Then son Salon se termine (FR55) — il n'est jamais facturé au-delà de ce qu'il a prépayé, et aucune créance n'est constituée, And Given un hôte active « l'hôte paie tout » à la création, When le Salon se déroule, Then l'hôte est facturé `prix_mode_b` × nombre de participants, et tous les participants sont en Mode B sans annonces, And Given l'option « l'hôte paie tout » est proposée, When l'hôte s'apprête à l'activer, Then le coût horaire maximal résultant lui est affiché explicitement et il doit le confirmer avant que l'option ne s'active
-  > Spec: specs/planning-artifacts/epics.md#story-8-6
-- [ ] Story 8.7: Solde Prépayé et Recharge Stripe
+- [x] Story 8.7: Solde Prépayé et Recharge Stripe
   > As a payeur
   > I want payer d'avance et voir combien de secondes il me reste
   > So that je ne reçoive jamais de facture que je n'ai pas déjà autorisée.
