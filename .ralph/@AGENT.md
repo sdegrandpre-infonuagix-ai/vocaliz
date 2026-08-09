@@ -137,6 +137,22 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — the gifted-credit journal (Story 8.11 / FR67, NFR7)
+
+`api/src/credit_journal.py`. A **fold over the ledger**, with no table of its own — a test
+strips the module docstring and then fails on `__tablename__` or `db.add` appearing anywhere
+in the code. This is the first place a second table would have been natural, which is why the
+guard exists.
+
+Four amounts per credit, and `issued = consumed + expired + abandoned` on every closed entry.
+Three closing modes: an account deleted mid-credit is neither consumption nor expiry, and
+without `abandoned` as its own state every period total is silently wrong from the first
+deletion. Only **consumed** is an expense — it alone bought provider time.
+
+Spending is attributed **oldest credit first**, so somebody holding two has each entry right
+rather than only the total. `_gifted` sorts grants ahead of draws at equal timestamps: without
+that tie-break a same-instant debit could be folded before its own grant and silently dropped.
+
 ### API — manual reactivation credit (Story 8.10 / FR67)
 
 `api/src/reactivation.py`, driven by `python -m src.cli.grant_credit`. An explicit exception
