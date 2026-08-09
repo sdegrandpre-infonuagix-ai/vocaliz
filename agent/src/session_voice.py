@@ -1,18 +1,28 @@
 """The realtime session, seen as the two verbs the delivery loop needs.
 
-`following.deliver` chooses between them and that choice is the cost of the product:
+`following.deliver` chooses between them, and the choice was meant to be the cost of the
+product:
 
     say     the line is already in the listener's language — literal speech, no model call
     render  the line is in somebody else's — the model translates and speaks in one movement
 
-Never a translation followed by a separate reading. That would double the latency and lose
-the prosody of the original, which is most of what makes an interpreted conversation bearable
-to sit through.
+**`say` does not exist for this provider, and both verbs go through the model now.** xAI's
+realtime session has no standalone text-to-speech: `AgentSession.say()` requires either a
+separate TTS model or a `RealtimeSession` that implements `say()`, and this one does not. The
+first version of this file called it anyway, and every verbatim line — every introduction,
+every announcement, any two participants sharing a language — raised
+`RuntimeError: trying to generate speech from text without a TTS model...`, which
+`following.deliver_script` catches and treats as "this line failed" — dropping not only that
+line but everything queued after it in the same batch. A plain "test 4" between two people
+speaking the same language went silent this way, with no translation involved at all.
 
-The instruction below is the one already used for a host's typed message, narrowed to one
-listener. Its shape matters more than its wording: **the model is lending its voice to
-somebody, not describing what they said.** An agent that says "Hans says hello" instead of
-"hello" turns a conversation into a report of a conversation.
+Routing everything through `generate_reply` gives up the free path for same-language lines —
+a real cost, paid because the alternative is not cheaper, it is broken. Revisit this if xAI
+ever exposes a working `say()`; nothing else about the split would need to change.
+
+Never a translation followed by a separate reading, regardless of path. That would double the
+latency and lose the prosody of the original, which is most of what makes an interpreted
+conversation bearable to sit through.
 """
 from __future__ import annotations
 
@@ -44,6 +54,21 @@ def instructions_for(line: Line) -> str:
     )
 
 
+def _verbatim_instructions(text: str, language: str) -> str:
+    """What to tell the model for a line already in the listener's language.
+
+    Still a `generate_reply` call — see the module docstring for why `say()` is not an
+    option here — but told plainly that there is nothing to translate, so a model that
+    might otherwise polish or rephrase says exactly what it was given.
+    """
+    return (
+        f"Say the following to this listener exactly as written, in {language}. It is "
+        "already in their language — do not translate it, paraphrase it, or add anything "
+        "to it. Add no greeting, no comment and no preamble.\n"
+        f"---\n{text}\n---"
+    )
+
+
 class SessionVoice:
     """A `following.Voice` backed by a live `AgentSession`.
 
@@ -52,19 +77,24 @@ class SessionVoice:
     provider is named, and the only thing that would change if the provider did.
     """
 
-    def __init__(self, session) -> None:
+    def __init__(self, session, *, language: str = "") -> None:
         self._session = session
+        # Used only to word the verbatim instruction correctly. `deliver` calls `say` with
+        # bare text, having already decided the line needs no translation — this is what
+        # lets that instruction still name the language it is in.
+        self._language = language
 
     async def say(self, text: str) -> None:
-        """Literal speech, for a line already in the listener's language.
+        """A line already in the listener's language — routed through the model anyway.
 
-        `say` and not `generate_reply`: there is nothing to translate, and sending it through
-        the model would pay for a translation into the language it is already in — on every
-        announcement, of every conversation.
+        Kept as its own method rather than folded into `render`, so the day this provider
+        gains a real `say()` the fix is inside this one function.
         """
         if not text.strip():
             return
-        await self._session.say(text)
+        self._session.generate_reply(
+            instructions=_verbatim_instructions(text, self._language or "the same language")
+        )
 
     async def render(self, line: Line) -> None:
         """Through the model, which translates and speaks in one movement.

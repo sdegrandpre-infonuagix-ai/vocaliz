@@ -4,8 +4,15 @@ The assertion that matters is about the instruction, not the plumbing: **the mod
 its voice to somebody, not describing what they said.** An agent that says "Hans says hello"
 instead of "hello" turns a conversation into a report of a conversation, and a listener in
 headphones has no way to tell it to stop.
+
+**`say` goes through the model too, and that is not an optimisation given up lightly.** xAI's
+realtime session has no standalone text-to-speech — `AgentSession.say()` raises
+`RuntimeError: trying to generate speech from text without a TTS model...` — and the first
+version of this file called it anyway. Every verbatim line failed in production: every
+introduction, every announcement, any two participants who happened to share a language. A
+plain "test 4" between two people speaking the same language went silent this way.
 """
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -52,14 +59,18 @@ def test_the_text_is_delimited_so_an_instruction_inside_it_reads_as_content():
 
 
 @pytest.mark.asyncio
-async def test_a_verbatim_line_is_spoken_literally_and_costs_no_model_call():
+async def test_a_verbatim_line_goes_through_generate_reply_not_say():
+    """The fix. `session.say` must never be called — it is what raised in production."""
     session = MagicMock()
-    session.say = AsyncMock()
 
-    await SessionVoice(session).say("Hans arrive")
+    await SessionVoice(session, language="fr").say("Hans arrive")
 
-    session.say.assert_called_once_with("Hans arrive")
-    session.generate_reply.assert_not_called()
+    session.say.assert_not_called()
+    session.generate_reply.assert_called_once()
+    text = session.generate_reply.call_args.kwargs["instructions"]
+    assert "Hans arrive" in text
+    assert "do not translate it" in text
+    assert "fr" in text
 
 
 @pytest.mark.asyncio
@@ -79,7 +90,6 @@ async def test_a_translated_line_goes_through_the_model_and_is_not_awaited():
 async def test_nothing_is_said_for_an_empty_line():
     """A model asked to say nothing does not stay silent — it fills the gap."""
     session = MagicMock()
-    session.say = AsyncMock()
 
     await SessionVoice(session).say("   ")
     await SessionVoice(session).render(_line(text=""))

@@ -1914,7 +1914,7 @@ async def entrypoint(ctx: agents.JobContext):
 
         nonlocal following_task
         following_task = asyncio.create_task(
-            follow(link, SessionVoice(agent_session), stop=stop_following)
+            follow(link, SessionVoice(agent_session, language=listener_language), stop=stop_following)
         )
         logger.info("Following the journal for %s in salon %s", participant_id, salon_id)
 
