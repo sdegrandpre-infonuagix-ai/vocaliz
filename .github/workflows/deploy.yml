@@ -1,0 +1,156 @@
+# One pipeline for every deployable component of Vocaliz.
+#
+# The orchestrator (Story 6.1) joins the chain the API and the interpreter worker already
+# use rather than starting a parallel one: a second workflow would mean two places to look
+# when a deploy goes wrong, and two places to remember when a step has to change.
+#
+# Deployment is deliberately manual — `workflow_dispatch`. Every push runs the tests, and
+# nothing reaches AWS or LiveKit Cloud without somebody asking for it. Automatic
+# deployment on green is a decision to take on purpose, not to inherit from a template.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Which component to deploy
+        required: true
+        default: orchestrator
+        type: choice
+        options: [api, agent, orchestrator]
+
+env:
+  AWS_REGION: ca-central-1
+
+permissions:
+  contents: read
+  id-token: write # OIDC, so no long-lived AWS keys live in this repository
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: api
+        working-directory: api
+        run: uv run --frozen pytest -q
+
+      - name: agent
+        working-directory: agent
+        run: uv run --frozen pytest -q
+
+      - name: orchestrator
+        working-directory: orchestrator
+        run: uv run --frozen pytest -q
+
+  api:
+    name: deploy api
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.component == 'api'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # The API is a CDK stack — it stays that way. The hand-written task definition below
+      # is the orchestrator's own choice for the MVP, not a migration of what exists.
+      - name: cdk deploy
+        working-directory: infra
+        run: |
+          npm ci
+          npx cdk deploy SalonApi --require-approval never
+
+  agent:
+    name: deploy interpreter worker
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.component == 'agent'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The worker runs on LiveKit Cloud Agents, not on AWS — see agent/livekit.toml.
+      # It is deployed from the same pipeline all the same, which is the point.
+      - name: livekit agents deploy
+        working-directory: agent
+        env:
+          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+        run: |
+          curl -sSL https://get.livekit.io/cli | bash
+          lk agent deploy
+
+  orchestrator:
+    name: deploy orchestrator
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.component == 'orchestrator'
+    runs-on: ubuntu-latest
+    env:
+      ECR_REPOSITORY: salon-orchestrator
+      ECS_CLUSTER: salon
+      ECS_SERVICE: salon-orchestrator
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: build and push image
+        id: image
+        working-directory: orchestrator
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          URI="$REGISTRY/$ECR_REPOSITORY"
+          docker build -t "$URI:${{ github.sha }}" -t "$URI:latest" .
+          docker push "$URI:${{ github.sha }}"
+          docker push "$URI:latest"
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      # The task definition is hand-written JSON (architecture.md: no IaC tool for the
+      # MVP). Only the account id and the image tag are substituted, so what is registered
+      # is what is in the repository.
+      - name: register task definition
+        working-directory: orchestrator
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          ECR_REPOSITORY_URI: ${{ steps.image.outputs.uri }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          envsubst < ecs/task-definition.json > /tmp/task-definition.json
+          aws ecs register-task-definition --cli-input-json file:///tmp/task-definition.json
+
+      # Rolling deployment: ECS starts the new tasks, then sends SIGTERM to the old ones,
+      # which drain the Salons they host before stopping. stopTimeout in the task
+      # definition is what gives them the time to do it.
+      - name: update service
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition salon-orchestrator \
+            --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"

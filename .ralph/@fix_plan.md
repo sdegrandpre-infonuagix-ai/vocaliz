@@ -46,7 +46,7 @@
 ### Socle Conversationnel Multi-Rooms
 > Goal: Une conversation Salon se déroule à travers un orchestrateur central et un interprète dédié par participant : chacun parle sa langue dans sa propre room et reçoit celle des autres, sans audio partagé et donc sans écho possible.
 
-- [ ] Story 6.1: Initialisation du Composant Orchestrateur
+- [x] Story 6.1: Initialisation du Composant Orchestrateur
   > As a développeur
   > I want un projet orchestrateur déployable dès la première story
   > So that tout ce qui suit ait un endroit où vivre.

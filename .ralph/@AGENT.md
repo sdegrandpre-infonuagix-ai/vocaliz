@@ -3,7 +3,12 @@
 ## Project Structure
 
 - `agent/` — Python LiveKit agent worker (xAI Grok, silero VAD, turn-detector)
+- `api/` — FastAPI REST API (Lambda + API Gateway, deployed by the CDK stack in `infra/`)
+- `orchestrator/` — Python orchestrator service (ECS Fargate) — Epic 6, multi-rooms topology
+- `infra/` — AWS CDK (TypeScript), API stack only
 - `mobile/` — Expo React Native app (iOS + Android)
+- `.github/workflows/deploy.yml` — the one pipeline: tests on every push, deploys on
+  `workflow_dispatch` with a component input (`api`, `agent`, `orchestrator`)
 
 ## Agent Worker (Python)
 
@@ -22,6 +27,37 @@ uv run pytest
 # Build Docker image
 docker build -t salon-agent .
 ```
+
+## Orchestrator (Python, ECS Fargate)
+
+Separate deployable from the agent worker — it does not replace it. See
+`orchestrator/README.md`.
+
+```bash
+# Setup (one-time)
+cd orchestrator
+uv sync --all-groups
+cp .env.example .env          # starts with no AWS and no paid provider
+
+# Run locally
+uv run uvicorn src.main:app --reload --port 8080
+curl localhost:8080/health          # liveness
+curl localhost:8080/health/ready    # readiness (503 while draining)
+
+# Run tests
+uv run pytest -q
+
+# Build Docker image
+docker build -t salon-orchestrator .
+```
+
+Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
+with the name in the message. In AWS they come from Secrets Manager via
+`ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.
+
+The ECS task definition is hand-written JSON in `orchestrator/ecs/task-definition.json` —
+no IaC tool for this component. Only `${AWS_ACCOUNT_ID}`, `${ECR_REPOSITORY_URI}` and
+`${IMAGE_TAG}` are substituted at deploy time.
 
 ## Mobile App (React Native / Expo)
 
