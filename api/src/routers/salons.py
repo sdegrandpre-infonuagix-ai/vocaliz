@@ -136,6 +136,9 @@ async def create_salon(
     # host was silently billed at Base regardless of which natural voice or ad-free tier they
     # thought they were getting.
     host_tier: Optional[str] = Form(None),
+    # The interpreter's voice. Every Salon ran on "ara" regardless of tier or taste; this is
+    # the host choosing instead of inheriting a default nobody decided on their behalf.
+    voice: Optional[str] = Form(None),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -148,6 +151,7 @@ async def create_salon(
     starts with the partner already identified — no separate invitation step needed.
     """
     from src.credit import Tier as _Tier
+    from src.voices import XAI_VOICES
 
     # Named rather than coerced to the cheapest. Somebody sending a tier the server has
     # never heard of has a client that disagrees with it about what exists, and silently
@@ -163,6 +167,12 @@ async def create_salon(
                 f"{', '.join(tier.value for tier in _Tier)}."
             ),
         ) from None
+
+    if voice and voice not in XAI_VOICES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{voice!r} is not a voice. Choose one of {', '.join(XAI_VOICES)}.",
+        )
     # The free-trial-hour gate that used to live here is retired (FR51 replaces FR19):
     # billing is prepaid now, off the welcome credit signup grants, not a stored payment
     # method checked against a post-paid hour. No balance gate has taken its place yet —
@@ -247,6 +257,7 @@ async def create_salon(
         source_summary=summary,
         participant_cap=cap,
         host_tier=chosen_host_tier.value if chosen_host_tier else None,
+        agent_voice=voice or None,
     )
     db.add(salon)
     db.commit()
@@ -607,6 +618,7 @@ def get_salon(
         agentMuted=salon.agent_muted,
         hostIdentity=str(salon.host_user_id),
         agentLanguage=salon.agent_language,
+        agentVoice=salon.agent_voice or "ara",
         frontDesk=_is_front_desk(salon, db),
     )
 

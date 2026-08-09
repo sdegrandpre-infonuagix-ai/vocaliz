@@ -116,6 +116,11 @@ class Salon(Base):
     # each participant has one, and the host choosing Mode C imposes nothing on a guest who
     # chose Base. Null means the floor applies, which is what happens when nothing is picked.
     host_tier: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # The interpreter's voice, picked from xAI's list. Null means "ara" — the voice every
+    # Salon has always had — the same distinction `host_tier` null/Base draws, so a Salon
+    # that never touched this setting stays visibly distinct from one that chose "ara" on
+    # purpose.
+    agent_voice: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Story 8.4. The host covering everybody. It belongs to the Salon because it is one
     # offer made once, but what it produces still lands per participant: each guest gets
     # their own row placing them at Mode B, never a mode stored on the Salon itself.

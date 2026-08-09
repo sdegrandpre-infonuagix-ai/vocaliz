@@ -1282,6 +1282,7 @@ async def entrypoint(ctx: agents.JobContext):
     # end with the agent speaking whatever any participant types.
     host_identity = ""
     forced_language = "auto"
+    chosen_voice = "ara"
     front_desk = False
 
     if salon_id and api_url and host_token:
@@ -1304,6 +1305,10 @@ async def entrypoint(ctx: agents.JobContext):
             # "auto" means follow each speaker, which is every other Salon's behaviour and
             # what these instructions already describe at length. Anything else overrides it.
             forced_language = str(detail.get("agentLanguage") or "auto")
+            # Chosen by the host at creation (Story: host-chosen voice); "ara" is what every
+            # Salon spoke in before there was a choice, so it is also what an older API or a
+            # Salon that never touched the setting answers with.
+            chosen_voice = str(detail.get("agentVoice") or "ara")
             front_desk = bool(detail.get("frontDesk"))
 
     # The key is passed explicitly rather than left to the plugin's env lookup: the job
@@ -1331,9 +1336,12 @@ async def entrypoint(ctx: agents.JobContext):
         # Not a permanent verdict: once the interpreter port lands, the adapter can differ
         # per tier and Mode B — which has the margin for it — goes back to 2.0.
         #
-        # Voice ids are lowercase — "Ara" is not a valid identifier.
+        # Voice ids are lowercase — "Ara" is not a valid identifier. Chosen by the host at
+        # creation and read from the job detail above; "ara" — what every Salon spoke in
+        # before there was a choice — is what an older Salon or a bad value falls back to,
+        # since a typo here must not fail the job over a voice nobody would notice was wrong.
         llm=xai.realtime.RealtimeModel(
-            model="grok-voice-think-fast-1.0", voice="ara", api_key=xai_key or None
+            model="grok-voice-think-fast-1.0", voice=chosen_voice, api_key=xai_key or None
         ),
         vad=silero.VAD.load(),
         # The multilingual turn detector that used to sit here never actually ran: it

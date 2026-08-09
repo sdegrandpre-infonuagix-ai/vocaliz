@@ -103,6 +103,29 @@ def test_get_salon_includes_additional_sources(client, host, salon_with_content,
     assert sources[0]["sourceContent"] == "Extra document content."
 
 
+# ─── The interpreter's voice ───────────────────────────────────────────────────
+
+def test_get_salon_reports_the_chosen_voice(client, host, salon_with_content, db):
+    salon_with_content.agent_voice = "orion"
+    db.commit()
+    resp = client.get(
+        f"/salons/{salon_with_content.id}",
+        headers={"Authorization": f"Bearer {host[1]}"},
+    )
+    assert resp.json()["agentVoice"] == "orion"
+
+
+def test_get_salon_defaults_the_voice_to_ara(client, host, salon_with_content):
+    """Null on the row, not the literal string — so a Salon that never touched this
+    setting stays visibly distinct from one that chose "ara" on purpose. The default is
+    applied here, on the way out."""
+    resp = client.get(
+        f"/salons/{salon_with_content.id}",
+        headers={"Authorization": f"Bearer {host[1]}"},
+    )
+    assert resp.json()["agentVoice"] == "ara"
+
+
 def test_get_salon_additional_sources_include_url(client, host, salon_with_content, db):
     _, token = host
     extra = SalonSource(

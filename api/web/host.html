@@ -124,6 +124,17 @@
       background: #fff;
     }
 
+    .card select {
+      width: 100%;
+      min-height: 44px;
+      border: 1.5px solid #e2d9cc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 1rem;
+      color: #2C2C2C;
+      background: #fff;
+    }
+
     .btn {
       width: 100%;
       min-height: 44px;
@@ -498,6 +509,38 @@
         </div>
       </div>
 
+      <!-- The interpreter's voice. Every Salon ran on "ara" with no way to change it; this
+           is that choice, made explicit instead of assumed. -->
+      <label for="host-voice" data-i18n="voiceLabel">Interpreter's voice</label>
+      <select id="host-voice">
+        <option value="ara" selected>Ara</option>
+        <option value="altair">Altair</option>
+        <option value="atlas">Atlas</option>
+        <option value="carina">Carina</option>
+        <option value="castor">Castor</option>
+        <option value="celeste">Celeste</option>
+        <option value="cosmo">Cosmo</option>
+        <option value="eve">Eve</option>
+        <option value="helios">Helios</option>
+        <option value="helix">Helix</option>
+        <option value="iris">Iris</option>
+        <option value="kepler">Kepler</option>
+        <option value="leo">Leo</option>
+        <option value="lumen">Lumen</option>
+        <option value="luna">Luna</option>
+        <option value="lux">Lux</option>
+        <option value="naksh">Naksh</option>
+        <option value="orion">Orion</option>
+        <option value="perseus">Perseus</option>
+        <option value="rex">Rex</option>
+        <option value="rigel">Rigel</option>
+        <option value="sal">Sal</option>
+        <option value="sirius">Sirius</option>
+        <option value="ursa">Ursa</option>
+        <option value="zagan">Zagan</option>
+        <option value="zenith">Zenith</option>
+      </select>
+
       <button class="btn btn-primary" onclick="createSalon()" data-i18n="startButton">Start the salon</button>
       <div id="create-status" class="status"></div>
     </div>
@@ -789,7 +832,8 @@
         tierB: 'Mode B',
         tierBWhat: 'A natural voice, no advertising',
         tierC: 'Mode C',
-        tierCWhat: 'The most attentive interpreter, no advertising'
+        tierCWhat: 'The most attentive interpreter, no advertising',
+        voiceLabel: "Interpreter's voice"
       },
       fr: {
         pageTitle: 'Vocaliz — Console hôte',
@@ -929,7 +973,8 @@
         tierB: 'Mode B',
         tierBWhat: 'Une voix naturelle, sans publicité',
         tierC: 'Mode C',
-        tierCWhat: "L'interprète le plus attentif, sans publicité"
+        tierCWhat: "L'interprète le plus attentif, sans publicité",
+        voiceLabel: "Voix de l'interprète"
       }
     };
 
@@ -1382,6 +1427,8 @@
       }
       var pickedTier = document.querySelector('#host-tier-options input[name="host-tier"]:checked');
       form.append('host_tier', pickedTier ? pickedTier.value : 'Base');
+      var pickedVoice = document.getElementById('host-voice');
+      form.append('voice', pickedVoice ? pickedVoice.value : 'ara');
       try {
         var data = await api('/salons', { method: 'POST', body: form });
         salonId = data.salonId;

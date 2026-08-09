@@ -81,6 +81,9 @@ class SalonDetailResponse(BaseModel):
     # like agentMuted: a Salon rung from the front page carries the caller's choice, and an
     # agent that ignored it would answer a Persian speaker in whatever it guessed instead.
     agentLanguage: str = "auto"
+    # Which xAI voice the interpreter speaks in. Read at start-up like agentLanguage; "ara" is
+    # what every Salon had before a host could choose, so it stays the default here too.
+    agentVoice: str = "ara"
     # True when this Salon was opened by somebody ringing the front page.
     #
     # Computed from who owns it rather than stored: a column would have to be written at

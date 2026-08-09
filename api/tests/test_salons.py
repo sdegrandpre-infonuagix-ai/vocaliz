@@ -100,6 +100,47 @@ def test_create_salon_rejects_an_unknown_tier(client, user):
     assert response.status_code == 400
 
 
+# ─── The interpreter's voice ───────────────────────────────────────────────────
+#
+# Every Salon ran on "ara" with no way to change it — Mode C was supposed to read as "the
+# most attentive interpreter" and there was nothing in the agent that actually varied by
+# tier, which is what a host testing it noticed as "not working". This is the fix: a voice
+# the host picks explicitly, rather than one nobody decided on their behalf.
+
+
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_create_salon_records_the_chosen_voice(mock_name, mock_token, mock_room, client, db, user):
+    _, token = user
+    response = client.post(
+        "/salons",
+        data={"voice": "orion"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert db.query(Salon).first().agent_voice == "orion"
+
+
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_create_salon_with_no_voice_chosen_leaves_it_unset(mock_name, mock_token, mock_room, client, db, user):
+    _, token = user
+    client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
+    assert db.query(Salon).first().agent_voice is None
+
+
+def test_create_salon_rejects_an_unknown_voice(client, user):
+    _, token = user
+    response = client.post(
+        "/salons",
+        data={"voice": "hal9000"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+
+
 # ─── Agent dispatch ──────────────────────────────────────────────────────────
 
 @patch("src.routers.salons.livekit_service.dispatch_agent", new_callable=AsyncMock)
