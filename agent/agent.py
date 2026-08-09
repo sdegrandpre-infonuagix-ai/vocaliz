@@ -483,6 +483,10 @@ class SalonAgent(Agent):
         # The two must agree: a facilitation prompt paired with a silenced reply would leave
         # the model composing interventions it is never allowed to speak.
         self._follow_journal = follow_journal
+        # False until the background join in `entrypoint` actually confirms it. This is
+        # what `on_user_turn_completed` checks, deliberately not `_follow_journal` itself —
+        # see that method for why the two must not be the same flag.
+        self._journal_linked = False
         if follow_journal:
             instructions = (
                 _INTERPRETER_INSTRUCTIONS
@@ -564,8 +568,18 @@ class SalonAgent(Agent):
         separate path (the realtime session's own transcription-completed event), which is
         what `agent.py`'s journal-reporting hook listens to. Silencing the reply does not
         silence the report.
+
+        Gated on `_journal_linked`, not on `_follow_journal` alone — and that difference is
+        the fix for a real production silence. `_follow_journal` is decided the moment this
+        job starts; whether the journal actually got linked depends on a background task
+        that waits for this human to connect and then joins the orchestrator, either of
+        which can fail. Silencing the reply on the first flag alone meant a link that failed
+        for any reason left the agent mute for the rest of the conversation: no automatic
+        reply (suppressed here) and nothing from the journal either (never linked). Failing
+        open — carrying on as an ordinary facilitator until the link is confirmed — is worse
+        for the topology than staying silent, and far better than staying silent forever.
         """
-        if self._follow_journal:
+        if self._journal_linked:
             raise StopResponse()
 
     async def _broadcast_translation_control(self, action: str) -> None:
@@ -1807,28 +1821,56 @@ async def entrypoint(ctx: agents.JobContext):
         """The whole journal setup, run once the human this job is for has actually
         connected — never blocking the rest of `entrypoint`, which has its own setup (the
         heartbeat, the disconnect handler) to get on with regardless of how long this takes.
+
+        Wrapped in its own try/except with an explicit log line, deliberately. This runs as
+        a fire-and-forget background task, and an unhandled exception in one of those is
+        reported by asyncio only when the task is garbage-collected — easy to miss, and
+        exactly the kind of silent failure that once left `salon_agent._journal_linked`
+        permanently False with no trace of why, and the model's replies suppressed anyway
+        because that used to be gated on the wrong flag. See `on_user_turn_completed`.
         """
-        listener = await _await_listener()
-        if listener is None:
+        try:
+            listener = await _await_listener()
+            if listener is None:
+                return
+
+            listener_language = forced_language if forced_language != "auto" else "en"
+            link = OrchestratorLink(
+                base_url=orchestrator_url,
+                salon_id=salon_id,
+                participant_id=participant_id,
+                language=listener_language,
+                token=relay_token,
+            )
+            if not await link.join(name=listener.name or None):
+                # Logged and left alone. `_journal_linked` stays False, so the model keeps
+                # replying to its human normally — the wrong topology for this Salon, but a
+                # working one, which is the point: a Salon must degrade to something rather
+                # than to silence.
+                logger.warning(
+                    "could not join the orchestrator for %s in salon %s; the agent will "
+                    "keep replying on its own instead of following the journal",
+                    participant_id,
+                    salon_id,
+                )
+                return
+
+            salon_agent._journal_linked = True
+
+            # The one thing this agent says on its own initiative, said once. A model told to
+            # stay silent unless instructed is still the first voice this person hears in
+            # their room, and saying nothing at all about that would read as a broken
+            # connection rather than an interpreter waiting its turn.
+            agent_session.generate_reply(
+                instructions=_journal_intro_instructions(listener_language)
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "journal setup failed for salon %s; the agent will keep replying on its "
+                "own instead of following the journal",
+                salon_id,
+            )
             return
-
-        listener_language = forced_language if forced_language != "auto" else "en"
-        link = OrchestratorLink(
-            base_url=orchestrator_url,
-            salon_id=salon_id,
-            participant_id=participant_id,
-            language=listener_language,
-            token=relay_token,
-        )
-        await link.join(name=listener.name or None)
-
-        # The one thing this agent says on its own initiative, said once. A model told to
-        # stay silent unless instructed is still the first voice this person hears in their
-        # room, and saying nothing at all about that would read as a broken connection
-        # rather than an interpreter waiting its turn.
-        agent_session.generate_reply(
-            instructions=_journal_intro_instructions(listener_language)
-        )
 
         @agent_session.on("user_input_transcribed")
         def _report_to_the_journal(event) -> None:

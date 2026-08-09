@@ -1,14 +1,17 @@
 """The interpreter's silence, and the one thing it says anyway.
 
 Tranche 4 of Story 11.1. Under the per-participant topology this agent's room holds exactly
-one human, and what to say to them is decided entirely by the orchestrator. Two things had to
-change together, and this file is what holds them to that:
+one human, and what to say to them is decided entirely by the orchestrator.
 
-**The prompt and the reply-suppression must agree.** A facilitation prompt paired with a
-silenced reply would leave the model composing interventions it is never allowed to speak; an
-interpreter prompt paired with an un-silenced reply would let the model's own opinion answer
-its human directly, on top of whatever the orchestrator asked for. `follow_journal` is the one
-switch that must move both at once.
+**The reply is suppressed by `_journal_linked`, not by `follow_journal`, and that is not the
+same flag by an oversight — it is the fix for a real production silence.** `follow_journal`
+is decided the moment a job starts; whether the journal actually got linked depends on a
+background task that waits for the human to connect and then joins the orchestrator, either
+of which can fail. The first version of this file gated the reply on `follow_journal` alone:
+a link that failed for any reason left the agent mute for the rest of the conversation — no
+automatic reply (suppressed) and nothing from the journal either (never linked). Gating on
+confirmation instead means a failed link falls back to the old facilitation behaviour, which
+is the wrong topology but a working one.
 
 **Silence is not the same as disappearing.** A model told to say nothing unless instructed is
 still the first voice a participant hears in their room — the one-shot introduction is what
@@ -59,18 +62,40 @@ def test_a_forced_language_still_applies_under_follow_journal():
 # ─── Whether it replies on its own ───────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
-async def test_follow_journal_silences_the_automatic_reply():
-    """The mechanism that makes the prompt true rather than aspirational. Without this, the
-    framework calls its own reply generation right after this returns — the same automatic
-    response the interpreter prompt says never to make."""
+def test_follow_journal_alone_does_not_yet_silence_anything():
+    """The flag that starts every job under this topology, and by itself proves nothing:
+    the journal has not been confirmed linked yet, so the model must still be free to reply
+    normally — the fail-open state, not a bug."""
     agent = salon.SalonAgent(follow_journal=True)
+
+    assert agent._journal_linked is False
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_link_silences_the_automatic_reply():
+    """The mechanism that makes the prompt true rather than aspirational, once the journal
+    is actually there to speak for. Without this, the framework calls its own reply
+    generation right after this returns — the same automatic response the interpreter
+    prompt says never to make."""
+    agent = salon.SalonAgent(follow_journal=True)
+    agent._journal_linked = True  # what the background join sets on success
 
     try:
         await agent.on_user_turn_completed(None, None)
     except salon.StopResponse:
         return
-    assert False, "on_user_turn_completed did not raise StopResponse under follow_journal"
+    assert False, "on_user_turn_completed did not raise StopResponse once linked"
+
+
+@pytest.mark.asyncio
+async def test_an_unconfirmed_link_replies_normally_instead_of_going_mute():
+    """The regression this whole flag exists to prevent: `follow_journal=True` with a link
+    that never confirmed — a failed join, a participant who never connected — must fall back
+    to the model's own replies rather than leaving the agent silent for the whole
+    conversation."""
+    agent = salon.SalonAgent(follow_journal=True)  # _journal_linked never set
+
+    await agent.on_user_turn_completed(None, None)  # must not raise
 
 
 @pytest.mark.asyncio
