@@ -81,6 +81,24 @@ class Salon(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # When this Salon is due to close, once something has decided it will (FR55).
+    #
+    # Set when the payer's balance runs out, fifteen seconds ahead, so guests can be told
+    # before the room disappears rather than finding out by being disconnected. Persisted
+    # rather than held in memory: a heartbeat is one request and cannot wait fifteen seconds
+    # inside it, and a Salon that forgot it was closing would either close without warning
+    # or never close at all.
+    #
+    # Null for a conversation in progress, which is the honest answer for nearly every row.
+    closing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Whether the low-balance warning has been given. Once, not on every tick: somebody
+    # asked twelve times a minute stops hearing it. Persisted for the same reason as
+    # `closing_at` — in memory it would start over at every restart.
+    balance_alerted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false"), default=False
+    )
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Story 8.3. The host's own tier, and nobody else's. A Salon does not have a mode —

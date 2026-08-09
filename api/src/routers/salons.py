@@ -679,8 +679,16 @@ async def salon_heartbeat(
     import uuid as _uuid
     from datetime import datetime, timezone
 
+    from datetime import timedelta
+
     from src.coverage import check_coverage
     from src.credit import Tier, balance, debit
+    from src.ending import (
+        GUEST_NOTICE_SECONDS,
+        alert_for,
+        guest_notice_text,
+        host_alert_text,
+    )
     from src.metering import effective_rate_cents_per_hour, remaining_seconds
 
     try:
@@ -714,8 +722,15 @@ async def salon_heartbeat(
     balance_cents = 0
     balance_left: int | None = None
     balance_exhausted = False
+    alert_text: str | None = None
 
-    if host is not None:
+    # A Salon already in its closing sequence is not charged for it. That is the one bounded
+    # exemption to "no consumption without coverage": announcing the end and asking the
+    # satisfaction question are the only things a spent balance may still buy, and billing
+    # them would mean charging somebody for being told they have run out.
+    closing = salon.closing_at is not None
+
+    if host is not None and not closing:
         host_tier = Tier(salon.host_tier) if salon.host_tier else Tier.BASE
         rate = effective_rate_cents_per_hour([host_tier])
         verdict = check_coverage(
@@ -732,6 +747,23 @@ async def salon_heartbeat(
         balance_left = remaining_seconds(balance_cents, rate_cents_per_hour=rate)
         balance_exhausted = verdict.ends_salon
 
+        # Warned while there is still time to act, and only in the payer's own room. A host
+        # is warned earlier than a guest would be — the conversation of everybody they are
+        # hosting depends on their balance, so they need longer to decide.
+        if not balance_exhausted and balance_left is not None:
+            warn = alert_for(
+                remaining_seconds=balance_left,
+                is_host=True,
+                already_alerted=salon.balance_alerted,
+            )
+            if warn.due:
+                guests = max(0, salon.participant_cap - 1)
+                alert_text = host_alert_text(
+                    remaining_seconds=balance_left, guests=guests
+                )
+                salon.balance_alerted = True
+                db.commit()
+
     # How long this Salon may still run, and the answer is the balance rather than a clock.
     # There was a ten-minute age cap here; it is retired, because how long somebody may talk
     # depends on what they are paying per hour. Mode C at 22.50 buys a different amount of
@@ -741,15 +773,41 @@ async def salon_heartbeat(
     # have it stop mid-sentence. `None` when nothing is being consumed, which is not zero.
     remaining = balance_left if balance_left is not None else 0
 
+    # ── Closing, which is not the same as closed ──────────────────────────────────
+    #
+    # A balance running out schedules the end rather than performing it: guests are owed
+    # fifteen seconds to say goodbye, and a room that vanishes mid-sentence reads as a
+    # failure rather than as somebody's balance running out. The end is carried out by
+    # whichever heartbeat arrives after the deadline — or by the sweep, if the worker has
+    # gone quiet in the meantime.
     ended_now = False
-    if balance_exhausted:
-        # Deleting the room is what actually stops the agent; finalizing only settles the
-        # accounting. Same order as close_previous_host_salons, for the same reason.
-        room_name = salon.livekit_room_name
-        salon_lifecycle.finalize_salon(salon, db)
-        await livekit_service.delete_room(room_name)
-        ended_now = True
-        logger.info("Salon %s closed: balance exhausted", salon.id)
+    closing_in: int | None = None
+    closing_notice: str | None = None
+
+    if balance_exhausted and salon.closing_at is None:
+        salon.closing_at = now + timedelta(seconds=GUEST_NOTICE_SECONDS)
+        db.commit()
+        logger.info(
+            "Salon %s closing in %ds: balance exhausted", salon.id, GUEST_NOTICE_SECONDS
+        )
+
+    if salon.closing_at is not None:
+        due = salon.closing_at
+        if due.tzinfo is None:
+            due = due.replace(tzinfo=timezone.utc)
+        left = int((due - now).total_seconds())
+
+        if left > 0:
+            closing_in = left
+            closing_notice = guest_notice_text()
+        else:
+            # Deleting the room is what actually stops the agent; finalizing only settles
+            # the accounting. Same order as close_previous_host_salons, for the same reason.
+            room_name = salon.livekit_room_name
+            salon_lifecycle.finalize_salon(salon, db)
+            await livekit_service.delete_room(room_name)
+            ended_now = True
+            logger.info("Salon %s closed: balance exhausted", salon.id)
 
     # Re-read after finalize_salon, which may have accrued the closing span.
     used = host.trial_seconds_used if host is not None else 0
@@ -762,6 +820,9 @@ async def salon_heartbeat(
         chargedCents=charged,
         balanceSecondsRemaining=balance_left,
         balanceExhausted=balance_exhausted,
+        closingInSeconds=closing_in,
+        closingNotice=closing_notice,
+        balanceAlert=alert_text,
     )
 
 

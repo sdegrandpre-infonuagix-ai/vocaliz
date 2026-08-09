@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from src.credit import Tier
+from src.ending import GUEST_NOTICE_SECONDS
 from src.ledger import EventType, Pool, append
 from src.models.salon import Salon
 from src.models.user import User
@@ -285,27 +286,36 @@ def test_heartbeat_closes_a_salon_whose_balance_ran_out(client, db, host):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["salonEnded"] is True
+    # Closing, not closed: the guests are owed their fifteen seconds first.
     assert body["balanceExhausted"] is True
-    assert body["secondsRemaining"] == 0
+    assert body["salonEnded"] is False
+    assert body["closingInSeconds"] == GUEST_NOTICE_SECONDS
 
     db.expire(sess)
     db.refresh(sess)
-    assert sess.status == "ended"
-    assert sess.ended_at is not None
+    assert sess.status == "active"
+    assert sess.closing_at is not None
 
 
 def test_heartbeat_on_a_closed_salon_is_refused_afterwards(client, db, host):
-    """Once closed, further heartbeats get the ordinary ended-salon refusal."""
+    """Once the deadline has passed and the Salon is actually closed, further heartbeats
+    get the ordinary ended-salon refusal."""
     host_user, token = host
     sess = _active_salon(db, host_user, "broke-twice")
     _fund(db, host_user, -998)
     db.commit()
     headers = {"Authorization": f"Bearer {token}"}
 
+    # First: schedules the close and speaks the notice.
     client.post(f"/salons/{sess.id}/heartbeat", json={"seconds": 30}, headers=headers)
+    # Backdate the deadline rather than waiting fifteen real seconds for it.
+    sess.closing_at = datetime.now(tz=timezone.utc) - timedelta(seconds=1)
+    db.commit()
     second = client.post(f"/salons/{sess.id}/heartbeat", json={"seconds": 30}, headers=headers)
-    assert second.status_code == 409
+    assert second.json()["salonEnded"] is True
+
+    third = client.post(f"/salons/{sess.id}/heartbeat", json={"seconds": 30}, headers=headers)
+    assert third.status_code == 409
 
 
 # ─── Prepaid metering (FR63), since the Epic 8 cutover ───────────────────────
@@ -373,10 +383,10 @@ def test_the_time_a_balance_buys_is_reported(client, db, host):
     assert resp.json()["balanceSecondsRemaining"] == 11976
 
 
-def test_a_salon_with_no_balance_behind_it_closes(client, db, penniless_host):
+def test_a_salon_with_no_balance_behind_it_is_scheduled_to_close(client, db, penniless_host):
     """No consumption without coverage (FR63). Ending is the designed outcome — the
     alternative is a conversation carrying on while it accrues something nobody
-    authorised."""
+    authorised. It ends after the notice, not during it."""
     host_user, token = penniless_host
 
     resp = client.post(
@@ -387,7 +397,7 @@ def test_a_salon_with_no_balance_behind_it_closes(client, db, penniless_host):
 
     body = resp.json()
     assert body["balanceExhausted"] is True
-    assert body["salonEnded"] is True
+    assert body["closingInSeconds"] == GUEST_NOTICE_SECONDS
     assert body["chargedCents"] == 0
 
 
@@ -425,3 +435,110 @@ def test_nothing_is_charged_for_a_heartbeat_reporting_no_time(client, db, host):
 
     assert body["chargedCents"] == 0
     assert body["balanceCents"] == 1000
+
+
+# ─── The closing sequence (FR55) ─────────────────────────────────────────────
+
+
+def test_guests_are_told_before_the_room_disappears(client, db, penniless_host):
+    """Fifteen seconds, and the notice states the fact without the cause. Never the host,
+    never a balance — somebody's financial situation does not become audible to the people
+    they invited."""
+    host_user, token = penniless_host
+
+    body = client.post(
+        f"/salons/{_active_salon(db, host_user, 'notice').id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    assert body["closingNotice"] == "The Salon will close in 15 seconds."
+    assert "balance" not in body["closingNotice"].lower()
+    assert host_user.email not in body["closingNotice"]
+
+
+def test_the_closing_sequence_is_not_billed(client, db, host):
+    """The one bounded exemption to "no consumption without coverage": announcing the end
+    is the only thing a spent balance may still buy. Charging for it would mean billing
+    somebody to be told they have run out."""
+    host_user, token = host
+    salon = _active_salon(db, host_user, "free-close")
+    _fund(db, host_user, -998)
+    db.commit()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client.post(f"/salons/{salon.id}/heartbeat", json={"seconds": 30}, headers=headers)
+    during = client.post(
+        f"/salons/{salon.id}/heartbeat", json={"seconds": 30}, headers=headers
+    ).json()
+
+    assert during["chargedCents"] == 0
+
+
+def test_the_deadline_is_not_pushed_back_by_later_heartbeats(client, db, penniless_host):
+    """Set once. A deadline that moved with every heartbeat would never arrive, and the
+    Salon would sit fifteen seconds from closing for ever."""
+    host_user, token = penniless_host
+    salon = _active_salon(db, host_user, "deadline")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client.post(f"/salons/{salon.id}/heartbeat", json={"seconds": 30}, headers=headers)
+    db.expire(salon)
+    db.refresh(salon)
+    first_deadline = salon.closing_at
+
+    client.post(f"/salons/{salon.id}/heartbeat", json={"seconds": 30}, headers=headers)
+    db.expire(salon)
+    db.refresh(salon)
+
+    assert salon.closing_at == first_deadline
+
+
+def test_a_host_running_low_is_warned_while_there_is_still_time(client, db, host):
+    """Warned at five minutes rather than three: the conversation of everybody they are
+    hosting depends on their balance, so they need longer to decide."""
+    host_user, token = host
+    # 20 cents at Base (300/h) → 240 s, under the host's 300 s threshold and over the
+    # participant's 180 s one.
+    _fund(db, host_user, -980)
+    db.commit()
+
+    body = client.post(
+        f"/salons/{_active_salon(db, host_user, 'warn').id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    assert body["balanceAlert"] is not None
+    assert "close for you and for your" in body["balanceAlert"]
+
+
+def test_the_warning_is_given_once_not_on_every_tick(client, db, host):
+    """Somebody asked twelve times a minute stops hearing it."""
+    host_user, token = host
+    salon = _active_salon(db, host_user, "warn-once")
+    _fund(db, host_user, -980)
+    db.commit()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    first = client.post(
+        f"/salons/{salon.id}/heartbeat", json={"seconds": 5}, headers=headers
+    ).json()
+    second = client.post(
+        f"/salons/{salon.id}/heartbeat", json={"seconds": 5}, headers=headers
+    ).json()
+
+    assert first["balanceAlert"] is not None
+    assert second["balanceAlert"] is None
+
+
+def test_a_comfortable_balance_is_not_warned_about(client, db, host):
+    host_user, token = host
+
+    body = client.post(
+        f"/salons/{_active_salon(db, host_user, 'no-warn').id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    assert body["balanceAlert"] is None

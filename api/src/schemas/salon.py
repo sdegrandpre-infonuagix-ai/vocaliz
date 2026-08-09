@@ -190,10 +190,22 @@ class HeartbeatResponse(BaseModel):
     # consumed — carrying nobody costs nothing, and reporting that as zero would read as
     # "out of money" rather than "not spending any".
     balanceSecondsRemaining: int | None = None
-    # True when the balance ran out and this heartbeat closed the Salon for want of it.
-    # Distinct from `salonEnded`, which is also true when the per-Salon cap was reached:
-    # running out of money and running out of time need different things said about them.
+    # True when the balance ran out. The Salon is closing rather than closed — see
+    # `closingInSeconds` — because guests are owed a notice before the room disappears.
     balanceExhausted: bool = False
+
+    # ── The closing sequence (FR55) ───────────────────────────────────────────────
+    # How long until the room actually closes, once something has decided it will.
+    # `None` while the conversation is in progress. The interpreter says the notice; this
+    # is what tells it to, and nothing during this window is billed.
+    closingInSeconds: int | None = None
+    # What each guest should be told, in the words FR55 requires: the fact without the
+    # cause. Never the host, never a balance — somebody's financial situation does not
+    # become audible to the people they invited.
+    closingNotice: str | None = None
+    # What the payer alone should be told, while there is still time to do something about
+    # it. Said in their room only, and once rather than on every tick.
+    balanceAlert: str | None = None
 
 
 class UtteranceBody(BaseModel):

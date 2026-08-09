@@ -174,6 +174,22 @@ async def close_expired_salons(db: DbSession) -> list[str]:
         .all()
     )
 
+    # A Salon whose closing deadline has passed, whether or not it has gone silent. The
+    # heartbeat normally carries out its own closure, and this is what happens when the
+    # worker stopped between scheduling the end and reaching it — otherwise a Salon would
+    # sit forever fifteen seconds from closing.
+    due_to_close = (
+        db.query(Salon)
+        .filter(
+            Salon.status == "active",
+            Salon.closing_at.isnot(None),
+            Salon.closing_at < now,
+        )
+        .all()
+    )
+    already = {salon.id for salon in expired}
+    expired.extend(salon for salon in due_to_close if salon.id not in already)
+
     # A call nobody answered has a shorter fuse than a conversation.
     #
     # Ringing the front desk opens a Salon and mails the desk an invitation. If nobody clicks
