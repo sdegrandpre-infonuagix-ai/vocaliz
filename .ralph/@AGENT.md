@@ -137,6 +137,22 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — manual reactivation credit (Story 8.10 / FR67)
+
+`api/src/reactivation.py`, driven by `python -m src.cli.grant_credit`. An explicit exception
+*through* the burned-identifier registry, never a weakening of it: a test asserts the registry
+row survives untouched and the welcome credit is still refused afterwards.
+
+`MIN_DAYS_BETWEEN_GIFTS` (90) is what keeps it from being a back door. Every grant carries
+`Actor.OPERATOR`, the operator's id and the reason into the ledger — a grant with no reason is
+refused, since issuing money with no stated purpose is the entry an audit stops at.
+`grant_to_cohort` writes one entry **per beneficiary** and one refusal does not stop the rest.
+
+No screen, no route, no admin accounts table: a test greps `src/routers/` to keep it that way.
+Access to production *is* the access control, so there is no administrator authentication to
+build and none to get wrong. `confirmation_text` prints the total and head count before
+anything is written.
+
 ### API — low balance and closing (Story 8.9 / FR55)
 
 `api/src/ending.py`. A host is warned at `HOST_ALERT_COVERAGE_SECONDS` (300) rather than a
