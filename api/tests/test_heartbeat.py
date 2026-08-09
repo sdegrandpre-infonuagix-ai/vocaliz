@@ -241,38 +241,41 @@ def test_end_salon_without_heartbeats_falls_back_to_created_at(client, db, host)
 
 # ─── Per-salon cap ─────────────────────────────────────────────────────────
 
-def test_heartbeat_reports_time_left_in_the_salon(client, db, host):
-    """The cap is per salon, distinct from the account's trial hour."""
-    from src.config import settings
+def test_heartbeat_reports_the_time_the_balance_buys(client, db, host):
+    """What is left is money, not a clock.
 
+    This used to assert a ten-minute cap. That cap is retired: how long somebody may talk
+    depends on what they pay per hour, and one number could not mean both Base at 3.00 and
+    Mode C at 22.50. `secondsRemaining` is now what the balance buys at the rate in force,
+    which is the figure the agent needs to wind a conversation down.
+    """
     host_user, token = host
-    sess = _active_salon(db, host_user, "cap-remaining")
+    sess = _active_salon(db, host_user, "money-remaining")
+
     resp = client.post(
         f"/salons/{sess.id}/heartbeat",
         json={"seconds": 30},
         headers={"Authorization": f"Bearer {token}"},
     )
+
     assert resp.status_code == 200
     body = resp.json()
     assert body["salonEnded"] is False
-    # A salon created moments ago has very nearly the whole cap left.
-    assert settings.max_salon_seconds - 5 <= body["secondsRemaining"] <= settings.max_salon_seconds
+    # 998 cents left at Base (300/h) → 11976 s, far past the ten minutes this once allowed.
+    assert body["secondsRemaining"] == 11976
 
 
-def test_heartbeat_closes_a_salon_that_reached_the_cap(client, db, host):
+def test_heartbeat_closes_a_salon_whose_balance_ran_out(client, db, host):
     """Server-side enforcement: the agent is not trusted to stop itself.
 
-    A worker that crashes or loses its connection would otherwise leave the room open and
-    billing, which is exactly what the cap exists to prevent.
+    A worker that keeps talking past what somebody can pay for would otherwise bill
+    realtime voice against nothing, which is what the balance check exists to prevent.
+    Age is no longer a reason to close — see the sweep for what catches abandonment.
     """
-    from src.config import settings
-
     host_user, token = host
-    sess = _active_salon(db, host_user, "cap-hit")
-    # Backdate creation past the cap.
-    sess.created_at = datetime.now(tz=timezone.utc) - timedelta(
-        seconds=settings.max_salon_seconds + 60
-    )
+    sess = _active_salon(db, host_user, "broke-hit")
+    # Two cents: enough for this heartbeat, not enough for the block after it.
+    _fund(db, host_user, -998)
     db.commit()
 
     resp = client.post(
@@ -283,6 +286,7 @@ def test_heartbeat_closes_a_salon_that_reached_the_cap(client, db, host):
     assert resp.status_code == 200
     body = resp.json()
     assert body["salonEnded"] is True
+    assert body["balanceExhausted"] is True
     assert body["secondsRemaining"] == 0
 
     db.expire(sess)
@@ -291,15 +295,11 @@ def test_heartbeat_closes_a_salon_that_reached_the_cap(client, db, host):
     assert sess.ended_at is not None
 
 
-def test_heartbeat_on_a_capped_salon_is_refused_afterwards(client, db, host):
+def test_heartbeat_on_a_closed_salon_is_refused_afterwards(client, db, host):
     """Once closed, further heartbeats get the ordinary ended-salon refusal."""
-    from src.config import settings
-
     host_user, token = host
-    sess = _active_salon(db, host_user, "cap-twice")
-    sess.created_at = datetime.now(tz=timezone.utc) - timedelta(
-        seconds=settings.max_salon_seconds + 60
-    )
+    sess = _active_salon(db, host_user, "broke-twice")
+    _fund(db, host_user, -998)
     db.commit()
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -391,17 +391,16 @@ def test_a_salon_with_no_balance_behind_it_closes(client, db, penniless_host):
     assert body["chargedCents"] == 0
 
 
-def test_running_out_of_money_is_told_apart_from_running_out_of_time(client, db, host):
-    """Both close the Salon, and the agent is told which. "Your ten minutes are up" and
-    "your balance ran out" call for different things to be said, and one standing in for
-    the other would be a lie to somebody who has paid."""
+def test_age_alone_no_longer_closes_a_salon(client, db, host):
+    """The retirement, asserted rather than assumed. An old Salon with money behind it and
+    a heartbeat arriving is a conversation in progress — this used to be cut off at ten
+    minutes regardless, which under prepaid billing meant cutting off somebody who had paid
+    for three more hours."""
     from src.config import settings
 
     host_user, token = host
-    salon = _active_salon(db, host_user, "capped-not-broke")
-    salon.created_at = datetime.now(tz=timezone.utc) - timedelta(
-        seconds=settings.max_salon_seconds + 60
-    )
+    salon = _active_salon(db, host_user, "old-but-funded")
+    salon.created_at = datetime.now(tz=timezone.utc) - timedelta(seconds=99999)
     db.commit()
 
     body = client.post(
@@ -410,7 +409,7 @@ def test_running_out_of_money_is_told_apart_from_running_out_of_time(client, db,
         headers={"Authorization": f"Bearer {token}"},
     ).json()
 
-    assert body["salonEnded"] is True
+    assert body["salonEnded"] is False
     assert body["balanceExhausted"] is False
 
 

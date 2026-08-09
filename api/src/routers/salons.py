@@ -732,35 +732,24 @@ async def salon_heartbeat(
         balance_left = remaining_seconds(balance_cents, rate_cents_per_hour=rate)
         balance_exhausted = verdict.ends_salon
 
-    # Per-salon cap, enforced here because the heartbeat is the only thing that ticks
-    # reliably while a conversation is live. Doing it server-side rather than trusting the
-    # agent to stop itself matters: a worker that crashes or loses its connection would
-    # otherwise leave the room open and billing.
+    # How long this Salon may still run, and the answer is the balance rather than a clock.
+    # There was a ten-minute age cap here; it is retired, because how long somebody may talk
+    # depends on what they are paying per hour. Mode C at 22.50 buys a different amount of
+    # conversation from Base at 3.00, and one number could not mean both.
     #
-    # Overshoot is bounded by the heartbeat interval — thirty seconds — which is close
-    # enough for a spending guard, and far simpler than a scheduled sweep.
-    started = salon.created_at
-    if started.tzinfo is None:
-        started = started.replace(tzinfo=timezone.utc)
-    remaining = max(0, settings.max_salon_seconds - int((now - started).total_seconds()))
+    # Reported in seconds of *money* so the agent can wind a conversation down rather than
+    # have it stop mid-sentence. `None` when nothing is being consumed, which is not zero.
+    remaining = balance_left if balance_left is not None else 0
 
-    # Two reasons to close, and they are not the same reason. The cap is time the Salon was
-    # allowed; the balance is money it was allowed. Both end it here — the agent is told
-    # which, because "your ten minutes are up" and "your balance ran out" call for different
-    # things to be said, and one standing in for the other would be a lie to a paying person.
     ended_now = False
-    if remaining == 0 or balance_exhausted:
+    if balance_exhausted:
         # Deleting the room is what actually stops the agent; finalizing only settles the
         # accounting. Same order as close_previous_host_salons, for the same reason.
         room_name = salon.livekit_room_name
         salon_lifecycle.finalize_salon(salon, db)
         await livekit_service.delete_room(room_name)
         ended_now = True
-        logger.info(
-            "Salon %s closed: %s",
-            salon.id,
-            "balance exhausted" if balance_exhausted else f"{settings.max_salon_seconds}s cap",
-        )
+        logger.info("Salon %s closed: balance exhausted", salon.id)
 
     # Re-read after finalize_salon, which may have accrued the closing span.
     used = host.trial_seconds_used if host is not None else 0

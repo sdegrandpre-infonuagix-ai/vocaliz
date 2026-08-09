@@ -117,19 +117,35 @@ class Settings(BaseSettings):
     # text would cost, since the prompt is processed on every turn of the conversation.
     summary_target_chars: int = 3000
 
-    # Hard cap on a single conversation, independent of the trial above. The trial bounds
-    # what one account can spend in total; this bounds what one runaway salon can spend
-    # in one go — a room left open with the agent talking bills realtime voice by the
-    # minute. Ten minutes while the product is being tested.
-    max_salon_seconds: int = 600
+    # How long a Salon may go unheard-from before it is closed as abandoned.
+    #
+    # This replaced a ten-minute cap on a conversation's *age*, whose two stated premises
+    # both stopped being true at the Epic 8 cutover: the trial it complemented is retired,
+    # and what one Salon can spend is now bounded by the payer's balance, tick by tick.
+    # An age cap on top of that cut off somebody who had paid for three hours of Mode C
+    # after ten minutes — the answer to "how long may this run?" is the balance, and it
+    # depends on the mode, which is exactly what a fixed number cannot express.
+    #
+    # What the cap also did, and what is still needed, is close rooms nobody is in. A
+    # crashed worker or a closed laptop stops the heartbeats, and the room would otherwise
+    # stay open with an agent talking into it. Silence is the honest signal for that, where
+    # age was a proxy that also caught healthy conversations.
+    #
+    # Four missed heartbeats at thirty seconds. Long enough to survive a reconnection,
+    # short enough that an abandoned room is not billed for minutes of nothing.
+    abandoned_salon_seconds: int = 120
 
     # How long a call to the front desk rings before it is given up on.
     #
     # Ringing opens a Salon and mails the desk an invitation. Nobody clicking it means nobody
-    # answered, and the caller would otherwise sit alone with an agent for the full cap above —
-    # realtime-model time billed for a call that was never picked up. Five minutes is long
-    # enough to notice an email and short enough that the unanswered case is not the most
-    # expensive one.
+    # answered, and the caller would otherwise sit alone with an agent for as long as their
+    # balance held — realtime-model time billed for a call that was never picked up. Five
+    # minutes is long enough to notice an email and short enough that the unanswered case is
+    # not the most expensive one.
+    #
+    # Kept on age rather than silence, unlike abandonment above, and the difference is the
+    # point: the caller *is* there and heartbeating. Nobody joined them, which silence
+    # cannot see.
     unanswered_call_seconds: int = 300
 
     # Upper bound on the span billed after the last heartbeat when a salon ends.

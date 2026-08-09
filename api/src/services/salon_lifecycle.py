@@ -7,6 +7,7 @@ exactly the kind of detail that gets fixed in one and forgotten in the other.
 import logging
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session as DbSession
 
 from src.config import settings
@@ -137,26 +138,39 @@ async def close_previous_host_salons(host: User, db: DbSession) -> int:
 
 
 async def close_expired_salons(db: DbSession) -> list[str]:
-    """End every salon that has outlived the per-salon cap, whatever its heartbeats say.
+    """End every salon nobody has been heard from in, whatever its age.
 
-    The cap was previously enforced only when a heartbeat arrived, which meant it was not
-    enforced at all in the most ordinary failure: a host closes their laptop, or the agent
-    worker dies. No heartbeat, no evaluation, and the salon stays active for good. That
-    leaked three things at once — an open salon in the data, a telephone code reserved for
-    a conversation that was over, and a span of metered time never settled.
+    This runs because the alternative is not running at all in the most ordinary failure: a
+    host closes their laptop, or the agent worker dies. No heartbeat, no evaluation, and the
+    salon stays active for good. That leaked three things at once — an open salon in the
+    data, a telephone code reserved for a conversation that was over, and a span of metered
+    time never settled.
 
-    Driven by created_at rather than last_heartbeat_at, deliberately. A salon's ceiling is
-    its age, not its silence: one that has been running eleven minutes is over whether or
-    not somebody was still talking a second ago.
+    **Driven by silence, not by age.** It used to be the other way round, and the comment
+    here said so deliberately: a Salon's ceiling was its ten-minute cap, so one running
+    eleven minutes was over whether or not somebody had just spoken. That ceiling is gone —
+    since the Epic 8 cutover a Salon runs as long as the balance covers it, and how long
+    that is depends on the mode. Closing on age would now cut off somebody mid-sentence who
+    had paid for three more hours.
+
+    What is left to catch is abandonment, and silence is what abandonment actually looks
+    like. A live Salon heartbeats every thirty seconds; one nobody is in does not.
+
+    `last_heartbeat_at` is null until the first heartbeat arrives, so creation stands in for
+    it — otherwise a Salon opened and never joined would be immortal, which is precisely the
+    unanswered case below.
 
     Returns the ids closed, so the caller can log what it did rather than only how much.
     """
     now = datetime.now(tz=timezone.utc)
-    cutoff = now - timedelta(seconds=settings.max_salon_seconds)
+    cutoff = now - timedelta(seconds=settings.abandoned_salon_seconds)
 
     expired = (
         db.query(Salon)
-        .filter(Salon.status == "active", Salon.created_at < cutoff)
+        .filter(
+            Salon.status == "active",
+            func.coalesce(Salon.last_heartbeat_at, Salon.created_at) < cutoff,
+        )
         .all()
     )
 

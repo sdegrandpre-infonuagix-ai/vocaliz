@@ -1,9 +1,13 @@
-"""Closing salons that outlived their cap, whatever their heartbeats say.
+"""Closing salons nobody has been heard from, whatever their age.
 
-The cap used to be evaluated only when a heartbeat arrived, which meant it was not
-evaluated at all in the most ordinary failure: a host closes their laptop, or the agent
-worker dies. The salon then stayed active for good, leaking an open salon, a reserved
-telephone code and a span of metered time never settled.
+This runs because the alternative is not running at all in the most ordinary failure: a
+host closes their laptop, or the agent worker dies. The salon then stayed active for good,
+leaking an open salon, a reserved telephone code and a span of metered time never settled.
+
+**Silence, not age.** This used to close salons past a ten-minute cap. That cap is retired:
+a Salon now runs as long as its balance covers it, and how long that is depends on the mode
+— closing on age would cut off somebody mid-sentence who had paid for three more hours.
+What is left to catch is abandonment, and silence is what abandonment looks like.
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -28,14 +32,19 @@ def host(db):
     return u
 
 
-def _salon(db, host, *, age_seconds: int, room="salon-sweep", status="active"):
+def _salon(db, host, *, silent_seconds: int, room="salon-sweep", status="active"):
+    """A Salon last heard from `silent_seconds` ago.
+
+    Written onto created_at and left without a heartbeat, which is the shape the sweep
+    falls back to and the one a Salon opened but never joined actually has.
+    """
     s = Salon(
         host_user_id=host.id,
         livekit_room_name=room,
         source_type="url",
         source_content="c",
         status=status,
-        created_at=datetime.now(tz=timezone.utc) - timedelta(seconds=age_seconds),
+        created_at=datetime.now(tz=timezone.utc) - timedelta(seconds=silent_seconds),
     )
     db.add(s)
     db.commit()
@@ -54,7 +63,7 @@ def _sweep(db):
 # ─── What gets closed ─────────────────────────────────────────────────────────
 
 def test_a_salon_past_the_cap_is_closed(db, host):
-    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 60)
+    salon = _salon(db, host, silent_seconds=settings.abandoned_salon_seconds + 60)
     closed, _ = _sweep(db)
     assert closed == [str(salon.id)]
     db.expire_all()
@@ -62,26 +71,31 @@ def test_a_salon_past_the_cap_is_closed(db, host):
 
 
 def test_a_salon_inside_the_cap_is_left_alone(db, host):
-    salon = _salon(db, host, age_seconds=60)
+    salon = _salon(db, host, silent_seconds=60)
     closed, _ = _sweep(db)
     assert closed == []
     db.expire_all()
     assert db.get(Salon, salon.id).status == "active"
 
 
-def test_heartbeats_are_irrelevant(db, host):
-    """Driven by age, not by silence. A salon running eleven minutes is over whether or
-    not somebody was talking a second ago — and the whole point is that no heartbeat is
-    arriving at all."""
-    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 5)
+def test_a_long_salon_still_being_heard_from_is_left_alone(db, host):
+    """The reversal, and the reason for it. This used to assert the opposite — that age
+    closed a Salon whether or not somebody had just spoken. Under prepaid billing that cut
+    off a paying conversation mid-sentence, so what closes a Salon is now silence. An old
+    Salon whose heartbeat arrived a second ago is a conversation in progress."""
+    salon = _salon(db, host, silent_seconds=99999)
     salon.last_heartbeat_at = datetime.now(tz=timezone.utc)
     db.commit()
+
     closed, _ = _sweep(db)
-    assert closed == [str(salon.id)]
+
+    assert closed == []
+    db.expire_all()
+    assert db.get(Salon, salon.id).status == "active"
 
 
 def test_an_already_ended_salon_is_not_touched_again(db, host):
-    _salon(db, host, age_seconds=99999, status="ended")
+    _salon(db, host, silent_seconds=99999, status="ended")
     closed, _ = _sweep(db)
     assert closed == []
 
@@ -89,7 +103,7 @@ def test_an_already_ended_salon_is_not_touched_again(db, host):
 def test_the_room_is_deleted_which_is_what_stops_the_agent(db, host):
     """Marking the row ended only settles the accounting; deleting the room is what
     actually silences a worker still talking into it."""
-    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
+    salon = _salon(db, host, silent_seconds=settings.abandoned_salon_seconds + 1)
     _, delete_room = _sweep(db)
     delete_room.assert_awaited_once_with(salon.livekit_room_name)
 
@@ -98,7 +112,7 @@ def test_the_room_is_deleted_which_is_what_stops_the_agent(db, host):
 
 def test_the_telephone_code_returns_to_the_pool(db, host):
     """The visible symptom of the leak: a code reserved for a conversation that is over."""
-    salon = _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
+    salon = _salon(db, host, silent_seconds=settings.abandoned_salon_seconds + 1)
     code = salon_code_service.claim(db)
     db.add(
         Invitation(
@@ -122,7 +136,7 @@ def test_the_telephone_code_returns_to_the_pool(db, host):
 
 def test_metered_time_is_settled(db, host):
     """A salon abandoned mid-conversation used to leave its span unbilled for good."""
-    _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
+    _salon(db, host, silent_seconds=settings.abandoned_salon_seconds + 1)
     _sweep(db)
     db.expire_all()
     assert db.get(User, host.id).trial_seconds_used > 0
@@ -133,8 +147,8 @@ def test_metered_time_is_settled(db, host):
 def test_one_stubborn_salon_does_not_stop_the_others(db, host):
     """A sweep that aborts halfway is worse than no sweep: the remainder is silently
     skipped on every single run."""
-    first = _salon(db, host, age_seconds=settings.max_salon_seconds + 10, room="salon-a")
-    second = _salon(db, host, age_seconds=settings.max_salon_seconds + 20, room="salon-b")
+    first = _salon(db, host, silent_seconds=settings.abandoned_salon_seconds + 10, room="salon-a")
+    second = _salon(db, host, silent_seconds=settings.abandoned_salon_seconds + 20, room="salon-b")
 
     calls = {"n": 0}
 
@@ -163,7 +177,7 @@ def test_the_handler_action_reports_what_it_closed(db, host):
     """EventBridge invokes this every five minutes; the count is how anyone knows it ran."""
     from src import migrate_handler
 
-    _salon(db, host, age_seconds=settings.max_salon_seconds + 1)
+    _salon(db, host, silent_seconds=settings.abandoned_salon_seconds + 1)
 
     with patch.object(
         salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
@@ -237,9 +251,16 @@ async def test_an_unanswered_call_is_given_up_on_before_the_cap(db):
 
 
 @pytest.mark.asyncio
-async def test_an_answered_call_keeps_the_full_cap(db):
-    """Somebody picked up. It is a conversation now, and a conversation gets ten minutes."""
+async def test_an_answered_call_is_not_given_up_on(db):
+    """Somebody picked up. It is a conversation now, and it runs as long as the balance
+    covers it — the five-minute rule above is about nobody arriving, not about duration.
+
+    Heartbeating, because that is what an answered call that is still going actually does.
+    Without one it would be closed by the abandonment rule instead, and rightly: a call
+    picked up five minutes ago that has said nothing since is not in progress."""
     salon = _desk_call(db, age_seconds=settings.unanswered_call_seconds + 5, answered=True)
+    salon.last_heartbeat_at = datetime.now(tz=timezone.utc)
+    db.commit()
     with patch.object(
         salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ):
@@ -262,7 +283,7 @@ async def test_a_call_still_ringing_is_left_alone(db):
 async def test_a_salon_in_both_lists_is_closed_once(db):
     """Old enough for the cap and unanswered as well. Finalising twice would bill a salon
     that had already been settled."""
-    salon = _desk_call(db, age_seconds=settings.max_salon_seconds + 60, answered=False)
+    salon = _desk_call(db, age_seconds=settings.abandoned_salon_seconds + 60, answered=False)
     with patch.object(
         salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock
     ):
