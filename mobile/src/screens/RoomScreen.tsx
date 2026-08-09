@@ -28,6 +28,7 @@ import PoweredBy from '../components/PoweredBy';
 import Wordmark from '../components/Wordmark';
 import CaptionsPanel from '../components/CaptionsPanel';
 import DrivingMode from '../components/DrivingMode';
+import { useAutoDriving } from '../hooks/useAutoDriving';
 import { colors, spacing, typography, MIN_TOUCH } from '../theme/tokens';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -72,7 +73,17 @@ export default function RoomScreen({ salonId, onLeft }: Props) {
   const [busy, setBusy] = useState(false);
   // Driving mode is a toggle: on, the screen goes black and stays awake; off, the room
   // comes back exactly as it was. It changes nothing about the conversation itself.
-  const [driving, setDriving] = useState(false);
+  //
+  // The state lives in useAutoDriving because speed can move it too (FR76). The switch
+  // stays authoritative in every circumstance — leaving by hand while still moving is what
+  // suspends the automatism, so the two never fight over the screen.
+  const {
+    driving,
+    setDriving,
+    automatic,
+    setAutomatic,
+    available: automaticAvailable,
+  } = useAutoDriving();
 
   // Ref rather than state: the heartbeat interval must see the live room without
   // re-subscribing on every render.
@@ -448,6 +459,21 @@ export default function RoomScreen({ salonId, onLeft }: Props) {
         >
           <Text style={styles.buttonOutlineText}>{t.room.drivingToggle}</Text>
         </Pressable>
+
+        {/* Hidden once the automatism is known to be unavailable — a browser, a device
+            without a position, or a refused permission. Nothing is announced: somebody who
+            never asked for the feature is not told they are missing it. */}
+        {automaticAvailable ? (
+          <Pressable
+            style={({ pressed }) => [styles.buttonOutline, pressed && styles.buttonPressed]}
+            onPress={() => setAutomatic(!automatic)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: automatic }}
+            accessibilityLabel={t.room.drivingAutoToggle}
+          >
+            <Text style={styles.buttonOutlineText}>{t.room.drivingAutoToggle}</Text>
+          </Pressable>
+        ) : null}
 
         {error ? (
           <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="polite">

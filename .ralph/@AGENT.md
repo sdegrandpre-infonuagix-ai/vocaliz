@@ -154,7 +154,26 @@ npx eas build --platform ios --profile development
 
 # Build Development Client for Android
 npx eas build --platform android --profile development
+
+# Run tests (Node's own runner over the pure modules — no bundler, no build step)
+npm test
 ```
+
+Expo has changed: read `https://docs.expo.dev/versions/v57.0.0/` before writing any code
+against an Expo module. `mobile/AGENTS.md` says so and it is not decorative.
+
+Automatic driving mode (Story 6.17, FR76) is entirely on the device — the speed is read,
+used, and dropped, and nothing about it reaches the orchestrator. `src/lib/drivingAuto.ts`
+is a pure state machine over speed samples with no imports at all, which is what makes the
+privacy claim checkable: `npm test` fails the build if an import, a `fetch` or a store
+appears in it. `src/hooks/useAutoDriving.ts` is the only part that touches `expo-location`,
+requests the permission at the moment the automatism is switched on, and watches at
+`Accuracy.Balanced` — the lowest that can still tell 5 from 10 km/h.
+
+Two thresholds, never one: on above 10 km/h, off only after 120 s below 5 km/h, so the mode
+does not flicker at every junction. Leaving by hand while still moving suspends the
+automatism for the rest of the Salon — without it a train passenger is shut inside a safety
+feature that was never about them. The automatism only ever undoes its own decisions.
 
 ## Key Learnings
 - Update this section when you learn new build optimizations

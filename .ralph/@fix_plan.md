@@ -62,12 +62,7 @@
 - [x] Story 6.14: Sous-Titres Traduits en Direct
 - [x] Story 6.15: Voyant de Parole par Paire
 - [x] Story 6.16: Mode Conduite — Écran Noir, Vocal Uniquement
-  > As a participant au volant
-  > I want que l'application n'ait rien à me montrer
-  > So that je n'aie aucune raison de baisser les yeux.
-  > AC: Given un participant activant le mode conduite, When il s'affiche, Then l'écran devient entièrement noir et remplace la salle, plutôt que de se superposer à une partie d'elle — la conversation vocale se poursuit inchangée dessous, And Given le mode conduite actif, When les fonctions visuelles sont évaluées, Then la vidéo (FR72), les sous-titres (FR73) et les voyants de parole (FR74) sont tous suspendus — il ne reste que la voix, And Given la suspension des sous-titres, When elle prend effet, Then la langue de sous-titres est vidée pendant toute la durée du mode : personne ne lit, donc rien n'est traduit, donc rien n'est facturé pour des tours que ce participant ne verra jamais. Le choix précédent est restauré à la sortie, And Given l'écran du téléphone, When le mode est actif, Then il est maintenu éveillé — un téléphone qui se verrouille au bout de trente secondes obligerait à le réveiller, le déverrouiller et retrouver l'application pour sortir du mode, c'est-à-dire exactement le tâtonnement que le mode veut éviter. Le verrou est relâché dès la sortie, And Given un conducteur voulant sortir du mode, When il touche l'écran, Then toute la surface est la sortie : la seule chose qu'on puisse faire au toucher, sans regarder, est de taper la vitre, And Given un conducteur voulant quitter le Salon, When il cherche à raccrocher, Then une cible distincte le permet en une seule action, placée en bas où le pouce repose plutôt que là où un contact involontaire atterrit, And Given l'affichage résiduel, When il est rendu, Then il est volontairement terne — assez lumineux pour se trouver dans le noir, trop pour attirer l'œil — et la barre d'état passe en clair pour ne pas briller en blanc dans un habitacle sombre
-  > Spec: specs/planning-artifacts/epics.md#story-6-16
-- [ ] Story 6.17: Activation Automatique du Mode Conduite
+- [x] Story 6.17: Activation Automatique du Mode Conduite
   > As a participant qui prend la route
   > I want que le mode conduite s'active sans que j'y pense
   > So that je n'aie pas à manipuler mon téléphone au moment où je ne dois pas.

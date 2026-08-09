@@ -47,6 +47,12 @@
       ],
       "expo-localization",
       [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Vocaliz reads your speed on this device to turn driving mode on by itself. It stays on the phone: it is never sent, never stored, and never used to locate you."
+        }
+      ],
+      [
         "expo-contacts",
         {
           "contactsPermission": "Vocaliz uses your contacts so you can invite someone without typing their address."

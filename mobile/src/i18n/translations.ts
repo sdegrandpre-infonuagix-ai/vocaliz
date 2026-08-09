@@ -68,6 +68,7 @@ export interface Translations {
     captionsNotice: string;
     captionsLanguageLabel: string;
     drivingToggle: string;
+    drivingAutoToggle: string;
     drivingHint: string;
     drivingExit: string;
     agentPause: string;
@@ -163,6 +164,7 @@ const fr: Translations = {
       + 'Chacun ici peut le lire dans la langue de son choix.',
     captionsLanguageLabel: 'Langue des sous-titres',
     drivingToggle: 'Conduite',
+    drivingAutoToggle: 'Conduite automatique',
     drivingHint: 'Mode conduite. La conversation continue.\nTouchez l’écran pour revenir.',
     drivingExit: 'Quitter le mode conduite',
     agentPause: "Mettre l’agent en pause",
@@ -254,6 +256,7 @@ const en: Translations = {
       + 'Everyone here can read it in the language they choose.',
     captionsLanguageLabel: 'Caption language',
     drivingToggle: 'Driving',
+    drivingAutoToggle: 'Automatic driving',
     drivingHint: 'Driving mode. The conversation continues.\nTap the screen to come back.',
     drivingExit: 'Leave driving mode',
     agentPause: 'Pause the agent',
