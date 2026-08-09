@@ -137,7 +137,7 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
-### API — signing up with an address or a number (Story 10.1, partial / replaces FR27)
+### API — signing up with an address or a number (Story 10.1 / replaces FR27)
 
 `api/src/signup.py` + `participant_identifiers` (migration 052). The identifier is the **key**
 to the ten-minute lifetime quota — not the account (anybody can make another), not the Salon
@@ -159,10 +159,28 @@ account per spelling; `verify_otp` normalises to match.
 knowing: sign-in is email OTP, so a number-only person can be identified and **cannot yet sign
 in**.
 
-**Not done — AC4 is outstanding.** Anonymous access still exists: `invite_anonymously`,
-guest-join against a bare token with no identifier, and the dial-in path minting
-`anonymous_link` invitations. Also unreconciled: three free allowances now coexist (this
-quota, Story 8.2's 500-cent welcome credit, and the inherited `free_trial_limit_seconds` hour).
+**No anonymous access.** Every way into a Salon now carries an identifier:
+
+- `POST /salons/{id}/invitations/anonymous` answers **410** — answered rather than deleted, so
+  an old client gets "this is gone, here is what replaced it" instead of a 404 reading as a bad
+  URL.
+- `invite_anonymously` → `invite_caller(…, email=, phone=)`, which keeps both reasons the old
+  one existed (never sent — the person is already in the room; claims no telephone PIN — a
+  scarce six-digit code would reach a channel nobody will use) and adds the identifier.
+  `invitation_type` is `telephone_caller`.
+- `call-the-desk` requires `email` or `phone`. Still no account and no code, nothing verified —
+  what it buys is a key to hold the allowance against, without which ringing again is a fresh
+  ten minutes for the price of pressing a button.
+- `confirm_guest_join` registers the invitation's identifier — at acceptance, not at issue: an
+  invitation nobody accepted is somebody who never arrived, and minting them an account counts
+  a person who has not been in a Salon. Never fatal; a conflict is rolled back and the guest
+  stays in.
+
+The `anonymous_link` branch stays in the invitations CHECK so pre-10.1 rows remain readable —
+nothing issues one, which is a rule about the code rather than about the past.
+
+Still unreconciled: three free allowances coexist (this quota, Story 8.2's 500-cent welcome
+credit, and the inherited `free_trial_limit_seconds` hour), and none is wired to live billing.
 
 ### Orchestrator — what each tier costs a listener (Story 9.4 / FR33, NFR6, NFR4)
 

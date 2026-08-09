@@ -15,6 +15,7 @@ from src.models.salon import Salon
 from src.models.user import User
 from src.services import livekit_service, salon_code_service, sms_service
 from src.services.email_text import bilingual_body, bilingual_subject
+from src.signup import identifiers_of, normalise_email, normalise_phone, register
 
 logger = logging.getLogger(__name__)
 
@@ -425,22 +426,32 @@ def _send_invitation_email(to_address: str, join_link: str, phone_pin: str = "")
     )
 
 
-def invite_anonymously(salon_id: str, host_user: User, db: DbSession) -> dict:
-    """A join link addressed to nobody, for a host who has no way to reach their guest.
+def invite_caller(
+    salon_id: str,
+    host_user: User,
+    db: DbSession,
+    *,
+    email: str | None = None,
+    phone: str | None = None,
+) -> dict:
+    """A join link for somebody already in the room, carrying who they are.
 
-    Every other invitation is built around a channel — an address to mail, a number to text.
-    This one has neither and is not sent anywhere: the host copies it and passes it on however
-    they like, in a chat, over a shoulder, out loud.
+    This is what the anonymous link became in Story 10.1. A link addressed to nobody left
+    nothing to hold an allowance against: whoever had used their free minutes got them back by
+    arriving again as a stranger, and no accounting downstream could tell. So an identifier is
+    required here exactly as it is everywhere else, and `identifiers_of` refuses a call with
+    neither.
 
-    Single-use is not special handling here. Every join token is spent once, at the moment the
-    guest's microphone works, and a spent token answers 410 — see guest_join_salon. What
-    makes this link no more shareable than the others is that the participant identity is
-    derived from the invitation, so a second person opening it displaces the first.
+    What survives from the anonymous version, because both reasons still hold. It is **not
+    sent**: the person is already in the room and the link exists to give them an identity the
+    room can name and the report can count. And it claims **no telephone PIN**: codes come from
+    a finite pool of six digits and reach somebody only by text message, so reserving one for a
+    caller who is already through would spend a scarce code on a channel nobody will use.
 
-    No telephone PIN is claimed, and that is the one real difference. Codes come from a finite
-    pool of six digits and a PIN reaches a guest only by text message; reserving one for a link
-    with no number to send it to would spend a scarce code on a channel that cannot be used.
+    Single-use needs no special handling. Every join token is spent once, at the moment the
+    guest's microphone works, and a spent one answers 410 — see `guest_join_salon`.
     """
+    identifiers_of(email=email, phone=phone)
     salon_uuid = uuid.UUID(str(salon_id))
     salon = db.query(Salon).filter(Salon.id == salon_uuid).first()
     if salon is None or salon.host_user_id != host_user.id:
@@ -448,16 +459,20 @@ def invite_anonymously(salon_id: str, host_user: User, db: DbSession) -> dict:
     if salon.status != "active":
         raise HTTPException(status_code=409, detail="This salon is no longer active.")
 
+    person = register(db, email=email, phone=phone)
+
     invitation = Invitation(
         salon_id=salon_uuid,
         host_user_id=host_user.id,
-        # Empty rather than NULL for both: these are the same columns the addressed
-        # invitations use, invite_guest normalises a missing number to "" the same way, and
-        # the response schema types them as strings.
-        guest_email="",
-        guest_phone="",
-        guest_user_id=None,
-        invitation_type="anonymous_link",
+        # Empty rather than NULL for the channel that was not given: these are the same
+        # columns the addressed invitations use, `invite_guest` normalises a missing number
+        # to "" the same way, and the response schema types them as strings.
+        guest_email=normalise_email(email),
+        guest_phone=normalise_phone(phone),
+        # The account the identifier resolves to. Which is what keys their quota: a caller
+        # who rings twice is one person with one allowance, not two callers with one each.
+        guest_user_id=person.id,
+        invitation_type="telephone_caller",
         join_token=secrets.token_urlsafe(32),
         phone_pin=None,
         status="pending",

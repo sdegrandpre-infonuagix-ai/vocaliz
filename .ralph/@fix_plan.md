@@ -92,15 +92,10 @@
 - [x] Story 9.2: Adaptation de l'Échange Publicitaire Hérité
 - [x] Story 9.3: Insertion d'Annonces entre Messages
 - [x] Story 9.4: Fréquence Différenciée entre Base et Mode A
-  > As a exploitant
-  > I want moduler la charge publicitaire selon le palier
-  > So that la montée en gamme ait une valeur perceptible.
-  > AC: Given un participant en mode Base, When le Salon se déroule, Then il reçoit une annonce selon `frequence_annonces_base` (1 / 5 min), And Given un participant en Mode A, When le Salon se déroule, Then il reçoit une annonce selon `frequence_annonces_mode_a` (1 / 10 min), And Given un participant en Mode B, en Mode C, ou couvert par « l'hôte paie tout », When le Salon se déroule, Then il ne reçoit aucune annonce, And Given un participant en Mode C, When son interprète est instancié, Then il utilise `modele_mode_c` (`grok-voice-think-fast-2.0`), là où les Modes A et B utilisent `grok-voice-think-fast-1.0` — le modèle est un paramètre d'adaptateur par palier, jamais une constante du produit (NFR6), And Given les deux fréquences, When elles sont modifiées, Then elles sont persistées et ajustables indépendamment (FR54), And Given que lire une annonce occupe l'interprète et fait avancer son curseur moins vite, When on compare les paliers à charge de conversation égale, Then un participant sans annonces accumule mécaniquement moins de retard qu'un participant en Mode A, lui-même moins qu'un participant en Base — il condense donc moins souvent (FR53) et sature plus rarement (FR49), And Given cette conséquence, When elle est mesurée, Then le taux de condensation et le nombre de saturations sont instrumentés par palier, afin de vérifier que le mode Base reste utilisable et non simplement dégradé (NFR4)
-  > Spec: specs/planning-artifacts/epics.md#story-9-4
 ### Inscription Légère & Accès Sans Installation
 > Goal: Toute personne invitée rejoint un Salon depuis son navigateur en quelques secondes avec un courriel ou un téléphone, sans installer d'application, dans la limite du plafond de participants.
 
-- [ ] Story 10.1: Inscription par Courriel ou Téléphone
+- [x] Story 10.1: Inscription par Courriel ou Téléphone
   > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** OTP par courriel via SES (`services/otp.py`, `routers/auth.py`), `users.email` unique et indexé, `users.phone_number` optionnel et unique.
   > `invitation_service.link_prior_invitations` rattache même les participations antérieures d'un invité qui s'inscrit ensuite.
   > > > **Ce qui reste :** le registre des identifiants brûlés et le crédit de bienvenue — traités en Story 8.2.

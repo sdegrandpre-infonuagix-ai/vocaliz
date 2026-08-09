@@ -19,6 +19,7 @@ from src.schemas.invitation import (
     PendingInvitationResponse,
 )
 from src.rate_limit import limiter
+from src.signup import InvalidRegistration, identifiers_of, register
 from src.services import voice_languages
 from src.services.voice_languages import FOLLOW_THE_SPEAKER
 from src.services import (
@@ -45,14 +46,24 @@ def create_anonymous_invitation(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """A join link with nobody's address on it, for the host to pass on by hand.
+    """Gone since Story 10.1. There is no such thing as a join link addressed to nobody.
 
-    Separate from the addressed endpoint rather than an empty body on it: that one refuses a
-    request with neither channel, and the refusal is worth keeping. Somebody who meant to type
-    an address and left the field blank should be told, not handed a link to a stranger.
+    A link with no identifier on it left nothing to hold the ten free minutes against:
+    somebody who had used theirs got them back by arriving again as a stranger, and no
+    accounting downstream could notice. Every way into a Salon now carries an address or a
+    number.
+
+    Answered rather than deleted, and 410 rather than 404. A client still calling this is
+    running an old build, and "this is gone, here is what replaced it" is an answer somebody
+    can act on where a not-found reads as a bug in the URL.
     """
-    return invitation_service.invite_anonymously(
-        salon_id=salon_id, host_user=current_user, db=db
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Invitations without an address or a phone number are no longer issued. "
+            "Invite your guest on POST /salons/{salon_id}/invitations with whichever of "
+            "the two you have."
+        ),
     )
 
 
@@ -206,6 +217,21 @@ def confirm_guest_join(
     if invitation.status == "pending":
         invitation.status = "accepted"
         db.commit()
+
+    # Story 10.1. The moment somebody is genuinely present is the moment their identifier has
+    # to key their allowance — every invitation now carries one, since the link addressed to
+    # nobody is gone. Registering here rather than when the host typed it: an invitation that
+    # was never accepted is somebody who never arrived, and minting them an account would
+    # count a person who has not been in a Salon.
+    #
+    # Never fatal. A guest whose microphone has just started working must not be thrown out
+    # because two identifiers turned out to belong to two people; that is a support question,
+    # and the participation is recorded either way.
+    try:
+        register(db, email=invitation.guest_email, phone=invitation.guest_phone)
+        db.commit()
+    except InvalidRegistration:
+        db.rollback()
 
     # Recorded here rather than when the credentials were fetched: this is the first
     # moment the guest is genuinely present — microphone working, able to be heard.
@@ -372,6 +398,7 @@ async def call_the_desk(
     request: Request,
     language: str = FOLLOW_THE_SPEAKER,
     email: str = "",
+    phone: str = "",
     db: DbSession = Depends(get_db),
 ):
     """Ring the front desk from the front page, with no account and no code.
@@ -381,15 +408,25 @@ async def call_the_desk(
     has never heard of Vocaliz presses one button and is in a room with an agent, and the
     person who answers finds out by email.
 
-    Public, and therefore rate-limited across everybody rather than per address — there is no
-    address. The limit is deliberately low: the endpoint creates a Salon and sends an email
-    with no authentication at all, which is exactly the shape somebody automates, and the
-    failure it prevents is a thousand Salons and a thousand emails arriving overnight.
+    An address or a number is required since Story 10.1 — the one thing that changed. It is
+    still no account and no code: nothing is verified, nothing is signed in to, and either
+    channel will do. What it buys is a key to hold the ten free minutes against, without which
+    ringing again is how somebody gets a fresh allowance for the price of pressing a button.
 
-    Two invitations, not one. The caller's is anonymous and never sent anywhere; it exists to
-    give them an identity the room can name and the report can count. The desk's is addressed
-    and mailed, which is what tells a human that somebody is waiting.
+    Public, and therefore rate-limited across everybody rather than per address. The limit is
+    deliberately low: the endpoint creates a Salon and sends an email with no authentication at
+    all, which is exactly the shape somebody automates, and the failure it prevents is a
+    thousand Salons and a thousand emails arriving overnight.
+
+    Two invitations, not one. The caller's is never sent anywhere; it exists to give them an
+    identity the room can name and the report can count. The desk's is addressed and mailed,
+    which is what tells a human that somebody is waiting.
     """
+    try:
+        identifiers_of(email=email, phone=phone)
+    except InvalidRegistration as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     desk = db.query(User).filter(User.email == settings.front_desk_email).first()
     if desk is None:
         # Not created on the fly. An account minted by an anonymous request would be an
@@ -429,8 +466,8 @@ async def call_the_desk(
         host_token=jwt_service.issue_token(str(desk.id)),
     )
 
-    caller = invitation_service.invite_anonymously(
-        salon_id=str(salon.id), host_user=desk, db=db
+    caller = invitation_service.invite_caller(
+        salon_id=str(salon.id), host_user=desk, db=db, email=email, phone=phone
     )
     # Mailed, which is the point of this one. A failure to send is logged inside the service
     # and costs the notification, never the call — the caller is already in the room.
@@ -447,12 +484,11 @@ async def call_the_desk(
     ).one()
     caller_id = livekit_service.identity_for(invitation)
 
-    # Optional, and only ever for sending them the conversation afterwards. A caller who
-    # gives nothing still gets through: the address buys them a copy, it does not buy them
-    # the call. Recorded on the participation rather than on the invitation, because an
-    # anonymous_link invitation is forbidden by the schema from carrying an address — that
-    # constraint exists so a link addressed to nobody cannot quietly hold somebody's email.
-    caller_email = (email or "").strip().lower()
+    # Read back off the invitation, which now carries it (Story 10.1). An address that
+    # failed to look like one is dropped here rather than at the door: `identifiers_of` has
+    # already accepted the pair, so somebody who gave a number and mistyped an address still
+    # gets through — the address buys them a copy of the conversation, not the call itself.
+    caller_email = invitation.guest_email or ""
     if caller_email and "@" not in caller_email:
         caller_email = ""
 

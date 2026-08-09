@@ -195,7 +195,9 @@ def test_an_unsupported_tag_still_reaches_the_desk(client, db):
     with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
         "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
     ):
-        resp = client.post("/invitations/call-the-desk?language=klingon")
+        resp = client.post(
+            "/invitations/call-the-desk?language=klingon&email=caller@example.com"
+        )
     assert resp.status_code == 200
     salon = db.query(Salon).filter(
         Salon.livekit_room_name == resp.json()["livekitRoomName"]
@@ -217,7 +219,9 @@ def test_a_supported_tag_is_kept_whole(client, db):
     with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
         "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
     ):
-        resp = client.post("/invitations/call-the-desk?language=pt-PT")
+        resp = client.post(
+            "/invitations/call-the-desk?language=pt-PT&email=caller@example.com"
+        )
     salon = db.query(Salon).filter(
         Salon.livekit_room_name == resp.json()["livekitRoomName"]
     ).one()

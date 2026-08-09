@@ -199,7 +199,7 @@ def _ring(client):
     with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
         "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
     ):
-        return client.post("/invitations/call-the-desk")
+        return client.post("/invitations/call-the-desk?email=caller@example.com")
 
 
 def test_one_press_puts_the_caller_in_a_room(client, desk):
@@ -236,20 +236,64 @@ def test_the_desk_is_told_somebody_is_waiting(client, desk, db):
 
 
 def test_the_caller_gets_an_identity_of_their_own(client, desk, db):
-    """Anonymous and never sent anywhere. It exists so the room can name this person and the
-    report can count them — without it a caller is an unattributable voice."""
+    """Never sent anywhere. It exists so the room can name this person and the report can
+    count them — without it a caller is an unattributable voice.
+
+    It carries their identifier since Story 10.1: a link addressed to nobody left nothing to
+    hold the ten free minutes against, and ringing again was how somebody got a fresh
+    allowance for the price of pressing a button."""
     from src.models.invitation import Invitation
 
     body = _ring(client).json()
     salon = db.query(Salon).filter(
         Salon.livekit_room_name == body["livekitRoomName"]
     ).one()
-    anonymous = db.query(Invitation).filter(
+    callers = db.query(Invitation).filter(
         Invitation.salon_id == salon.id,
-        Invitation.invitation_type == "anonymous_link",
+        Invitation.invitation_type == "telephone_caller",
     ).all()
-    assert len(anonymous) == 1
+    assert len(callers) == 1
+    assert callers[0].guest_email == "caller@example.com"
     assert body["participantIdentity"]
+
+
+def test_ringing_without_an_identifier_is_refused(client, desk):
+    """No account and no code is unchanged; no identifier at all is not. Either channel will
+    do and nothing is verified — what it buys is a key to hold the allowance against."""
+    from unittest.mock import AsyncMock, patch as _patch
+
+    with _patch("src.services.livekit_service.create_room", new_callable=AsyncMock), _patch(
+        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
+    ):
+        resp = client.post("/invitations/call-the-desk")
+
+    assert resp.status_code == 400
+
+
+def test_a_number_alone_is_enough_to_ring(client, desk, db):
+    """Somebody who has a telephone and no address is exactly who this endpoint is for."""
+    from unittest.mock import AsyncMock, patch as _patch
+
+    with _patch("src.services.livekit_service.create_room", new_callable=AsyncMock), _patch(
+        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
+    ):
+        resp = client.post("/invitations/call-the-desk?phone=%2B15145550123")
+
+    assert resp.status_code == 200
+    assert db.query(User).filter(User.phone_number == "+15145550123").count() == 1
+
+
+def test_ringing_twice_is_one_person(client, desk, db):
+    """The whole reason an identifier is required. Two calls are one allowance, not two."""
+    from unittest.mock import AsyncMock, patch as _patch
+
+    with _patch("src.services.livekit_service.create_room", new_callable=AsyncMock), _patch(
+        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
+    ):
+        client.post("/invitations/call-the-desk?email=twice@example.com")
+        client.post("/invitations/call-the-desk?email=Twice@Example.COM")
+
+    assert db.query(User).filter(User.email == "twice@example.com").count() == 1
 
 
 def test_the_caller_is_recorded_as_having_no_screen(client, desk, db):
@@ -266,7 +310,7 @@ def test_an_agent_is_dispatched(client, desk):
     with patch("src.services.livekit_service.create_room", new_callable=AsyncMock), patch(
         "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
     ) as dispatched:
-        client.post("/invitations/call-the-desk")
+        client.post("/invitations/call-the-desk?email=caller@example.com")
     assert dispatched.await_count == 1
 
 
