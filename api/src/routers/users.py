@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from src import credentials, identifier_change, privacy
 from src.credit import Tier, balance
-from src.tiers import covers_minutes
+from src.tiers import covers_minutes, offer_for
 from src.models.pending_identifier_change import PendingIdentifierChange
 
 from src.config import settings
@@ -65,6 +65,39 @@ def get_balance(
         },
         secondsUsed=current_user.trial_seconds_used,
     )
+
+
+@router.get("/tiers")
+def get_tiers(
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """The four modes, priced, and — for this person — timed.
+
+    `offer_for` has composed this since the tiers were written and nothing served it, so the
+    creation screen it was built for had no way to ask. A host could not choose a mode
+    because no client was ever told the modes existed.
+
+    The catalogue is the same for everybody; what is personal is how long the credit lasts.
+    `coversMinutes` is null rather than zero when there is none — "your credit covers 0
+    minutes" is a sentence that advertises a disappointment, where saying nothing lets the
+    rate stand on its own.
+    """
+    return {
+        "tiers": [
+            {
+                "tier": offer.tier.value,
+                "label": offer.tier.label,
+                "centsPerHour": offer.cents_per_hour,
+                "rateLabel": offer.rate_label,
+                "naturalVoice": offer.natural_voice,
+                "advertising": offer.advertising,
+                "premiumVoice": offer.premium_voice,
+                "coversMinutes": offer.covers_minutes,
+            }
+            for offer in offer_for(db, current_user.id)
+        ]
+    }
 
 
 @router.get("/partners", response_model=PreviousPartnersResponse)
