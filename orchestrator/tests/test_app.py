@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from src.config import Settings
 from src.lifecycle import SalonRegistry
+from src.settings import InMemorySettingsStore
 from src.main import (
     COMPONENT,
     HEALTH_PATH,
@@ -109,14 +110,14 @@ def test_a_second_termination_signal_changes_nothing(client):
 def test_a_termination_signal_before_startup_is_survivable():
     """Between process start and the lifespan there is no registry yet, and a signal
     arriving in that window must not take the process down with an AttributeError."""
-    handle_shutdown_signal(create_app(settings=SETTINGS))
+    handle_shutdown_signal(create_app(settings=SETTINGS, settings_store=InMemorySettingsStore()))
 
 
 def test_the_signal_handler_chains_onto_the_one_it_found(monkeypatch):
     """Uvicorn installs its own SIGTERM handler to close the server. Ours must run before
     it and then call it — a handler that swallowed the signal would leave a task that never
     stops, and ECS would SIGKILL it, which is the opposite of draining."""
-    fresh = create_app(settings=SETTINGS)
+    fresh = create_app(settings=SETTINGS, settings_store=InMemorySettingsStore())
     fresh.state.registry = SalonRegistry()
     called = []
 
@@ -137,7 +138,7 @@ def test_the_signal_handler_chains_onto_the_one_it_found(monkeypatch):
 
 def test_startup_is_logged_with_the_configuration_it_read(caplog):
     with caplog.at_level(logging.INFO, logger=COMPONENT):
-        with TestClient(create_app(settings=SETTINGS)):
+        with TestClient(create_app(settings=SETTINGS, settings_store=InMemorySettingsStore())):
             pass
 
     startup = [r for r in caplog.records if r.getMessage().startswith("orchestrator starting")]
@@ -153,7 +154,7 @@ def test_startup_is_logged_with_the_configuration_it_read(caplog):
 
 def test_startup_log_never_carries_a_secret(caplog):
     with caplog.at_level(logging.DEBUG):
-        with TestClient(create_app(settings=SETTINGS)):
+        with TestClient(create_app(settings=SETTINGS, settings_store=InMemorySettingsStore())):
             pass
 
     logged = "\n".join(record.getMessage() for record in caplog.records)
@@ -162,7 +163,7 @@ def test_startup_log_never_carries_a_secret(caplog):
 
 
 def test_shutdown_drains_before_the_process_goes_away(caplog):
-    fresh = create_app(settings=SETTINGS)
+    fresh = create_app(settings=SETTINGS, settings_store=InMemorySettingsStore())
 
     with caplog.at_level(logging.INFO, logger=COMPONENT):
         with TestClient(fresh):
@@ -175,7 +176,10 @@ def test_shutdown_drains_before_the_process_goes_away(caplog):
 
 def test_shutdown_says_so_when_a_salon_outlives_the_drain(caplog):
     """The wait is bounded. What is left over is resumed elsewhere, and the log says so."""
-    fresh = create_app(settings=SETTINGS.model_copy(update={"drain_timeout_seconds": 0}))
+    fresh = create_app(
+        settings=SETTINGS.model_copy(update={"drain_timeout_seconds": 0}),
+        settings_store=InMemorySettingsStore(),
+    )
 
     with caplog.at_level(logging.INFO, logger=COMPONENT):
         with TestClient(fresh):

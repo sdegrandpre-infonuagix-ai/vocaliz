@@ -416,6 +416,50 @@ whole economy of the feature — Silero reports continuously, and rebroadcasting
 board to everybody many times a second would be the most expensive possible way to say
 nothing. Nothing is sent to a screen that is black in driving mode either.
 
+## The Salon's parameters
+
+`src/settings/`. Deliberately not `src/config.py`, and the split is about what changing a
+value should cost. A credential belongs in the environment: it is set once, it is secret,
+and changing it *should* mean a deploy. A threshold does not. `condensation_threshold_seconds`
+is a number somebody will want to move while a Salon is going badly, and putting a tuning
+knob behind a deployment means in practice it never gets turned.
+
+So these live in a table, are read at startup, and reach a running fleet without a restart.
+`LiveSettings.get()` is a coroutine rather than an attribute for exactly that reason: several
+instances serve one Salon and the only thing they share is the table, so each re-reads it
+every `DEFAULT_RELOAD_SECONDS` (30). Reading on every access would make this the busiest
+query in the system; never re-reading would make a change a deploy, which is the thing FR54
+exists to avoid.
+
+| Parameter | Starts at | What it governs |
+|---|---|---|
+| `condensation_threshold_seconds` | 120 | Above this lag an interpreter condenses (FR53) |
+| `saturation_threshold_seconds` | 300 | Above this a room signals and stops accepting (FR55) |
+| `unblock_threshold_seconds` | 240 | And below this it is let go again |
+| `max_message_characters` | 500 | Where a long intervention is cut |
+| `significant_pause_ms` | 2000 | Above this a silence is content, not breathing |
+| `max_pause_ms` | 5000 | The longest pause ever reported |
+
+Two of the rules between them look like ordinary validation and are not. Condensation at or
+above saturation would mean condensation never once ran before the alarm it exists to
+prevent; unblocking at or above saturation would mean a room unblocked straight back into
+the condition that blocked it. Neither mistake raises anything anywhere — the system simply
+stops doing something it was built to do, silently, for as long as nobody looks. Refusing the
+configuration is the only moment either is visible, so the refusal names the fields, the
+values *and* the consequence.
+
+A change is validated against the values it lands beside rather than on its own: 250 is a
+perfectly good condensation threshold and wrong next to a saturation threshold of 200. It is
+refused before it is written, because a bad edit that was correctly refused here would
+otherwise still be sitting in the table to fail the next instance on the way up.
+
+The table is key/value rather than a row of typed columns, so adding a parameter is not a
+migration. The cost is that one numeric column holds everything, which is why `SalonSettings`
+puts the integer types back on the way out — `max_message_characters` slices text and cannot
+arrive as `400.0`. A stored name the dataclass does not know is refused rather than dropped:
+a row left behind by a removed parameter should be loud, and a typo that appeared to save and
+did nothing is the least debuggable outcome available.
+
 ## Driving mode
 
 `Salon.start_driving` / `stop_driving`. The screen goes black and *replaces* the room rather

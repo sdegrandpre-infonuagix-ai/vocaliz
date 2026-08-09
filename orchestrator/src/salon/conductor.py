@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import json
 
-from dataclasses import dataclass, field, field
+from dataclasses import dataclass, field
 
 from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
-from src.journal import MAX_MESSAGE_CHARACTERS, JournalEntry, SalonLog, without_markers
+from src.journal import JournalEntry, SalonLog, without_markers
+from src.settings import SalonSettings
 from src.salon.history import HistoryAccess, grants_history
 from src.salon.notices import (
     already_here,
@@ -91,18 +92,32 @@ class Salon:
         *,
         log: SalonLog,
         rooms: RoomProvisioner,
-        max_message_characters: int = MAX_MESSAGE_CHARACTERS,
+        max_message_characters: int | None = None,
         host_id: str | None = None,
-        condensation_threshold_seconds: float = 120.0,
+        condensation_threshold_seconds: float | None = None,
         video: VideoPath | None = None,
+        settings: SalonSettings | None = None,
     ) -> None:
+        # Story 7.1. The persisted parameters supply the operational numbers; either can
+        # still be passed directly, which is what the tests do and what keeps a Salon
+        # constructible without a settings table behind it. An explicit argument wins,
+        # because a caller who named a value meant it.
+        settings = settings or SalonSettings()
         self.log = log
         self._rooms = rooms
-        self._max_message_characters = max_message_characters
+        self._max_message_characters = (
+            max_message_characters
+            if max_message_characters is not None
+            else settings.max_message_characters
+        )
         # Who may cut a microphone. None means nobody can, which is the right default for a
         # Salon whose host has not been declared: the alternative is everybody.
         self._host_id = host_id
-        self._condensation_threshold = condensation_threshold_seconds
+        self._condensation_threshold = (
+            condensation_threshold_seconds
+            if condensation_threshold_seconds is not None
+            else settings.condensation_threshold_seconds
+        )
         # Optional: a deployment without it loses the pictures and nothing else.
         self._video = video
         # Story 6.15. LiveKit publishes speaking state per room; the humans share none, so
@@ -116,7 +131,6 @@ class Salon:
         # Everybody who has ever had a seat. The journal outlives the seat, so a late
         # arrival given the history hears what somebody said after they left — and has to
         # be told who said it.
-        self._ever_joined: dict[str, Participant] = {}
         self._ever_joined: dict[str, Participant] = {}
 
     @property

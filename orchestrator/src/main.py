@@ -21,7 +21,11 @@ from types import FrameType
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from src.config import DEFAULT_DRAIN_TIMEOUT_SECONDS, Settings, load_settings
+from src.journal.sql_store import async_url
+from src.settings import LiveSettings, SettingsStore, SqlSettingsStore
 from src.lifecycle import SalonRegistry
 from src.logging_config import configure_logging
 
@@ -112,12 +116,19 @@ async def _drain(target: FastAPI) -> None:
         )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    settings_store: SettingsStore | None = None,
+) -> FastAPI:
     """Build the application.
 
     `settings` is normally left out, and then the configuration — credentials included —
     is resolved in the lifespan below. Passing one is for tests, which have no business
     reading a developer's environment to decide what the health endpoint answers.
+
+    `settings_store` is the same arrangement for Story 7.1's parameters: left out, the
+    instance opens the database named in the configuration, which is what production does
+    and what makes an unreachable database a startup failure rather than a surprise later.
     """
 
     @asynccontextmanager
@@ -133,6 +144,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         target.state.settings = resolved
         target.state.registry = SalonRegistry()
+
+        # Story 7.1. The operational parameters come from a table rather than the
+        # environment, and are read here so a combination that could never work stops the
+        # instance at startup rather than a week later. `LiveSettings` re-reads on an
+        # interval, which is what lets a change reach a running fleet without a deploy.
+        store = settings_store
+        if store is None:
+            engine = create_async_engine(async_url(resolved.database_url))
+            store = SqlSettingsStore(engine)
+            await store.create_all()
+        target.state.salon_settings = LiveSettings(store=store)
+        await target.state.salon_settings.get()
+
         _install_shutdown_handlers(target)
 
         # Identifiers and numbers only — never a credential, never conversation content.

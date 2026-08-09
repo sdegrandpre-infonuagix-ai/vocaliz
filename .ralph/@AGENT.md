@@ -131,6 +131,16 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+`src/settings/` (Story 7.1) holds the Salon's *operational* parameters, which is a different
+thing from `src/config.py` and deliberately so: a credential should cost a deploy to change,
+a threshold should not. They live in a key/value table (`salon_settings`), are read at
+startup, and `LiveSettings.get()` re-reads every 30 s so a change reaches a running fleet
+without a restart. `condensation_threshold_seconds` and `unblock_threshold_seconds` must both
+sit strictly below `saturation_threshold_seconds` — both orderings, if broken, fail silently
+rather than loudly, so the configuration is refused with the consequence spelled out.
+`create_app(settings_store=...)` injects an `InMemorySettingsStore` for tests; left out, the
+instance opens the configured database, which makes an unreachable one a startup failure.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.
