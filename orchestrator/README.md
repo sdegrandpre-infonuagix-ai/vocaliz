@@ -147,28 +147,6 @@ interpreter too broken to say it does not leave the microphone open.
 When the microphone comes back, nothing is owed for the silence. The next thing they say
 takes the next position in the journal, behind whoever spoke while they were quiet.
 
-## Cutting a microphone
-
-The one asymmetry in a Salon. Story 6.6 removed every notion of being *given* the floor —
-nobody asks, nobody grants — and this does not put it back: it takes a voice away rather
-than handing one out, and `NotTheHost` is what keeps it that way. A Salon with no declared
-host lets nobody do it, which is the right default when the alternative is everybody.
-
-`Salon.mute(participant_id, by=...)` stops that participant reaching the journal and
-nothing else. They keep their room, their position and everything they are being told —
-which is the whole difference between this and removing them. Their interpreter is not even
-asked what it heard: discarding it downstream would work and would go on paying for the
-transcription of somebody who has been told they are not being heard.
-
-They are told out loud, through `announce`, so Story 6.5's rule holds — the notice waits for
-the end of an intervention rather than landing in the seam. The notice is a courtesy and the
-cut is not: an interpreter too broken to say it does not leave the microphone open.
-
-Nothing is owed for the silence. What they say after `unmute` takes the next position in
-the journal, behind whoever spoke while they could not, and nothing said into a cut
-microphone is held and released later — a sentence delivered two minutes late answers a
-question nobody has asked since.
-
 ## Which languages are offered
 
 `offered_languages` takes the **intersection** of what the adapters speak, never their
