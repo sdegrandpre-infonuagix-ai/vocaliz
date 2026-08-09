@@ -725,8 +725,8 @@ _L'arborescence existe déjà et n'est pas à créer. Ce qui suit dit **où chaq
 | **3 · Accès Invité** | `api/src/routers/guest_web.py` · `api/web/join.html` | ✅ livré, **amendé par 10** |
 | **4 · Essai & Facturation** | `api/src/services/stripe_service.py` · `models/billing_event.py` | ✅ livré, **remplacé par 8** |
 | **5 · Historique & Reconnexion** | `api/src/services/partner_service.py` · `routers/users.py` | ✅ livré |
-| **6 · Socle Multi-Rooms** | **`api/src/services/orchestrator/`** (nouveau) · `services/livekit_service.py` · `models/utterance.py` · `agent/agent.py` | 🔨 le cœur |
-| **7 · Régulation & Observabilité** | `api/src/services/orchestrator/` · **`models/operational_setting.py`** (nouveau) | 🔨 |
+| **6 · Socle Multi-Rooms** | **`orchestrator/`** — nouveau composant déployable, à la racine · `api/src/services/livekit_service.py` · `models/utterance.py` · `agent/agent.py` | 🔨 le cœur |
+| **7 · Régulation & Observabilité** | `orchestrator/` · **`api/src/models/operational_setting.py`** (nouveau) | 🔨 |
 | **8 · Modes & Paliers** | **`api/src/services/billing/`** (nouveau) · `models/user.py` · `services/stripe_service.py` | 🔨 remplace 4 |
 | **9 · Régie d'Annonces** | `api/src/services/ad_auction_service.py` · `ad_billing_service.py` · `models/ad.py` | ⚠️ **hérité, à conserver** |
 | **10 · Inscription Légère** | `api/src/routers/auth.py` · `services/invitation_service.py` · `api/web/` | 🔨 amende 1 et 3 |
@@ -736,11 +736,17 @@ _L'arborescence existe déjà et n'est pas à créer. Ce qui suit dit **où chaq
 ### Ce qui s'ajoute, et seulement cela
 
 ```
-api/src/services/orchestrator/        ← Epic 6 et 7. Le seul vrai nouveau sous-système.
-    journal.py                        écriture et lecture du journal polyglotte
-    cursors.py                        un curseur par interprète ; retard = tête − curseur
-    interpreter.py                    le port : InterpreteS2S · InterpreteBase · InterpreteFake
-    saturation.py                     seuils par room, condensation, blocage d'entrée
+orchestrator/                         ← Epic 6 et 7. Un CINQUIÈME composant déployable,
+    src/main.py                          à la racine, pas un sous-dossier de l'API.
+    src/config.py                     santé, configuration par l'environnement, journalisation
+    src/lifecycle.py                  reprise après éviction, drainage au déploiement
+    src/journal.py                    écriture et lecture du journal polyglotte
+    src/cursors.py                    un curseur par interprète ; retard = tête − curseur
+    src/interpreter.py                le port : InterpreteS2S · InterpreteBase · InterpreteFake
+    src/saturation.py                 seuils par room, condensation, blocage d'entrée
+    Dockerfile                        image conteneur
+    ecs/task-definition.json          définition de tâche écrite à la main, pas de CDK
+    tests/
 
 api/src/services/billing/             ← Epic 8. Le prépayé remplace le post-payé.
     ledger.py                         millicents, accumulateur entier, report de reste
@@ -749,6 +755,10 @@ api/src/services/billing/             ← Epic 8. Le prépayé remplace le post-
 
 api/src/models/operational_setting.py ← Epic 7. Seuils modifiables sans déploiement.
 ```
+
+> ⚠️ **Correction du 2026-08-08.** Ce document plaçait d'abord l'orchestrateur dans `api/src/services/orchestrator/`. C'était faux : les critères d'acceptation de la Story 6.1 exigent **un composant déployable distinct**, avec son `Dockerfile`, sa définition de tâche ECS Fargate et son propre cycle de vie — un sous-dossier de l'API ne peut satisfaire aucun des trois. L'orchestrateur a besoin d'un processus long qui survit à une requête HTTP ; l'API est une Lambda. C'était une contradiction de fond, pas une préférence de rangement.
+>
+> **Un attendu de la Story 6.1 reste néanmoins faux :** elle place l'orchestrateur sur ECS *« au même titre que le worker d'interprète »*. Le worker d'interprète n'est **pas** sur ECS — `agent/livekit.toml` le déploie sur LiveKit Cloud Agents, et c'est pourquoi aucun cluster ECS n'existe dans ce compte. La conclusion de la story tient — l'orchestrateur va bien sur ECS Fargate — mais **l'analogie qui la justifie est fausse, et le cluster est à créer**, pas à rejoindre.
 
 Rien d'autre ne se crée. Toute autre fonctionnalité s'ajoute à un fichier existant : `models/` gagne des colonnes, `routers/salons.py` gagne des routes, `services/` gagne des fonctions.
 
