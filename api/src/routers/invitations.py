@@ -420,9 +420,23 @@ def confirm_guest_join(
     # Never fatal. A guest whose microphone has just started working must not be thrown out
     # because two identifiers turned out to belong to two people; that is a support question,
     # and the participation is recorded either way.
+    # Captured rather than discarded: this account's own JWT is what lets this guest act on
+    # this Salon the same way the host does — adding a source, pausing the agent, speaking
+    # with its voice. No second credential type; `_salon_for_host_or_accepted_guest` widens
+    # the very check every one of those routes already made, and this is the same token the
+    # host has always held for the same purpose.
+    guest_token: str | None = None
     try:
-        register(db, email=invitation.guest_email, phone=invitation.guest_phone)
+        person = register(db, email=invitation.guest_email, phone=invitation.guest_phone)
+        # Written onto this invitation specifically, not assumed from the account lookup
+        # above: `register` finds or creates a person keyed by identifier, but knows nothing
+        # of which invitation brought them here. Without this line
+        # `_salon_for_host_or_accepted_guest` would find no accepted guest to match against,
+        # however real the account is.
+        if invitation.guest_user_id is None:
+            invitation.guest_user_id = person.id
         db.commit()
+        guest_token = jwt_service.issue_token(str(person.id))
     except InvalidRegistration:
         db.rollback()
 
@@ -465,7 +479,10 @@ def confirm_guest_join(
             microphone_enabled=True,
         )
 
-    return {"status": invitation.status}
+    # Present whenever registration succeeded, whether the invitation was already accepted
+    # or just became so — a guest retrying this call must get the same working token back,
+    # not lose it on the second, idempotent response.
+    return {"status": invitation.status, "guestToken": guest_token}
 
 
 # Separate router for /me prefix — registered in main.py

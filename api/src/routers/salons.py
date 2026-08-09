@@ -341,21 +341,9 @@ async def add_salon_source(
 ):
     """
     Add an additional source (URL or document) to an active salon.
-    Only the salon host may call this endpoint.
+    The host, or a guest who has accepted an invitation to this salon, may call this.
     """
-    import uuid as _uuid
-
-    try:
-        salon_uuid = _uuid.UUID(salon_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Salon not found.")
-
-    salon = db.query(Salon).filter(
-        Salon.id == salon_uuid,
-        Salon.host_user_id == current_user.id,
-    ).first()
-    if not salon:
-        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
+    salon = _salon_for_host_or_accepted_guest(salon_id, db, current_user)
 
     if salon.status != "active":
         raise HTTPException(status_code=409, detail="Cannot add a source to an ended salon.")
@@ -383,7 +371,11 @@ async def add_salon_source(
     )
 
     source = SalonSource(
-        salon_id=salon_uuid,
+        salon_id=salon.id,
+        # Whoever actually added it — the host, or now a guest — not necessarily the
+        # Salon's own host. The column predates a second person ever being able to call
+        # this; attribution to the real author is more useful than a name that would be
+        # wrong every time a guest is the one who added it.
         host_user_id=current_user.id,
         source_type=src_type,
         source_url=source_url,
@@ -1320,6 +1312,52 @@ def confirm_ad_delivered(
 # when the agent has gone wrong and should start over.
 
 
+def _salon_for_host_or_accepted_guest(
+    salon_id: str, db: DbSession, current_user: User
+) -> Salon:
+    """Like `_host_salon`, widened to a guest who has actually accepted an invitation to
+    this specific Salon — never any guest of any Salon, and never a pending one who has
+    not yet arrived.
+
+    Deliberately its own function rather than a parameter on `_host_salon`. The two named
+    actions that still call `_host_salon` directly — disconnecting the agent and
+    reconnecting it — end the interpreter's memory of the conversation outright, which
+    stays the host's call alone; conflating the checks would make widening one an accident
+    of widening the other.
+
+    A guest reaches this with the same JWT the host has always used here: `confirm_guest_join`
+    issues one from the account `register()` already creates for them, the moment they are
+    genuinely present with a working microphone. No new credential type, no new dependency —
+    the ownership check is the only thing that changed.
+    """
+    import uuid as _uuid
+
+    try:
+        salon_uuid = _uuid.UUID(salon_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Salon not found.")
+
+    salon = db.query(Salon).filter(Salon.id == salon_uuid).first()
+    if salon is None:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
+
+    if salon.host_user_id == current_user.id:
+        return salon
+
+    accepted_guest = (
+        db.query(Invitation)
+        .filter(
+            Invitation.salon_id == salon.id,
+            Invitation.guest_user_id == current_user.id,
+            Invitation.status == "accepted",
+        )
+        .first()
+    )
+    if accepted_guest is None:
+        raise HTTPException(status_code=404, detail="Salon not found or access denied.")
+    return salon
+
+
 def _host_salon(salon_id: str, db: DbSession, current_user: User) -> Salon:
     # Imported inside the function, as every other handler in this module does. There is no
     # module-level `uuid` here, and assuming one produced a NameError on the first click of a
@@ -1351,8 +1389,10 @@ async def get_agent_state(
     Presence comes from LiveKit rather than from a column: it is the authority on who is in a
     room, and an agent can leave for reasons nothing here initiated. Mute has no such authority
     to consult — it lives inside the running agent — so it is the one thing recorded.
+
+    The host, or a guest who has accepted an invitation to this salon, may read this.
     """
-    salon = _host_salon(salon_id, db, current_user)
+    salon = _salon_for_host_or_accepted_guest(salon_id, db, current_user)
     return AgentStateResponse(
         present=await livekit_service.agent_is_present(salon.livekit_room_name),
         muted=salon.agent_muted,
@@ -1371,8 +1411,11 @@ async def set_agent_muted(
     The agent does the muting itself, on a message: only it can stop its own input, and doing
     it from here by muting its published track would silence its voice while leaving it
     listening — half a pause, and the wrong half.
+
+    The host, or a guest who has accepted an invitation to this salon, may pause or resume it.
+    Removing the agent outright stays the host's call alone — see `_host_salon`.
     """
-    salon = _host_salon(salon_id, db, current_user)
+    salon = _salon_for_host_or_accepted_guest(salon_id, db, current_user)
     salon.agent_muted = body.muted
     db.commit()
     await livekit_service.notify_room(

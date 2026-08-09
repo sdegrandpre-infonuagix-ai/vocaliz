@@ -1530,14 +1530,23 @@ async def entrypoint(ctx: agents.JobContext):
                 return
             sender = getattr(getattr(packet, "participant", None), "identity", "") or ""
 
-            # The host's typed line is spoken aloud, word for word, in the agent's voice —
-            # not handed to the model as something to respond to. The host is borrowing the
-            # voice, and a paraphrase would be the agent saying something they did not write.
+            # The typed line is spoken aloud, word for word, in the agent's voice — not
+            # handed to the model as something to respond to. Whoever wrote it is borrowing
+            # the voice, and a paraphrase would be the agent saying something they did not
+            # write.
             #
-            # Restricted to the host, and to the identity the API names rather than one this
-            # code infers. Anyone able to reach this path can put words in the agent's mouth,
-            # and the room has no way to tell those words from the agent's own.
-            speaks_aloud = bool(host_identity) and sender == host_identity
+            # Two ways to earn that: being the host — the identity the API names, never one
+            # this code infers — or being the one human `follow_journal` was set up for.
+            # Under the per-participant topology a room holds exactly one human, host or
+            # guest, and comparing against `host_identity` alone was wrong for a guest's own
+            # room by construction: nobody there is ever the host, so the comparison always
+            # failed and a guest's typed word was silently downgraded to something the model
+            # merely responded to. `follow_journal` is true only for that topology, and
+            # `participant_id` is who this job was dispatched for — never inferred, same as
+            # `host_identity` was never inferred, just from the other side of the boundary.
+            speaks_aloud = (bool(host_identity) and sender == host_identity) or (
+                follow_journal and bool(participant_id) and sender == participant_id
+            )
 
             if paused["value"]:
                 # Nothing is spoken while paused — the output is off, so a say() here would be

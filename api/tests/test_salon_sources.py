@@ -1,11 +1,13 @@
 """Tests for POST /salons/{salon_id}/sources (Story 2.3)."""
 import io
 import uuid
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from unittest.mock import AsyncMock, patch as _patch
 
+from src.models.invitation import Invitation
 from src.models.salon import Salon
 from src.models.salon_source import SalonSource
 from src.models.user import User
@@ -91,6 +93,105 @@ def test_add_source_non_host_returns_404(client, db, active_salon):
         data={"source_url": "https://example.com/new"},
         headers={"Authorization": f"Bearer {other_token}"},
     )
+    assert resp.status_code == 404
+
+
+# ─── Guest parity ────────────────────────────────────────────────────────────
+#
+# A guest who has accepted an invitation to *this* Salon may do everything the host can
+# here — the same reach as pausing the agent, and for the same reason: the restriction was
+# never really "must be the host", it was "must be someone this Salon actually let in".
+
+
+def _accepted_guest(db, salon, host_user):
+    guest = User(email="15149999999@example.com", phone_number="+15149999999")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    db.add(
+        Invitation(
+            salon_id=salon.id,
+            host_user_id=host_user.id,
+            guest_email=guest.email,
+            guest_user_id=guest.id,
+            invitation_type="email_contact",
+            join_token="tok-" + str(guest.id),
+            status="accepted",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+    )
+    db.commit()
+    return guest, issue_token(str(guest.id))
+
+
+@patch(
+    "src.routers.salons.content_service.fetch_url_document",
+    new_callable=AsyncMock,
+    return_value=("Guest-added text.", {"article_date": "", "author": "", "publisher": ""}),
+)
+def test_an_accepted_guest_may_add_a_source(mock_content, client, db, host, active_salon):
+    host_user, _ = host
+    _, guest_token = _accepted_guest(db, active_salon, host_user)
+
+    resp = client.post(
+        f"/salons/{active_salon.id}/sources",
+        data={"source_url": "https://example.com/guest-added"},
+        headers={"Authorization": f"Bearer {guest_token}"},
+    )
+
+    assert resp.status_code == 201
+
+
+def test_a_pending_not_yet_accepted_guest_is_refused(client, db, host, active_salon):
+    """Being invited is not the same as having arrived. The same distinction that governs
+    the journal — an accepted invitation, not merely a pending one — governs this too."""
+    host_user, _ = host
+    guest = User(email="15147777777@example.com", phone_number="+15147777777")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    db.add(
+        Invitation(
+            salon_id=active_salon.id,
+            host_user_id=host_user.id,
+            guest_email=guest.email,
+            guest_user_id=guest.id,
+            invitation_type="email_contact",
+            join_token="tok-pending",
+            status="pending",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+    )
+    db.commit()
+    guest_token = issue_token(str(guest.id))
+
+    resp = client.post(
+        f"/salons/{active_salon.id}/sources",
+        data={"source_url": "https://example.com/new"},
+        headers={"Authorization": f"Bearer {guest_token}"},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_a_guest_accepted_into_a_different_salon_is_refused_here(client, db, host, active_salon):
+    host_user, _ = host
+    other_salon = Salon(
+        host_user_id=host_user.id,
+        livekit_room_name="salon-other-room",
+        source_type="none",
+        status="active",
+    )
+    db.add(other_salon)
+    db.commit()
+    _, guest_token = _accepted_guest(db, other_salon, host_user)
+
+    resp = client.post(
+        f"/salons/{active_salon.id}/sources",
+        data={"source_url": "https://example.com/new"},
+        headers={"Authorization": f"Bearer {guest_token}"},
+    )
+
     assert resp.status_code == 404
 
 

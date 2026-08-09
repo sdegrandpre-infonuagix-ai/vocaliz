@@ -2,6 +2,7 @@
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -156,6 +157,49 @@ def test_confirm_spends_the_token(client, db, host, active_salon):
 
     # And the link is spent for good.
     assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 410
+
+
+def test_confirm_returns_a_token_the_guest_can_act_on_the_salon_with(
+    client, db, host, active_salon
+):
+    """The account `register` creates for this guest is real, so its own JWT is what lets
+    them add a source or pause the agent the same way the host does — no second credential
+    type, the very check every one of those routes already made, just widened."""
+    host_user, _ = host
+    inv = _make_invitation(db, host_user, active_salon)
+    client.get(f"/invitations/guest-join/{inv.join_token}")
+
+    resp = client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
+
+    guest_token = resp.json()["guestToken"]
+    assert guest_token
+
+    with patch(
+        "src.services.livekit_service.agent_is_present", new_callable=AsyncMock
+    ) as present:
+        present.return_value = True
+        agent_state = client.get(
+            f"/salons/{active_salon.id}/agent",
+            headers={"Authorization": f"Bearer {guest_token}"},
+        )
+    assert agent_state.status_code == 200
+
+
+def test_confirm_links_this_invitation_to_the_account_it_creates(
+    client, db, host, active_salon
+):
+    """`register` finds or creates a person keyed by identifier, but knows nothing of which
+    invitation brought them here — without writing it back, the guest-parity check on every
+    other route would find no accepted guest to match against, however real the account is."""
+    host_user, _ = host
+    inv = _make_invitation(db, host_user, active_salon)
+    client.get(f"/invitations/guest-join/{inv.join_token}")
+
+    client.post(f"/invitations/guest-join/{inv.join_token}/confirm")
+
+    db.expire(inv)
+    db.refresh(inv)
+    assert inv.guest_user_id is not None
 
 
 def test_confirm_is_idempotent(client, db, host, active_salon):

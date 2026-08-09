@@ -9,10 +9,12 @@ Five hundred and eighteen tests passed. None of them sent a request to either en
 the gap being closed here: a handler that is never called is a handler nobody has run.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from src.models.invitation import Invitation
 from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
@@ -248,3 +250,109 @@ def test_an_unknown_salon_is_not_found(client, host):
     _, token = host
     resp = client.get(f"/salons/{uuid.uuid4()}/agent", headers=_auth(token))
     assert resp.status_code == 404
+
+
+# ─── Guest parity: pausing and resuming, not removing ────────────────────────
+#
+# A guest who has accepted an invitation to this Salon may pause and resume the agent,
+# the same as the host. Removing it outright — which ends the interpreter's memory of the
+# conversation — stays the host's call alone; those two endpoints still use `_host_salon`
+# and are unaffected here.
+
+
+def _accepted_guest(db, salon, host_user):
+    guest = User(email="agentguest@example.com")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    db.add(
+        Invitation(
+            salon_id=salon.id,
+            host_user_id=host_user.id,
+            guest_email=guest.email,
+            guest_user_id=guest.id,
+            invitation_type="email_contact",
+            join_token=f"tok-{guest.id}",
+            status="accepted",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+    )
+    db.commit()
+    return guest, issue_token(str(guest.id))
+
+
+def test_an_accepted_guest_can_read_the_agents_state(client, salon, host, db):
+    host_user, _ = host
+    _, guest_token = _accepted_guest(db, salon, host_user)
+
+    with patch(
+        "src.services.livekit_service.agent_is_present", new_callable=AsyncMock
+    ) as present:
+        present.return_value = True
+        resp = client.get(f"/salons/{salon.id}/agent", headers=_auth(guest_token))
+
+    assert resp.status_code == 200
+
+
+def test_an_accepted_guest_can_pause_the_agent(client, salon, host, db):
+    host_user, _ = host
+    _, guest_token = _accepted_guest(db, salon, host_user)
+
+    with patch(
+        "src.services.livekit_service.notify_room", new_callable=AsyncMock
+    ):
+        resp = client.post(
+            f"/salons/{salon.id}/agent/mute",
+            json={"muted": True},
+            headers=_auth(guest_token),
+        )
+
+    assert resp.status_code == 200
+    db.refresh(salon)
+    assert salon.agent_muted is True
+
+
+def test_a_pending_guest_cannot_pause_the_agent(client, salon, host, db):
+    """Invited is not the same as arrived — the same line the journal itself draws."""
+    host_user, _ = host
+    guest = User(email="pendingagentguest@example.com")
+    db.add(guest)
+    db.commit()
+    db.refresh(guest)
+    db.add(
+        Invitation(
+            salon_id=salon.id,
+            host_user_id=host_user.id,
+            guest_email=guest.email,
+            guest_user_id=guest.id,
+            invitation_type="email_contact",
+            join_token="tok-pending-agent",
+            status="pending",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+    )
+    db.commit()
+    guest_token = issue_token(str(guest.id))
+
+    resp = client.post(
+        f"/salons/{salon.id}/agent/mute",
+        json={"muted": True},
+        headers=_auth(guest_token),
+    )
+
+    assert resp.status_code == 404
+
+
+def test_removing_the_agent_stays_host_only_even_for_an_accepted_guest(client, salon, host, db):
+    """The one thing guest parity does not extend to among these controls: removing the
+    agent ends its memory of the whole conversation, which stays the host's call alone."""
+    host_user, _ = host
+    _, guest_token = _accepted_guest(db, salon, host_user)
+
+    with patch("src.services.livekit_service.remove_agent", new_callable=AsyncMock) as remove:
+        resp = client.post(
+            f"/salons/{salon.id}/agent/disconnect", headers=_auth(guest_token)
+        )
+
+    assert resp.status_code == 404
+    remove.assert_not_awaited()
