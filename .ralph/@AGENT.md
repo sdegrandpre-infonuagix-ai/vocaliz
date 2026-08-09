@@ -137,6 +137,27 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### One link per guest, good once (Story 10.3 / extends FR5)
+
+Mostly inherited — `invitations.join_token` is unique per invitation, `status` moves to
+accepted at the microphone (not at page load, so a browser that refuses the microphone doesn't
+burn the link), and `finalize_salon` expires whatever was never used and returns its telephone
+code to the pool. `tests/test_single_use_links.py` verifies all three criteria end to end.
+
+What the verification found: **used and abandoned were the same refusal, and they are not.** A
+guest who never opened their invitation was told it had already been used — which tells them
+somebody else got in with their link. That is an accusation, not an error message, and the
+support call it produces is about an incident that did not happen. Now three distinct answers:
+`accepted` → "already been used"; `expired` → "this Salon has ended"; past `expires_at` while
+still pending → "this link has expired".
+
+Second gap, same root: `confirm_guest_join` answered 200 for an invitation closed when the
+Salon ended, registering the person and recording a participation in a conversation that was
+over. Confirmation is idempotent for a guest who is *in* — that is the retry it forgives —
+so it now refuses any status that is neither `pending` nor `accepted`. The three statuses in
+the codebase are exactly those plus `expired`; the catch-all refuses rather than admits, which
+is the safe direction for a status somebody adds later.
+
 ### How many people fit in a Salon (Story 10.2 / replaces FR2)
 
 `api/src/participant_cap.py` + `salons.participant_cap` (migration 053) +

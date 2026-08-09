@@ -97,12 +97,7 @@
 
 - [x] Story 10.1: Inscription par Courriel ou Téléphone
 - [x] Story 10.2: Plafond de Participants Configurable
-  > > ✅ **DÉJÀ LIVRÉ PAR SALON.** `livekit_room_max_participants` est passé à `CreateRoomRequest` dans `services/livekit_service.py` — LiveKit refuse la jonction au-delà.
-  > > > **Ce qui reste :** déplacer le réglage des variables d'environnement vers la configuration persistée de la Story 7.1, et l'exposer à l'hôte à la création.
-  > As a hôte
-  > AC: Given un hôte crée un Salon, When il définit le plafond, Then la valeur est bornée par `plafond_participants` (3 initialement), And Given un Salon a atteint son plafond, When une personne supplémentaire tente de rejoindre, Then la jonction est refusée avec un message clair (remplace FR2), And Given `plafond_participants` est modifié en configuration, When de nouveaux Salons sont créés, Then le nouveau plafond s'applique sans redéploiement ni modification de code, And Given le code de l'orchestrateur, When il traite les participants, Then il ne contient aucune hypothèse codée en dur sur leur nombre — construire pour N, configurer à 3
-  > Spec: specs/planning-artifacts/epics.md#story-10-2
-- [ ] Story 10.3: Liens de Jonction à Usage Unique par Invité
+- [x] Story 10.3: Liens de Jonction à Usage Unique par Invité
   > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** `invitations.join_token` est unique **par invitation**, avec `expires_at` et un `status` qui passe à accepté.
   > Un lien vaut donc pour une personne et une seule fois.
   > `services/invitation_service.py` porte la logique.

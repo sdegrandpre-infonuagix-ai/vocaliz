@@ -144,8 +144,17 @@ def guest_join_salon(
     if not invitation:
         raise HTTPException(status_code=404, detail="Invalid or unknown link.")
 
-    if invitation.status != "pending":
+    # Used and abandoned are both refusals and they are not the same refusal (Story 10.3).
+    # Telling somebody who never opened their invitation that it has already been used tells
+    # them somebody else got in with their link — an accusation rather than an error, and the
+    # support call it produces is about an incident that did not happen.
+    if invitation.status == "accepted":
         raise HTTPException(status_code=410, detail="This link has already been used.")
+    if invitation.status != "pending":
+        raise HTTPException(
+            status_code=410,
+            detail="This Salon has ended, so this link is no longer valid.",
+        )
 
     expires = invitation.expires_at
     if expires.tzinfo is None:
@@ -234,6 +243,15 @@ def confirm_guest_join(
 
     if not invitation:
         raise HTTPException(status_code=404, detail="Invalid or unknown link.")
+
+    # Idempotent for a guest who is *in*, which is what the retry it forgives looks like.
+    # Somebody arriving on a link that was closed when the Salon ended was never in it, and
+    # answering 200 would record a participant in a conversation that is over (Story 10.3).
+    if invitation.status not in ("pending", "accepted"):
+        raise HTTPException(
+            status_code=410,
+            detail="This Salon has ended, so this link is no longer valid.",
+        )
 
     if invitation.status == "pending":
         invitation.status = "accepted"
