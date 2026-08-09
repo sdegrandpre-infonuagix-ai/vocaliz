@@ -137,6 +137,37 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### Before a telephone rings (Story 10.5, partial / FR5, FR56)
+
+`api/src/telephone_invitation.py` — the decisions that precede a call. **The dialling itself
+cannot be built here: there is no SIP trunk and no dispatch rule**, which the front-desk
+endpoint already states. So this is the part with judgement in it, ready for a trunk rather
+than waiting on one.
+
+`recognise_number` returns `None` rather than guessing — the agent has to be able to say it
+caught no number, because the alternative is dialling on a maybe. `confirmation_prompt` reads
+it back **in groups**: eleven digits in one run cannot be followed, and a host who cannot
+follow it says yes to be polite. `heard_confirmation` returns yes / no / **`None` meaning ask
+again** — an unclear answer treated as refusal gives up on a host who coughed, treated as
+consent rings a stranger's telephone. Nothing else in Vocaliz reaches out and touches somebody
+who was not already involved, which is why this is the careful part.
+
+`TELEPHONE_TIERS` is A, B, C — **Base is not offered by telephone**, since the host pays the
+supplement and the interpreter either way, so the cheapest tier saves them nothing and costs
+the person on the line a worse conversation. Asking for Base falls to `DEFAULT_TELEPHONE_TIER`
+(Mode B), not to the floor: the host asked for something not on offer, and the offer is what
+they get.
+
+`may_dial` checks **the seat before the card** — a host whose Salon is full does not need to be
+told to add a payment method for a call that could not happen anyway. `host_pays_all` is
+accepted and deliberately not consulted: FR42 is about the *other* participants, and a
+telephone guest is at the host's charge whatever it says. `cost_cents` is the tier rate plus
+`TELEPHONE_SUPPLEMENT_CENTS_PER_HOUR` (100) as one figure, rounded down once at the end.
+
+**Not built, and mostly not buildable here:** placing the call, SIP room provisioning, the
+interpreter's introduction on answer, the callee's language detection, hangup teardown, and the
+voice-command path that would call any of this.
+
 ### Joining from a browser (Story 10.4 / UX-DR5, DR7, DR8, NFR3)
 
 `POST /invitations/guest-join/{token}/options` — the HTTP surface Story 8.4 never grew. Its
