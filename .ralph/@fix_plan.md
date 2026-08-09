@@ -98,12 +98,7 @@
 - [x] Story 10.1: Inscription par Courriel ou Téléphone
 - [x] Story 10.2: Plafond de Participants Configurable
 - [x] Story 10.3: Liens de Jonction à Usage Unique par Invité
-  > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** `invitations.join_token` est unique **par invitation**, avec `expires_at` et un `status` qui passe à accepté.
-  > Un lien vaut donc pour une personne et une seule fois.
-  > `services/invitation_service.py` porte la logique.
-  > AC: Given un hôte invite plusieurs personnes, When les invitations partent, Then un lien à usage unique distinct est généré pour chacune (étend FR5), And Given un lien a déjà été utilisé, When quelqu'un tente de le réutiliser, Then l'accès est refusé, And Given un lien n'a jamais été utilisé, When le Salon se termine, Then le lien devient inopérant
-  > Spec: specs/planning-artifacts/epics.md#story-10-3
-- [ ] Story 10.4: Jonction Web Sans Installation
+- [x] Story 10.4: Jonction Web Sans Installation
   > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** `routers/guest_web.py` sert la page de jonction ; l'invité rejoint depuis son navigateur sans rien installer.
   > > > **Ce qui reste :** l'inscription légère remplace l'accès anonyme, et l'écran de jonction gagne les trois options de la Story 8.4.
   > As a personne invitée

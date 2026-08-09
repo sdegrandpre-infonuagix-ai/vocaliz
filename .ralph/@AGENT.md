@@ -137,7 +137,7 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
-### Joining from a browser (Story 10.4, partial / UX-DR5, DR7, DR8, NFR3)
+### Joining from a browser (Story 10.4 / UX-DR5, DR7, DR8, NFR3)
 
 `POST /invitations/guest-join/{token}/options` — the HTTP surface Story 8.4 never grew. Its
 model (`salon_participant_options`) and its logic (`participation.join_options`) existed with
@@ -156,10 +156,23 @@ refusal is now **spoken** as well as shown (`speechSynthesis`, best-effort, writ
 always present). Somebody who opened the link on a telephone is exactly who Vocaliz is for, and
 a failure they cannot perceive is indistinguishable from a broken product.
 
-**Not done:** the tier chooser itself is not on the screen — the endpoint is callable and
-tested, but `join.html` does not yet render the four options, so AC2's "chooses their mode" is
-half delivered. WCAG AA contrast (UX-DR8) is inherited and has not been programmatically
-verified.
+The chooser is on the screen: four **native radios** in `v-ready`, shown only when
+`readyMode === 'initial'` and `creds.hostPaysAll === false` — strict equality, so a server that
+does not send the field hides the question rather than offering four options it cannot record.
+Base is preselected; a preselected paid tier would be a charge obtained by inattention. The
+choice is posted after `warmUpMicrophone` (which must own the click gesture) and before the
+room is entered, so it is settled before anything is billable. A failed post does not cost the
+conversation — the fallback is downward to Base, since getting less than was asked for is the
+safe direction to fail in.
+
+`tests/test_join_screen_tiers.py` compares the page's four `value=` strings against
+`src.credit.Tier` itself. That is the one drift that matters: the endpoint answers an unknown
+tier with a 400 naming it, so a typo in the markup would refuse every guest who picked it. The
+same file computes WCAG contrast ratios from the hex values rather than asserting a comment,
+and checks those hex values still appear in the stylesheet.
+
+**Not audited:** the inherited page's own palette. Only the colours this story introduced are
+contrast-checked.
 
 ### One link per guest, good once (Story 10.3 / extends FR5)
 

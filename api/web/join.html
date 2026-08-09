@@ -53,6 +53,62 @@
       white-space: nowrap;
     }
 
+    /* The tier chooser (Story 10.4). Left-aligned inside a centred card on purpose: four
+       options read as a list to choose from, where centring them reads as four statements.
+
+       Contrast is carried by the same near-black on white the cards use (#2C2C2C on #FFF,
+       about 13:1 — WCAG AA wants 4.5:1), and the selected option is marked by the radio
+       itself as well as by its border, so colour is never the only carrier (UX-DR7). */
+    #tier-choice {
+      margin-top: 18px;
+      text-align: left;
+    }
+
+    #tier-heading {
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .tier-option {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      grid-template-areas: "radio name" "radio what";
+      gap: 0 10px;
+      align-items: center;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border: 2px solid #DDD;
+      border-radius: 8px;
+      cursor: pointer;
+      /* 44px of target on the shortest side, so a thumb on a phone is enough (UX-DR5). */
+      min-height: 44px;
+    }
+
+    .tier-option input {
+      grid-area: radio;
+      /* Larger than the browser default: the default is under the touch target a phone
+         needs, and the whole label is clickable anyway. */
+      width: 20px;
+      height: 20px;
+      margin: 0;
+      accent-color: #7B2D3B;
+    }
+
+    .tier-option:has(input:checked) {
+      border-color: #7B2D3B;
+      background: #FBF6F7;
+    }
+
+    /* Keyboard focus must be visible on its own, not inferred from the selection. */
+    .tier-option:focus-within {
+      outline: 3px solid #7B2D3B;
+      outline-offset: 2px;
+    }
+
+    .tier-name { grid-area: name; font-weight: 700; color: #2C2C2C; }
+    /* #5A5A5A on white is about 7:1 — comfortably past AA for this size. */
+    .tier-what { grid-area: what; font-size: 0.85rem; color: #5A5A5A; }
+
     /* The account offer, in the header where the agent says it will be. Gold on burgundy:
        the same badge treatment the site uses for a role label, since this is an invitation
        rather than the main thing to do on this screen. */
@@ -463,6 +519,45 @@
     <div class="card-sub" id="ready-sub">
       Vocaliz needs access to your microphone so you can take part in the conversation.
     </div>
+
+    <!-- Story 10.4 / FR35. Asked before entering, because it is a question about the
+         conversation somebody is about to have rather than about their account: the same
+         person may want Mode C for a client call and Base for a chat with a friend.
+
+         Hidden entirely when the host is paying for everybody. Asking somebody to pick a
+         budget they are not spending is a question with no meaning, and it is the server
+         that decides — `hostPaysAll` on the credentials — never this page guessing.
+
+         Native radios rather than styled buttons. The selected one carries a mark and not
+         only a colour (UX-DR7), it is reachable by keyboard, and a screen reader announces
+         the group and the position without any ARIA of ours. -->
+    <div id="tier-choice" style="display:none">
+      <div class="card-sub" id="tier-heading" data-i18n="tierHeading">
+        How would you like to hear this conversation?
+      </div>
+      <div id="tier-options" role="radiogroup" aria-labelledby="tier-heading">
+        <label class="tier-option">
+          <input type="radio" name="tier" value="Base" checked>
+          <span class="tier-name" data-i18n="tierBase">Base</span>
+          <span class="tier-what" data-i18n="tierBaseWhat">A synthetic voice, with advertising</span>
+        </label>
+        <label class="tier-option">
+          <input type="radio" name="tier" value="Mode A">
+          <span class="tier-name" data-i18n="tierA">Mode A</span>
+          <span class="tier-what" data-i18n="tierAWhat">A natural voice, with less advertising</span>
+        </label>
+        <label class="tier-option">
+          <input type="radio" name="tier" value="Mode B">
+          <span class="tier-name" data-i18n="tierB">Mode B</span>
+          <span class="tier-what" data-i18n="tierBWhat">A natural voice, no advertising</span>
+        </label>
+        <label class="tier-option">
+          <input type="radio" name="tier" value="Mode C">
+          <span class="tier-name" data-i18n="tierC">Mode C</span>
+          <span class="tier-what" data-i18n="tierCWhat">The most attentive interpreter, no advertising</span>
+        </label>
+      </div>
+    </div>
   </div>
 
   <!-- State: connected -->
@@ -622,6 +717,15 @@
       micOffStill: 'Still no microphone. Check that no other app is using it, then tap again.',
       errLinkTitle: 'Link unavailable',
       errLinkDetail: 'This link is invalid, has already been used, or has expired.',
+      tierHeading: 'How would you like to hear this conversation?',
+      tierBase: 'Base',
+      tierBaseWhat: 'A synthetic voice, with advertising',
+      tierA: 'Mode A',
+      tierAWhat: 'A natural voice, with less advertising',
+      tierB: 'Mode B',
+      tierBWhat: 'A natural voice, no advertising',
+      tierC: 'Mode C',
+      tierCWhat: 'The most attentive interpreter, no advertising',
       errFullTitle: 'This Salon is full',
       errFullDetail: 'Every seat is taken. Ask your host to open another Salon.',
       errConnTitle: 'Connection error',
@@ -693,6 +797,15 @@
                  + "l'utilise, puis retouchez le bouton.",
       errLinkTitle: 'Lien non disponible',
       errLinkDetail: 'Ce lien est invalide, a déjà été utilisé, ou a expiré.',
+      tierHeading: 'Comment souhaitez-vous entendre cette conversation ?',
+      tierBase: 'Base',
+      tierBaseWhat: 'Une voix synthétique, avec publicité',
+      tierA: 'Mode A',
+      tierAWhat: 'Une voix naturelle, avec moins de publicité',
+      tierB: 'Mode B',
+      tierBWhat: 'Une voix naturelle, sans publicité',
+      tierC: 'Mode C',
+      tierCWhat: "L'interprète le plus attentif, sans publicité",
       errFullTitle: 'Ce Salon est complet',
       errFullDetail: 'Toutes les places sont prises. Demandez à votre hôte d’ouvrir un autre Salon.',
       errConnTitle: 'Erreur de connexion',
@@ -1097,6 +1210,44 @@
     document.getElementById('ready-icon').textContent = READY_ICONS[readyMode];
     document.getElementById('ready-title').textContent = T(READY_KEYS[readyMode][0]);
     document.getElementById('ready-sub').textContent = T(READY_KEYS[readyMode][1]);
+    renderTierChoice();
+  }
+
+  // Shown only on the way in, and only when the host is not paying for everybody. The
+  // server decides that — `hostPaysAll` on the credentials — rather than this page guessing
+  // from anything it can see. Hidden on the way back from a failure too: somebody retrying
+  // after a dropped connection has already answered, and asking again would look like the
+  // first answer was lost.
+  function renderTierChoice() {
+    var box = document.getElementById('tier-choice');
+    if (!box) return;
+    var offered = readyMode === 'initial' && !!creds && creds.hostPaysAll === false;
+    box.style.display = offered ? 'block' : 'none';
+  }
+
+  function chosenTier() {
+    var picked = document.querySelector('#tier-options input[name="tier"]:checked');
+    return picked ? picked.value : 'Base';
+  }
+
+  // Recorded before the room is entered, so what somebody chose is settled before they are
+  // billed for anything.
+  //
+  // A failure here does not stop the join. The conversation is the product, and the fallback
+  // is downward — the server has never heard of a choice it did not receive, so they enter at
+  // Base. Getting less than was asked for is the safe direction to fail in; getting more is
+  // an invoice nobody agreed to.
+  async function recordTierChoice() {
+    if (!creds || creds.hostPaysAll !== false) return;
+    try {
+      await fetch('/invitations/guest-join/' + encodeURIComponent(joinToken) + '/options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: chosenTier() })
+      });
+    } catch (e) {
+      console.warn('Vocaliz: could not record the chosen mode', e);
+    }
   }
 
   function renderError() {
@@ -1376,6 +1527,9 @@
     await warmUpMicrophone();
 
     document.getElementById('btn-join').disabled = true;
+    // After the microphone and before the room: the choice has to be settled before
+    // anything is billable, and it must not sit between the click and the gesture it spends.
+    await recordTierChoice();
     try {
       room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
 
