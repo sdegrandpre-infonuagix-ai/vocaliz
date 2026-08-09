@@ -110,3 +110,13 @@ class CredentialsBody(BaseModel):
 
     username: str
     password: str
+
+
+class ErasureBody(BaseModel):
+    """An erasure request (Story 10.8 / FR66).
+
+    `waiveRefund` is how somebody says knowingly that they are giving up a positive balance.
+    Defaulting it to true would make silence a decision about money.
+    """
+
+    waiveRefund: bool = False

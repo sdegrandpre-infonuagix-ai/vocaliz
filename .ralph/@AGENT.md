@@ -137,6 +137,41 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### Getting your data, and getting it erased (Story 10.8 / FR66)
+
+`api/src/privacy.py` + `erasures` (migration 056), reached by `GET /me/data` and
+`POST /me/erasure`. Two rights that look symmetrical and are not: an export hands somebody a
+copy of what is already theirs; an erasure changes a record other people are also in.
+
+**Only their own words go, and their turn stays.** `speaker_identity` becomes a stable keyed
+pseudonym and `text` is emptied — a conversation with a hole where a speaker was is one nobody
+can follow, and two turns by one erased person must still read as one person.
+
+Two corrections that testing forced, both worth knowing:
+
+- **The ledger is not rewritten.** Story 8.1's append-only ORM guard refused the update, and it
+  was right to. It needs no rewriting: `subject_id` is an opaque UUID with no foreign key and
+  nothing personal beside it. What made it resolve to a person was the account row and the
+  identifier registry — remove those and the stream holds sums of money against a subject
+  nobody can resolve, which is what pseudonymous means.
+- **The `users` row is emptied, not dropped.** `salons.host_user_id` cascades, so deleting a
+  host would take their Salons and *every other participant's words inside them*. Erasing one
+  person by destroying three people's conversation is exactly what a joint record forbids. The
+  row keeps its id and loses everything personal; Story 10.1's CHECK still wants one
+  identifier, so it gets the pseudonym, which names nobody and receives nothing.
+
+**The burned registry is rehashed in place** (`burned_lookup_key`, plain SHA-256 so a signup
+can look one up without a secret) and `grant_welcome_credit` now checks both spellings —
+otherwise erasing an account would be the way to be paid a second welcome credit.
+
+A positive paid balance **refuses** the erasure until it is refunded or knowingly waived:
+erasing an account must never be how the money in it disappears. The `erasures` row records the
+pseudonym, the deadline and the scope in words — proof a request was honoured, never a list of
+who asked, which would be a new personal record created by honouring the old one.
+
+**Not implementable here:** re-applying an erasure after a backup restore. That is a restore
+runbook rather than code, and this repository has no backup machinery to hang it on.
+
 ### A third way in, and a refund without one (Story 10.7 / FR65, FR51)
 
 `api/src/credentials.py` + `api/src/card_recovery.py` + `users.username` / `password_hash` +

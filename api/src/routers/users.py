@@ -6,7 +6,7 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DbSession
 
-from src import credentials, identifier_change
+from src import credentials, identifier_change, privacy
 from src.models.pending_identifier_change import PendingIdentifierChange
 
 from src.config import settings
@@ -15,6 +15,7 @@ from src.dependencies.auth import get_current_user
 from src.models.user import User
 from src.schemas.user import (
     CredentialsBody,
+    ErasureBody,
     IdentifierChangeBody,
     IdentifierConfirmBody,
     LanguagePreferencesBody,
@@ -262,3 +263,52 @@ def set_password(
 
     db.commit()
     return {"username": current_user.username}
+
+
+@router.get("/data", status_code=200)
+def export_my_data(
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A copy of everything Vocaliz holds about you (Story 10.8 / FR66).
+
+    Plain JSON, so it is a file somebody can open rather than an object graph. Their own words
+    and nobody else's: handing somebody the other half of a conversation would be answering one
+    person's right with another person's words.
+    """
+    return privacy.export_data(db, current_user)
+
+
+@router.post("/erasure", status_code=200)
+def erase_my_data(
+    body: ErasureBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Erase what is yours, keeping what is other people's (Story 10.8 / FR66).
+
+    The bearer token is the verification. It was issued by one of Story 10.7's routes — a code
+    to an identifier, or a username and password — which is what the criterion asks for, and
+    an erasure nobody verified is a way to destroy somebody else's account.
+
+    A positive paid balance refuses the request until it is refunded or knowingly given up.
+    Erasing an account must never be how the money in it disappears.
+    """
+    try:
+        record = privacy.erase(
+            db,
+            current_user,
+            verified=True,
+            waive_refund=body.waiveRefund,
+            now=datetime.now(tz=timezone.utc),
+        )
+    except privacy.ErasureRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    db.commit()
+    return {
+        "scope": record.scope,
+        "dueBy": record.due_by.isoformat(),
+        "completedAt": record.requested_at.isoformat(),
+        "message": "Your data has been erased. This is the record of it.",
+    }

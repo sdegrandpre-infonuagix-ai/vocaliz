@@ -123,9 +123,16 @@ def grant_welcome_credit(
     # Same reasoning as `debit`: a burn recorded earlier in this transaction has to be
     # visible, or two signups in one unit of work would both be granted.
     db.flush()
+    # Both spellings. Story 10.8 rewrites a burned identifier as a one-way hash when somebody
+    # exercises their right to erasure, and the registry has to go on refusing that identifier
+    # — erasing an account is not a route to a second welcome credit. Checking only the plain
+    # form would make erasure the way to be paid twice.
+    from src.privacy import burned_lookup_key
+
+    wanted = list(identifiers) + [burned_lookup_key(value) for value in identifiers]
     already = (
         db.query(BurnedIdentifier)
-        .filter(BurnedIdentifier.identifier.in_(identifiers))
+        .filter(BurnedIdentifier.identifier.in_(wanted))
         .first()
     )
     if already is not None:
