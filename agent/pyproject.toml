@@ -7,6 +7,11 @@ dependencies = [
     "livekit-agents[xai,silero,turn-detector]>=1.5.0",
     "numpy>=2.4.6",
     "python-dotenv>=1.0.0",
+    # The agent's own client to the orchestrator relay (src/orchestrator_link.py). Present
+    # in uv.lock only as livekit-agents' own transitive dependency until now — declared
+    # explicitly because relying on someone else's transitive pin is how it silently
+    # disappears the day that pin changes.
+    "aiohttp>=3.10.0",
 ]
 
 [build-system]
