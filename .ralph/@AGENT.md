@@ -137,6 +137,30 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### Joining from a browser (Story 10.4, partial / UX-DR5, DR7, DR8, NFR3)
+
+`POST /invitations/guest-join/{token}/options` — the HTTP surface Story 8.4 never grew. Its
+model (`salon_participant_options`) and its logic (`participation.join_options`) existed with
+nothing able to call them, so the join screen had no way to *ask*. Tier, video and top-up
+arrive in one request because they are answered together on one screen; three calls would let
+somebody enter having answered two. No authentication — the invitation carries the identifier
+since Story 10.1, so the person is resolved from the link. An unknown tier is a **400 naming
+it**, never a silent downgrade: a client disagreeing with the server about what exists should
+not surface as an unexpected bill. `GuestJoinResponse.hostPaysAll` lets the page know before it
+renders whether to put the question at all.
+
+`web/join.html`: a **409 now has its own branch**. A full Salon was reporting a *connection
+error*, sending somebody to check their network over a room with no seat left — the silent
+failure NFR3 forbids, arriving as a misleading message rather than as nothing. And every
+refusal is now **spoken** as well as shown (`speechSynthesis`, best-effort, written message
+always present). Somebody who opened the link on a telephone is exactly who Vocaliz is for, and
+a failure they cannot perceive is indistinguishable from a broken product.
+
+**Not done:** the tier chooser itself is not on the screen — the endpoint is callable and
+tested, but `join.html` does not yet render the four options, so AC2's "chooses their mode" is
+half delivered. WCAG AA contrast (UX-DR8) is inherited and has not been programmatically
+verified.
+
 ### One link per guest, good once (Story 10.3 / extends FR5)
 
 Mostly inherited — `invitations.join_token` is unique per invitation, `status` moves to

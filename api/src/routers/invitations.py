@@ -14,11 +14,15 @@ from src.models.user import User
 from src.schemas.invitation import (
     GeoBody,
     GuestJoinResponse,
+    GuestOptionsBody,
+    GuestOptionsResponse,
     InvitationResponse,
     InviteGuestBody,
     PendingInvitationResponse,
 )
 from src import participant_cap as participant_cap_service
+from src.credit import Tier
+from src.participation import join_options
 from src.rate_limit import limiter
 from src.signup import InvalidRegistration, identifiers_of, register
 from src.services import voice_languages
@@ -217,6 +221,84 @@ def guest_join_salon(
         salonId=str(salon.id),
         participantIdentity=guest_id,
         participantName=livekit_service.guest_display_name(invitation.id),
+        hostPaysAll=bool(salon.host_pays_all),
+    )
+
+
+@guest_router.post(
+    "/guest-join/{join_token}/options", response_model=GuestOptionsResponse
+)
+def choose_guest_options(
+    join_token: str,
+    body: GuestOptionsBody | None = None,
+    db: DbSession = Depends(get_db),
+):
+    """Settle a guest's three options from the join screen (Story 10.4 / FR35, FR42).
+
+    Story 8.4 decided what happens when somebody chooses — the table, the upward-only host
+    override, the credit spent before money is asked for — and never grew a way to *ask*. This
+    is that way, and it is the join screen's only call on the subject.
+
+    Three answers in one request because they are answered together on one screen. Three calls
+    would let somebody enter having answered two of them.
+
+    No authentication: the invitation carries the identifier since Story 10.1, so the person is
+    resolved from the link rather than from a session a guest does not have.
+    """
+    body = body or GuestOptionsBody()
+
+    invitation = db.query(Invitation).filter(
+        Invitation.join_token == join_token,
+    ).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invalid or unknown link.")
+
+    salon = db.query(Salon).filter(Salon.id == invitation.salon_id).first()
+    if invitation.status == "expired" or salon is None or salon.status != "active":
+        # Options for a conversation that is over would be a row nobody can act on, written
+        # after the only moment it could have mattered.
+        raise HTTPException(
+            status_code=410,
+            detail="This Salon has ended, so there is nothing left to choose.",
+        )
+
+    # Named rather than coerced to the cheapest. Somebody sending a tier the server has never
+    # heard of has a client that disagrees with it about what exists, and silently downgrading
+    # them hides the disagreement behind a bill they did not expect.
+    try:
+        chosen = Tier(body.tier) if body.tier else None
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{body.tier!r} is not a tier. The four are "
+                f"{', '.join(tier.value for tier in Tier)}."
+            ),
+        ) from None
+
+    try:
+        person = register(db, email=invitation.guest_email, phone=invitation.guest_phone)
+    except InvalidRegistration as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    settled = join_options(
+        db,
+        salon_id=salon.id,
+        user_id=person.id,
+        chosen_tier=chosen,
+        video=body.video,
+        top_up_cents=body.topUpCents,
+        host_pays=bool(salon.host_pays_all),
+    )
+    db.commit()
+
+    return GuestOptionsResponse(
+        tier=settled.tier,
+        video=settled.video,
+        topUpCents=settled.top_up_cents,
+        coveredByCreditMinutes=settled.covered_by_credit_minutes,
+        paymentRequired=settled.payment_required,
+        choiceOffered=settled.choice_offered,
     )
 
 

@@ -622,6 +622,8 @@
       micOffStill: 'Still no microphone. Check that no other app is using it, then tap again.',
       errLinkTitle: 'Link unavailable',
       errLinkDetail: 'This link is invalid, has already been used, or has expired.',
+      errFullTitle: 'This Salon is full',
+      errFullDetail: 'Every seat is taken. Ask your host to open another Salon.',
       errConnTitle: 'Connection error',
       errConnDetail: 'An unexpected error occurred.',
       errNetTitle: 'Network error',
@@ -691,6 +693,8 @@
                  + "l'utilise, puis retouchez le bouton.",
       errLinkTitle: 'Lien non disponible',
       errLinkDetail: 'Ce lien est invalide, a déjà été utilisé, ou a expiré.',
+      errFullTitle: 'Ce Salon est complet',
+      errFullDetail: 'Toutes les places sont prises. Demandez à votre hôte d’ouvrir un autre Salon.',
       errConnTitle: 'Erreur de connexion',
       errConnDetail: 'Une erreur inattendue est survenue.',
       errNetTitle: 'Erreur réseau',
@@ -1280,11 +1284,33 @@
     btn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
   }
 
+  // NFR3: a refusal is said out loud as well as shown. Somebody who opened this link on a
+  // telephone, or who cannot read the screen, is exactly the person Vocaliz exists for, and a
+  // failure they cannot perceive is indistinguishable from the product being broken.
+  //
+  // Best-effort by design. No browser is required to have a voice for every language, and the
+  // written message is always there — speaking is the second channel, never the only one.
+  function speak(message) {
+    try {
+      if (!('speechSynthesis' in window) || !message) return;
+      var said = new SpeechSynthesisUtterance(message);
+      said.lang = (lang === 'fr') ? 'fr-CA' : 'en-CA';
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(said);
+    } catch (e) {
+      // A voice that will not start must not take the visible message down with it.
+    }
+  }
+
   function showError(titleKey, detailKey, detailRaw) {
     errState = { titleKey: titleKey, detailKey: detailKey, detailRaw: detailRaw || null };
     renderError();
     showCard('v-error');
     showBtn(null);
+    speak(
+      T(titleKey) + '. ' + (detailRaw !== null && detailRaw !== undefined
+        ? detailRaw : T(detailKey))
+    );
   }
 
   // ── Fetch LiveKit credentials (consumes the one-time token) ────────────────
@@ -1294,6 +1320,13 @@
       var data = await resp.json();
       if (resp.status === 404 || resp.status === 410) {
         showError('errLinkTitle', 'errLinkDetail', data.detail);
+        return;
+      }
+      // A full Salon is not a connection problem, and saying so would send somebody to
+      // check their network over a room that simply has no seat left. The server's message
+      // names the size, which is what tells them this is not a moment's queue.
+      if (resp.status === 409) {
+        showError('errFullTitle', 'errFullDetail', data.detail);
         return;
       }
       if (!resp.ok) {

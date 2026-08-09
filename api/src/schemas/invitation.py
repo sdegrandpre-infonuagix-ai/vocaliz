@@ -136,3 +136,28 @@ class GuestJoinResponse(BaseModel):
     participantIdentity: str
     # And under which label it appears to the others.
     participantName: str
+    # Story 10.4. Whether the host is covering everybody, which decides whether the join
+    # screen puts the tier question at all. The page has to know before it renders: asking
+    # and then hiding the answer is a question somebody watched appear and vanish.
+    hostPaysAll: bool = False
+
+
+class GuestOptionsBody(BaseModel):
+    """The three things a guest settles on the join screen, answered together (FR35)."""
+
+    tier: str | None = None
+    video: bool = False
+    topUpCents: int | None = None
+
+
+class GuestOptionsResponse(BaseModel):
+    """What was settled, and what the screen should therefore do next."""
+
+    tier: str
+    video: bool
+    topUpCents: int | None
+    # `None` when there is no credit to speak of — the rate stands alone rather than
+    # advertising a duration of zero.
+    coveredByCreditMinutes: int | None
+    paymentRequired: bool
+    choiceOffered: bool
