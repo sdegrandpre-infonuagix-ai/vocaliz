@@ -131,6 +131,24 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+### API — the accounting event stream (Story 8.1 / NFR7)
+
+`api/src/models/ledger_event.py` + `api/src/ledger.py`. One append-only stream, `ledger_events`,
+is the single source of truth for every financial and operational fact — grants, recharges,
+debits, refunds, expiries, abandonments. The grant audit (FR66), gifted credits (FR67), paid
+balance (FR68) and metrics (NFR4) are **folds** over it, never written alongside it: two
+records of one fact drift, and then nothing can say which is right.
+
+Nothing is ever modified or deleted. A correction is a compensating event carrying
+`corrects_id`, so both facts survive. Refused twice: by SQLAlchemy `before_update`/
+`before_delete` listeners (which the tests exercise) and by a Postgres trigger in migration
+046 (which they cannot — there is no Postgres in the suite).
+
+`subject_id` deliberately has **no foreign key**. The inherited `billing_events.host_user_id`
+cascaded on the user, so deleting an account destroyed the record of what had been charged to
+it. Retention here is independent of accounts. `billing_events` and `ad_broadcasts` are left
+in place — cutting their writers over is its own change.
+
 `src/salon/meta_speech.py` (Story 7.6 / FR62) fixes the order the interpreter's own
 utterances come out in when several are ready together: BUSY, BALANCE, NOTICE, ADVERT, ties
 broken by an arrival counter rather than a clock or object identity, so two runs of one

@@ -69,15 +69,10 @@
 - [x] Story 7.4: Plafond de Monologue
 - [x] Story 7.5: Interprète Simulé et Infrastructure de Test de Charge
 - [x] Story 7.6: Ordre d'Émission de la Méta-Parole
-  > As a développeur
-  > I want un ordre déterministe quand plusieurs prises de parole de l'interprète sont prêtes ensemble
-  > So that la séquence soit reproductible et testable.
-  > AC: Given plusieurs prises de parole de l'interprète prêtes au même instant, When un emplacement inter-messages se libère, Then elles sont émises dans cet ordre :, And Given cet ordre, When il est appliqué, Then aucune prise de parole n'est supprimée ni reportée indéfiniment — l'ordre les séquence, il ne les arbitre pas : les quatre sortent, l'une après l'autre, And Given la présentation d'un participant (FR58) et la restitution d'historique (FR59), When elles ont lieu, Then elles interviennent à l'entrée dans la room, avant que le participant n'entre dans le flux de la conversation — elles ne concourent jamais avec les quatre ci-dessus, And Given la phrase annonçant une condensation (FR53), When elle est émise, Then elle reste solidaire de la restitution qu'elle introduit et ne participe pas à cet ordonnancement, And Given deux exécutions du même scénario, When les mêmes prises de parole sont prêtes simultanément, Then la séquence produite est identique — l'ordre ne dépend jamais de l'ordonnancement interne des tâches
-  > Spec: specs/planning-artifacts/epics.md#story-7-6
 ### Modes d'Expérience & Paliers Tarifaires
 > Goal: Chaque participant choisit son propre mode parmi quatre paliers payants, dispose d'un crédit de bienvenue de 5 USD, est prévenu avant que son solde ne s'épuise, et n'est facturé que pour son propre mode.
 
-- [ ] Story 8.1: Flux d'Événements Comptables
+- [x] Story 8.1: Flux d'Événements Comptables
   > > ⚠️ **PARTIELLEMENT HÉRITÉ — et le code montre déjà les bonnes propriétés.** `billing_events` et `ad_broadcasts` sont des journaux append-only, avec des garanties inscrites dans le schéma : `stripe_invoice_item_id` NULL rend la facturation **idempotente**, `ck_ad_broadcasts_billed_only_if_delivered` interdit de facturer ce qui n'a pas été diffusé, et `amount_cents` fige le prix au moment du fait pour que l'historique ne se reprice jamais.
   > > **Ce qui manque :** ce sont **deux journaux séparés**, pas un flux unique dont les vues dérivent.
   > Reprendre leurs propriétés, unifier leur forme.
