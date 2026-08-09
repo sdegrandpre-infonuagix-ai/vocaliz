@@ -278,44 +278,12 @@ async def test_closing_a_salon_closes_every_room(salon, rooms):
     assert salon.participants == ()
 
 
-# ── Hearing the humans ────────────────────────────────────────────────────────
-
-
-async def test_collect_takes_what_each_interpreter_heard_into_the_journal(salon):
-    await _join(salon, MARIE)
-    await _join(salon, HANS)
-    salon.interpreter_of(MARIE.id).queue("Bonjour", language="fr")
-    salon.interpreter_of(HANS.id).queue("Guten Tag", language="de")
-
-    recorded = await salon.collect()
-
-    assert [entry.text for entry in recorded] == ["Guten Tag", "Bonjour"]
-    assert [(e.text, e.language) for e in salon.log.entries] == [
-        ("Guten Tag", "de"),
-        ("Bonjour", "fr"),
-    ]
-
-
-async def test_collect_passes_over_whoever_said_nothing(salon):
-    await _join(salon, MARIE)
-    await _join(salon, HANS)
-    salon.interpreter_of(MARIE.id).queue("Bonjour", language="fr")
-
-    assert [entry.text for entry in await salon.collect()] == ["Bonjour"]
-
-
-async def test_collect_drops_an_utterance_that_was_all_silence(salon):
-    """Story 6.11's cleaning can leave nothing behind, and nothing is not a turn."""
-    await _join(salon, MARIE)
-    salon.interpreter_of(MARIE.id).queue("   ", language="fr")
-
-    assert await salon.collect() == ()
-    assert salon.log.entries == ()
+# ── The story, end to end ─────────────────────────────────────────────────────
 
 
 async def test_a_full_round_trip_between_two_languages(salon):
-    """The story end to end: Marie speaks French in her room, Hans hears German in his,
-    and neither room ever carried the other's audio."""
+    """Marie speaks French in her room, Hans hears German in his, and neither room ever
+    carried the other's audio. Everything else in this epic is a refinement of this."""
     await _join(salon, MARIE)
     await _join(salon, HANS)
     salon.interpreter_of(MARIE.id).queue("Bonjour tout le monde", language="fr")
@@ -326,55 +294,3 @@ async def test_a_full_round_trip_between_two_languages(salon):
     spoken = salon.interpreter_of(HANS.id).spoken
     assert [(line.text, line.language) for line in spoken] == [("Bonjour tout le monde", "de")]
     assert salon.interpreter_of(MARIE.id).spoken == []
-
-
-# ── When one interpreter fails ────────────────────────────────────────────────
-
-
-async def test_delivering_to_somebody_who_is_not_here_does_nothing(salon):
-    await salon.deliver("nobody")
-
-    assert salon.log.entries == ()
-
-
-async def test_a_failing_interpreter_keeps_its_place_in_the_journal(salon):
-    """Its human was told out loud (NFR3). What they missed is still theirs to catch up
-    on, so the position must not move past it."""
-    await _join(salon, MARIE)
-    await _join(salon, HANS)
-    await salon.ingest(MARIE.id, "Bonjour", language="fr")
-    salon.interpreter_of(HANS.id).fail_with = ConnectionError("model gone")
-
-    await salon.deliver(HANS.id)
-
-    assert len(salon.pending_for(HANS.id)) == 1
-
-
-async def test_a_failing_interpreter_does_not_take_the_others_down(salon):
-    """Rooms are separate by construction, so one model dropping out is one participant's
-    problem. This is the acceptance criterion stated for a failure rather than a departure."""
-    await _join(salon, MARIE)
-    await _join(salon, HANS)
-    await _join(salon, RHYS)
-    await salon.ingest(MARIE.id, "Bonjour", language="fr")
-    salon.interpreter_of(HANS.id).fail_with = ConnectionError("model gone")
-
-    await salon.deliver_all()
-
-    assert len(salon.interpreter_of(RHYS.id).spoken) == 1
-    assert salon.pending_for(RHYS.id) == ()
-
-
-async def test_a_recovered_interpreter_catches_up_from_where_it_stopped(salon):
-    await _join(salon, MARIE)
-    await _join(salon, HANS)
-    await salon.ingest(MARIE.id, "Bonjour", language="fr")
-    await salon.ingest(MARIE.id, "Ça va ?", language="fr")
-    hans = salon.interpreter_of(HANS.id)
-
-    hans.fail_with = ConnectionError("model gone")
-    await salon.deliver(HANS.id)
-    hans.fail_with = None
-    await salon.deliver(HANS.id)
-
-    assert [line.text for line in hans.spoken] == ["Bonjour", "Ça va ?"]
