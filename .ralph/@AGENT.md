@@ -265,9 +265,21 @@ accepted and deliberately not consulted: FR42 is about the *other* participants,
 telephone guest is at the host's charge whatever it says. `cost_cents` is the tier rate plus
 `TELEPHONE_SUPPLEMENT_CENTS_PER_HOUR` (100) as one figure, rounded down once at the end.
 
-**Not built, and mostly not buildable here:** placing the call, SIP room provisioning, the
-interpreter's introduction on answer, the callee's language detection, hangup teardown, and the
-voice-command path that would call any of this.
+`orchestrator/src/salon/notices.py` carries the words, since two of the story's criteria are
+about what is said rather than about telephony. `telephone_greeting(host_name, told_in=)` is
+the first thing somebody hears on answering: it **names the host**, says it will interpret, and
+is one sentence — the person who picked up did not ask for this, and hanging up is the
+reasonable response to an unexplained voice. An address is not a name, so anything containing
+`@` falls back to the neutral designation rather than reading the host's email to a stranger.
+
+`call_not_answered` / `call_declined` / `caller_hung_up` are **three distinct sentences**: to a
+host deciding whether to try again those are three different facts, and one sentence for all
+three would make the feature unusable. None carries the number — the host knows which one they
+asked for, and these are spoken into a room with other people in it. None of them sounds like
+an ending, because the Salon carries on.
+
+**Still not buildable here:** placing the call, SIP room provisioning, the callee's language
+detection, hangup teardown, and the voice-command path that would call any of this.
 
 ### Joining from a browser (Story 10.4 / UX-DR5, DR7, DR8, NFR3)
 

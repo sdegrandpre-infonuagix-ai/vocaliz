@@ -308,3 +308,92 @@ def vocaliz_is_busy(*, told_in: str) -> str:
     itself.
     """
     return _in(_VOCALIZ_IS_BUSY, told_in)
+
+
+# ── A telephone guest, and a call that did not connect (Story 10.5 / FR5, NFR3) ─
+
+# The person who picks up did not ask for this. Their telephone rang, an unfamiliar voice
+# speaks, and unless the first sentence says who is calling and why, hanging up is the
+# reasonable response. So: the host's name, what is about to happen, one sentence.
+_TELEPHONE_GREETING = {
+    "fr": "{name} vous invite à une conversation et je vais vous interpréter.",
+    "en": "{name} is inviting you to a conversation, and I will interpret for you.",
+    "es": "{name} le invita a una conversación y yo le interpretaré.",
+    "de": "{name} lädt Sie zu einem Gespräch ein, und ich werde für Sie dolmetschen.",
+    "pt": "{name} convida-o para uma conversa e eu vou interpretar para si.",
+    "it": "{name} ti invita a una conversazione e io interpreterò per te.",
+    "cy": "Mae {name} yn eich gwahodd i sgwrs, a byddaf yn cyfieithu ar eich cyfer.",
+}
+
+# Three outcomes and three sentences. To a host deciding whether to try again, "no answer",
+# "declined" and "hung up" are different facts, and one sentence for all three would make the
+# feature unusable. None of them carries the number: the host knows which one they asked for,
+# and these are spoken into a room with other people in it.
+_CALL_NOT_ANSWERED = {
+    "fr": "Personne n'a répondu. Nous continuons.",
+    "en": "There was no answer. We are carrying on.",
+    "es": "Nadie contestó. Seguimos.",
+    "de": "Es hat niemand abgenommen. Wir machen weiter.",
+    "pt": "Ninguém atendeu. Continuamos.",
+    "it": "Non ha risposto nessuno. Proseguiamo.",
+    "cy": "Nid oedd ateb. Rydym yn parhau.",
+}
+
+_CALL_DECLINED = {
+    "fr": "L'appel a été refusé. Nous continuons.",
+    "en": "The call was declined. We are carrying on.",
+    "es": "La llamada fue rechazada. Seguimos.",
+    "de": "Der Anruf wurde abgelehnt. Wir machen weiter.",
+    "pt": "A chamada foi recusada. Continuamos.",
+    "it": "La chiamata è stata rifiutata. Proseguiamo.",
+    "cy": "Gwrthodwyd yr alwad. Rydym yn parhau.",
+}
+
+_CALLER_HUNG_UP = {
+    "fr": "La personne au téléphone a raccroché. Nous continuons.",
+    "en": "The person on the telephone has hung up. We are carrying on.",
+    "es": "La persona al teléfono ha colgado. Seguimos.",
+    "de": "Die Person am Telefon hat aufgelegt. Wir machen weiter.",
+    "pt": "A pessoa ao telefone desligou. Continuamos.",
+    "it": "La persona al telefono ha riagganciato. Proseguiamo.",
+    "cy": "Mae'r person ar y ffôn wedi rhoi'r ffôn i lawr. Rydym yn parhau.",
+}
+
+
+def telephone_greeting(host_name: str | None, *, told_in: str) -> str:
+    """The first thing somebody hears when they answer a call from a Salon.
+
+    Names the host, because a name is what turns a strange call into an expected one — and
+    an address is not a name. Reading the host's email aloud would hand a stranger something
+    the host never offered, so anything that looks like one falls back to the neutral
+    designation, exactly as a missing name does.
+    """
+    name = (host_name or "").strip()
+    if "@" in name:
+        name = ""
+    return _in(_TELEPHONE_GREETING, told_in).format(
+        name=display_name(name or None, told_in=told_in)
+    )
+
+
+def call_not_answered(*, told_in: str) -> str:
+    """Told to the host when the telephone rang out.
+
+    Spoken, because the host is in a conversation and not watching a screen — and a call that
+    quietly fails leaves them waiting for somebody who is never coming (NFR3).
+    """
+    return _in(_CALL_NOT_ANSWERED, told_in)
+
+
+def call_declined(*, told_in: str) -> str:
+    """Told to the host when the person refused the call."""
+    return _in(_CALL_DECLINED, told_in)
+
+
+def caller_hung_up(*, told_in: str) -> str:
+    """Told to the others when a telephone participant leaves.
+
+    Their departure is the one nobody in the room can see, so it is the one that has to be
+    said out loud.
+    """
+    return _in(_CALLER_HUNG_UP, told_in)

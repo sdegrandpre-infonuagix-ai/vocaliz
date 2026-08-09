@@ -12,10 +12,14 @@ from src.salon.history import (
     history_from_invitation,
 )
 from src.salon.notices import (
+    call_declined,
+    call_not_answered,
+    caller_hung_up,
     history_shared_with,
     microphone_cut,
     microphone_restored,
     on_the_telephone,
+    telephone_greeting,
 )
 from src.salon.meta_speech import MetaSpeechQueue, Urgency
 from src.salon.speaking import Pair, SpeakingBoard, Voice
@@ -75,6 +79,10 @@ __all__ = [
     "microphone_cut",
     "microphone_restored",
     "on_the_telephone",
+    "call_declined",
+    "call_not_answered",
+    "caller_hung_up",
+    "telephone_greeting",
     "caption_languages",
     "captions_offered_in",
     "room_name",
