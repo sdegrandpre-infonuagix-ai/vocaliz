@@ -212,6 +212,7 @@ def _inspect_salon(salon_id: str) -> dict:
     from src.database import SessionLocal
     from src.models.invitation import Invitation
     from src.models.salon import Salon
+    from src.models.user import User  # noqa: F401 — Salon's relationship() resolves this by name
 
     db = SessionLocal()
     try:
