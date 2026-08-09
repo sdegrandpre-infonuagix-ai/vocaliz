@@ -48,12 +48,13 @@ export default function EmailScreen({ navigation }: Props) {
 
   async function handleSend() {
     if (!isValid) return;
-    // Sent whether this is a first sign-up or a return. The client cannot tell which, and
-    // the API ignores it for an address already on file.
+    // Sent whether this is a first sign-up or a return: the API asks for it either way, and
+    // the field is on this form regardless, so nobody is made to remember anything they are
+    // not already looking at.
     await sendOtp(normalized, trimmedName);
     // Navigate on success (error state handled by AuthContext)
     if (!error) {
-      navigation.navigate('Otp', { email: normalized });
+      navigation.navigate('Otp', { email: normalized, name: trimmedName });
     }
   }
 

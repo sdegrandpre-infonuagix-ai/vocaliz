@@ -44,10 +44,11 @@ def send_otp(email: str, db: DbSession, *, name: str | None = None) -> None:
     which is what keys the lifetime quota to the person rather than to the account. Creating
     the row here instead would leave somebody registered with no key to their own allowance.
 
-    A name is required to create an account and never to sign in to one, and because the two
-    are the same request that distinction has to be drawn here. An address nobody has seen
-    before is somebody signing up; an address already on file is somebody coming back, and
-    demanding their name again to let them in would be a lock rather than a form.
+    A name is required, and `OtpRequestBody` is where that is enforced for anything arriving
+    over HTTP — 422, with the field named. The check below is the backstop for callers that
+    do not go through the schema: this function is reached directly from the invitation
+    service and from tests, and an account created there with no name would be introduced as
+    nothing for as long as it existed.
     """
     address = normalise_email(email)
 

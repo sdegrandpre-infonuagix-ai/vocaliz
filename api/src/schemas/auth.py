@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 def _normalize_email(v: str) -> str:
@@ -10,16 +10,31 @@ def _normalize_email(v: str) -> str:
 
 class OtpRequestBody(BaseModel):
     email: EmailStr
-    # Required to create an account, ignored when signing in to one — and optional here
-    # because this one request is both. The rule is enforced in `otp.send_otp`, which is the
-    # only place that can tell the two apart: an address nobody has seen before is somebody
-    # signing up, and an address already on file is somebody coming back.
-    name: str | None = None
+    # Required, of every request and not only the first.
+    #
+    # It was briefly optional here, with the rule enforced further in where a new address can
+    # be told from a returning one. That is a subtler contract than it is worth: the field is
+    # on the same form as the address in every client, so nobody is made to remember anything
+    # they are not already looking at, and a schema that says "required" cannot be satisfied
+    # by accident in one case and not another. What a name is *for* is unconditional too — it
+    # is how the others in a Salon are told who is speaking.
+    #
+    # Sixty characters, matching the column. Trimmed before length is judged, so whitespace
+    # cannot pass for an answer.
+    name: str = Field(min_length=1, max_length=60)
 
     @field_validator("email")
     @classmethod
     def normalize(cls, v: str) -> str:
         return _normalize_email(v)
+
+    @field_validator("name")
+    @classmethod
+    def named(cls, v: str) -> str:
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("a name is required to create an account")
+        return trimmed
 
 
 class OtpVerifyBody(BaseModel):

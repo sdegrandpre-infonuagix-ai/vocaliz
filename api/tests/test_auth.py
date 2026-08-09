@@ -189,12 +189,24 @@ def test_a_new_address_with_no_name_is_refused_with_422(client):
 
 
 @patch("src.services.otp._send_email")
-def test_a_returning_address_needs_no_name(mock_email, client):
+def test_a_returning_address_is_asked_for_the_name_too(mock_email, client):
+    """Required of every request, not only the first. The field sits on the same form as the
+    address in every client, so nobody is made to remember anything they are not already
+    looking at — and a schema that says "required" cannot be satisfied by accident in one
+    case and not another."""
     client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
 
     response = client.post("/auth/otp/request", json={"email": EMAIL})
 
-    assert response.status_code == 202
+    assert response.status_code == 422
+
+
+@patch("src.services.otp._send_email")
+def test_whitespace_does_not_pass_for_a_name(mock_email, client):
+    """What a client sends when the field was shown and left alone."""
+    response = client.post("/auth/otp/request", json={"email": EMAIL, "name": "   "})
+
+    assert response.status_code == 422
 
 
 @patch("src.services.otp._send_email")

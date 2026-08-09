@@ -35,7 +35,7 @@ type Props = {
 };
 
 export default function OtpScreen({ navigation, route }: Props) {
-  const { email } = route.params;
+  const { email, name } = route.params;
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN);
   const { confirmOtp, resendOtpCode, isLoading, error } = useAuth();
@@ -66,7 +66,7 @@ export default function OtpScreen({ navigation, route }: Props) {
   async function handleResend() {
     if (cooldown > 0) return;
     setCode('');
-    await resendOtpCode(email);
+    await resendOtpCode(email, name);
     setCooldown(RESEND_COOLDOWN);
     inputRef.current?.focus();
   }
