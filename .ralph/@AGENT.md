@@ -137,6 +137,24 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — location consent (Story 9.1 / FR50)
+
+`api/src/consent.py` + `users.location_consent` (migration 050). The storage was already
+careful — `salon_events.plus_code` is a six-digit Open Location Code cell (~5.5 km) encoded at
+ingestion, no IP fallback. This adds the *question*.
+
+The column is **nullable on purpose**: three states, not two. `NULL` is "never asked", which
+is neither a yes nor a no; a `NOT NULL DEFAULT false` would have recorded a refusal nobody
+gave. `targeting_allowed` requires an explicit `True`.
+
+Refusing costs only the targeting — `ad_kind_for` returns `GENERIC`, never "no ads". A test
+greps `src/` to confirm nothing outside `consent.py` consults it, so a refusal cannot quietly
+degrade anything else. `should_ask` stops the question being re-put after any answer.
+
+Withdrawal bites at *recording*, not reading: `location_cell_for` returns `""` afterwards, so
+nothing further is written down. It also truncates to `CELL_DIGITS` even with consent, so a
+caller handing over a finer code cannot store a point.
+
 ### API — the browser top-up rebate (Story 8.13 / FR70)
 
 `api/src/rebate.py`. A store takes 5–30 % of every purchase through it; a browser payment

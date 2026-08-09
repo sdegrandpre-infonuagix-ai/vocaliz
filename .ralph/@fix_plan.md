@@ -85,16 +85,10 @@
 - [x] Story 8.11: Journal Comptable des Crédits Offerts
 - [x] Story 8.12: Journal Comptable du Solde Payé
 - [x] Story 8.13: Rabais de Recharge par Navigateur
-  > As a exploitant de Vocaliz
-  > I want inciter les recharges hors application
-  > So that j'évite la commission des magasins plutôt que de la subir.
-  > AC: Given une recharge initiée depuis un navigateur — Chrome, Safari ou autre, When son montant est calculé, Then `rabais_recharge_web` (5 %) est appliqué : le payeur reçoit 5 % de solde en plus pour le même débit
-  > AC: Given une recharge initiée depuis l'application mobile, When son montant est calculé, Then aucun rabais ne s'applique, And Given le choix du canal de recharge, When il est présenté au payeur, Then l'écart de prix lui est annoncé explicitement — un rabais qu'on ne connaît pas n'oriente personne, And Given le taux de rabais, When il est configuré, Then il est ventilable par plateforme, par région et par tranche de revenu annuel, la commission de magasin évitée variant de 5 % (Android États-Unis sous un million) à 30 % (iOS hors États-Unis au-delà) — à 5 %, le rabais est couvert dans toutes les combinaisons, y compris la plus défavorable, And Given le franchissement du million de dollars de revenu annuel, When les commissions doublent, Then le rabais doit pouvoir être relevé sans déploiement : l'écart entre magasin et navigateur passe de 15 à 30 points, et le canal web devient une nécessité économique plutôt qu'une optimisation, And Given un rabais supérieur à la commission réellement évitée, When la configuration est enregistrée, Then elle est acceptée mais signalée : c'est une décision d'acquisition, elle ne doit pas être prise par inadvertance, And Given un rabais accordé, When il est enregistré, Then il alimente le journal comptable du solde payé (FR68) en distinguant le montant encaissé du montant crédité — l'écart est une charge commerciale, non un encaissement, And Given la position réglementaire, en litige devant la Cour suprême jusqu'en 2027, When les commissions changent, Then l'ajustement du rabais est une modification de configuration, sans déploiement (FR54)
-  > Spec: specs/planning-artifacts/epics.md#story-8-13
 ### Régie d'Annonces Géolocalisées
 > Goal: Les participants en Base et en Mode A entendent des annonces pertinentes pour leur région, dans leur langue, glissées entre deux messages et jamais au milieu d'une pensée.
 
-- [ ] Story 9.1: Consentement de Géolocalisation à l'Inscription
+- [x] Story 9.1: Consentement de Géolocalisation à l'Inscription
   > > ⚠️ **PARTIELLEMENT HÉRITÉ — et le modèle hérité est plus prudent que la story.** `salon_events.plus_code` stocke une **cellule Open Location Code de six chiffres** (≈ 5,5 km), encodée à l'ingestion : *« the precise coordinates never reach the disk »*.
   > Le commentaire précise pourquoi une cellule plutôt que des décimales arrondies — *« a decimal pair still reads as a point, and a point invites being treated as one »* — et pourquoi il n'y a **aucun repli par géolocalisation IP**.
   > La demande au navigateur existe : le champ est vide quand la personne refuse.

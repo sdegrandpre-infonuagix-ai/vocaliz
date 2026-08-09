@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, String, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,14 @@ class User(Base):
     otp_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Trial tracking (seconds used as host)
+    # Story 9.1 / FR50. Nullable on purpose: three states, not two. `None` means nobody has
+    # asked yet, which is neither a yes nor a no — reading silence either way would put words
+    # in somebody's mouth. Only an explicit True permits location-chosen advertising.
+    location_consent: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    location_consent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     trial_seconds_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Post-trial billing: cumulative host seconds already charged to Stripe.
