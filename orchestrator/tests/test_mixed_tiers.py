@@ -117,11 +117,39 @@ async def test_the_base_participant_is_never_behind_the_other(salon, base_parts)
     assert salon.log.lag_seconds(salon.log.cursor(MARIE.id)) == 0.0
 
 
-async def test_the_orchestrator_is_not_told_which_tier_anybody_is_on(salon):
-    """The acceptance criterion as an absence. Nothing in a `Participant` or a `Salon` names
-    a tier, so nothing downstream can branch on one."""
+async def test_a_person_is_not_a_tier(salon):
+    """A `Participant` names a human — who they are and what language they speak. What they
+    are paying for is a property of their seat in one Salon, and somebody in Base here and
+    Mode B tomorrow is not two people."""
     assert not hasattr(MARIE, "tier")
-    assert [name for name in dir(salon) if "tier" in name.lower()] == []
+
+
+async def test_nothing_in_the_delivery_path_consults_the_tier(salon):
+    """Story 9.4 gave a seat a tier, and that has one consequence and one only: how often
+    advertising interrupts. Interpretation itself must stay identical, which is this file's
+    whole acceptance criterion — so the tier may not be read anywhere that decides what a
+    listener hears of the conversation.
+
+    Read off the source rather than inferred from behaviour: the behavioural tests above
+    prove the two tiers converse normally *today*, and this is what stops a branch being
+    added tomorrow to a path they would no longer cover.
+    """
+    import ast
+    import inspect
+
+    from src.salon import conductor
+
+    tree = ast.parse(inspect.getsource(conductor))
+    reading_the_tier = {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and "seat.tier" in ast.unparse(node)
+    }
+
+    # The two advertising decisions and the reader that reports the answer. Anything else
+    # would be a decision about the conversation taken on what somebody paid.
+    assert reading_the_tier == {"tier_of", "advert_interval_of", "advertising_tick"}
 
 
 async def test_a_failing_base_stack_leaves_the_other_tier_alone(salon, base_parts, s2s_session):

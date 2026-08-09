@@ -19,20 +19,14 @@ from __future__ import annotations
 from math import ceil
 
 from dataclasses import dataclass, field
-from enum import Enum
+
+from src.tiers import Tier
 
 
-class Tier(Enum):
-    """The interpretation tiers, cheapest first.
-
-    Named rather than inferred from the adapter class: the ratio is published per tier and
-    a label that moved when somebody renamed a class would break the comparison over time.
-    """
-
-    BASE = "Base"
-    MODE_A = "Mode A"
-    MODE_B = "Mode B"
-    MODE_C = "Mode C"
+# Re-exported, not redefined. The tiers decide how often somebody is advertised at and which
+# model their adapter is given (Story 9.4), so they belong to the product rather than to the
+# harness that measures it — and two enums with the same members would compare unequal.
+__all__ = ["SalonMetrics", "Tier"]
 
 
 def _percentile(values: list[float], fraction: float) -> float:
@@ -70,6 +64,13 @@ class SalonMetrics:
     _block_count: int = 0
     _block_seconds: float = 0.0
     _speech: dict[Tier, _Speech] = field(default_factory=dict)
+    # Story 9.4. The same content and condensation figures, kept per tier as well as in
+    # total. Advertising slows a cursor down, so Base condenses more often than Mode A and
+    # Mode A more often than a tier that hears none — and the totals, which mix the tiers
+    # together, are exactly where that gradient disappears.
+    _content_by_tier: dict[Tier, float] = field(default_factory=dict)
+    _condensed_by_tier: dict[Tier, float] = field(default_factory=dict)
+    _blocks_by_tier: dict[Tier, int] = field(default_factory=dict)
 
     # ── Recording ─────────────────────────────────────────────────────────────
 
@@ -85,19 +86,27 @@ class SalonMetrics:
     def record_latency(self, seconds: float) -> None:
         self._latencies.append(seconds)
 
-    def record_content(self, seconds: float) -> None:
+    def record_content(self, seconds: float, *, tier: Tier | None = None) -> None:
         """Content that reached the journal, whatever became of it afterwards."""
         self._content_seconds += seconds
+        if tier is not None:
+            self._content_by_tier[tier] = self._content_by_tier.get(tier, 0.0) + seconds
 
-    def record_condensed(self, seconds: float) -> None:
+    def record_condensed(self, seconds: float, *, tier: Tier | None = None) -> None:
         """Content that was summarised rather than delivered in full."""
         self._condensed_seconds += seconds
+        if tier is not None:
+            self._condensed_by_tier[tier] = self._condensed_by_tier.get(tier, 0.0) + seconds
 
-    def record_block(self, participant_id: str, *, at: float) -> None:
+    def record_block(
+        self, participant_id: str, *, at: float, tier: Tier | None = None
+    ) -> None:
         if participant_id in self._blocks_open:
             return
         self._blocks_open[participant_id] = at
         self._block_count += 1
+        if tier is not None:
+            self._blocks_by_tier[tier] = self._blocks_by_tier.get(tier, 0) + 1
 
     def record_unblock(self, participant_id: str, *, at: float) -> None:
         started = self._blocks_open.pop(participant_id, None)
@@ -192,6 +201,30 @@ class SalonMetrics:
         if meta + journal <= 0:
             return None
         return meta / (meta + journal)
+
+    def condensed_ratio_of(self, tier: Tier) -> float | None:
+        """The share of this tier's content that was summarised, or `None` if it never ran.
+
+        `None` rather than zero, for the same reason the meta-speech ratio uses it: a tier
+        that never ran and a tier that never once had to condense are opposite findings, and
+        this figure exists to tell somebody whether Base is usable or merely degraded.
+        """
+        content = self._content_by_tier.get(tier, 0.0)
+        if content <= 0:
+            return None
+        return self._condensed_by_tier.get(tier, 0.0) / content
+
+    def condensed_by_tier(self) -> dict[Tier, float | None]:
+        """Every tier, including the ones that never ran (NFR4)."""
+        return {tier: self.condensed_ratio_of(tier) for tier in Tier}
+
+    def blocks_by_tier(self) -> dict[Tier, int]:
+        """How often a room at each tier saturated (FR49).
+
+        Zero rather than `None` here: a saturation is a count of events, and none having
+        happened is a real answer, where a *ratio* over no content is not.
+        """
+        return {tier: self._blocks_by_tier.get(tier, 0) for tier in Tier}
 
     def meta_speech_by_tier(self) -> dict[Tier, float | None]:
         """Every tier, including the ones that never ran.

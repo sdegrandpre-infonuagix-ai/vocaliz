@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
 from src.journal import JournalEntry, SalonLog, content_seconds, without_markers
 from src.settings import SalonSettings
+from src.tiers import Tier, advert_interval_seconds
 from src.salon.history import HistoryAccess, grants_history
 from src.salon.notices import (
     already_here,
@@ -95,6 +96,15 @@ class Seat:
     # by, in seconds of content. Reset at every seam, so it measures one continuous
     # intervention rather than how much somebody has said all evening.
     monologue_seconds: float = 0.0
+    # Story 9.4. What this listener's interpreter runs at, which decides how often they are
+    # advertised at and which model their adapter is given. Base by default: the tier
+    # somebody has not paid for is the one they are on.
+    tier: Tier = Tier.BASE
+    # The host is paying for this seat (FR32). No advertising at any tier — the advertising
+    # is how an unpaid seat is paid for, and this is what stops one seat being charged twice.
+    covered: bool = False
+    # Seconds of Salon since this listener's last broadcast became due.
+    since_advert: float = 0.0
     # Story 9.3. Whether a broadcast is owed to this listener. Set when the moment comes and
     # spent at the next placement, which may be several messages later — the frequency is
     # the tier's business (FR33) and the placement is this Salon's.
@@ -170,6 +180,11 @@ class Salon:
         # Story 9.3. Optional in the same way: a deployment without an exchange hears no
         # advertising and is otherwise identical.
         self._regie = regie
+        # Story 9.4. Kept whole rather than unpacked into two attributes: the advertising
+        # intervals are read per seat, against that seat's tier, and there is no per-Salon
+        # value of either to hold. They have no direct constructor argument for the same
+        # reason — a Salon has no one interval.
+        self._settings = settings
         # Story 6.15. LiveKit publishes speaking state per room; the humans share none, so
         # this is what carries it between them.
         self._speaking = SpeakingBoard()
@@ -220,6 +235,8 @@ class Salon:
         *,
         from_start: bool = False,
         history: HistoryAccess = HistoryAccess.UNSPECIFIED,
+        tier: Tier = Tier.BASE,
+        covered: bool = False,
     ) -> Room:
         """Give a participant a room, an interpreter and a position in the journal.
 
@@ -238,7 +255,13 @@ class Salon:
             return existing.room
 
         room = await self._rooms.provision(self.salon_id, participant)
-        seat = Seat(participant=participant, room=room, interpreter=interpreter)
+        seat = Seat(
+            participant=participant,
+            room=room,
+            interpreter=interpreter,
+            tier=tier,
+            covered=covered,
+        )
         self._seats[participant.id] = seat
         self._ever_joined[participant.id] = participant
         self._speaking.attach(participant.id)
@@ -711,6 +734,45 @@ class Salon:
     @property
     def regie(self) -> Regie | None:
         return self._regie
+
+    def tier_of(self, participant_id: str) -> Tier | None:
+        seat = self._seats.get(participant_id)
+        return seat.tier if seat else None
+
+    def advert_interval_of(self, participant_id: str) -> float | None:
+        """How often this listener hears advertising, or `None` for never."""
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return None
+        return advert_interval_seconds(
+            seat.tier, settings=self._settings, covered=seat.covered
+        )
+
+    def advertising_tick(self, seconds: float) -> None:
+        """Salon time has passed. Make a broadcast due wherever the tier says it is (FR33).
+
+        Elapsed seconds are passed in rather than read from a clock: the load harness runs a
+        Salon faster than real time, and a module that fetched the time itself could not be
+        driven by it — nor tested without waiting five minutes.
+
+        The frequency is a **ceiling**, not a quota. Whether a broadcast has actually been
+        read is not consulted here: the schedule keeps its own time, and an advertisement
+        still looking for a placement is not joined by a second one, because the debt is a
+        flag rather than a count. Two advertisements back to back would be the tier taking
+        back with interest what a shortage of placements had cost it.
+        """
+        for seat in self._ordered_seats():
+            interval = advert_interval_seconds(
+                seat.tier, settings=self._settings, covered=seat.covered
+            )
+            if interval is None:
+                # Modes B and C, and any seat the host is paying for. Nothing accumulates,
+                # so a change of tier mid-Salon does not arrive owing several minutes.
+                continue
+            seat.since_advert += seconds
+            if seat.since_advert >= interval:
+                seat.since_advert = 0.0
+                seat.owes_advert = True
 
     def advertising_due(self, participant_id: str) -> None:
         """The moment to broadcast has come for one listener (FR33).

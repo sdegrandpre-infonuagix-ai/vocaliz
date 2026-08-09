@@ -34,6 +34,13 @@ DEFAULTS: dict[str, float | int] = {
     "significant_pause_ms": 2000,
     # And no pause is ever reported as longer than this.
     "max_pause_ms": 5000,
+    # How often a listener hears an advertisement, per tier (FR33, Story 9.4). Two numbers
+    # rather than one with a multiplier: the gap between the tiers is the product decision,
+    # and a ratio would make moving one of them move the other by accident. Modes B and C
+    # have no entry — their price is what buys the silence, and a number somebody could set
+    # would put that promise one typo away from being broken.
+    "advert_interval_base_seconds": 300.0,
+    "advert_interval_mode_a_seconds": 600.0,
 }
 
 
@@ -54,6 +61,8 @@ class SalonSettings:
     max_message_characters: int = DEFAULTS["max_message_characters"]
     significant_pause_ms: int = DEFAULTS["significant_pause_ms"]
     max_pause_ms: int = DEFAULTS["max_pause_ms"]
+    advert_interval_base_seconds: float = DEFAULTS["advert_interval_base_seconds"]
+    advert_interval_mode_a_seconds: float = DEFAULTS["advert_interval_mode_a_seconds"]
 
     def __post_init__(self) -> None:
         for field in fields(self):
@@ -86,6 +95,16 @@ class SalonSettings:
                 f"saturation_threshold_seconds ({self.saturation_threshold_seconds:g}). "
                 "Otherwise a room would unblock straight back into the condition that blocked "
                 "it, oscillating between the two."
+            )
+
+        if self.advert_interval_base_seconds >= self.advert_interval_mode_a_seconds:
+            raise InvalidSettings(
+                f"advert_interval_base_seconds ({self.advert_interval_base_seconds:g}) must be "
+                f"below advert_interval_mode_a_seconds "
+                f"({self.advert_interval_mode_a_seconds:g}). Otherwise upgrading from Base to "
+                "Mode A would buy the same advertising or more of it, and the tier somebody "
+                "paid for would be worse than the one they left — silently, since nothing "
+                "else would fail."
             )
 
     def replace(self, **changes: float | int) -> SalonSettings:

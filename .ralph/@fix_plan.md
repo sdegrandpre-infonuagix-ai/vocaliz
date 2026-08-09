@@ -91,12 +91,7 @@
 - [x] Story 9.1: Consentement de Géolocalisation à l'Inscription
 - [x] Story 9.2: Adaptation de l'Échange Publicitaire Hérité
 - [x] Story 9.3: Insertion d'Annonces entre Messages
-  > > ⚠️ **PARTIELLEMENT HÉRITÉ.** La diffusion existe : `POST /{salon_id}/ad` réserve, `POST /{salon_id}/ad/delivered` confirme, et `ad_broadcasts.delivered_at` distingue **réservé** de **réellement entendu** — *« charging an advertiser for a sentence nobody heard is the one outcome this must not produce »*.
-  > > **Ce qui manque :** la règle de **placement** — entre deux messages, jamais au milieu d'une pensée découpée — et le rattrapage du retard après lecture.
-  > As a participant
-  > AC: Given le moment de diffusion est venu pour un participant, When son interprète cherche un emplacement, Then il puise une annonce dans la table d'inventaire et l'insère entre deux messages de participants distincts, And Given une intervention découpée est en cours, When le moment de diffusion arrive, Then l'interprète attend la fin de l'intervention avant de puiser, sauf si le participant dépasse `plafond_monologue`, And Given les annonces de plusieurs participants, When elles sont lues, Then chaque interprète puise et lit à son propre rythme, sans aucune synchronisation entre les rooms, And Given une annonce vient d'être lue, When la conversation reprend, Then l'interprète rattrape le retard accumulé, en condensant si `seuil_condensation` est dépassé
-  > Spec: specs/planning-artifacts/epics.md#story-9-3
-- [ ] Story 9.4: Fréquence Différenciée entre Base et Mode A
+- [x] Story 9.4: Fréquence Différenciée entre Base et Mode A
   > As a exploitant
   > I want moduler la charge publicitaire selon le palier
   > So that la montée en gamme ait une valeur perceptible.

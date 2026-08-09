@@ -116,14 +116,14 @@ async def run(scenario: Scenario) -> Report:
             speaker.participant.id, text, language=speaker.language
         )
         for entry in recorded:
-            metrics.record_content(content_seconds(entry.text))
+            metrics.record_content(content_seconds(entry.text), tier=scenario.tier)
 
         # A block is recorded where it actually costs somebody something: their turn was
         # refused. Sampling the flag instead would count rooms that were briefly saturated
         # between two deliveries and never stopped anybody from saying anything.
         if not recorded and salon.is_saturated(speaker.participant.id):
             blocked.add(speaker.participant.id)
-            metrics.record_block(speaker.participant.id, at=at)
+            metrics.record_block(speaker.participant.id, at=at, tier=scenario.tier)
 
         # Sampled before the catch-up rather than after it: `record_lag` keeps the peak, and
         # a reading taken afterwards reports zero whenever condensation has just fired —
@@ -188,7 +188,7 @@ def _note_delivery(
     for line in spoken[already:]:
         seconds = content_seconds(line.text)
         if line.kind == "condense":
-            metrics.record_condensed(seconds)
+            metrics.record_condensed(seconds, tier=tier)
             metrics.record_spoken(tier, seconds=seconds, meta=False, condensed=True)
         elif line.kind == "annonce":
             # Introductions, arrivals, the busy signal, and the sentence that announces a

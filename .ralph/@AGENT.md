@@ -137,6 +137,36 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### Orchestrator — what each tier costs a listener (Story 9.4 / FR33, NFR6, NFR4)
+
+`orchestrator/src/tiers.py` — `Tier`, `MODELS` / `model_for`, `advert_interval_seconds`. Two
+things vary by tier and neither is a property of the conversation.
+
+**Advertising frequency.** Base 1 / 5 min, Mode A 1 / 10 min, Modes B and C never, and a
+`covered` seat (the host paying, FR32) never at any tier. The two intervals are separate
+settings (`advert_interval_base_seconds`, `advert_interval_mode_a_seconds`) so they move
+independently (FR54); `SalonSettings` refuses base ≥ mode A, since upgrading would otherwise
+buy *more* advertising, silently. B and C have no setting at all — their price buys the
+silence, and a number would put that one typo away.
+
+`Salon.advertising_tick(seconds)` takes elapsed Salon time (never reads a clock — the load
+harness runs faster than real time) and marks a broadcast due per seat. The frequency is a
+**ceiling, not a quota**: the debt is a flag rather than a count, so a slot still looking for a
+placement is never joined by a second, and a long tick does not owe several.
+
+**The model.** Mode C runs `grok-voice-think-fast-2.0` where A and B run `…-1.0`; Base has
+none, being a chain of three providers rather than one realtime model. A test reads all of
+`src/` to check those strings appear in exactly one file (NFR6).
+
+`Seat.tier` exists, which narrows Story 8.5's guarantee rather than breaking it: interpretation
+still never varies by tier, and `test_mixed_tiers.py` now parses `conductor.py` with `ast` and
+asserts `seat.tier` is read in exactly three functions, all of them advertising.
+
+**Instrumentation (NFR4).** `SalonMetrics.record_content/record_condensed/record_block` take an
+optional tier; `condensed_by_tier()` and `blocks_by_tier()` publish it, and both reach
+`Report`. Condensation is `None` for a tier that never ran (never-ran and never-had-to are
+opposite findings); saturations are a count, so zero is a real answer.
+
 ### Orchestrator — where an advertisement goes (Story 9.3 / FR39, FR33)
 
 `orchestrator/src/salon/advertising.py` (the `Regie` port, `Diffusion`, `RegieFake`) plus the

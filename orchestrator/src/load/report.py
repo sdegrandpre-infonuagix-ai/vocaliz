@@ -52,6 +52,12 @@ class Report:
     block_count: int
     block_seconds: float
     meta_speech_by_tier: dict[Tier, float | None]
+    # Story 9.4. Advertising slows a cursor down, so Base condenses more often and saturates
+    # more often than the tiers that hear less of it. Published per tier because the totals
+    # are exactly where that gradient disappears, and the question these answer is whether
+    # Base stays usable rather than merely degraded enough to sell the upgrade (NFR4).
+    condensed_by_tier: dict[Tier, float | None] = field(default_factory=dict)
+    blocks_by_tier: dict[Tier, int] = field(default_factory=dict)
     failures: tuple[str, ...] = field(default=())
 
     @property
@@ -111,5 +117,7 @@ class Report:
             block_count=metrics.block_count,
             block_seconds=metrics.block_seconds,
             meta_speech_by_tier=metrics.meta_speech_by_tier(),
+            condensed_by_tier=metrics.condensed_by_tier(),
+            blocks_by_tier=metrics.blocks_by_tier(),
             failures=tuple(failures),
         )
