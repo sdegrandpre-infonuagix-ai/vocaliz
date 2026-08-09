@@ -276,3 +276,35 @@ def condensed_while_listening(count: int, *, told_in: str) -> str:
     if count <= 1:
         return _in(_CONDENSED_ONE, told_in)
     return _in(_CONDENSED_MANY, told_in).format(count=count)
+
+
+# ── A room that cannot keep up (Story 7.3 / FR55) ─────────────────────────────
+
+# "Vocaliz is busy" is the product saying its own name, and it stays in English in every one
+# of these. Translating a brand gives somebody six different things to search for when they
+# want to report the problem, and gives support six things to recognise. The rest of the
+# sentence is theirs — three English words on their own tell a German reader nothing.
+_VOCALIZ_IS_BUSY = {
+    "fr": "Vocaliz is busy : la conversation va plus vite que votre interprète. "
+    "Attendez un instant avant de reprendre la parole.",
+    "en": "Vocaliz is busy: the conversation is running ahead of your interpreter. "
+    "Give it a moment before speaking again.",
+    "es": "Vocaliz is busy: la conversación va más rápido que tu intérprete. "
+    "Espera un momento antes de volver a hablar.",
+    "de": "Vocaliz is busy: Das Gespräch läuft Ihrem Dolmetscher davon. "
+    "Warten Sie einen Moment, bevor Sie weitersprechen.",
+    "pt": "Vocaliz is busy: a conversa está a andar mais depressa do que o seu intérprete. "
+    "Espere um momento antes de voltar a falar.",
+    "it": "Vocaliz is busy: la conversazione corre più veloce del tuo interprete. "
+    "Aspetta un momento prima di riprendere a parlare.",
+}
+
+
+def vocaliz_is_busy(*, told_in: str) -> str:
+    """Said to one participant when their own room has fallen too far behind.
+
+    Never to the Salon. One interpreter's lag says nothing about anybody else's, and warning
+    a room that is keeping up perfectly well would be telling it something untrue about
+    itself.
+    """
+    return _in(_VOCALIZ_IS_BUSY, told_in)

@@ -263,6 +263,46 @@ Two details are less obvious than the threshold:
 Failing to speak the announcement never costs the summary it introduces, the same rule
 introductions follow.
 
+## Saturation, and the alarm
+
+`Salon._review_saturation`. When one room's own lag passes `saturation_threshold_seconds`
+that room says **"Vocaliz is busy"** to its single participant and stops accepting anything
+they say, until the lag falls back under `unblock_threshold_seconds`.
+
+This is the alarm, not the first resort. Condensation runs continuously and per room, so a
+room that saturates *despite* it is one whose regulation has run out — the lag survived being
+summarised. That ordering is not a convention: `SalonSettings` refuses a configuration where
+condensation does not sit strictly below saturation, which is what makes this signal worth
+believing when it arrives.
+
+Everything here belongs to one room and never to the Salon. One interpreter falling five
+minutes behind says nothing about anybody else's, so a mixed state — one room blocked, the
+others untouched — is the expected condition rather than a degraded one.
+
+What blocking stops is **ingestion only**. A blocked participant keeps hearing everybody,
+which is the point: they are behind, so cutting delivery would take away the very thing they
+are short of. And they are told the moment they speak, rather than having their words
+dropped in silence and finding out much later, if at all.
+
+Three details:
+
+- **The lag counted is what they have not *heard*.** Their own words are never rendered back
+  to them, so counting the raw lag would have a long speaker saturate their own room by
+  talking and then be blocked for it.
+- **A thought is never cut in half.** The decision is taken before an intervention starts,
+  and `record_intervention` cuts and appends the whole thing in one go — so an intervention
+  long enough to cause the block cannot have its own tail refused by it.
+- **The signal is spoken on the crossing, once.** Repeating it per message would bury the
+  conversation the participant is already struggling to follow. Reopening is not announced
+  at all: being able to speak again is discovered by speaking, and a notice would interrupt
+  the conversation to report that nothing is wrong.
+
+"Vocaliz is busy" stays in English in all six languages — it is the product saying its own
+name, and translating a brand gives somebody six different things to search for when they
+want to report the problem. The rest of the sentence is theirs; three English words alone
+tell a German reader nothing. If the adapter cannot speak the alarm the room is blocked
+anyway: the block is about the lag, not about whether the sentence was delivered.
+
 ## Cleaning, and the pause marker
 
 `src/journal/cleaning.py`. Hesitation is removed **at ingestion**, once, so N listeners

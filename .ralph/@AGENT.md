@@ -131,6 +131,15 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+Saturation (Story 7.3 / FR55) is `Salon._review_saturation` plus `Seat.blocked`: past
+`saturation_threshold_seconds` a room speaks `vocaliz_is_busy` to its own participant and
+stops accepting their words until the lag drops under `unblock_threshold_seconds`. Ingestion
+only — a blocked participant keeps hearing everybody, and is told the moment they speak
+rather than dropped in silence. The lag weighed is unheard content (`_unheard_seconds`), so a
+long speaker cannot block themselves by talking. It is a state of one room, never of the
+Salon, and a mixed Salon is expected. Reviewed after every ingest (head moved) and after
+every delivery (cursor moved).
+
 Condensation (Story 7.2 / FR53) lives in `Salon._condense_if_far_behind`: past
 `condensation_threshold_seconds` the backlog is said in substance, the cursor jumps to the
 end of it and the lag collapses. It is not a mode — every delivery re-weighs the threshold,

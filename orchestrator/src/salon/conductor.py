@@ -19,7 +19,7 @@ import json
 from dataclasses import dataclass, field
 
 from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
-from src.journal import JournalEntry, SalonLog, without_markers
+from src.journal import JournalEntry, SalonLog, content_seconds, without_markers
 from src.settings import SalonSettings
 from src.salon.history import HistoryAccess, grants_history
 from src.salon.notices import (
@@ -29,6 +29,7 @@ from src.salon.notices import (
     introduces,
     microphone_cut,
     microphone_restored,
+    vocaliz_is_busy,
     on_the_telephone,
 )
 from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
@@ -83,6 +84,10 @@ class Seat:
     # what matters is that each person hears each introduction once, and somebody arriving
     # late has heard none of them.
     introduced: set[str] = field(default_factory=set)
+    # Story 7.3. Set when this room's own lag passes the saturation threshold: nothing
+    # this participant says reaches the journal until it comes back down. A state of
+    # one room and never of the Salon — the others are neither warned nor blocked.
+    blocked: bool = False
 
 
 class Salon:
@@ -96,6 +101,8 @@ class Salon:
         max_message_characters: int | None = None,
         host_id: str | None = None,
         condensation_threshold_seconds: float | None = None,
+        saturation_threshold_seconds: float | None = None,
+        unblock_threshold_seconds: float | None = None,
         video: VideoPath | None = None,
         settings: SalonSettings | None = None,
     ) -> None:
@@ -118,6 +125,19 @@ class Salon:
             condensation_threshold_seconds
             if condensation_threshold_seconds is not None
             else settings.condensation_threshold_seconds
+        )
+        # Story 7.3. Two numbers, never one: reopening at the blocking point is a room
+        # that flaps between the two states several times a second. `SalonSettings` refuses
+        # a configuration where either sits at or above saturation.
+        self._saturation_threshold = (
+            saturation_threshold_seconds
+            if saturation_threshold_seconds is not None
+            else settings.saturation_threshold_seconds
+        )
+        self._unblock_threshold = (
+            unblock_threshold_seconds
+            if unblock_threshold_seconds is not None
+            else settings.unblock_threshold_seconds
         )
         # Optional: a deployment without it loses the pictures and nothing else.
         self._video = video
@@ -286,6 +306,79 @@ class Salon:
 
     # ── Out of a room, into the journal ───────────────────────────────────────
 
+    # ── Saturation (Story 7.3 / FR55) ─────────────────────────────────────────
+
+    @property
+    def saturation_threshold_seconds(self) -> float:
+        return self._saturation_threshold
+
+    @property
+    def unblock_threshold_seconds(self) -> float:
+        return self._unblock_threshold
+
+    def is_saturated(self, participant_id: str) -> bool:
+        """Whether this one room has stopped taking words. Never asked of the Salon."""
+        seat = self._seats.get(participant_id)
+        return seat is not None and seat.blocked
+
+    async def _review_saturation(self, seat: Seat) -> None:
+        """Weigh one room's own lag against the two thresholds.
+
+        Called where the lag can have moved: after anything is added to the journal, which
+        pushes the head away from every cursor, and after a delivery, which pulls one cursor
+        back towards it. Two thresholds and not one — reopening at the blocking point puts
+        the room straight back over it, which is a room that flaps rather than a room that
+        recovers.
+
+        The signal is spoken on the crossing only. Repeating it for every message afterwards
+        would bury the conversation the participant is already struggling to follow.
+        """
+        lag = self._unheard_seconds(seat)
+
+        if not seat.blocked:
+            if lag > self._saturation_threshold:
+                seat.blocked = True
+                await self._say_busy(seat)
+            return
+
+        if lag < self._unblock_threshold:
+            # Not announced. Being able to speak again is discovered by speaking, and a
+            # notice for it would interrupt the conversation to report that nothing is wrong.
+            seat.blocked = False
+
+    def _unheard_seconds(self, seat: Seat) -> float:
+        """How much of the conversation this participant has not yet heard.
+
+        Their own words are not part of it. `_render` never says somebody's own message
+        back to them, so a long speaker is behind by exactly the amount they just said and
+        by nothing they are actually waiting on — measuring the raw lag would have them
+        saturate their own room by talking, and block themselves for it.
+        """
+        participant_id = seat.participant.id
+        return sum(
+            content_seconds(entry.text)
+            for entry in self.log.pending(participant_id)
+            if entry.participant_id != participant_id
+        )
+
+    async def _say_busy(self, seat: Seat) -> None:
+        """Tell one participant their room cannot keep up.
+
+        Never the Salon: one interpreter's lag says nothing about anybody else's, and
+        warning a room that is keeping up would tell it something untrue about itself.
+        """
+        try:
+            await seat.interpreter.insert_annonce(
+                Annonce(
+                    text=vocaliz_is_busy(told_in=seat.participant.language),
+                    language=seat.participant.language,
+                )
+            )
+        except InterpreteError:
+            # Their adapter has already told them out loud (NFR3). The block still holds —
+            # it is about the lag, not about whether the sentence was delivered.
+            return
+
     async def ingest(
         self,
         participant_id: str,
@@ -305,15 +398,32 @@ class Salon:
         if self.is_muted(participant_id):
             return ()
 
+        seat = self._seats.get(participant_id)
+        if seat is not None and seat.blocked:
+            # Told now rather than left talking. Dropping what somebody says in silence
+            # leaves them speaking into nothing and finding out much later, if at all.
+            await self._say_busy(seat)
+            return ()
+
         self._first_language.setdefault(participant_id, language)
 
-        return await self.log.record_intervention(
+        # The decision was taken above, before any of this landed. An intervention long
+        # enough to saturate the room is still recorded whole: `record_intervention` cuts
+        # and appends it in one go, so a block that falls due because of it can never take
+        # the tail off somebody's sentence.
+        recorded = await self.log.record_intervention(
             participant_id=participant_id,
             text=text,
             language=language,
             duration_seconds=duration_seconds,
             max_characters=self._max_message_characters,
         )
+
+        # The head has moved away from every cursor, so every room's lag just grew.
+        for other in self._ordered_seats():
+            await self._review_saturation(other)
+
+        return recorded
 
     async def collect(self) -> tuple[JournalEntry, ...]:
         """Take what each interpreter has heard from its human into the journal."""
@@ -351,9 +461,13 @@ class Salon:
             return
 
         if await self._condense_if_far_behind(seat):
+            # The cursor has jumped to the end of what was summarised, so this room may
+            # well have come back under the reopening threshold.
+            await self._review_saturation(seat)
             return
 
         await self._render(seat, self.log.pending(participant_id))
+        await self._review_saturation(seat)
 
     async def deliver_upto(self, participant_id: str, sequence: int) -> None:
         """Render as far as one position and stop there.
@@ -368,6 +482,7 @@ class Salon:
 
         pending = self.log.pending(participant_id)
         await self._render(seat, tuple(e for e in pending if e.sequence <= sequence))
+        await self._review_saturation(seat)
 
     async def _condense_if_far_behind(self, seat: Seat) -> bool:
         """Say the backlog in substance rather than replaying it, when there is too much.

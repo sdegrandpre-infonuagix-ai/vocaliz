@@ -65,12 +65,7 @@
 - [x] Story 6.17: Activation Automatique du Mode Conduite
 - [x] Story 7.1: Configuration Persistée des Paramètres du Salon
 - [x] Story 7.2: Condensation par l'Interprète en Retard
-  > As a participant
-  > I want que mon interprète résume plutôt que de m'ensevelir
-  > So that je reste dans la conversation même quand elle s'emballe.
-  > AC: Given le retard d'un interprète (`tête − curseur_i`) dépasse `seuil_condensation` (120 s), When il restitue, Then il produit une version condensée de l'intervalle non encore restitué plutôt qu'une restitution intégrale, And Given une condensation a lieu, When elle est restituée, Then le curseur avance jusqu'à la fin de l'intervalle résumé — plus vite que le temps réel, ce qui réduit le retard, And Given une condensation a lieu, When elle est restituée, Then l'interprète l'annonce explicitement au participant, du type « pendant que tu écoutais, trois personnes ont dit ceci, en substance… », And Given la condensation est active, When le retard redescend sous le seuil, Then l'interprète revient à la restitution intégrale, message par message, And Given la condensation d'un interprète, When elle s'applique, Then elle ne modifie ni le journal ni les curseurs des autres participants — chacun condense pour son propre compte, And Given `InterpreteFake` est utilisé, When le seuil est franchi, Then le déclenchement, l'avancée du curseur et la réduction du retard sont vérifiables de façon déterministe
-  > Spec: specs/planning-artifacts/epics.md#story-7-2
-- [ ] Story 7.3: Signal de Saturation et Blocage d'Entrée
+- [x] Story 7.3: Signal de Saturation et Blocage d'Entrée
   > As a participant
   > I want savoir quand le système sature
   > So that je ne parle pas dans le vide.
