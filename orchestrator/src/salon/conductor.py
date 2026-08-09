@@ -37,7 +37,7 @@ from src.salon.advertising import Regie
 from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
 from src.salon.rooms import Room, RoomProvisioner
 from src.salon.meta_speech import MetaSpeechQueue, Urgency
-from src.salon.script import Script, Voice
+from src.salon.script import NothingToSpeakThrough, Script, Voice
 from src.salon.speaking import SpeakingBoard
 from src.salon.video import VideoPath, VideoTrack
 
@@ -62,7 +62,11 @@ class Seat:
 
     participant: Participant
     room: Room
-    interpreter: Interprete
+    # `None` for a served seat: the agent holds this participant's interpreter, beside the
+    # audio, and the orchestrator has nothing to speak through between two scripts. That is
+    # the ordinary case in production — an interpreter here means an in-process Salon, which
+    # is what the load simulator and the tests run.
+    interpreter: Interprete | None = None
     # Set only while a script is being written for this seat, and `voice` below is what
     # makes that swap invisible to every rule in this file. See `src/salon/script.py`:
     # serving a script and speaking one are the same code path, and this field is the
@@ -130,8 +134,22 @@ class Seat:
 
         `aclose` and `ingest` are the two verbs that deliberately stay on `interpreter`:
         neither is speaking, and both belong to whoever actually holds the audio.
+
+        Raises rather than falling silent when there is neither. A served seat between two
+        scripts has nothing to speak through, and every path that could reach it holds what
+        it was going to say instead — see `_say_held` and `deliver`. Discarding here would
+        leave one participant hearing nothing with the suite still green.
         """
-        return self.script if self.script is not None else self.interpreter
+        if self.script is not None:
+            return self.script
+        if self.interpreter is None:
+            raise NothingToSpeakThrough(self.participant.id)
+        return self.interpreter
+
+    @property
+    def served(self) -> bool:
+        """Whether this participant's interpreter lives in an agent rather than here."""
+        return self.interpreter is None
 
 
 class Salon:
@@ -250,18 +268,22 @@ class Salon:
     async def join(
         self,
         participant: Participant,
-        interpreter: Interprete,
+        interpreter: Interprete | None = None,
         *,
         from_start: bool = False,
         history: HistoryAccess = HistoryAccess.UNSPECIFIED,
         tier: Tier = Tier.BASE,
         covered: bool = False,
     ) -> Room:
-        """Give a participant a room, an interpreter and a position in the journal.
+        """Give a participant a room, a position in the journal, and possibly an interpreter.
 
         Joining twice is the same participant reconnecting, not a second one. The seat that
         exists is returned rather than a second room opened — a room nobody accounts for is
         a room nobody closes, and rooms are billed by the minute.
+
+        Leaving `interpreter` out is the production case: the agent in this participant's
+        room holds theirs, and this Salon serves it scripts. Passing one makes an in-process
+        Salon, which is what the load simulator and the tests run.
         """
         # The host's decision, taken in the same breath as the invitation. Saying nothing
         # falls to `DEFAULT_HISTORY_FOR_ARRIVALS`, which grants it: somebody invited into a
@@ -312,7 +334,8 @@ class Salon:
         await self._stop_video(seat)
         self._speaking.detach(participant_id)
         self.log.detach(participant_id)
-        await seat.interpreter.aclose()
+        if seat.interpreter is not None:
+            await seat.interpreter.aclose()
         await self._rooms.close(seat.room)
 
     async def change_mode(self, participant_id: str, interpreter: Interprete) -> None:
@@ -336,7 +359,8 @@ class Salon:
 
         outgoing = seat.interpreter
         seat.interpreter = interpreter
-        await outgoing.aclose()
+        if outgoing is not None:
+            await outgoing.aclose()
 
     async def aclose(self) -> None:
         """End the Salon. Every room closes; the journal stays where it is (NFR8)."""
@@ -468,18 +492,21 @@ class Salon:
 
         Never the Salon: one interpreter's lag says nothing about anybody else's, and
         warning a room that is keeping up would tell it something untrue about itself.
+
+        Queued rather than said on the spot, and that is what makes it survive the boundary.
+        This is reached from `ingest` — somebody speaking — which under the served model is
+        the agent reporting over HTTP, with no script open to write into. `Urgency.BUSY` is
+        the rank FR49 gives it, so it leaves the queue ahead of everything else at the next
+        opportunity rather than being lost for want of one now.
         """
-        try:
-            await seat.voice.insert_annonce(
-                Annonce(
-                    text=vocaliz_is_busy(told_in=seat.participant.language),
-                    language=seat.participant.language,
-                )
-            )
-        except InterpreteError:
-            # Their adapter has already told them out loud (NFR3). The block still holds —
-            # it is about the lag, not about whether the sentence was delivered.
-            return
+        await self.announce(
+            seat.participant.id,
+            Annonce(
+                text=vocaliz_is_busy(told_in=seat.participant.language),
+                language=seat.participant.language,
+            ),
+            urgency=Urgency.BUSY,
+        )
 
     async def ingest(
         self,
@@ -538,6 +565,12 @@ class Salon:
             if seat.muted:
                 continue
 
+            # A served seat is never asked what it heard: its agent reports what its human
+            # said, which is the whole of the arriving direction under the text-only
+            # boundary. Pulling would mean the orchestrator holding a microphone.
+            if seat.interpreter is None:
+                continue
+
             heard = await seat.interpreter.ingest()
             if heard is None:
                 continue
@@ -562,6 +595,12 @@ class Salon:
         if seat is None:
             return
 
+        # A served seat is delivered to by being handed a script, and only then. Rendering
+        # now would advance the reading position against a voice that is not here, which is
+        # how a listener loses turns that were counted as said.
+        if seat.served and seat.script is None:
+            return
+
         if await self._condense_if_far_behind(seat):
             # The cursor has jumped to the end of what was summarised, so this room may
             # well have come back under the reopening threshold.
@@ -580,6 +619,8 @@ class Salon:
         """
         seat = self._seats.get(participant_id)
         if seat is None:
+            return
+        if seat.served and seat.script is None:
             return
 
         pending = self.log.pending(participant_id)
@@ -738,6 +779,12 @@ class Salon:
         seat.script = script
         try:
             await self.deliver(participant_id)
+            # What was held while there was nothing to say it through. For a served seat
+            # `announce` never speaks, and `_render` only drains the queue at a seam — so a
+            # Salon where nobody has said anything yet would accumulate the arrival notices
+            # and never hand them over. This is the slot they were waiting for.
+            if self._may_interrupt(seat):
+                await self._say_held(seat)
         finally:
             # Restored whatever happened. A seat left holding a script would go on writing
             # into a list nobody is reading, which is silence for that participant.
@@ -915,7 +962,15 @@ class Salon:
         Everything rather than the most urgent one: a slot between two messages is the
         chance to say what is owed, and keeping the rest back for a later slot is how the
         least urgent thing ends up never being said at all.
+
+        Nothing leaves the queue when there is nothing to say it through. A served seat is
+        spoken to only while its script is open, and this is reached from `announce` at any
+        moment — draining into a void would lose the arrival notices, the microphone changes
+        and the balance alerts, which is worse than saying them a moment later.
         """
+        if seat.served and seat.script is None:
+            return
+
         for annonce in seat.held.drain():
             try:
                 await seat.voice.insert_annonce(annonce)

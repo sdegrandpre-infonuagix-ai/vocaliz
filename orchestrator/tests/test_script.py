@@ -15,7 +15,13 @@ import pytest
 from src.interprete import Annonce, InterpreteFake, Participant, Tour
 from src.journal import InMemoryJournalStore, SalonLog
 from src.salon import InMemoryRoomProvisioner, Salon
-from src.salon.script import ANNONCE, CONDENSATION, TOUR, Script
+from src.salon.script import (
+    ANNONCE,
+    CONDENSATION,
+    TOUR,
+    NothingToSpeakThrough,
+    Script,
+)
 
 MARIE = Participant(id="marie", language="fr", name="Marie")
 HANS = Participant(id="hans", language="de", name="Hans")
@@ -163,6 +169,93 @@ async def test_an_unknown_participant_is_served_an_empty_script(salon):
     """Somebody who has left, or never arrived. An empty script rather than an error: a
     disconnection is often reported twice and neither report may fail a request."""
     assert (await salon.script_for("nobody")).lines == []
+
+
+# ── A seat with no interpreter at all ─────────────────────────────────────────
+#
+# The production case. The agent in this participant's room holds their interpreter, beside
+# the audio, so between two scripts there is nothing here to speak through. What these tests
+# establish is that nothing is *lost* in that gap — an announcement with nowhere to go waits
+# rather than disappearing.
+
+
+async def _served(salon, participant, **kwargs):
+    """Join without an interpreter, which is what the API does in production."""
+    return await salon.join(participant, **kwargs)
+
+
+async def test_a_served_seat_is_still_handed_everything_it_is_owed(salon):
+    await _served(salon, MARIE)
+    await _served(salon, HANS)
+    await salon.ingest("hans", "Guten Tag", language="de")
+
+    script = await salon.script_for("marie")
+
+    assert [line.tour.text for line in script.lines if line.kind == TOUR] == ["Guten Tag"]
+
+
+async def test_delivering_to_a_served_seat_in_process_does_nothing_at_all(salon):
+    """And in particular does not move the reading position. Rendering against a voice that
+    is not here is how a listener loses turns that were counted as said."""
+    await _served(salon, MARIE)
+    await _served(salon, HANS)
+    await salon.ingest("hans", "Guten Tag", language="de")
+
+    await salon.deliver("marie")
+
+    assert [line.tour.text for line in (await salon.script_for("marie")).lines
+            if line.kind == TOUR] == ["Guten Tag"]
+
+
+async def test_an_announcement_with_nowhere_to_go_waits_rather_than_vanishing(salon):
+    """The failure this guards against is silent: `_say_held` draining into a void would
+    lose the arrival notices, the microphone changes and the balance alerts, with the whole
+    suite still green."""
+    await _served(salon, MARIE)
+
+    await salon.announce("marie", Annonce(text="Votre solde est bas", language="fr"))
+    script = await salon.script_for("marie")
+
+    assert [line.annonce.text for line in script.lines] == ["Votre solde est bas"]
+
+
+async def test_a_served_salon_hands_over_the_arrival_notices_it_could_not_say(salon):
+    """Nobody has spoken, so there is no seam to drain the queue at. Without the flush at
+    the end of a script, somebody arriving into a conversation would be told who is here
+    only once somebody happened to say something."""
+    await _served(salon, MARIE)
+    await salon.ingest("marie", "Bonjour", language="fr")
+    await _served(salon, HANS)
+
+    script = await salon.script_for("hans")
+
+    assert any("Marie" in line.annonce.text for line in script.lines if line.annonce)
+
+
+async def test_a_served_seat_is_never_asked_what_it_heard(salon):
+    """`collect` pulls transcriptions out of interpreters, which is the orchestrator holding
+    a microphone. A served seat is skipped: its agent reports instead."""
+    await _served(salon, MARIE)
+
+    assert await salon.collect() == ()
+
+
+async def test_speaking_to_a_served_seat_between_two_scripts_is_an_error(salon):
+    """Loud rather than silent, deliberately. Every path that could reach this holds what it
+    was going to say instead — so if one ever stops, it must break something visible rather
+    than leave one participant hearing nothing."""
+    await _served(salon, MARIE)
+    seat = salon._seats["marie"]
+
+    with pytest.raises(NothingToSpeakThrough):
+        seat.voice
+
+
+async def test_a_seat_with_an_interpreter_is_not_served(salon):
+    """The in-process Salon the load simulator and the tests run, unchanged."""
+    await _join(salon, MARIE)
+
+    assert salon._seats["marie"].served is False
 
 
 # ── The wire form ─────────────────────────────────────────────────────────────

@@ -45,6 +45,23 @@ class Voice(Protocol):
     def condense(self, tours: Sequence[Tour]) -> Awaitable[None]: ...
 
 
+class NothingToSpeakThrough(RuntimeError):
+    """Something tried to say a thing to a seat that has no voice at all.
+
+    A served seat holds no interpreter — the agent does — so between two scripts there is
+    nothing to speak through. Every path that could reach that state guards against it and
+    holds what it was going to say instead, which is why this is an error rather than a
+    silent discard: discarding would leave one participant hearing nothing while every test
+    stayed green, and that is the failure this whole file exists to make impossible.
+    """
+
+    def __init__(self, participant_id: str) -> None:
+        super().__init__(
+            f"nothing to speak through for participant {participant_id} — "
+            "a served seat may only be spoken to while its script is open"
+        )
+
+
 @dataclass(frozen=True)
 class Line:
     """One thing to say, and everything needed to say it.
