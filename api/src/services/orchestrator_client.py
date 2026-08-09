@@ -57,8 +57,16 @@ async def host_salon(*, salon_id, room_name: str, host_id) -> str | None:
     except Exception as exc:  # noqa: BLE001
         # Deliberately everything, including a timeout and a DNS failure. A host must not be
         # stopped from opening a Salon because a second service is restarting.
+        # The class as well as the message. `httpx.ConnectTimeout` stringifies to nothing at
+        # all, so `%s` alone produced a warning that said a request had failed and gave no
+        # hint whether it was DNS, a closed port or a slow answer — which is the entire
+        # question when something cannot be reached.
         logger.warning(
-            "orchestrator did not take salon %s at %s: %s", salon_id, base, exc
+            "orchestrator did not take salon %s at %s: %s(%s)",
+            salon_id,
+            base,
+            type(exc).__name__,
+            exc,
         )
         return None
 

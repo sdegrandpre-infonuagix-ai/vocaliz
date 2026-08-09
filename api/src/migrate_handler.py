@@ -199,6 +199,57 @@ def _backfill_stripe_namespace(apply: bool) -> dict:
         db.close()
 
 
+def _probe_orchestrator() -> dict:
+    """Make the one call the API makes at salon creation, and say whether it arrived.
+
+    Every link in that path can be inspected on its own — the environment variable is set,
+    the security group allows the port, Cloud Map answers HEALTHY — and none of that proves a
+    request has ever crossed. This is the only thing that does.
+
+    Run from here rather than from a laptop because the orchestrator is reachable from inside
+    the VPC and nowhere else, which is deliberate: it holds the text of every live
+    conversation. This function already sits in those subnets.
+
+    Deliberately leaves nothing behind. The identifier is a probe rather than a real Salon,
+    and it is ended immediately — an orchestrator holding a Salon nobody will ever join would
+    keep a drain waiting for it at the next deploy.
+    """
+    import asyncio
+
+    import httpx
+
+    from src.config import settings
+    from src.services import orchestrator_client
+
+    base = (settings.orchestrator_base_url or "").rstrip("/")
+    if not base:
+        return {"status": "not_configured"}
+
+    salon_id = "probe-orchestrator-link"
+
+    async def run() -> dict:
+        accepted = await orchestrator_client.host_salon(
+            salon_id=salon_id, room_name="probe", host_id="probe"
+        )
+        ended = None
+        if accepted:
+            # Best-effort teardown, reported rather than raised: a probe that could not tidy
+            # up has still answered the question it was asked.
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    ended = (await client.delete(f"{base}/salons/{salon_id}")).status_code
+            except Exception as exc:  # noqa: BLE001
+                ended = f"{type(exc).__name__}"
+        return {
+            "status": "ok" if accepted else "unreachable",
+            "orchestrator": base,
+            "accepted": accepted,
+            "endedWith": ended,
+        }
+
+    return asyncio.run(run())
+
+
 def _table_census() -> dict:
     """Row counts per table. Read-only."""
     from src.database import SessionLocal
@@ -272,6 +323,10 @@ def handler(event, context):
     if action == "invoice_advertisers":
         result = _invoice_advertisers()
         _report(f"invoice_advertisers: {result}")
+        return result
+    if action == "probe_orchestrator":
+        result = _probe_orchestrator()
+        _report(f"probe_orchestrator: {result}")
         return result
     if action == "table_census":
         return _table_census()

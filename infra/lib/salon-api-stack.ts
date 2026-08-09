@@ -501,6 +501,17 @@ export class SalonApiStack extends cdk.Stack {
       'The API hands a Salon to the orchestrator at creation',
     );
 
+    // And the scheduled function, which carries the `probe_orchestrator` action. Left out at
+    // first, and the probe answered "unreachable" — correctly, since it had no route. Worth
+    // keeping as a separate grant rather than folding both into one loop: these are two
+    // different reasons to be allowed through, and the day the probe is removed this rule
+    // should go with it.
+    orchestrator.connections.allowFrom(
+      migrateFn,
+      ec2.Port.tcp(ORCHESTRATOR_PORT),
+      'The maintenance function probes the link the API depends on',
+    );
+
     // ── Custom domain ─────────────────────────────────────────────────────────
     const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
       hostedZoneId: HOSTED_ZONE_ID,
