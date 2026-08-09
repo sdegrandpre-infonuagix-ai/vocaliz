@@ -45,6 +45,10 @@ class EventType(Enum):
     # lapse. In the same stream because "was he warned?" is a question a dispute asks,
     # and a second log of it would be the two-log mistake again.
     EXPIRY_WARNED = "expiry_warned"
+    # Balance handed back out of a commission a browser payment avoided (FR70). Its own
+    # type because it is not a receipt: Stripe took less than the payer received, and the
+    # difference is a commercial charge rather than money collected.
+    REBATE_GRANTED = "rebate_granted"
     # The holder of a dormant balance was written to. In the same stream because "was he
     # told his money was still here?" is a question somebody will eventually ask, and a
     # second log of it would be the two-log mistake again.

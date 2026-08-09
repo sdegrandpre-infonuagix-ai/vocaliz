@@ -137,6 +137,26 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — the browser top-up rebate (Story 8.13 / FR70)
+
+`api/src/rebate.py`. A store takes 5–30 % of every purchase through it; a browser payment
+avoids that entirely, and handing part of the saving back costs nothing Vocaliz was going to
+keep. 5 % is the default because it is covered in **every** combination — a test walks the
+whole platform × region × revenue table to hold that, since a rebate that only worked on
+average would punish success.
+
+`RebatePolicy` is a mapping so a commission change is a configuration change (FR54); the app
+stores stay at zero however the web is configured. A rebate above the commission actually
+avoided is **applied but flagged** — an acquisition decision, not something to do by typing a
+number. An unknown platform raises rather than defaulting to the web rate.
+
+`EventType.REBATE_GRANTED` keeps it out of `collected` in the paid journal: Stripe took less
+than the balance credited, so the difference is a commercial charge. It still counts toward
+`outstanding`, because the payer can spend it.
+
+**Not done in 8.13:** the policy is not persisted, so "without a deploy" is only half true —
+it needs the Story 7.1 settings treatment.
+
 ### API — the paid-balance journal (Story 8.12 / FR68, NFR7)
 
 `api/src/paid_journal.py`, the mirror of the credit journal and also a fold with no table —

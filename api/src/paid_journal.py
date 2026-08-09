@@ -5,10 +5,11 @@ credit is a **charge** — money Vocaliz spent acquiring somebody. A paid balanc
 money a user handed over that has not yet become service. Adding them together makes both
 unreadable, so nothing here ever touches the gifted pool.
 
-Four movements rather than three. Collected, consumed and refunded describe what happened
-*during* a period; outstanding describes what is still owed *at the end of it*. A refund is
-kept apart from consumption on purpose: money going back out is not money earned, and folding
-one into the other would report revenue that was handed back.
+Collected, consumed, refunded and rebated describe what happened *during* a period;
+outstanding describes what is still owed *at the end of it*. Each is kept apart for its own
+reason. A refund is not consumption — money going back out is not money earned. And a rebate
+(FR70) is not collection: Stripe took less than the balance credited, so the difference is a
+commercial charge that still lands in the liability.
 
 A paid balance never expires. Somebody who stops using Vocaliz is still owed what they put in,
 indefinitely — which is why dormant balances must be isolatable by age, and why the holder is
@@ -34,6 +35,9 @@ REMINDER_COPY_TO = "s.degrandpre@vocaliz.net"
 _COLLECTS = {EventType.RECHARGED.value}
 _CONSUMES = {EventType.DEBITED.value}
 _REFUNDS = {EventType.REFUNDED.value}
+# Balance the payer received without paying for it, out of an avoided commission.
+# Never collection: Stripe took less than the balance credited.
+_REBATES = {EventType.REBATE_GRANTED.value}
 
 
 def _paid(db: Session, subject_id: uuid.UUID | None = None) -> list[LedgerEvent]:
@@ -46,11 +50,14 @@ def _paid(db: Session, subject_id: uuid.UUID | None = None) -> list[LedgerEvent]
 
 @dataclass(frozen=True)
 class PaidTotals:
-    """One period. Three movements through it, and what was still owed at the close."""
+    """One period. What moved through it, and what was still owed at the close."""
 
     collected_cents: int
     consumed_cents: int
     refunded_cents: int
+    # Handed back out of an avoided store commission (FR70). Real balance, and therefore
+    # part of what is owed — but never part of what was collected.
+    rebated_cents: int
     outstanding_cents: int
 
 
@@ -69,8 +76,8 @@ def outstanding_cents(db: Session, *, as_of: datetime | None = None) -> int:
 
 
 def paid_totals(db: Session, *, since: datetime, until: datetime) -> PaidTotals:
-    """The four figures a period close needs, kept apart."""
-    collected = consumed = refunded = 0
+    """The figures a period close needs, each kept apart from the others."""
+    collected = consumed = refunded = rebated = 0
 
     for row in _paid(db):
         if row.amount_cents is None:
@@ -83,11 +90,14 @@ def paid_totals(db: Session, *, since: datetime, until: datetime) -> PaidTotals:
             consumed += abs(row.amount_cents)
         elif row.type in _REFUNDS:
             refunded += abs(row.amount_cents)
+        elif row.type in _REBATES:
+            rebated += row.amount_cents
 
     return PaidTotals(
         collected_cents=collected,
         consumed_cents=consumed,
         refunded_cents=refunded,
+        rebated_cents=rebated,
         outstanding_cents=outstanding_cents(db, as_of=until),
     )
 
