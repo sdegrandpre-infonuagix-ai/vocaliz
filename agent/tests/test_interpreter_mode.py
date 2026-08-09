@@ -123,7 +123,7 @@ def test_the_welcome_names_what_vocaliz_actually_is():
     text = salon._WELCOME_MESSAGE_FR
 
     assert "Vocaliz" in text
-    assert "17 langues" in text
+    assert "20 langues" in text
     assert "interprète privé" in text
 
 

@@ -338,7 +338,7 @@ _WEB_SEARCH_INSTRUCTIONS = (
 # in changes, never the substance.
 _WELCOME_MESSAGE_FR = (
     "Bonjour ! Je suis Vocaliz, la voix qui permet de transformer n'importe quelle page Web "
-    "ou document en conversation partagée. Je suis aussi une interprète dans 17 langues. "
+    "ou document en conversation partagée. Je suis aussi une interprète dans 20 langues. "
     "Chaque participant est entendu par les autres par l'intermédiaire de son propre "
     "interprète privé. Tu peux envoyer des messages au Salon ou discuter avec moi."
 )
