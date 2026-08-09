@@ -41,11 +41,15 @@ def client():
     what lets the whole surface be exercised in milliseconds.
     """
     rooms = InMemoryRoomProvisioner()
+    # One store across every Salon this application hosts, as in production. A store per
+    # build would make every takeover look like a brand-new conversation, which is exactly
+    # the bug `test_hosting_a_salon_that_already_has_a_history` exists to catch.
+    store = InMemoryJournalStore()
 
     async def factory(**_):
-        def build(salon_id: str) -> Salon:
-            log = SalonLog(
-                salon_id=salon_id, store=InMemoryJournalStore(), translate=_translate
+        async def build(salon_id: str) -> Salon:
+            log = await SalonLog.resume(
+                salon_id=salon_id, store=store, translate=_translate
             )
             return Salon(log=log, rooms=rooms)
 
@@ -298,14 +302,15 @@ def test_no_route_accepts_or_returns_audio(client):
     assert [name for name in fields if any(word in name.lower() for word in audio_shaped)] == []
 
 
-def test_an_application_with_no_factory_refuses_to_host_rather_than_losing_words():
+@pytest.mark.asyncio
+async def test_an_application_with_no_factory_refuses_to_host_rather_than_losing_words():
     """`src.main:app` is the domain, which does not know what implements it. Accepting a
     Salon it has nowhere to put would answer every request cheerfully and lose the
     conversation — the failure that takes longest to notice."""
     from src.main import _no_factory
 
     with pytest.raises(RuntimeError, match="no salon factory"):
-        _no_factory("salon-1")
+        await _no_factory("salon-1")
 
 
 def test_a_room_that_cannot_be_opened_is_a_503_and_not_a_stack_trace(client):
@@ -325,3 +330,26 @@ def test_a_room_that_cannot_be_opened_is_a_503_and_not_a_stack_trace(client):
 
     assert response.status_code == 503
     assert "room" in response.json()["detail"]
+
+
+def test_hosting_a_salon_that_already_has_a_history_carries_on_from_it(client):
+    """The 500 this file was written after. A fresh journal numbers its first message 1, so
+    hosting a Salon that already has rows makes the next thing anybody says collide with the
+    primary key — the conversation stops at its first word.
+
+    It is also the whole of the claim that affinity is a preference rather than a condition
+    of survival: an instance picking a Salon up must read what it already is.
+    """
+    _host(client)
+    _join(client, "hans", "de")
+    _say(client, "hans", "Guten Tag", "de")
+
+    # A second instance taking it over — same store, same identifier, nothing in memory.
+    application = client.app
+    application.state.registry.release("salon-1")
+    _host(client)
+
+    body = _say(client, "hans", "Und noch etwas", "de").json()
+
+    assert body["recorded"] == 1
+    assert body["sequences"] == [2]  # after the first, not on top of it

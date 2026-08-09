@@ -63,12 +63,26 @@ async def build_salon_factory(
         url=livekit_url, api_key=livekit_api_key, api_secret=livekit_api_secret
     )
 
-    def build(salon_id: str) -> Salon:
-        # A fresh journal rather than `SalonLog.resume`. Hosting is what the API calls when
-        # it creates the Salon, so there is nothing to re-read; taking over a Salon already
-        # under way is a different verb, and inventing it here would mean an empty journal
-        # quietly overwriting a conversation in progress.
-        log = SalonLog(salon_id=salon_id, store=store, translate=translation_not_wired)
+    async def build(salon_id: str) -> Salon:
+        """Read whatever this Salon already is, and carry on from there.
+
+        `resume` rather than a fresh journal, and the difference is not theoretical: it was a
+        500 the first time this ran against a real database. A fresh `SalonLog` numbers its
+        first message 1, so hosting a Salon that already has rows makes the next thing anybody
+        says collide with the primary key — the conversation stops at its first word.
+
+        This file used to argue the other way, that hosting is what the API calls at creation
+        so there is nothing to re-read. That is true of the ordinary case and of nothing else.
+        A retried request, an instance replaced mid-conversation, a Salon picked up after a
+        deploy — all of them hand this an identifier with a history, and the whole claim that
+        affinity is a preference rather than a condition of survival rests on this reading it.
+
+        Nothing is lost in the ordinary case: resuming a Salon with no rows produces exactly
+        the empty journal the old code built directly.
+        """
+        log = await SalonLog.resume(
+            salon_id=salon_id, store=store, translate=translation_not_wired
+        )
         return Salon(log=log, rooms=rooms, settings=settings)
 
     return build

@@ -119,7 +119,7 @@ async def _drain(target: FastAPI) -> None:
         )
 
 
-def _no_factory(salon_id: str) -> Salon:
+async def _no_factory(salon_id: str) -> Salon:
     """What an application built without a factory does when asked to host a Salon.
 
     Raising rather than returning something empty. An application that accepted a Salon and

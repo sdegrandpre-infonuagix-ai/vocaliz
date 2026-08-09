@@ -120,7 +120,11 @@ def build_router() -> APIRouter:
         """
         registry = _registry(request)
         try:
-            registry.accept(salon_id, request.app.state.build_salon(salon_id))
+            # Built before it is accepted, and built by reading whatever this Salon already
+            # is. An instance that took an identifier and then made an empty conversation for
+            # it would renumber the journal from one, and the next thing anybody said would
+            # collide with what is already stored.
+            registry.accept(salon_id, await request.app.state.build_salon(salon_id))
         except DrainingError:
             # 503, so the API tries another instance. This one is on its way out and taking
             # a new Salon would mean dropping it minutes later.
