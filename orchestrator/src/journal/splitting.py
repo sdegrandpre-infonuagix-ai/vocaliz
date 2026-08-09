@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import re
 
+from src.journal.cleaning import spoken_length
+
 # `taille_max_message` of Story 6.5, and a setting rather than a constant once Story 7.1
 # gives the operational parameters a table of their own.
 MAX_MESSAGE_CHARACTERS = 500
@@ -91,7 +93,9 @@ def split_intervention(
     text = (text or "").strip()
     if not text:
         return ()
-    if len(text) <= max_chars:
+    # Measured on the speech alone: a `[pause=4000]` is not something anybody says, and
+    # counting it would cut an intervention short for a reason nobody could hear.
+    if spoken_length(text) <= max_chars:
         return (text,)
 
     pieces: list[str] = []

@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
+from src.journal.cleaning import clean
 from src.journal.cursors import Cursors
 from src.journal.journal import Journal, JournalEntry, _utcnow
 from src.journal.splitting import MAX_MESSAGE_CHARACTERS, split_intervention
@@ -121,9 +122,12 @@ class SalonLog:
         between two of those writes, the takeover reads a run that stops short — which is
         the same shape as an intervention that was interrupted, and is rendered as one.
         """
+        # Cleaned here and nowhere else (Story 6.11). Once, at ingestion, so that N
+        # listeners share one cleaning rather than each paying for their own — and so that
+        # every lag downstream is measured on what is actually left to say.
         entries = self._journal.append_run(
             participant_id=participant_id,
-            texts=split_intervention(text, max_characters),
+            texts=split_intervention(clean(text, keep_markers=True), max_characters),
             language=language,
             duration_seconds=duration_seconds,
         )

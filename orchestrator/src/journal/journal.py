@@ -14,6 +14,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from src.journal.cleaning import pause_seconds, without_markers
+
 # Characters of speech per second, used when nobody supplies a real duration.
 #
 # Roughly 150 words a minute at five characters a word — conversational speech, near enough
@@ -29,7 +31,10 @@ def content_seconds(text: str) -> float:
     An interpreter that knows how long its human actually spoke should say so. This is the
     stand-in, and its virtue is consistency rather than accuracy.
     """
-    return len(text.strip()) / CHARACTERS_PER_SECOND
+    # The words at speaking pace, plus every silence in full. A marker is not spoken, but
+    # the pause it stands for occupies real time when it is restituted (Story 6.11) — so it
+    # counts against every reader who has not reached it yet.
+    return len(without_markers(text)) / CHARACTERS_PER_SECOND + pause_seconds(text)
 
 
 def _utcnow() -> datetime:

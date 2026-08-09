@@ -93,6 +93,12 @@ parses it from the spoken invitation; saying nothing grants it. Above
 `condensation_threshold_seconds` a backlog is condensed rather than replayed, and everybody
 already present is told when an arrival is given the history.
 
+`src/journal/cleaning.py` (Story 6.11) strips hesitation at ingestion — once, so every room
+benefits — and turns a silence over `SIGNIFICANT_PAUSE_MS` into `[pause=N]`, capped at
+`MAX_PAUSE_MS`. Markers are never pronounced (`Utterance.spoken_text`), never counted as
+content (`spoken_length`), counted in full against a lag, dropped by a condensation, and
+not injectable by saying one aloud (`neutralise`).
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

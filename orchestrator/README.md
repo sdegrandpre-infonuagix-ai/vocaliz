@@ -230,6 +230,41 @@ said before this person existed to them is about to be said to that person, ther
 taking it back, and the only honest moment to say so is before it happens. Nothing is said
 when the journal is empty: granting access to nothing discloses nothing.
 
+## Cleaning, and the pause marker
+
+`src/journal/cleaning.py`. Hesitation is removed **at ingestion**, once, so N listeners
+share one cleaning rather than each paying for their own — and so every lag downstream is
+measured on what is actually left to say. Cleaning a Salon's speech shortens every room's
+backlog at the same moment.
+
+The line it must not cross is the one between cleaning and condensing (FR53). Hesitation
+goes; not one word carrying meaning does. Two places that shows in the rules:
+
+- Fillers are matched whole. `heureux` begins with `heu`, and deleting a word for looking
+  like a noise is exactly the failure this exists to avoid.
+- A stammer is collapsed only for words of three letters or fewer. People stammer on
+  function words; repeating a longer one is usually deliberate, and `très très bien` means
+  something `très bien` does not. The asymmetry decides it — missing a stammer costs a
+  repeated syllable, deleting an intended word costs a meaning in a language the listener
+  cannot check.
+
+A silence under `SIGNIFICANT_PAUSE_MS` (2 000) is breathing and goes with the rest. Above
+it, it was carrying something, so it survives as `[pause=N]`, capped at `MAX_PAUSE_MS`
+(5 000) — reproducing thirty seconds faithfully would reproduce the moment everybody
+assumed the call had dropped.
+
+The marker is metadata, and four rules follow from that. It is **never pronounced**
+(`Utterance.spoken_text` strips it at the last moment; the duration travels separately as
+an indication of intent, applied idiomatically). It is **not content** — `spoken_length`
+ignores it, so Story 6.5 never cuts an intervention short for a reason nobody could hear.
+It **counts in full against a lag**, because the silence occupies real time when played.
+And it is **dropped by a condensation**: one does not summarise silences.
+
+Nobody can inject one by saying it. `neutralise` defangs anything of the form `[key=value]`
+that came out of a human's mouth — matched on the shape rather than on the word `pause`, so
+the emphasis and tone markers the story promises later are not injectable from the day they
+ship.
+
 ## Which languages are offered
 
 `offered_languages` takes the **intersection** of what the adapters speak, never their

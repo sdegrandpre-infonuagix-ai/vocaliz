@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, field
 
 from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
-from src.journal import MAX_MESSAGE_CHARACTERS, JournalEntry, SalonLog
+from src.journal import MAX_MESSAGE_CHARACTERS, JournalEntry, SalonLog, without_markers
 from src.salon.history import HistoryAccess, grants_history
 from src.salon.notices import (
     already_here,
@@ -349,7 +349,11 @@ class Salon:
             seat.introduced.add(entry.participant_id)
 
         try:
-            await seat.interpreter.condense([_as_tour(entry) for entry in pending])
+            # Markers are dropped with the rest (Story 6.11): one does not summarise
+            # silences, and a summary that reproduced them would spend its time on them.
+            await seat.interpreter.condense(
+                [_as_tour(entry, spoken_only=True) for entry in pending]
+            )
         except InterpreteError:
             # Their adapter has told them out loud (NFR3). The position does not move, so
             # the backlog is still theirs to catch up on.
@@ -513,11 +517,14 @@ class Salon:
         return tuple(self._seats[key] for key in sorted(self._seats))
 
 
-def _as_tour(entry: JournalEntry) -> Tour:
-    """A journal entry in the shape the Interpreter port takes."""
+def _as_tour(entry: JournalEntry, *, spoken_only: bool = False) -> Tour:
+    """A journal entry in the shape the Interpreter port takes.
+
+    `spoken_only` strips the metadata markers, which is what a condensation gets.
+    """
     return Tour(
         participant_id=entry.participant_id,
-        text=entry.text,
+        text=without_markers(entry.text) if spoken_only else entry.text,
         language=entry.language,
         sequence=entry.sequence,
     )

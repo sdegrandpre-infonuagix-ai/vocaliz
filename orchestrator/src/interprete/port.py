@@ -81,6 +81,30 @@ class Utterance:
     covers: tuple[Tour, ...] = ()
 
     @property
+    def spoken_text(self) -> str:
+        """What a voice is actually given to say.
+
+        The metadata markers of Story 6.11 are stripped out here, at the last possible
+        moment. They are instructions about *how* to say the rest — a silence to leave —
+        and pronouncing "[pause=4000]" at somebody is the one outcome nothing may produce.
+        """
+        from src.journal.cleaning import without_markers
+
+        return without_markers(self.text)
+
+    @property
+    def pause_seconds(self) -> float:
+        """How long to stay quiet while saying it.
+
+        An indication of intent rather than a constraint to the hundredth: an interpreter
+        applies it idiomatically in its own language, where the same beat may be shorter or
+        longer than the one the speaker left.
+        """
+        from src.journal.cleaning import pause_seconds
+
+        return pause_seconds(self.text)
+
+    @property
     def verbatim(self) -> bool:
         """True when nothing has to be translated and the voice is only being asked to
         say it. A turn already in the listener's language costs no model call, which is why
