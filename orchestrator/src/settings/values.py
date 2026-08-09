@@ -23,6 +23,11 @@ DEFAULTS: dict[str, float | int] = {
     "saturation_threshold_seconds": 300.0,
     # And below this it is let go again — a second, lower number on purpose (FR55).
     "unblock_threshold_seconds": 240.0,
+    # How long one person may hold the floor before third-party content may be inserted
+    # inside their intervention (FR56, Story 7.4). It starts at the same number as
+    # saturation, and that is a coincidence of judgement rather than a relationship: they
+    # answer different questions and move independently.
+    "monologue_ceiling_seconds": 300.0,
     # Longer interventions are cut into consecutive journal messages (Story 6.6).
     "max_message_characters": 500,
     # A silence longer than this is content rather than breathing (Story 6.11).
@@ -45,6 +50,7 @@ class SalonSettings:
     condensation_threshold_seconds: float = DEFAULTS["condensation_threshold_seconds"]
     saturation_threshold_seconds: float = DEFAULTS["saturation_threshold_seconds"]
     unblock_threshold_seconds: float = DEFAULTS["unblock_threshold_seconds"]
+    monologue_ceiling_seconds: float = DEFAULTS["monologue_ceiling_seconds"]
     max_message_characters: int = DEFAULTS["max_message_characters"]
     significant_pause_ms: int = DEFAULTS["significant_pause_ms"]
     max_pause_ms: int = DEFAULTS["max_pause_ms"]

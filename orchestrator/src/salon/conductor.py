@@ -88,6 +88,10 @@ class Seat:
     # this participant says reaches the journal until it comes back down. A state of
     # one room and never of the Salon — the others are neither warned nor blocked.
     blocked: bool = False
+    # Story 7.4. How much of the run currently being rendered to this listener has gone
+    # by, in seconds of content. Reset at every seam, so it measures one continuous
+    # intervention rather than how much somebody has said all evening.
+    monologue_seconds: float = 0.0
 
 
 class Salon:
@@ -103,6 +107,7 @@ class Salon:
         condensation_threshold_seconds: float | None = None,
         saturation_threshold_seconds: float | None = None,
         unblock_threshold_seconds: float | None = None,
+        monologue_ceiling_seconds: float | None = None,
         video: VideoPath | None = None,
         settings: SalonSettings | None = None,
     ) -> None:
@@ -138,6 +143,15 @@ class Salon:
             unblock_threshold_seconds
             if unblock_threshold_seconds is not None
             else settings.unblock_threshold_seconds
+        )
+        # Story 7.4. Past this, third-party content may be inserted inside somebody's
+        # intervention. No ordering rule ties it to the saturation threshold it happens to
+        # start beside: neither silently disables the other, so a rule between them would
+        # only refuse configurations that work.
+        self._monologue_ceiling = (
+            monologue_ceiling_seconds
+            if monologue_ceiling_seconds is not None
+            else settings.monologue_ceiling_seconds
         )
         # Optional: a deployment without it loses the pictures and nothing else.
         self._video = video
@@ -315,6 +329,10 @@ class Salon:
     @property
     def unblock_threshold_seconds(self) -> float:
         return self._unblock_threshold
+
+    @property
+    def monologue_ceiling_seconds(self) -> float:
+        return self._monologue_ceiling
 
     def is_saturated(self, participant_id: str) -> bool:
         """Whether this one room has stopped taking words. Never asked of the Salon."""
@@ -576,13 +594,23 @@ class Salon:
                     return
 
                 seat.mid_run = entry.mid_run
+                # Story 7.4. One continuous intervention, so it accumulates across the
+                # pieces of a run and is cleared at the seam below.
+                seat.monologue_seconds += content_seconds(entry.text)
 
                 await self._send_caption(seat, entry)
 
             await self.log.advance(participant_id, entry.sequence)
 
-            if not seat.mid_run:
+            # At a seam, always. Inside a run only once the speaker has gone past the
+            # ceiling — until then, cutting a thought in half costs the listener more than
+            # a delayed announcement does. Past it, the delay has stopped being a courtesy
+            # to the speaker and become a silence imposed on everybody by one of them.
+            if self._may_interrupt(seat):
                 await self._say_held(seat)
+
+            if not seat.mid_run:
+                seat.monologue_seconds = 0.0
 
     async def deliver_all(self) -> None:
         """Let every interpreter catch up, each at its own pace and none blocking another."""
@@ -598,14 +626,28 @@ class Salon:
         announcement dropped into the middle of somebody's sentence is worse than the same
         announcement a second later, and the seam is where a listener is least able to tell
         the two speakers apart.
+
+        Unless the intervention has passed the monologue ceiling (Story 7.4). Held with no
+        limit, that courtesy becomes the means by which one person makes everybody else
+        unreachable — nothing can be said to anybody for as long as they keep talking.
         """
         seat = self._seats.get(participant_id)
         if seat is None:
             return
 
         seat.held.append(annonce)
-        if not seat.mid_run:
+        if self._may_interrupt(seat):
             await self._say_held(seat)
+
+    def _may_interrupt(self, seat: Seat) -> bool:
+        """Whether something third-party may be said to this listener right now.
+
+        At a seam, always. Inside a run only once the speaker has gone past the ceiling:
+        below it a cut thought costs the listener more than a delayed announcement, and
+        above it the delay has stopped being a courtesy to the speaker and become a silence
+        imposed on everybody by one of them.
+        """
+        return not seat.mid_run or seat.monologue_seconds > self._monologue_ceiling
 
     async def _say_held(self, seat: Seat) -> None:
         """Say what was waiting, in the order it arrived."""

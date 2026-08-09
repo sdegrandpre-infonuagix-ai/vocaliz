@@ -263,6 +263,34 @@ Two details are less obvious than the threshold:
 Failing to speak the announcement never costs the summary it introduces, the same rule
 introductions follow.
 
+## The monologue ceiling
+
+`Salon._may_interrupt`. Story 6.5 established that nothing third-party is spoken inside
+somebody's intervention: a long one is cut into consecutive messages, and slipping an
+announcement between two of them leaves the listener with half a sentence, an unrelated
+notice, and the other half to reassemble themselves.
+
+That rule is right and it has a limit. Held with no ceiling it becomes the means by which one
+person makes everybody else unreachable — nothing can be said to anybody for as long as they
+keep talking. Past `monologue_ceiling_seconds` the protection is withdrawn and insertion is
+allowed inside the run.
+
+It is a choice between two costs, and the ceiling is where they cross. Under it, cutting a
+thought costs more than a delayed announcement. Over it, the delay has stopped being a
+courtesy to the speaker and become a silence imposed on everybody by one of them, which a
+clipped sentence is cheaper than.
+
+The count is per *run*, in seconds of content, and resets at every seam — somebody who spoke
+at length, stopped, and started again has yielded the floor in between, so the protection is
+theirs once more. Measuring content rather than messages keeps the ceiling from depending on
+where the splitter happened to cut.
+
+`monologue_ceiling_seconds` starts at 300, the same number as `saturation_threshold_seconds`,
+and that is a coincidence of judgement rather than a relationship. They answer different
+questions — how long one person may hold the floor, and how far behind a room may fall — and
+there is deliberately no ordering rule between them: neither silently disables the other, so
+a rule would only refuse configurations that work.
+
 ## Saturation, and the alarm
 
 `Salon._review_saturation`. When one room's own lag passes `saturation_threshold_seconds`

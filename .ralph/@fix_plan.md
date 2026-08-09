@@ -66,12 +66,7 @@
 - [x] Story 7.1: Configuration Persistée des Paramètres du Salon
 - [x] Story 7.2: Condensation par l'Interprète en Retard
 - [x] Story 7.3: Signal de Saturation et Blocage d'Entrée
-  > As a participant
-  > I want savoir quand le système sature
-  > So that je ne parle pas dans le vide.
-  > AC: Given le retard de l'interprète d'une room — `retard_i` — dépasse `seuil_saturation` (300 s), When le seuil est franchi, Then cet interprète émet le signal « Vocaliz is busy » à son seul participant, dans sa langue, la marque restant en anglais, And Given chaque interprète est indépendant et avance à son propre rythme, When une room sature, Then les autres participants ne sont ni avertis ni bloqués — la saturation est un état de room, jamais un état de Salon, And Given le signal est actif dans une room, When ce participant produit un nouveau message, Then l'ajout de ses messages au journal est suspendu et son interprète le lui dit immédiatement, plutôt que de le laisser parler dans le vide, And Given une room est bloquée, When les autres participants parlent, Then leurs messages continuent d'être ajoutés au journal normalement, et le participant bloqué continue de les recevoir, And Given une intervention déjà commencée est en cours de découpe, When le blocage survient, Then ses morceaux restants sont ajoutés malgré le blocage, afin de ne pas trancher une pensée en deux, And Given `retard_i` redescend sous `seuil_deblocage` (240 s), When le seuil bas est franchi, Then les ajouts de cette room sont rouverts, sans oscillation entre les deux seuils, And Given la condensation de FR53 s'applique en continu et par room, When la saturation se déclenche malgré elle, Then cela signifie que la régulation de cette room est saturée — le signal est une alarme, pas un premier recours, And Given plusieurs rooms d'un même Salon, When l'une sature et les autres non, Then le Salon fonctionne dans un état mixte, chaque room ayant son propre statut de saturation
-  > Spec: specs/planning-artifacts/epics.md#story-7-3
-- [ ] Story 7.4: Plafond de Monologue
+- [x] Story 7.4: Plafond de Monologue
   > As a participant
   > I want que personne ne monopolise indéfiniment
   > So that la conversation reste partagée.

@@ -131,6 +131,13 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+The monologue ceiling (Story 7.4 / FR56) is `Salon._may_interrupt` plus
+`Seat.monologue_seconds`: Story 6.5's rule that nothing third-party is said inside somebody's
+intervention is withdrawn past `monologue_ceiling_seconds`, because held with no limit it is
+how one person makes everybody else unreachable. Counted per run in seconds of content and
+reset at every seam. It starts at 300 like the saturation threshold, with no ordering rule
+between them — neither disables the other, so a rule would only refuse working setups.
+
 Saturation (Story 7.3 / FR55) is `Salon._review_saturation` plus `Seat.blocked`: past
 `saturation_threshold_seconds` a room speaks `vocaliz_is_busy` to its own participant and
 stops accepting their words until the lag drops under `unblock_threshold_seconds`. Ingestion
