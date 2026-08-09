@@ -131,6 +131,14 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+`src/salon/meta_speech.py` (Story 7.6 / FR62) fixes the order the interpreter's own
+utterances come out in when several are ready together: BUSY, BALANCE, NOTICE, ADVERT, ties
+broken by an arrival counter rather than a clock or object identity, so two runs of one
+scenario produce the same audio. `Seat.held` is now this queue and `Salon.announce` takes an
+optional `urgency` (defaulting to NOTICE, so no existing caller changes). `drain()` returns
+*everything* waiting — it sequences, it does not arbitrate. Introductions, history and the
+condensation announcement stay outside the ordering.
+
 `src/load/` (Story 7.5 / FR58, NFR4) is the load harness. `SimulatedSpeaker` generates its
 own turns at a chosen cadence, length and language, deterministically and with no provider
 call — `InterpreteFake` is reactive and could not do this. `scenario.run` plays a whole

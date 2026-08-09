@@ -34,6 +34,7 @@ from src.salon.notices import (
 )
 from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
 from src.salon.rooms import Room, RoomProvisioner
+from src.salon.meta_speech import MetaSpeechQueue, Urgency
 from src.salon.speaking import SpeakingBoard
 from src.salon.video import VideoPath, VideoTrack
 
@@ -78,8 +79,9 @@ class Seat:
     # True between two pieces of one intervention (Story 6.5). Nothing third-party is
     # spoken while it is.
     mid_run: bool = False
-    # Announcements that arrived mid-run, in the order they arrived.
-    held: list[Annonce] = field(default_factory=list)
+    # Announcements that arrived mid-run (Story 6.5), in the order they will be said —
+    # which past Story 7.6 is a deliberate order rather than the order they turned up in.
+    held: MetaSpeechQueue = field(default_factory=MetaSpeechQueue)
     # Who this listener has been introduced to (Story 6.9). Per seat rather than per Salon:
     # what matters is that each person hears each introduction once, and somebody arriving
     # late has heard none of them.
@@ -623,7 +625,13 @@ class Salon:
 
     # ── Announcements ─────────────────────────────────────────────────────────
 
-    async def announce(self, participant_id: str, annonce: Annonce) -> None:
+    async def announce(
+        self,
+        participant_id: str,
+        annonce: Annonce,
+        *,
+        urgency: Urgency = Urgency.NOTICE,
+    ) -> None:
         """Say something to one participant that nobody in the Salon said.
 
         Held back while their interpreter is between two pieces of one intervention. An
@@ -639,7 +647,7 @@ class Salon:
         if seat is None:
             return
 
-        seat.held.append(annonce)
+        seat.held.add(annonce, urgency=urgency)
         if self._may_interrupt(seat):
             await self._say_held(seat)
 
@@ -654,9 +662,13 @@ class Salon:
         return not seat.mid_run or seat.monologue_seconds > self._monologue_ceiling
 
     async def _say_held(self, seat: Seat) -> None:
-        """Say what was waiting, in the order it arrived."""
-        while seat.held:
-            annonce = seat.held.pop(0)
+        """Say everything that was waiting, in the order the queue puts it in (Story 7.6).
+
+        Everything rather than the most urgent one: a slot between two messages is the
+        chance to say what is owed, and keeping the rest back for a later slot is how the
+        least urgent thing ends up never being said at all.
+        """
+        for annonce in seat.held.drain():
             try:
                 await seat.interpreter.insert_annonce(annonce)
             except InterpreteError:

@@ -16,6 +16,7 @@ from src.salon.notices import (
     microphone_restored,
     on_the_telephone,
 )
+from src.salon.meta_speech import MetaSpeechQueue, Urgency
 from src.salon.speaking import Pair, SpeakingBoard, Voice
 from src.salon.captions import (
     AS_SPOKEN,
@@ -49,6 +50,8 @@ __all__ = [
     "InMemoryRoomProvisioner",
     "InMemoryVideoPath",
     "MAX_VIDEO_BITRATE_KBPS",
+    "MetaSpeechQueue",
+    "Urgency",
     "VIDEO_FPS",
     "VIDEO_HEIGHT",
     "VideoPath",

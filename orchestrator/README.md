@@ -263,6 +263,42 @@ Two details are less obvious than the threshold:
 Failing to speak the announcement never costs the summary it introduces, the same rule
 introductions follow.
 
+## The order the interpreter speaks in
+
+`src/salon/meta_speech.py`. The problem is reproducibility rather than fairness. Several
+things can become ready during one long intervention, and if the order they emerge in depends
+on which coroutine happened to resume first, the same scenario produces different audio twice
+and no test can pin any of it down. So the order is a property of the queue and never of the
+event loop.
+
+| Rank | What |
+|---|---|
+| 1 | `BUSY` — "Vocaliz is busy" (FR49) and the request to top up (FR56) |
+| 2 | `BALANCE` — a low balance, and the Salon about to end (FR55) |
+| 3 | `NOTICE` — arrivals, microphone changes, the ordinary facts of the conversation |
+| 4 | `ADVERT` — advertising (FR39) |
+
+The specification names ranks 1, 2 and 4 in that order. `NOTICE` is not in its list, and
+sitting it between the balance alerts and the advertising is the reading that keeps the three
+named ranks in exactly the given order while refusing to let anything being *sold* precede a
+fact about the conversation itself.
+
+**It sequences; it does not arbitrate.** `drain()` returns everything waiting, not the most
+urgent one — a slot between two messages is the chance to say what is owed, and keeping the
+rest back for a later slot is precisely how the least urgent thing ends up never being said.
+Nothing is dropped, deduplicated or replaced either: two identical sentences are two things
+that happened.
+
+Within a rank the tie is broken by an arrival counter rather than a timestamp or object
+identity. Two things ready at the same instant need a settled order, and a clock can tie
+while a counter cannot.
+
+Two kinds of speech stay outside this on purpose. A participant's introduction and their
+history are said as they enter the room, before they are in the conversation at all. And the
+sentence announcing a condensation belongs to the summary it introduces — ordering it
+separately would strand "while you were listening, three people spoke" next to something
+else entirely.
+
 ## Simulated participants, and what a run is judged by
 
 `src/load/`. The purpose is a decision: raising the participant ceiling from 3 to 50 is
