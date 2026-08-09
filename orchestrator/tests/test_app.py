@@ -185,20 +185,25 @@ def test_shutdown_says_so_when_a_salon_outlives_the_drain(caplog):
     assert any("still hosted" in message for message in warnings)
 
 
-def test_the_service_carries_no_business_logic_yet():
+def test_the_service_shell_carries_no_business_logic():
     """Story 6.1 ships a place to live, not a tenant.
 
-    The journal, the interpreter reading positions and the billing arrive in 6.3 and
-    Epic 8. Naming them here would mean writing them twice — once as a guess, once for
-    real.
+    Scoped to the modules that story delivered, and it stays scoped to them as the epic
+    fills in: Story 6.2 puts the Interpreter port in `src/interprete/`, 6.3 will put the
+    journal and the reading positions beside it. What must not happen is any of that
+    leaking into the four files whose entire job is to start a process and keep it
+    healthy — the day `main.py` knows what a turn of speech is, the health endpoint has
+    become something that can break for a reason nobody expected.
     """
     source = Path(__file__).resolve().parents[1] / "src"
+    shell = ("main.py", "config.py", "lifecycle.py", "logging_config.py")
     forbidden = ("utterance", "curseur", "cursor", "stripe", "billing", "traduction", "translate")
+
     offenders = [
-        (path.name, word)
-        for path in source.rglob("*.py")
+        (name, word)
+        for name in shell
         for word in forbidden
-        if word in path.read_text(encoding="utf-8").lower()
+        if word in (source / name).read_text(encoding="utf-8").lower()
     ]
 
     assert offenders == []

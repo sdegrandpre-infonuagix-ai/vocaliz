@@ -51,6 +51,12 @@ uv run pytest -q
 docker build -t salon-orchestrator .
 ```
 
+`src/interprete/` holds the Interpreter port (`ingest`, `render`, `insert_annonce`,
+`condense`) and its adapters — `InterpreteS2S` over a realtime audio↔audio session,
+`InterpreteFake` for deterministic tests. No provider SDK is importable under `src/`, and
+`tests/test_interprete_port.py` fails the build if one appears. New adapters are added to
+the `ADAPTERS` list in that file, which runs the whole contract against them.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

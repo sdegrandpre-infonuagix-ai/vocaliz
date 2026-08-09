@@ -32,6 +32,26 @@ curl localhost:8080/health/ready   # readiness
 uv run pytest -q
 ```
 
+## The Interpreter port
+
+`src/interprete/` — one interpreter per participant, and the only thing the orchestrator
+is allowed to know about one. Four verbs: `ingest`, `render`, `insert_annonce`, `condense`.
+
+| Adapter | Behind it |
+|---------|-----------|
+| `InterpreteS2S` | A realtime audio↔audio session. The human speaks, the model answers in voice; no text step inside the room, and a turn in another language is handed over whole for the model to render and speak in one movement. |
+| `InterpreteFake` | A queue. Deterministic, in memory, no socket — what Story 7.2 verifies condensation against. |
+| `InterpreteBase` | Story 6.7: STT + LLM + TTS, same contract, no change to the orchestrator. |
+
+No provider SDK is imported anywhere under `src/` — `test_interprete_port.py` fails the
+build if one ever is. The realtime session is supplied by whatever hosts the adapter (the
+interpreter worker in `agent/`) and only has to answer the `RealtimeSession` shape.
+
+Failures are typed: `ProviderUnavailable` and `UnsupportedLanguage`, both under
+`InterpreteError`. When a provider stops answering, the participant is told out loud
+through a fallback voice — never through the model that has just failed — and the
+orchestrator gets the typed error regardless (NFR3).
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and
