@@ -332,18 +332,34 @@ _WEB_SEARCH_INSTRUCTIONS = (
 )
 
 
+# The canonical welcome, in French because that is the language it was written and approved
+# in. Kept as one fixed text rather than a paraphrase the model improvises per participant,
+# so every listener is told the same thing about the product — only the language it arrives
+# in changes, never the substance.
+_WELCOME_MESSAGE_FR = (
+    "Bonjour ! Je suis Vocaliz, la voix qui permet de transformer n'importe quelle page Web "
+    "ou document en conversation partagée. Je suis aussi une interprète dans 17 langues. "
+    "Chaque participant est entendu par les autres par l'intermédiaire de son propre "
+    "interprète privé. Tu peux envoyer des messages au Salon ou discuter avec moi."
+)
+
+
 def _journal_intro_instructions(language: str) -> str:
     """The one thing this agent says on its own initiative: who it is, said once.
 
     A model told to stay silent unless instructed is still the first voice a participant
     ever hears in their room. Saying nothing at all about that would read as the connection
     being broken, not as an interpreter waiting its turn.
+
+    Translated rather than read verbatim when `language` is not French — this is a
+    speech-to-speech model, and the instruction below asks it to do what it already does for
+    every relayed line: carry the substance across, not necessarily every word.
     """
     return (
-        f"In {language}, in one or two short sentences: introduce yourself as this "
-        "person's interpreter for this Vocaliz Salon — a conversation where each "
-        "participant is heard by the others through their own interpreter. Say nothing "
-        "else, ask nothing, and do not wait for a reply."
+        f"Say the following to this listener, naturally, in {language} — translating it if "
+        f"{language} is not French, keeping every fact in it exactly as it is. Say nothing "
+        "else before or after it, ask nothing, and do not wait for a reply.\n"
+        f"---\n{_WELCOME_MESSAGE_FR}\n---"
     )
 
 

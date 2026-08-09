@@ -110,12 +110,21 @@ async def test_the_old_topology_still_replies_automatically():
 # ─── The one thing it says on its own ────────────────────────────────────────────
 
 
-def test_the_one_shot_intro_names_the_language_and_the_product():
-    text = salon._journal_intro_instructions("fr")
+def test_the_one_shot_intro_carries_the_canonical_welcome_verbatim():
+    """One fixed text, not a paraphrase the model improvises per participant — every
+    listener is told the same thing about the product, in whichever language it arrives."""
+    text = salon._journal_intro_instructions("es-MX")
 
-    assert "fr" in text
+    assert salon._WELCOME_MESSAGE_FR in text
+    assert "es-MX" in text
+
+
+def test_the_welcome_names_what_vocaliz_actually_is():
+    text = salon._WELCOME_MESSAGE_FR
+
     assert "Vocaliz" in text
-    assert "interpreter" in text.lower()
+    assert "17 langues" in text
+    assert "interprète privé" in text
 
 
 def test_the_one_shot_intro_does_not_invite_a_reply():
@@ -123,4 +132,4 @@ def test_the_one_shot_intro_does_not_invite_a_reply():
     initiative the interpreter prompt tells it never to take."""
     text = salon._journal_intro_instructions("fr").lower()
 
-    assert "ask" not in text or "ask nothing" in text
+    assert "ask nothing" in text
