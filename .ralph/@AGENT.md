@@ -131,6 +131,23 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+### API — per-participant options (Story 8.4 / FR35, FR42)
+
+`api/src/participation.py` + `salon_participant_options` (migration 049). `join_options`
+settles one person's tier, video and top-up as they join. Keyed on (salon, person), not on
+the person: somebody may want Mode C for a client call and Base for a chat. Rejoining
+replaces rather than duplicating — two rows would leave two answers to "what did they
+choose?" and nothing saying which is current.
+
+`salons.host_pays_all` is the host's one offer; what it *produces* still lands per
+participant. A guest the host pays for goes to `HOST_PAYS_TIER` (Mode B, so somebody whose
+participation is a gift is not also advertised to), is not asked to choose, and is never
+asked for money. The override is **only upward** — `_at_least` — because one able to lower an
+existing choice would be a host quietly downgrading a guest.
+
+Unlike `ledger_events` and `burned_identifiers`, this table carries FK cascades on purpose:
+those are evidence and outlive the account, these are live preferences and do not.
+
 ### API — the tier catalogue (Story 8.3 / FR69)
 
 `api/src/tiers.py`. `TierOffer.of(tier)` describes a tier as it appears on the creation

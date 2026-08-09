@@ -75,12 +75,7 @@
 - [x] Story 8.1: Flux d'Événements Comptables
 - [x] Story 8.2: Crédit Offert de 5 USD à Vie
 - [x] Story 8.3: Configuration des Trois Options par l'Hôte à la Création
-  > As a hôte
-  > I want configurer mes trois options en créant le Salon
-  > So that je décide de mon expérience et de mon budget sans les imposer aux autres.
-  > AC: Given un hôte crée un Salon, When l'écran de création s'affiche, Then il y configure trois options personnelles, au même endroit :, Mode A 7,50 $/h  annonces · voix naturelle, Mode B 15 $/h    sans annonces · voix naturelle, Mode C 22,50 $/h sans annonces · voix premium, → aucun palier n'est gratuit, le tarif est visible pour chacun, → plancher par défaut, And Given ces trois options, When elles sont enregistrées, Then elles sont personnelles à l'hôte et n'imposent rien aux autres participants, And Given les quatre paliers, When ils sont présentés, Then chacun n'ajoute qu'une seule chose au précédent — voix naturelle, puis absence d'annonces, puis modèle premium — de sorte que l'écart de prix soit toujours attribuable à une différence unique, And Given un utilisateur disposant d'un `solde_offert` non nul (Story 8.2), When les paliers lui sont présentés, Then chacun affiche la durée que son crédit couvre, et non son seul tarif horaire :, And Given un crédit partiellement consommé, When les durées sont affichées, Then elles sont calculées sur le solde offert restant, jamais sur les 5 USD initiaux, And Given un utilisateur dont le `solde_offert` est épuisé, When les paliers lui sont présentés, Then le tarif horaire s'affiche seul, sans mention de crédit, And Given l'hôte choisit un mode, When le Salon démarre, Then ce choix ne s'applique qu'à lui et n'impose rien aux autres participants, And Given un Salon est créé, When les options s'affichent, Then le speech-to-speech est toujours proposé, quel que soit le contexte
-  > Spec: specs/planning-artifacts/epics.md#story-8-3
-- [ ] Story 8.4: Configuration des Trois Options par le Participant à la Jonction
+- [x] Story 8.4: Configuration des Trois Options par le Participant à la Jonction
   > As a participant invité
   > I want configurer mes propres options en rejoignant
   > So that je ne subisse pas les choix de quelqu'un d'autre.
