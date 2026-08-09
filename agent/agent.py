@@ -19,8 +19,11 @@ from livekit.agents.voice.room_io import RoomOptions
 from livekit.plugins import xai, silero
 
 from src.captions import CaptionPublisher, speaks_only_to_agent
+from src.following import follow
 from src.mixed_audio_input import MixedParticipantAudioInput
 from src.opening import OpeningGate
+from src.orchestrator_link import OrchestratorLink
+from src.session_voice import SessionVoice
 
 # override=True is deliberate: load_dotenv() otherwise leaves pre-existing OS
 # environment variables untouched, so a stale machine-wide XAI_API_KEY silently wins
@@ -1609,6 +1612,69 @@ async def entrypoint(ctx: agents.JobContext):
                 text=getattr(item, "text_content", None) or "",
                 identity="agent",
             )
+
+    # ── The journal ───────────────────────────────────────────────────────────
+    #
+    # What this human says goes into the Salon's journal, and what the Salon owes them comes
+    # back as text to be spoken here. The interpreter is this session, beside this
+    # microphone; the orchestrator never hears a sound.
+    #
+    # Empty `ORCHESTRATOR_BASE_URL` keeps every line below inert, which is the state today —
+    # and not only because the service is young. **The orchestrator answers inside the VPC
+    # and this worker runs on LiveKit Cloud**, so the address that works from the API does
+    # not work from here. That gap is real and is named in the story rather than papered over
+    # with a public endpoint nobody designed.
+    orchestrator_url = os.environ.get("ORCHESTRATOR_BASE_URL", "")
+    following_task: asyncio.Task | None = None
+    stop_following = asyncio.Event()
+
+    # One human per room is what the orchestrator's topology means; this agent still joins
+    # rooms holding two. Delivery is engaged only where the two agree, because a script is
+    # written for one listener and there is one audio output — saying Marie's script into a
+    # room where Hans is also sitting would read him her half of the conversation.
+    humans = [p for p in ctx.room.remote_participants.values()]
+    listener = humans[0] if len(humans) == 1 else None
+
+    if orchestrator_url and salon_id and listener is not None:
+        link = OrchestratorLink(
+            base_url=orchestrator_url,
+            salon_id=salon_id,
+            participant_id=listener.identity,
+            language=forced_language if forced_language != "auto" else "en",
+        )
+        await link.join(name=listener.name or None)
+
+        @agent_session.on("user_input_transcribed")
+        def _report_to_the_journal(event) -> None:
+            # Finals only. An interim transcript is a half-sentence that was never true, and
+            # the journal has no way to take one back: a sequence number that has been handed
+            # out is spent, and every other agent will already have said it out loud.
+            if not getattr(event, "is_final", False):
+                return
+            asyncio.create_task(
+                link.report(event.transcript, language=getattr(event, "language", None))
+            )
+
+        following_task = asyncio.create_task(
+            follow(link, SessionVoice(agent_session), stop=stop_following)
+        )
+        logger.info("Following the journal for %s in salon %s", listener.identity, salon_id)
+    elif orchestrator_url and salon_id:
+        # Said out loud in the log rather than left as silence. A worker that was configured
+        # to follow a journal and quietly did not is the hardest kind of failure to notice.
+        logger.info(
+            "Not following the journal for salon %s: the room holds %d humans and a script "
+            "is written for one",
+            salon_id,
+            len(humans),
+        )
+
+    async def _stop_following() -> None:
+        stop_following.set()
+        if following_task is not None:
+            await asyncio.gather(following_task, return_exceptions=True)
+
+    ctx.add_shutdown_callback(_stop_following)
 
     # Start metering heartbeat — sends elapsed seconds every 30 s so trial time
     # is committed incrementally and survives unexpected disconnects.
