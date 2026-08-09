@@ -332,15 +332,17 @@ _WEB_SEARCH_INSTRUCTIONS = (
 )
 
 
-# The canonical welcome, in French because that is the language it was written and approved
-# in. Kept as one fixed text rather than a paraphrase the model improvises per participant,
-# so every listener is told the same thing about the product — only the language it arrives
-# in changes, never the substance.
-_WELCOME_MESSAGE_FR = (
-    "Bonjour ! Je suis Vocaliz, la voix qui permet de transformer n'importe quelle page Web "
-    "ou document en conversation partagée. Je suis aussi une interprète dans 20 langues. "
-    "Chaque participant est entendu par les autres par l'intermédiaire de son propre "
-    "interprète privé. Tu peux envoyer des messages au Salon ou discuter avec moi."
+# The canonical welcome — one fixed text, never a paraphrase an interpreter improvises per
+# participant, so every listener is told exactly the same thing about the product and only
+# the language it arrives in changes. English rather than French: not a stylistic choice, a
+# base language every model in this file already translates out of fluently, chosen once so
+# the two places that speak this text (below, and `_build_instructions`) say the same thing
+# from the same source rather than each holding their own translation to drift apart.
+_WELCOME_MESSAGE = (
+    "Hello! I'm Vocaliz, the voice that turns any web page or document into a shared "
+    "conversation. I'm also an interpreter in 20 languages. Each participant is heard by "
+    "the others through their own private AI interpreter. You can send messages to the "
+    "Salon, or chat with me privately."
 )
 
 
@@ -351,15 +353,15 @@ def _journal_intro_instructions(language: str) -> str:
     ever hears in their room. Saying nothing at all about that would read as the connection
     being broken, not as an interpreter waiting its turn.
 
-    Translated rather than read verbatim when `language` is not French — this is a
+    Translated rather than read verbatim when `language` is not English — this is a
     speech-to-speech model, and the instruction below asks it to do what it already does for
     every relayed line: carry the substance across, not necessarily every word.
     """
     return (
         f"Say the following to this listener, naturally, in {language} — translating it if "
-        f"{language} is not French, keeping every fact in it exactly as it is. Say nothing "
+        f"{language} is not English, keeping every fact in it exactly as it is. Say nothing "
         "else before or after it, ask nothing, and do not wait for a reply.\n"
-        f"---\n{_WELCOME_MESSAGE_FR}\n---"
+        f"---\n{_WELCOME_MESSAGE}\n---"
     )
 
 
@@ -429,7 +431,8 @@ def _build_instructions(
             f"Source: {source_label}\n\n"
             f"{preview}{ellipsis}\n\n"
             "OPENING BEHAVIOR — do this IMMEDIATELY when the first participant joins:\n"
-            "1. Greet them warmly in 1-2 sentences.\n"
+            "1. Say the following welcome exactly, translated naturally into the "
+            f"participant's language, changing no fact in it: \"{_WELCOME_MESSAGE}\"\n"
             "2. Introduce the topic: what it is about and why it is worth discussing (2-3 sentences).\n"
             "3. Read the 2-3 most important passages or ideas from the content above, verbatim or paraphrased.\n"
             "4. Ask one open, thought-provoking question to start the discussion.\n\n"
@@ -439,7 +442,10 @@ def _build_instructions(
         instructions += (
             "\n\n"
             "No source content was attached to this salon. "
-            "Greet participants and invite them to share what they would like to discuss. "
+            "The first thing to say to the first participant who joins is the following "
+            f"welcome exactly, translated naturally into their language, changing no fact "
+            f"in it: \"{_WELCOME_MESSAGE}\" "
+            "Then invite them to share what they would like to discuss. "
             "Facilitate naturally from there.\n"
         )
 

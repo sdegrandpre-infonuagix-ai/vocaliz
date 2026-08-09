@@ -115,16 +115,29 @@ def test_the_one_shot_intro_carries_the_canonical_welcome_verbatim():
     listener is told the same thing about the product, in whichever language it arrives."""
     text = salon._journal_intro_instructions("es-MX")
 
-    assert salon._WELCOME_MESSAGE_FR in text
+    assert salon._WELCOME_MESSAGE in text
     assert "es-MX" in text
 
 
 def test_the_welcome_names_what_vocaliz_actually_is():
-    text = salon._WELCOME_MESSAGE_FR
+    text = salon._WELCOME_MESSAGE
 
     assert "Vocaliz" in text
-    assert "20 langues" in text
-    assert "interprète privé" in text
+    assert "20 languages" in text
+    assert "private AI interpreter" in text
+
+
+def test_the_facilitation_prompt_uses_the_same_fixed_welcome_instead_of_improvising():
+    """The other place a greeting used to be produced: `_build_instructions`'s "Greet them
+    warmly in 1-2 sentences" let the model invent its own opening every time. Both the
+    with-source and no-source branches now say to speak this same canonical text instead."""
+    with_source = salon._build_instructions(source_content="Some article text.")
+    no_source = salon._build_instructions()
+
+    assert salon._WELCOME_MESSAGE in with_source
+    assert salon._WELCOME_MESSAGE in no_source
+    assert "Greet them warmly" not in with_source
+    assert "Greet participants" not in no_source
 
 
 def test_the_one_shot_intro_does_not_invite_a_reply():
