@@ -119,6 +119,56 @@ through somebody's sentence. `Salon.announce` holds an announcement back while a
 is mid-run and says it at the seam's end: an announcement dropped between two halves of a
 sentence is worse than the same announcement a second later.
 
+## Cutting a microphone
+
+`Salon.mute` / `Salon.unmute`, host only — `NotTheHost` otherwise, and a Salon with no
+declared host lets nobody do it, because the alternative default is everybody.
+
+Story 6.6 removed every notion of being granted the floor. This is the one asymmetry left
+in a Salon, and it is deliberately blunt: it stops one participant being heard and does
+nothing else. They stay in the Salon, keep their room and their position, and go on hearing
+everybody — which is the whole difference between this and removing them. What they said
+before stays in the journal; a cut is not a way to unsay something.
+
+A cut interpreter is not even asked what it heard. Transcription is billed by the minute
+and somebody who has been silenced should not go on paying for it.
+
+Both notices are spoken in the participant's own language (`notices.py`, written out rather
+than translated at runtime). The cut notice says they can still hear, because that is the
+part they cannot verify: silence from a microphone is indistinguishable from a broken
+interpreter, and the person it happened to is least able to tell which. The restore notice
+matters for the same reason in reverse — otherwise their first sentence is spent testing
+whether anyone can hear them.
+
+The notice goes through `announce`, so Story 6.5's rule holds: it waits for the end of an
+intervention rather than landing in the seam. And it is a courtesy, not the mechanism — an
+interpreter too broken to say it does not leave the microphone open.
+
+When the microphone comes back, nothing is owed for the silence. The next thing they say
+takes the next position in the journal, behind whoever spoke while they were quiet.
+
+## Cutting a microphone
+
+The one asymmetry in a Salon. Story 6.6 removed every notion of being *given* the floor —
+nobody asks, nobody grants — and this does not put it back: it takes a voice away rather
+than handing one out, and `NotTheHost` is what keeps it that way. A Salon with no declared
+host lets nobody do it, which is the right default when the alternative is everybody.
+
+`Salon.mute(participant_id, by=...)` stops that participant reaching the journal and
+nothing else. They keep their room, their position and everything they are being told —
+which is the whole difference between this and removing them. Their interpreter is not even
+asked what it heard: discarding it downstream would work and would go on paying for the
+transcription of somebody who has been told they are not being heard.
+
+They are told out loud, through `announce`, so Story 6.5's rule holds — the notice waits for
+the end of an intervention rather than landing in the seam. The notice is a courtesy and the
+cut is not: an interpreter too broken to say it does not leave the microphone open.
+
+Nothing is owed for the silence. What they say after `unmute` takes the next position in
+the journal, behind whoever spoke while they could not, and nothing said into a cut
+microphone is held and released later — a sentence delivered two minutes late answers a
+question nobody has asked since.
+
 ## Which languages are offered
 
 `offered_languages` takes the **intersection** of what the adapters speak, never their

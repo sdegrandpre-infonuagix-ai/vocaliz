@@ -53,12 +53,7 @@
 - [x] Story 6.5: Découpage des Interventions à 500 Caractères
 - [x] Story 6.6: Restitution Premier Arrivé Premier Servi
 - [x] Story 6.7: Adaptateur Base en Transcription et Synthèse
-  > As a utilisateur du mode Base
-  > I want participer pleinement avec une voix synthétique
-  > So that je puisse utiliser Salon au tarif le plus bas.
-  > AC: Given le port Interprète existe, When j'implémente `InterpreteBase` (STT + LLM + TTS), Then il satisfait exactement le même contrat que `InterpreteS2S`, sans aucune modification de l'orchestrateur, And Given un Salon où un participant est en Base et un autre en speech-to-speech, When ils conversent, Then les deux participent normalement, et l'expérience du mode Base n'est ni bloquée ni dégradée, And Given un participant en mode Base, When il reçoit une restitution, Then elle est lue en voix synthétique dans sa langue détectée, And Given les langues supportées par chaque adaptateur, When l'ensemble offert par le produit est déterminé, Then il vaut leur intersection, jamais leur union — le speech-to-speech étant le plus restrictif, c'est lui qui la définit, And Given un participant qui change de palier en cours de Salon ou d'un Salon à l'autre, When sa langue est restituée, Then elle reste disponible à l'identique : changer de palier ne change jamais les langues offertes, And Given une langue supportée par le seul adaptateur Base, When son ajout est envisagé, Then elle est refusée — elle disparaîtrait à la montée en gamme, altérant l'expérience du client au moment précis où il paie davantage
-  > Spec: specs/planning-artifacts/epics.md#story-6-7
-- [ ] Story 6.8: Coupure de Micro par l'Hôte
+- [x] Story 6.8: Coupure de Micro par l'Hôte
   > As a hôte
   > I want pouvoir couper le micro d'un participant
   > So that je puisse gérer une situation problématique sans fermer le Salon.

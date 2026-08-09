@@ -3,7 +3,8 @@
 `rooms` is what makes echo unavailable rather than cancelled — one human per room, always.
 `conductor` is what ties that to the journal of Story 6.3 and the Interpreter port of 6.2.
 """
-from src.salon.conductor import Salon
+from src.salon.conductor import NotTheHost, Salon
+from src.salon.notices import microphone_cut, microphone_restored
 from src.salon.rooms import (
     InMemoryRoomProvisioner,
     Room,
@@ -15,10 +16,13 @@ from src.salon.rooms import (
 
 __all__ = [
     "InMemoryRoomProvisioner",
+    "NotTheHost",
     "Room",
     "RoomClosed",
     "RoomProvisioner",
     "Salon",
     "interpreter_identity",
+    "microphone_cut",
+    "microphone_restored",
     "room_name",
 ]

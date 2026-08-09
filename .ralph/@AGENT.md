@@ -78,6 +78,11 @@ consecutive journal messages on sentence boundaries, never mid-word. The pieces 
 positions in one go, so nothing lands between them, and `Salon.announce` holds an
 announcement until a listener is out of a run.
 
+`Salon.mute`/`unmute` (Story 6.8) are the host's only asymmetric power: `host_id` must be
+set and must match `by`, or `NotTheHost` is raised. A cut stops ingestion and nothing else —
+the participant keeps hearing everyone, and afterwards rejoins the arrival order with no
+priority.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.
