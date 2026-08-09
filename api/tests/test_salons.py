@@ -486,3 +486,27 @@ def test_a_salon_opens_even_when_no_orchestrator_takes_it(
     assert response.status_code == 201
     salon = db.query(Salon).filter_by(livekit_room_name="salon-test").one()
     assert salon.orchestrator_url is None
+
+
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_the_room_has_a_seat_for_the_agent_on_top_of_the_people(
+    mock_name, mock_token, mock_room, client, user
+):
+    """The bug this file was written after, and it was silent.
+
+    `participant_cap` counts people; LiveKit's `max_participants` counts everyone in the room,
+    and the agent is in the room. Passing one straight into the other sized the room one seat
+    short: a host who asked for two got a room for two, both humans took the seats, and
+    LiveKit refused the agent. Nothing errored — the dispatch succeeded, the worker was
+    healthy — and what reached production was a live audio channel between two people with no
+    interpreter at all.
+    """
+    _, token = user
+
+    client.post(
+        "/salons", data={"participant_cap": 2}, headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert mock_room.await_args.kwargs["max_participants"] == 3

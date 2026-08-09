@@ -180,7 +180,19 @@ async def create_salon(
         participant_cap, ceiling=participant_cap_service.ceiling(db)
     )
     room_name = livekit_service.new_room_name()
-    await livekit_service.create_room(room_name, max_participants=cap)
+    # `cap + 1`, and the `+ 1` is the agent.
+    #
+    # Two counts meet here and they count different things. `participant_cap` counts people —
+    # `MINIMUM_CAP` is 2 precisely because one person and their interpreter is somebody
+    # talking to a translation of themselves. LiveKit's `max_participants` counts everyone in
+    # the room, and the agent is in the room.
+    #
+    # Passing one straight into the other silently sized the room one seat short. A host who
+    # chose two participants got a room for two, both humans took the seats, and LiveKit
+    # refused the agent — leaving exactly what was reported from production: a live audio
+    # channel between two people and no interpreter at all. Nothing errored: the dispatch
+    # succeeded, the worker was healthy, and the job simply could not get in.
+    await livekit_service.create_room(room_name, max_participants=cap + 1)
 
     # 3. Generate host LiveKit token
     host_token = livekit_service.generate_participant_token(
