@@ -300,6 +300,33 @@ Positions are assigned before the first `await`, so two arrivals genuinely in fl
 together cannot land on the same one, and two long interventions arriving at once still
 occupy two unbroken stretches.
 
+## Nothing said reaches a log
+
+Encryption at rest was already delivered by the Aurora cluster's KMS key, which covers the
+storage, the snapshots and the backups together — the journal, the cursors and the
+translations all live there. A column-level scheme would have forced a deterministic cipher
+on the key columns and ruled out every query but equality, and it would have missed the
+backups entirely.
+
+The half that needed work is the easy one to break by accident: **a diagnostic line that
+echoes a message body puts in clear, in CloudWatch, exactly what the database is
+encrypting.** Two guards, because either alone is weak.
+
+A **static** one fails the build when a logging call is handed anything content-shaped —
+`.text`, `words`, `transcript`, `heard`. Cheap, and it catches the mistake in the diff
+rather than six months later. It also refuses a bare `logging.info(...)`, which would write
+to a root logger nothing here configures.
+
+A **live** one runs a whole three-language Salon — introductions, a condensation, a
+microphone cut, a provider failure — with every logger at DEBUG, and asserts that not one
+word anybody said appears anywhere in the output. Translations count: derived from what
+somebody said makes them exactly as private as the original. So do pause markers, since how
+long somebody hesitated is a fact about them even though it is not a word.
+
+`logging_config.about(entry)` is the right way to say a message went wrong: identifiers and
+lengths, and the length is of the speech alone. The wrong way is one f-string away, which is
+why the right one is worth keeping close at hand.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and

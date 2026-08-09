@@ -99,6 +99,12 @@ benefits — and turns a silence over `SIGNIFICANT_PAUSE_MS` into `[pause=N]`, c
 content (`spoken_length`), counted in full against a lag, dropped by a condensation, and
 not injectable by saying one aloud (`neutralise`).
 
+No conversation content reaches a log (Story 6.12). `tests/test_no_content_in_logs.py`
+guards it twice — statically, by failing on a logging call handed anything content-shaped,
+and live, by running a full Salon at DEBUG and asserting nothing said appears in the output.
+`logging_config.about(entry)` is the sanctioned way to describe a message: identifiers and
+lengths only.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

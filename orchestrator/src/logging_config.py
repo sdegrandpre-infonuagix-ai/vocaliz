@@ -36,3 +36,22 @@ def configure_logging(level: str = "INFO") -> logging.Logger:
         logger.addHandler(handler)
 
     return logger
+
+
+def about(entry) -> str:
+    """A journal message, described without quoting it.
+
+    What Story 6.12 allows a diagnostic to carry: identifiers and lengths, never text. There
+    is a right way to say "this message went wrong" and this is it — the wrong way is one
+    f-string away, which is why it is worth having the right one close at hand.
+
+    Lengths are of the speech alone; a pause marker is metadata and its duration is reported
+    separately, because "how long somebody hesitated" is a fact about them too.
+    """
+    from src.journal.cleaning import pause_seconds, spoken_length
+
+    return (
+        f"seq={entry.sequence} participant={entry.participant_id} "
+        f"language={entry.language} chars={spoken_length(entry.text)} "
+        f"pause={pause_seconds(entry.text):.1f}s part={entry.part}/{entry.parts}"
+    )
