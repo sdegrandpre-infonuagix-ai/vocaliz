@@ -1,30 +1,40 @@
-"""Tests for Story 4.4 — Hourly billing once the free trial is spent.
+"""Nothing is billed when a Salon ends.
 
-A host with a saved payment method is charged $5/hr, prorated to the second,
-for time used beyond their free trial hour. Guests are never billed.
+This file used to test the opposite. Story 4.4 charged a host $5/hr at the end of a Salon
+for time beyond a free trial hour, and twelve tests here pinned every corner of it: the
+proration, the sub-cent carry-forward, the advance of `billed_seconds` so a span was never
+charged twice.
+
+That model is gone. Consumption is settled as it happens, on the heartbeat, against a
+prepaid balance — so by the time a Salon closes there is nothing left to collect.
+
+What is worth testing now is the **absence**, which is not the same as deleting the file and
+moving on. While both paths were wired, the same conversation would have been taken twice:
+once from the balance tick by tick, and again from a card at the end. That is the defect
+these tests exist to keep from coming back, and it is invisible in any test that only
+watches the balance go down correctly.
 """
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-import stripe
 
-from src.config import settings
+from src.ledger import EventType, Pool, append
 from src.models.billing_event import BillingEvent
-from src.models.invitation import Invitation
 from src.models.salon import Salon
 from src.models.user import User
 from src.services import stripe_service
 from src.services.jwt_service import issue_token
 
 
-# ─── Fixtures ────────────────────────────────────────────────────────────────
-
 @pytest.fixture
-def paid_host(db):
-    """A host who has exhausted the free hour and has a saved payment method."""
-    u = User(email="15148880030@example.com", phone_number="+15148880030",
-        trial_seconds_used=settings.free_trial_limit_seconds,  # exactly at the cap
+def host_with_a_card(db):
+    """A host who has spent time and has a card on file — the exact account the retired
+    path would have charged."""
+    u = User(
+        email="15148880030@example.com",
+        phone_number="+15148880030",
+        trial_seconds_used=7200,
         billed_seconds=0,
         stripe_customer_id="cus_paid1",
         stripe_payment_method_id="pm_paid1",
@@ -32,249 +42,94 @@ def paid_host(db):
     db.add(u)
     db.commit()
     db.refresh(u)
+    append(
+        db,
+        type=EventType.RECHARGED,
+        subject_id=u.id,
+        amount_cents=1000,
+        pool=Pool.PAID,
+    )
+    db.commit()
     return u, issue_token(str(u.id))
 
 
-def _active_salon(db, host, *, created_offset_s=0, heartbeat_offset_s=None):
-    """Create an active salon for a host with controllable timestamps."""
-    now = datetime.now(tz=timezone.utc)
-    s = Salon(
+def _active_salon(db, host):
+    salon = Salon(
         host_user_id=host.id,
-        livekit_room_name=f"salon-room-{host.phone_number[-4:]}-{created_offset_s}",
+        livekit_room_name="salon-billing",
         source_type="url",
-        source_url="https://example.com/x",
-        source_content="content",
+        source_content="c",
         status="active",
-        created_at=now - timedelta(seconds=created_offset_s),
+        created_at=datetime.now(tz=timezone.utc) - timedelta(seconds=600),
     )
-    if heartbeat_offset_s is not None:
-        s.last_heartbeat_at = now - timedelta(seconds=heartbeat_offset_s)
-    db.add(s)
+    db.add(salon)
     db.commit()
-    db.refresh(s)
-    return s
+    db.refresh(salon)
+    return salon
 
 
-def _mock_intent(intent_id="pi_test123"):
-    m = MagicMock()
-    m.id = intent_id
-    return m
+# ─── The absence ──────────────────────────────────────────────────────────────
 
 
-# ─── Prorating math (unit) ───────────────────────────────────────────────────
+def test_ending_a_salon_charges_no_card(client, db, host_with_a_card):
+    """The whole point. Two hours of use, a card on file, and Stripe is not called —
+    because the money was already taken as the conversation happened."""
+    host, token = host_with_a_card
+    salon = _active_salon(db, host)
 
-def test_amount_cents_full_hour():
-    """One hour of billable time == the full hourly rate."""
-    assert stripe_service._amount_cents(3600) == settings.hourly_rate_cents
-
-
-def test_amount_cents_prorated_half_hour():
-    """Thirty minutes == half the hourly rate."""
-    assert stripe_service._amount_cents(1800) == round(settings.hourly_rate_cents / 2)
-
-
-def test_amount_cents_prorated_to_the_second():
-    """Prorating is per-second, not per-minute (720 s → 100 cents at $5/hr)."""
-    assert stripe_service._amount_cents(720) == 100
-
-
-def test_billable_seconds_only_counts_beyond_trial():
-    """Only host seconds past the free-trial cap are billable."""
-    host = User(email="1@example.com", phone_number="+1",
-        trial_seconds_used=settings.free_trial_limit_seconds + 900,
-        billed_seconds=0,
-    )
-    assert stripe_service._billable_seconds(host) == 900
-
-
-def test_billable_seconds_subtracts_already_billed():
-    """Seconds already charged are not billed twice."""
-    host = User(email="1@example.com", phone_number="+1",
-        trial_seconds_used=settings.free_trial_limit_seconds + 900,
-        billed_seconds=600,
-    )
-    assert stripe_service._billable_seconds(host) == 300
-
-
-# ─── end_salon billing (integration) ───────────────────────────────────────
-
-def test_host_charged_for_overage_on_salon_end(client, db, paid_host):
-    """A host past their free hour is charged at $5/hr prorated for overage."""
-    host, token = paid_host
-    # 720 s of host time already accumulated beyond the cap, no heartbeat gap.
-    host.trial_seconds_used = settings.free_trial_limit_seconds + 720
-    db.commit()
-    salon = _active_salon(db, host, created_offset_s=0, heartbeat_offset_s=0)
-
-    with patch("stripe.PaymentIntent.create", return_value=_mock_intent()) as mock_create:
+    with patch("stripe.PaymentIntent.create") as create:
         resp = client.post(
-            f"/salons/{salon.id}/end",
-            headers={"Authorization": f"Bearer {token}"},
+            f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"}
         )
 
     assert resp.status_code == 200
-    billing = resp.json()["billing"]
-    assert billing is not None
-    assert billing["billedSeconds"] == 720
-    assert billing["amountCents"] == 100  # 720 s at $5/hr
-    assert billing["status"] == "succeeded"
-
-    # Stripe was charged off-session against the saved method.
-    kwargs = mock_create.call_args.kwargs
-    assert kwargs["amount"] == 100
-    assert kwargs["currency"] == settings.billing_currency
-    assert kwargs["customer"] == "cus_paid1"
-    assert kwargs["payment_method"] == "pm_paid1"
-    assert kwargs["off_session"] is True
-    assert kwargs["confirm"] is True
-    # Namespaced, so a Stripe export can be reconciled against our tables without
-    # guessing whose user_id a bare key belongs to. See tests/test_stripe_metadata.py.
-    assert kwargs["metadata"] == {
-        "vocaliz_user_id": str(host.id),
-        "vocaliz_salon_id": str(salon.id),
-        "vocaliz_billable_seconds": "720",
-    }
+    create.assert_not_called()
 
 
-def test_billed_seconds_advances_and_prevents_double_billing(client, db, paid_host):
-    """billed_seconds advances so the same span is never charged twice."""
-    host, token = paid_host
-    host.trial_seconds_used = settings.free_trial_limit_seconds + 720
-    db.commit()
-    salon = _active_salon(db, host, created_offset_s=0, heartbeat_offset_s=0)
+def test_ending_a_salon_reports_no_billing(client, db, host_with_a_card):
+    host, token = host_with_a_card
+    salon = _active_salon(db, host)
 
-    with patch("stripe.PaymentIntent.create", return_value=_mock_intent()):
-        client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"})
+    body = client.post(
+        f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"}
+    ).json()
 
-    db.expire(host)
-    db.refresh(host)
-    assert host.billed_seconds == 720
-
-    # A BillingEvent audit row was recorded.
-    events = db.query(BillingEvent).filter(BillingEvent.host_user_id == host.id).all()
-    assert len(events) == 1
-    assert events[0].status == "succeeded"
-    assert events[0].amount_cents == 100
-    assert events[0].stripe_payment_intent_id == "pi_test123"
+    assert body["billing"] is None
 
 
-def test_no_charge_when_within_free_trial(client, db):
-    """A host still within the free hour is not charged."""
-    u = User(email="15148880031@example.com", phone_number="+15148880031",
-        trial_seconds_used=100,
-        stripe_customer_id="cus_x",
-        stripe_payment_method_id="pm_x",
-    )
-    db.add(u)
-    db.commit()
-    db.refresh(u)
-    token = issue_token(str(u.id))
-    salon = _active_salon(db, u, created_offset_s=0, heartbeat_offset_s=0)
+def test_ending_a_salon_writes_no_billing_event(client, db, host_with_a_card):
+    """`billing_events` recorded charge attempts. No attempt, no row — and an empty table
+    here is what says the end-of-Salon charge is really gone rather than merely failing."""
+    host, token = host_with_a_card
+    salon = _active_salon(db, host)
 
-    with patch("stripe.PaymentIntent.create") as mock_create:
-        resp = client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"})
+    client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"})
 
-    assert resp.status_code == 200
-    assert resp.json()["billing"] is None
-    mock_create.assert_not_called()
+    assert db.query(BillingEvent).count() == 0
 
 
-def test_no_charge_without_payment_method_carries_forward(client, db):
-    """A host who crossed into paid usage but has no card is not charged;
-    billed_seconds stays at 0 so the span is captured on a later salon."""
-    u = User(email="15148880032@example.com", phone_number="+15148880032",
-        trial_seconds_used=settings.free_trial_limit_seconds + 600,
-        billed_seconds=0,
-    )
-    db.add(u)
-    db.commit()
-    db.refresh(u)
-    token = issue_token(str(u.id))
-    salon = _active_salon(db, u, created_offset_s=0, heartbeat_offset_s=0)
+def test_the_balance_is_not_touched_by_ending_a_salon(client, db, host_with_a_card):
+    """Ending settles nothing financial. Whatever was consumed came off during the
+    conversation; taking more here would be charging twice for one span."""
+    from src.credit import balance
 
-    with patch("stripe.PaymentIntent.create") as mock_create:
-        resp = client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"})
+    host, token = host_with_a_card
+    salon = _active_salon(db, host)
+    before = balance(db, host.id).total_cents
 
-    assert resp.status_code == 200
-    assert resp.json()["billing"] is None
-    mock_create.assert_not_called()
-    db.expire(u)
-    db.refresh(u)
-    assert u.billed_seconds == 0
+    client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"})
+
+    assert balance(db, host.id).total_cents == before
 
 
-def test_stripe_failure_does_not_block_salon_end(client, db, paid_host):
-    """A Stripe charge failure is swallowed: the salon still ends, a failed
-    BillingEvent is recorded, and billed_seconds is NOT advanced (retried later)."""
-    host, token = paid_host
-    host.trial_seconds_used = settings.free_trial_limit_seconds + 720
-    db.commit()
-    salon = _active_salon(db, host, created_offset_s=0, heartbeat_offset_s=0)
-
-    with patch("stripe.PaymentIntent.create", side_effect=stripe.CardError("declined", "card", "card_declined")):
-        resp = client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"})
-
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "ended"
-    assert resp.json()["billing"] is None
-
-    db.expire(host)
-    db.refresh(host)
-    assert host.billed_seconds == 0  # not advanced — will retry next salon
-
-    events = db.query(BillingEvent).filter(BillingEvent.host_user_id == host.id).all()
-    assert len(events) == 1
-    assert events[0].status == "failed"
-    assert events[0].stripe_payment_intent_id is None
+def test_the_post_paid_entry_point_is_gone_rather_than_unused(db):
+    """Removed, not left lying about. A function that can double-bill is not made safe by
+    nobody calling it today — the next person to wire it up would have no way to know."""
+    assert not hasattr(stripe_service, "bill_host_for_usage")
+    assert not hasattr(stripe_service, "_billable_seconds")
 
 
-def test_guest_is_never_billed(client, db, paid_host):
-    """A guest joining a billed salon accrues no trial time and is never charged.
-
-    The guest ends the host's salon; only the host (who has the overage and the
-    card) is charged — the guest has no billable seconds and no Stripe method."""
-    host, host_token = paid_host
-    host.trial_seconds_used = settings.free_trial_limit_seconds + 720
-    db.commit()
-
-    guest = User(email="15148880099@example.com", phone_number="+15148880099", trial_seconds_used=0, billed_seconds=0)
-    db.add(guest)
-    db.commit()
-    db.refresh(guest)
-
-    salon = _active_salon(db, host, created_offset_s=0, heartbeat_offset_s=0)
-
-    with patch("stripe.PaymentIntent.create", return_value=_mock_intent()) as mock_create:
-        # Host ends the salon (only the host may end it).
-        client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {host_token}"})
-
-    # Only ONE charge was made — for the host — and it targeted the host's method.
-    assert mock_create.call_count == 1
-    assert mock_create.call_args.kwargs["customer"] == "cus_paid1"
-
-    # The guest was never billed and accumulated no billable seconds.
-    db.expire(guest)
-    db.refresh(guest)
-    assert guest.trial_seconds_used == 0
-    assert guest.billed_seconds == 0
-    guest_events = db.query(BillingEvent).filter(BillingEvent.host_user_id == guest.id).all()
-    assert guest_events == []
-
-
-def test_sub_cent_overage_not_charged(client, db, paid_host):
-    """An overage that prorates to less than 1¢ is not charged and carries forward."""
-    host, token = paid_host
-    # 5 s at $5/hr ≈ 0.69¢ → rounds to 1¢ actually; use 3 s → 0.417¢ → 0¢.
-    host.trial_seconds_used = settings.free_trial_limit_seconds + 3
-    db.commit()
-    salon = _active_salon(db, host, created_offset_s=0, heartbeat_offset_s=0)
-
-    with patch("stripe.PaymentIntent.create") as mock_create:
-        resp = client.post(f"/salons/{salon.id}/end", headers={"Authorization": f"Bearer {token}"})
-
-    assert resp.status_code == 200
-    assert resp.json()["billing"] is None
-    mock_create.assert_not_called()
-    db.expire(host)
-    db.refresh(host)
-    assert host.billed_seconds == 0  # carried forward
+def test_what_the_prepaid_model_still_needs_is_kept(db):
+    """Creating the customer and attaching the card a top-up will draw on. Removing the
+    charge must not remove the means to take a payment at all."""
+    assert hasattr(stripe_service, "attach_payment_method")

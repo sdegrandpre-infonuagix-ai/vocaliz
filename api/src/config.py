@@ -100,9 +100,6 @@ class Settings(BaseSettings):
     # App installation link sent to guests without an account after their first salon
     salon_install_url: str = "https://salon.app/install"
 
-    # Free trial cap: 1 hour (3 600 s) of cumulative host-role time per account
-    free_trial_limit_seconds: int = 3600
-
     # ── Source summarisation ──────────────────────────────────────────────────
     # A document reached the agent as its first 2 500 characters and no further: a
     # forty-page PDF was accepted, extracted, stored, then silently cut to a page and a
@@ -243,9 +240,10 @@ class Settings(BaseSettings):
     # all, and the price charged when it won without anyone to outbid.
     ad_broadcast_rate_cents: int = 25
 
-    # Post-trial billing: 5 USD per host-hour, prorated to the second.
-    # 500 cents / 3600 s → charged per second of host usage beyond the free trial.
-    hourly_rate_cents: int = 500
+    # The tier rates live in `credit.TIER_RATES_CENTS_PER_HOUR`, not here, and that is
+    # deliberate: what an hour costs is a product decision that differs per mode, where this
+    # file holds what differs per deployment. A single `hourly_rate_cents` sat here until the
+    # Epic 8 cutover and could only ever have named one of the four.
     billing_currency: str = "usd"
 
 

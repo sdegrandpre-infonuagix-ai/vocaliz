@@ -1,4 +1,8 @@
-"""Tests for Story 4.1 — One lifetime free trial hour per host."""
+"""What an account has, and what ending a Salon does to the usage counter.
+
+The free trial hour this file was written for is retired (FR51 replaces FR19). What is left
+of it is a counter that gates nothing, and a balance that does.
+"""
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -34,63 +38,89 @@ def _active_salon(db, host_user, room_suffix=""):
     return sess
 
 
-# ─── GET /me/trial-status ─────────────────────────────────────────────────────
-
-def test_trial_status_initial_values(client, host):
-    """Fresh user has 0 seconds used, full 3600 remaining, not exhausted."""
-    _, token = host
-    resp = client.get("/me/trial-status", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["trialSecondsUsed"] == 0
-    assert body["trialSecondsLimit"] == 3600
-    assert body["trialSecondsRemaining"] == 3600
-    assert body["trialExhausted"] is False
+# ─── GET /me/balance ──────────────────────────────────────────────────────────
+#
+# This was /me/trial-status, and reported a free hour everybody got. There is no trial:
+# usage is prepaid. A duration is no longer a property of the account either — it is a
+# property of the account *and* the mode, which is why the minutes come per tier.
 
 
-def test_trial_status_reflects_accumulated_time(client, db, host):
-    """trial-status returns correct values after host accumulates some time."""
-    host_user, token = host
-    host_user.trial_seconds_used = 1800
+def test_balance_starts_at_the_welcome_credit(client, db):
+    """Registering grants it, so somebody who has just signed up has five dollars."""
+    from src.credit import WELCOME_CREDIT_CENTS
+    from src.signup import register
+
+    person = register(db, email="fresh@example.com")
     db.commit()
 
-    resp = client.get("/me/trial-status", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["trialSecondsUsed"] == 1800
-    assert body["trialSecondsRemaining"] == 1800
-    assert body["trialExhausted"] is False
+    body = client.get(
+        "/me/balance", headers={"Authorization": f"Bearer {issue_token(str(person.id))}"}
+    ).json()
+
+    assert body["giftedCents"] == WELCOME_CREDIT_CENTS
+    assert body["paidCents"] == 0
+    assert body["totalCents"] == WELCOME_CREDIT_CENTS
 
 
-def test_trial_status_exhausted_when_at_limit(client, db, host):
-    """trialExhausted becomes true when trial_seconds_used >= 3600."""
+def test_the_two_pools_are_named_rather_than_summed(client, db, host):
+    """From a single number, "how much of this is yours?" has no answer — and that is the
+    question a refund asks."""
+    from src.ledger import EventType, Pool, append
+
     host_user, token = host
-    host_user.trial_seconds_used = 3600
+    append(
+        db,
+        type=EventType.RECHARGED,
+        subject_id=host_user.id,
+        amount_cents=250,
+        pool=Pool.PAID,
+    )
     db.commit()
 
-    resp = client.get("/me/trial-status", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["trialExhausted"] is True
-    assert body["trialSecondsRemaining"] == 0
+    body = client.get("/me/balance", headers={"Authorization": f"Bearer {token}"}).json()
+
+    assert body["paidCents"] == 250
+    assert body["giftedCents"] == 0
+    assert body["totalCents"] == 250
 
 
-def test_trial_status_remaining_never_negative(client, db, host):
-    """trialSecondsRemaining is always >= 0 even if usage exceeds limit."""
+def test_what_it_buys_is_answered_per_tier(client, db, host):
+    """The question somebody actually has. Ten dollars is 3 h 20 of Base and 26 minutes of
+    Mode C, and one duration could not have meant both."""
+    from src.ledger import EventType, Pool, append
+
     host_user, token = host
-    host_user.trial_seconds_used = 7200  # 2 hours
+    append(
+        db,
+        type=EventType.RECHARGED,
+        subject_id=host_user.id,
+        amount_cents=1000,
+        pool=Pool.PAID,
+    )
     db.commit()
 
-    resp = client.get("/me/trial-status", headers={"Authorization": f"Bearer {token}"})
-    body = resp.json()
-    assert body["trialSecondsRemaining"] == 0
-    assert body["trialExhausted"] is True
+    minutes = client.get(
+        "/me/balance", headers={"Authorization": f"Bearer {token}"}
+    ).json()["minutesByTier"]
+
+    assert minutes["Base"] == 200
+    assert minutes["Mode C"] == 26
 
 
-def test_trial_status_requires_auth(client):
-    """Unauthenticated request is rejected."""
-    resp = client.get("/me/trial-status")
-    assert resp.status_code == 401
+def test_seconds_used_is_reported_but_gates_nothing(client, db, host):
+    """Kept as a usage counter — the participant report answers questions with it — and no
+    longer a limit anybody runs into."""
+    host_user, token = host
+    host_user.trial_seconds_used = 9999
+    db.commit()
+
+    body = client.get("/me/balance", headers={"Authorization": f"Bearer {token}"}).json()
+
+    assert body["secondsUsed"] == 9999
+
+
+def test_balance_requires_auth(client):
+    assert client.get("/me/balance").status_code == 401
 
 
 # ─── end_salon increments trial time ───────────────────────────────────────

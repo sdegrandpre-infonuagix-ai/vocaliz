@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DbSession
 
 from src import credentials, identifier_change, privacy
+from src.credit import Tier, balance
+from src.tiers import covers_minutes
 from src.models.pending_identifier_change import PendingIdentifierChange
 
 from src.config import settings
@@ -23,7 +25,7 @@ from src.schemas.user import (
     PaymentMethodResponse,
     PreviousPartner,
     PreviousPartnersResponse,
-    TrialStatusResponse,
+    BalanceResponse,
     UpdateLanguageBody,
     UserProfileResponse,
 )
@@ -41,20 +43,27 @@ def get_my_profile(current_user: User = Depends(get_current_user)) -> UserProfil
     return _profile(current_user)
 
 
-@router.get("/trial-status", response_model=TrialStatusResponse)
-def get_trial_status(current_user: User = Depends(get_current_user)) -> TrialStatusResponse:
-    """Return the authenticated host's free trial usage and remaining time.
+@router.get("/balance", response_model=BalanceResponse)
+def get_balance(
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BalanceResponse:
+    """What this person has left, and what it buys in each mode.
 
-    Guests never accumulate trial time — only host-role salon seconds count.
+    This was `/me/trial-status` until the Epic 8 cutover, and reported a free hour everybody
+    got. There is no trial any more: usage is prepaid, from a welcome credit given once and
+    whatever has been topped up since. A duration is no longer a property of the account —
+    it is a property of the account *and the mode*, which is why the minutes come per tier.
     """
-    limit = settings.free_trial_limit_seconds
-    used = current_user.trial_seconds_used
-    remaining = max(0, limit - used)
-    return TrialStatusResponse(
-        trialSecondsUsed=used,
-        trialSecondsLimit=limit,
-        trialSecondsRemaining=remaining,
-        trialExhausted=(used >= limit),
+    held = balance(db, current_user.id)
+    return BalanceResponse(
+        giftedCents=held.gifted_cents,
+        paidCents=held.paid_cents,
+        totalCents=held.total_cents,
+        minutesByTier={
+            tier.label: covers_minutes(held.total_cents, tier) for tier in Tier
+        },
+        secondsUsed=current_user.trial_seconds_used,
     )
 
 

@@ -63,11 +63,28 @@ class LanguagePreferencesBody(BaseModel):
         return v
 
 
-class TrialStatusResponse(BaseModel):
-    trialSecondsUsed: int
-    trialSecondsLimit: int
-    trialSecondsRemaining: int
-    trialExhausted: bool
+class BalanceResponse(BaseModel):
+    """What somebody has, and what it buys.
+
+    Replaces the trial status this used to report. A trial was a duration everybody shared;
+    a balance is money, and how long it lasts depends on the mode — so the two questions
+    "how much do I have?" and "how long does that give me?" need separate answers, and the
+    second one needs a tier to be asked about at all.
+
+    Both pools are named rather than summed. From a single number, "how much of this is
+    yours?" has no answer, and that is the question a refund asks.
+    """
+
+    giftedCents: int
+    paidCents: int
+    totalCents: int
+    # What the total buys, per tier, in whole minutes. Rounded down: a few seconds shown as
+    # "1 min" promises something the money does not buy, and the person finds out at the
+    # moment it runs out.
+    minutesByTier: dict[str, int]
+    # Seconds of conversation used so far, all Salons together. A usage counter now, gating
+    # nothing — kept because the participant report answers questions with it.
+    secondsUsed: int
 
 
 class PreviousPartner(BaseModel):

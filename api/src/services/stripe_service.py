@@ -36,104 +36,16 @@ def attach_payment_method(user, payment_method_id: str, db) -> None:
     db.commit()
 
 
-def _billable_seconds(host) -> int:
-    """Host seconds beyond the free trial that have not yet been billed."""
-    over = max(0, host.trial_seconds_used - settings.free_trial_limit_seconds)
-    return max(0, over - host.billed_seconds)
-
-
-def _amount_cents(seconds: int) -> int:
-    """Prorate seconds to cents at the configured hourly rate (rounded to nearest cent)."""
-    return round(seconds * settings.hourly_rate_cents / 3600)
-
-
-def bill_host_for_usage(host, salon, db):
-    """Charge the host for metered time beyond their free trial hour.
-
-    Called when a salon ends. Computes host seconds past the free trial that
-    have not yet been billed, prorates them to the hourly rate ($5/hr per second),
-    and charges the saved Stripe payment method off-session.
-
-    Guests are never billed — only the salon host accumulates billable seconds.
-
-    Returns a dict describing the charge (or None if nothing was charged, e.g.
-    still within the free trial, no payment method, or the amount rounds to < 1¢).
-    A BillingEvent audit row is written for every actual charge attempt, whether
-    it succeeds or fails. Stripe errors are recorded and re-raised swallowing is
-    left to the caller — this function never advances billed_seconds on failure,
-    so an unbilled span is retried on the next salon.
-    """
-    seconds = _billable_seconds(host)
-    if seconds <= 0:
-        return None
-    if not host.stripe_payment_method_id or not host.stripe_customer_id:
-        # Host crossed into paid usage but never added a card (the crossing
-        # salon was not gated). Leave billed_seconds untouched so this span is
-        # captured on a later salon once a payment method exists.
-        logger.info("Host %s owes %s billable seconds but has no payment method", host.id, seconds)
-        return None
-
-    amount = _amount_cents(seconds)
-    if amount < 1:
-        # Below one cent — carry forward without advancing billed_seconds.
-        return None
-
-    stripe.api_key = settings.stripe_secret_key
-    total_over = max(0, host.trial_seconds_used - settings.free_trial_limit_seconds)
-
-    try:
-        intent = stripe.PaymentIntent.create(
-            amount=amount,
-            currency=settings.billing_currency,
-            customer=host.stripe_customer_id,
-            payment_method=host.stripe_payment_method_id,
-            off_session=True,
-            confirm=True,
-            # salon_id is null for a charge that settles metered time with no Salon left
-            # to point at; namespaced() stores the empty string rather than refusing it.
-            metadata=namespaced(
-                user_id=host.id,
-                salon_id=salon.id if salon is not None else None,
-                billable_seconds=seconds,
-            ),
-        )
-    except stripe.StripeError as exc:
-        message = getattr(exc, "user_message", None) or str(exc)
-        logger.warning("Billing failed for host %s: %s", host.id, message)
-        db.add(
-            BillingEvent(
-                host_user_id=host.id,
-                salon_id=salon.id if salon is not None else None,
-                billable_seconds=seconds,
-                amount_cents=amount,
-                currency=settings.billing_currency,
-                stripe_payment_intent_id=None,
-                status="failed",
-            )
-        )
-        db.commit()
-        raise
-
-    # Charge succeeded — advance billed_seconds so this span is never re-billed.
-    host.billed_seconds = total_over
-    db.add(
-        BillingEvent(
-            host_user_id=host.id,
-            salon_id=salon.id if salon is not None else None,
-            billable_seconds=seconds,
-            amount_cents=amount,
-            currency=settings.billing_currency,
-            stripe_payment_intent_id=getattr(intent, "id", None),
-            status="succeeded",
-        )
-    )
-    db.commit()
-    logger.info("Billed host %s: %s¢ for %s s (intent %s)", host.id, amount, seconds, getattr(intent, "id", None))
-
-    return {
-        "billedSeconds": seconds,
-        "amountCents": amount,
-        "currency": settings.billing_currency,
-        "paymentIntentId": getattr(intent, "id", None),
-        "status": "succeeded",
-    }
+# `bill_host_for_usage` and its two helpers lived here until the Epic 8 cutover. They
+# charged, at the end of a Salon, for host seconds beyond a free trial hour — a model that
+# no longer exists. Consumption is settled as it happens now, against a prepaid balance
+# (see `coverage`, `metering` and the heartbeat), so there is nothing left to collect when
+# a Salon closes.
+#
+# Removed rather than left unused, and the difference matters: while it was still wired it
+# would have taken the same conversation twice — once from the balance tick by tick, and
+# again from a card at the end. Nothing that can double-bill is safe to keep around on the
+# grounds that nobody calls it today.
+#
+# What stays here is what the prepaid model still needs: creating the customer and
+# attaching the payment method a top-up will draw on.

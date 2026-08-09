@@ -68,13 +68,11 @@ def finalize_salon(
 
     accrue_remaining_host_time(salon, db)
 
+    # Nothing is billed at the end any more. Consumption is settled as it happens, on the
+    # heartbeat, against a prepaid balance — so by the time a Salon closes there is nothing
+    # left to collect. Charging here as well would have taken the same conversation twice:
+    # once from the balance, tick by tick, and again from a card at the end.
     billing_summary = None
-    host = db.query(User).filter(User.id == salon.host_user_id).first()
-    if host is not None:
-        try:
-            billing_summary = stripe_service.bill_host_for_usage(host, salon, db)
-        except Exception:  # noqa: BLE001 — never let billing break salon teardown
-            billing_summary = None
 
     # Closing the participations here rather than per-participant: nobody tells the API
     # when a guest shuts their tab, so the end of the salon is the only moment their
