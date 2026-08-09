@@ -188,3 +188,88 @@ def test_a_secrets_manager_failure_is_reported_as_a_startup_failure(monkeypatch)
         load_settings(env_file=None, secrets_loader=explode)
 
     assert "arn:broken" in str(excinfo.value)
+
+
+# ── Aurora's rotated credentials ──────────────────────────────────────────────
+#
+# A static DATABASE_URL in the orchestrator secret would work until the first rotation and
+# then stop, in the least visible way available: the credential in hand is still well-formed,
+# so the failure arrives as an authentication error on a database that was fine yesterday.
+
+
+def test_the_database_url_is_assembled_from_the_rds_secret(monkeypatch):
+    from src.config import DB_SECRET_ARN_ENV, load_settings
+
+    _set(monkeypatch, {
+        DB_SECRET_ARN_ENV: "arn:aws:secretsmanager:ca-central-1:1:secret:db",
+        "LIVEKIT_URL": "wss://x",
+        "LIVEKIT_API_KEY": "k",
+        "LIVEKIT_API_SECRET": "s",
+    })
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    def loader(arn, region):
+        return {
+            "username": "salon",
+            "password": "hunter2",
+            "host": "aurora.internal",
+            "port": 5432,
+            "dbname": "salon",
+        }
+
+    settings = load_settings(env_file=None, secrets_loader=loader)
+
+    assert settings.database_url == "postgresql://salon:hunter2@aurora.internal:5432/salon"
+
+
+def test_a_password_with_url_characters_survives():
+    """RDS generates passwords containing characters that mean something in a URL. One
+    unescaped `@` turns a valid credential into a host that does not exist."""
+    from src.config import database_url_from_secret
+
+    url = database_url_from_secret(
+        {"username": "sa/lon", "password": "p@ss w:rd/", "host": "h", "port": 5432}
+    )
+
+    assert url == "postgresql://sa%2Flon:p%40ss+w%3Ard%2F@h:5432/salon"
+
+
+def test_an_explicit_database_url_wins_over_the_rds_secret(monkeypatch):
+    """What makes a local run against a development database possible without touching any
+    of this."""
+    from src.config import DB_SECRET_ARN_ENV, load_settings
+
+    _set(monkeypatch, {
+        DB_SECRET_ARN_ENV: "arn:aws:secretsmanager:ca-central-1:1:secret:db",
+        "DATABASE_URL": "postgresql://me@localhost:5432/dev",
+        "LIVEKIT_URL": "wss://x",
+        "LIVEKIT_API_KEY": "k",
+        "LIVEKIT_API_SECRET": "s",
+    })
+
+    def loader(arn, region):
+        raise AssertionError("the RDS secret must not be read when a URL is given")
+
+    settings = load_settings(env_file=None, secrets_loader=loader)
+
+    assert settings.database_url == "postgresql://me@localhost:5432/dev"
+
+
+def test_an_unreadable_rds_secret_stops_the_process_at_startup(monkeypatch):
+    """Rather than at the first participant's first word, which is when a customer finds it
+    instead of the pipeline."""
+    from src.config import DB_SECRET_ARN_ENV, MissingConfigurationError, load_settings
+
+    _set(monkeypatch, {
+        DB_SECRET_ARN_ENV: "arn:aws:secretsmanager:ca-central-1:1:secret:db",
+        "LIVEKIT_URL": "wss://x",
+        "LIVEKIT_API_KEY": "k",
+        "LIVEKIT_API_SECRET": "s",
+    })
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    def loader(arn, region):
+        raise RuntimeError("no such secret")
+
+    with pytest.raises(MissingConfigurationError, match="DATABASE_URL"):
+        load_settings(env_file=None, secrets_loader=loader)

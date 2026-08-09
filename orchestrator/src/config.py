@@ -22,6 +22,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # as the API Lambda does with APP_SECRET_ARN.
 SECRET_ARN_ENV = "ORCHESTRATOR_SECRET_ARN"
 
+# The RDS-managed secret holding the Aurora credentials, which AWS rotates on its own
+# schedule. Pointed at by the task definition and assembled into a URL at startup.
+#
+# A static DATABASE_URL in the secret above would work until the first rotation and then
+# stop, in the least visible way available: the credential in hand is still well-formed, so
+# the failure arrives as an authentication error on a database that was fine yesterday. The
+# API resolves its URL the same way and for the same reason.
+DB_SECRET_ARN_ENV = "DB_SECRET_ARN"
+
 # How long a draining instance waits for the Salons it hosts before stopping anyway.
 #
 # Under the ECS `stopTimeout`, which Fargate caps at 120 s: past that the platform sends
@@ -102,6 +111,24 @@ def fetch_secret(secret_arn: str, region: str) -> Mapping[str, object]:
     return json.loads(client.get_secret_value(SecretId=secret_arn)["SecretString"])
 
 
+def database_url_from_secret(payload: Mapping[str, object]) -> str:
+    """Assemble a Postgres URL from an RDS-managed secret.
+
+    The username and password are percent-encoded: RDS generates passwords containing
+    characters that mean something in a URL, and one unescaped `@` turns a valid credential
+    into a host that does not exist.
+    """
+    from urllib.parse import quote_plus
+
+    user = quote_plus(str(payload["username"]))
+    password = quote_plus(str(payload["password"]))
+    host = payload.get("host")
+    port = payload.get("port", 5432)
+    name = payload.get("dbname") or "salon"
+
+    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+
+
 def load_settings(
     *,
     env: MutableMapping[str, str] | None = None,
@@ -134,6 +161,24 @@ def load_settings(
             # An empty string in the secret is an unset key, not a valid credential.
             if value != "" and value is not None and key not in env:
                 env[key] = str(value)
+
+    # Aurora's own secret, rotated by AWS, assembled here rather than stored as a URL.
+    # After the block above so an explicit DATABASE_URL still wins — which is what makes a
+    # local run against a development database possible without touching this.
+    db_secret_arn = env.get(DB_SECRET_ARN_ENV)
+    if db_secret_arn and not env.get("DATABASE_URL"):
+        loader = secrets_loader or fetch_secret
+        region = env.get("AWS_REGION") or Settings.model_fields["aws_region"].default
+        try:
+            env["DATABASE_URL"] = database_url_from_secret(loader(db_secret_arn, region))
+        except Exception as exc:  # noqa: BLE001 — a startup failure like any other
+            raise MissingConfigurationError(
+                ["DATABASE_URL"],
+                detail=(
+                    f"the RDS secret {db_secret_arn} could not be read "
+                    f"({type(exc).__name__})."
+                ),
+            ) from exc
 
     try:
         return Settings(_env_file=env_file)

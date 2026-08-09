@@ -4,6 +4,7 @@ import * as apigw from 'aws-cdk-lib/aws-apigatewayv2';
 import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -13,9 +14,24 @@ import * as rds from 'aws-cdk-lib/aws-rds';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as servicediscovery from 'aws-cdk-lib/aws-servicediscovery';
 import { Construct } from 'constructs';
 
 const API_DIR = path.join(__dirname, '..', '..', 'api');
+const ORCHESTRATOR_DIR = path.join(__dirname, '..', '..', 'orchestrator');
+
+// Where the orchestrator answers, inside the VPC and nowhere else. A name rather than an
+// address, and a name this file chooses rather than one AWS hands out — the API writes it
+// into `salons.orchestrator_url`, where it outlives every task that ever serves it.
+//
+// `.internal` is resolvable only from within the VPC. The orchestrator holds the text of
+// every live conversation, so it has no business being reachable from the internet: there
+// is no listener, no certificate and no path to it from outside.
+const ORCHESTRATOR_NAMESPACE = 'vocaliz.internal';
+const ORCHESTRATOR_SERVICE = 'orchestrator';
+const ORCHESTRATOR_PORT = 8080;
+const ORCHESTRATOR_URL =
+  `http://${ORCHESTRATOR_SERVICE}.${ORCHESTRATOR_NAMESPACE}:${ORCHESTRATOR_PORT}`;
 
 // The zone is referenced, never created here. Creating it in this stack would tie its
 // lifetime to the stack: a teardown would delete the zone, AWS would hand out different
@@ -177,14 +193,12 @@ export class SalonApiStack extends cdk.Stack {
       // CloudWatch instead — useful when the recipient address is not a verified SES
       // identity, which the SES sandbox still requires.
       DEV_MODE: 'false',
-      // Where the orchestrator that holds a Salon's text can be reached. Empty until the
-      // ECS service exists, and empty is inert: no request is made and the Salon's
-      // orchestrator_url stays null. Declared here rather than left out so turning it on is
-      // one value in this file, not a new deployment shape.
+      // Where the orchestrator that holds a Salon's text can be reached.
       //
       // Not a load balancer address distributing each request afresh: a Salon is stateful,
-      // and every agent of one Salon must reach the instance that holds it.
-      ORCHESTRATOR_BASE_URL: process.env.ORCHESTRATOR_BASE_URL ?? '',
+      // and every agent of one Salon must reach the instance that holds it. See the service
+      // below, which runs exactly one task and replaces it rather than doubling it.
+      ORCHESTRATOR_BASE_URL: ORCHESTRATOR_URL,
     };
 
     const apiFn = new lambda.DockerImageFunction(this, 'ApiFn', {
@@ -356,6 +370,137 @@ export class SalonApiStack extends cdk.Stack {
       }),
     );
 
+    // ── The orchestrator ──────────────────────────────────────────────────────
+    //
+    // The service that holds a Salon's text: the journal, every reader's position, who has
+    // been introduced to whom. It is a long-running process rather than a Lambda because a
+    // conversation is long-running — the state lives in memory between requests, and a
+    // function that forgot it after each one would have to re-read the journal on every turn
+    // of speech.
+    //
+    // Fargate, so there is no instance to patch. The cluster itself costs nothing; what is
+    // paid for is the one task.
+
+    const cluster = new ecs.Cluster(this, 'OrchestratorCluster', {
+      clusterName: 'vocaliz-orchestrator',
+      vpc,
+      // The private DNS namespace the service registers itself in. Cloud Map rather than a
+      // load balancer, and the trade is the same one the NAT instance above makes: an
+      // internal ALB is roughly 16 USD a month to put a stable front on a single task, which
+      // is most of what this whole stack costs to run. Cloud Map is about fifty cents.
+      //
+      // What is given up is the seconds after a task is replaced, during which the DNS
+      // record still points at a task that has gone. That is survivable precisely because
+      // the API treats an unreachable orchestrator as non-fatal: a Salon opened in that
+      // window opens without translation instead of failing to open. Move to an ALB when
+      // that window costs more than the 16 USD it saves.
+      defaultCloudMapNamespace: {
+        name: ORCHESTRATOR_NAMESPACE,
+        type: servicediscovery.NamespaceType.DNS_PRIVATE,
+        useForServiceConnect: false,
+      },
+    });
+
+    const orchestratorTask = new ecs.FargateTaskDefinition(this, 'OrchestratorTask', {
+      family: 'vocaliz-orchestrator',
+      cpu: 512,
+      memoryLimitMiB: 1024,
+    });
+
+    orchestratorTask.addContainer('orchestrator', {
+      image: ecs.ContainerImage.fromAsset(ORCHESTRATOR_DIR),
+      essential: true,
+      portMappings: [{ containerPort: ORCHESTRATOR_PORT, protocol: ecs.Protocol.TCP }],
+      environment: {
+        AWS_REGION: this.region,
+        ENVIRONMENT: 'production',
+        LOG_LEVEL: 'INFO',
+        PORT: String(ORCHESTRATOR_PORT),
+        // The same secret the API reads, not a second copy. Two secrets holding the same
+        // LiveKit credentials is two things to rotate and one to forget.
+        ORCHESTRATOR_SECRET_ARN: appSecret.secretArn,
+        // Aurora's own secret, rotated by AWS. The orchestrator assembles the URL from it at
+        // startup: a static one would work until the first rotation and then fail as an
+        // authentication error on a database that was fine yesterday.
+        DB_SECRET_ARN: db.secret!.secretArn,
+      },
+      logging: ecs.LogDrivers.awsLogs({
+        streamPrefix: 'orchestrator',
+        logGroup: new logs.LogGroup(this, 'OrchestratorLogs', {
+          logGroupName: '/ecs/vocaliz-orchestrator',
+          retention: logs.RetentionDays.TWO_WEEKS,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
+      }),
+      healthCheck: {
+        // Liveness, which answers while draining too — a task finishing the Salons it holds
+        // is not wedged, and killing it is exactly what the drain exists to avoid.
+        command: [
+          'CMD-SHELL',
+          `python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${ORCHESTRATOR_PORT}/health', timeout=3)" || exit 1`,
+        ],
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(5),
+        retries: 3,
+        startPeriod: cdk.Duration.seconds(20),
+      },
+      // Above the orchestrator's own 90-second drain, so the wait finishes on its own terms
+      // rather than being cut short by SIGKILL. 120 s is Fargate's ceiling, and that ceiling
+      // is what the drain timeout was chosen under.
+      stopTimeout: cdk.Duration.seconds(120),
+    });
+
+    const orchestrator = new ecs.FargateService(this, 'OrchestratorService', {
+      serviceName: 'vocaliz-orchestrator',
+      cluster,
+      taskDefinition: orchestratorTask,
+      // Private subnets with egress: it calls LiveKit to provision rooms, and nothing calls
+      // it from outside the VPC.
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      assignPublicIp: false,
+      desiredCount: 1,
+
+      // One task, and one task during a deploy as well. This is the setting that matters
+      // most in this block, and the default would have been wrong.
+      //
+      // ECS defaults to 100/200, which starts the new task before stopping the old — briefly
+      // running two. Two orchestrators answering for the same Salon is precisely the failure
+      // `salons.orchestrator_url` exists to prevent: the second holds an empty journal, and a
+      // participant routed to it would be served a conversation in which nobody has spoken.
+      //
+      // The price is a gap of roughly a minute during each deploy, in which a Salon opens
+      // without translation. That is the right way round: a visible degradation for a minute,
+      // rather than a silent wrong answer.
+      minHealthyPercent: 0,
+      maxHealthyPercent: 100,
+
+      cloudMapOptions: {
+        name: ORCHESTRATOR_SERVICE,
+        // Ten seconds rather than the default minute. This is how long the record can keep
+        // pointing at a task that has gone, so it is the length of the window the paragraph
+        // above describes.
+        dnsTtl: cdk.Duration.seconds(10),
+      },
+      // Long enough to start, connect to Aurora and read two secrets before the load
+      // balancer-less health check begins counting failures against it.
+      healthCheckGracePeriod: cdk.Duration.seconds(60),
+      // Fargate only, and a recent platform version so `stopTimeout` is honoured.
+      circuitBreaker: { rollback: true },
+    });
+
+    appSecret.grantRead(orchestratorTask.taskRole);
+    db.secret!.grantRead(orchestratorTask.taskRole);
+    db.connections.allowDefaultPortFrom(orchestrator, 'The orchestrator reads the journal');
+
+    // The API opens the conversation by telling this service which Salon it holds. Nothing
+    // else may reach it — not the internet, which has no route here at all, and not the
+    // agents, which talk to it through the API's own network path.
+    orchestrator.connections.allowFrom(
+      apiFn,
+      ec2.Port.tcp(ORCHESTRATOR_PORT),
+      'The API hands a Salon to the orchestrator at creation',
+    );
+
     // ── Custom domain ─────────────────────────────────────────────────────────
     const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', {
       hostedZoneId: HOSTED_ZONE_ID,
@@ -443,6 +588,7 @@ export class SalonApiStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ApiUrl', { value: httpApi.apiEndpoint });
     new cdk.CfnOutput(this, 'DbEndpoint', { value: db.clusterEndpoint.hostname });
     new cdk.CfnOutput(this, 'AppSecretName', { value: appSecret.secretName });
+    new cdk.CfnOutput(this, 'OrchestratorUrl', { value: ORCHESTRATOR_URL });
     new cdk.CfnOutput(this, 'MigrateFunctionName', { value: migrateFn.functionName });
   }
 }

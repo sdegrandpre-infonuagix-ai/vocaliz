@@ -306,3 +306,22 @@ def test_an_application_with_no_factory_refuses_to_host_rather_than_losing_words
 
     with pytest.raises(RuntimeError, match="no salon factory"):
         _no_factory("salon-1")
+
+
+def test_a_room_that_cannot_be_opened_is_a_503_and_not_a_stack_trace(client):
+    """Provisioning is the one thing here that reaches outside this process. A rejected
+    credential or a LiveKit outage arrives as whatever the SDK chose to raise, and left alone
+    that surfaces as a 500 telling the caller nothing it can act on — which is exactly what
+    happened the first time this ran against a real container."""
+    _host(client)
+    salon = client.app.state.registry.get("salon-1")
+
+    async def refuse(*args, **kwargs):
+        raise RuntimeError("livekit said 401")
+
+    salon._rooms.provision = refuse
+
+    response = _join(client, "marie", "fr")
+
+    assert response.status_code == 503
+    assert "room" in response.json()["detail"]

@@ -147,12 +147,29 @@ def build_router() -> APIRouter:
             name=body.name,
             by_telephone=body.by_telephone,
         )
-        room = await salon.join(
-            participant,
-            history=HistoryAccess(body.history),
-            tier=Tier(body.tier),
-            covered=body.covered,
-        )
+        try:
+            room = await salon.join(
+                participant,
+                history=HistoryAccess(body.history),
+                tier=Tier(body.tier),
+                covered=body.covered,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Provisioning a room is the one thing here that reaches outside this process,
+            # and a rejected credential or an outage arrives as whatever the SDK chose to
+            # raise. Left alone that surfaces as a 500 with a stack trace, which tells the
+            # caller nothing it can act on and puts the reason in a log nobody is reading
+            # yet. 503 with the cause logged, as the API already does for the same call.
+            logger.error(
+                "could not give participant %s a room in salon %s",
+                participant.id,
+                salon_id,
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=503, detail="could not open a room for this participant"
+            ) from exc
+
         return {
             "salonId": salon_id,
             "participantId": participant.id,

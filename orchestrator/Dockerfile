@@ -13,7 +13,14 @@ RUN uv export --frozen --no-dev --no-emit-project -o requirements.txt \
     && uv pip install --system -r requirements.txt \
     && rm requirements.txt
 
+# All three, and the two beyond `src/` are not optional. `src/` is the domain, which by
+# design does not know what implements it; `adapters/` is where LiveKit and the persisted
+# journal are named; `app.py` is the composition root that joins them, and it is what the
+# CMD below actually runs. An image with only `src/` starts and immediately fails to find
+# its entry point.
 COPY src/ src/
+COPY adapters/ adapters/
+COPY app.py ./
 
 # Unbuffered, or a crash loses the last lines — which are the ones that say why.
 ENV PYTHONUNBUFFERED=1
