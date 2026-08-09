@@ -125,11 +125,18 @@ class OrchestratorLink:
         salon_id: str,
         participant_id: str,
         language: str,
+        token: str | None = None,
     ) -> None:
         self._base = (base_url or "").rstrip("/")
         self._salon_id = salon_id
         self._participant_id = participant_id
         self._language = language
+        # Sent when the address needs one, which today it does: the orchestrator answers
+        # inside the VPC and this worker does not run there, so the calls go through the
+        # API's relay — already public, already authenticated. The paths are identical on
+        # both sides on purpose, so pointing this at the orchestrator directly, the day the
+        # worker moves into the VPC, is one changed base URL and nothing else.
+        self._headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     @property
     def configured(self) -> bool:
@@ -207,7 +214,7 @@ class OrchestratorLink:
             async with aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=TIMEOUT_SECONDS)
             ) as session:
-                await session.delete(self._url())
+                await session.delete(self._url(), headers=self._headers)
         except Exception:  # noqa: BLE001
             # Logged and dropped. A departure the orchestrator did not hear about costs an
             # idle seat until the Salon ends; raising here would happen during teardown,
@@ -233,7 +240,9 @@ class OrchestratorLink:
             async with aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=TIMEOUT_SECONDS)
             ) as session:
-                async with session.request(method, url, json=body) as response:
+                async with session.request(
+                    method, url, json=body, headers=self._headers
+                ) as response:
                     if response.status >= 400:
                         logger.warning(
                             "orchestrator answered %d to %s %s",

@@ -1624,7 +1624,27 @@ async def entrypoint(ctx: agents.JobContext):
     # and this worker runs on LiveKit Cloud**, so the address that works from the API does
     # not work from here. That gap is real and is named in the story rather than papered over
     # with a public endpoint nobody designed.
-    orchestrator_url = os.environ.get("ORCHESTRATOR_BASE_URL", "")
+    # Off unless asked for, and that default is deliberate rather than cautious. Following a
+    # journal is only correct under Story 11.1's topology — one human per room — and this
+    # worker still joins rooms holding two. An agent that followed one anyway would say a
+    # script into a room already being served the old way, and the person in it would hear
+    # every sentence twice.
+    #
+    #   off       nothing happens (the default, and what production runs today)
+    #   relay     through the API, which is already public and already authenticated
+    #   <url>     straight at an orchestrator, for a worker inside the VPC
+    #
+    # `relay` is the way in today because the orchestrator answers inside a VPC this worker is
+    # not in. The paths behind `/orchestrator` mirror the orchestrator's own exactly, so the
+    # day the worker moves into that VPC this becomes a URL in the same setting and the client
+    # below does not move at all.
+    journal = os.environ.get("VOCALIZ_JOURNAL", "off").strip()
+    if journal.lower() in ("", "off"):
+        orchestrator_url = ""
+    elif journal.lower() == "relay":
+        orchestrator_url = f"{api_url}/orchestrator" if api_url and host_token else ""
+    else:
+        orchestrator_url = journal
     following_task: asyncio.Task | None = None
     stop_following = asyncio.Event()
 
@@ -1641,6 +1661,7 @@ async def entrypoint(ctx: agents.JobContext):
             salon_id=salon_id,
             participant_id=listener.identity,
             language=forced_language if forced_language != "auto" else "en",
+            token=host_token,
         )
         await link.join(name=listener.name or None)
 

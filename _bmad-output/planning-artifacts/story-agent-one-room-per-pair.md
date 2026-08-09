@@ -119,7 +119,7 @@ Supprime le problème au lieu de l'arbitrer, et supprime aussi le saut réseau. 
 reprend l'exploitation d'un composant que LiveKit Cloud opère aujourd'hui — mise à l'échelle,
 correctifs, disponibilité.
 
-**Recommandation : (c), et (b) en attendant.** (b) se code en une journée et ne ferme aucune
+**Tranché : (b) maintenant, (c) à terme.** (b) se code en une journée et ne ferme aucune
 porte ; (c) est la bonne place à terme, parce que la latence est ce que ce produit vend et qu'un
 saut réseau par tour de parole est précisément ce qu'on a refusé de payer en descendant
 l'interprète dans l'agent. (a) est la seule des trois qui crée une surface à défendre.
@@ -130,7 +130,7 @@ l'interprète dans l'agent. (a) est la seule des trois qui crée une surface à 
 
 | # | Tranche | Contenu | Dépend de |
 |---|---|---|---|
-| 1 | **Joignabilité** | Trancher (a)/(b)/(c) et le construire | — |
+| 1 | ~~**Joignabilité**~~ | **Fait** — relais (b) par l'API, `VOCALIZ_JOURNAL=relay` | — |
 | 2 | **Dépêche par participant** | API : une room et un agent par humain | — |
 | 3 | **Amaigrissement de l'agent** | Supprimer le mélangeur et l'attribution | 2 |
 | 4 | **La conversation par le journal** | Activer `follow` ; retirer la traduction dans la room | 1, 3 |

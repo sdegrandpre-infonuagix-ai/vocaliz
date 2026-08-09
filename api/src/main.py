@@ -12,6 +12,7 @@ from src.routers.admin import router as admin_router
 from src.routers.guest_web import router as guest_web_router
 from src.routers.sources import router as sources_router
 from src.routers.invitations import guest_router, me_router, router as invitations_router
+from src.routers.orchestrator_relay import router as orchestrator_router
 from src.routers.users import router as users_router
 
 app = FastAPI(title="Salon API", version="0.1.0")
@@ -27,6 +28,9 @@ app.include_router(users_router)
 app.include_router(guest_web_router)
 app.include_router(sources_router)
 app.include_router(admin_router)
+# The agent's way through to the orchestrator, which answers inside the VPC and nowhere
+# else. See the router's own docstring for why the hop is paid.
+app.include_router(orchestrator_router)
 
 
 @app.get("/health")
