@@ -96,6 +96,16 @@ class User(Base):
     # jumping on first sign-in.
     caption_scale: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Story 10.7 / FR65. A third way in, never a replacement: both identifier routes stay
+    # open, because the failure this one covers is precisely that they stopped working.
+    # Nullable — everybody who signed up before this story has neither.
+    username: Mapped[str | None] = mapped_column(
+        String(32), unique=True, nullable=True, index=True
+    )
+    # A salted scrypt hash carrying its own salt and cost factors. Never the password, and
+    # never anything reversible.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Stripe billing
     stripe_customer_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     stripe_payment_method_id: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -137,6 +137,38 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### A third way in, and a refund without one (Story 10.7 / FR65, FR51)
+
+`api/src/credentials.py` + `api/src/card_recovery.py` + `users.username` / `password_hash` +
+`recovery_attempts` (migration 055), reached by `POST /auth/password`, `PUT /me/credentials`
+and `POST /auth/recover-payment`.
+
+Every other route runs through an identifier. This is a **third** one and never a replacement —
+the failure it covers is precisely that the others stopped working — and a test signs in by
+code *after* a password is set to keep that true.
+
+Hashing is `hashlib.scrypt` from the standard library: memory-hard, salted per password, no
+compiled dependency added to a Lambda bundle. The stored value is `scrypt$n$r$p$salt$hash` —
+self-describing, so the salt is never a second column somebody migrates without and the cost
+factors can be raised without invalidating what is already written. Anything unreadable
+verifies **false** rather than raising: an exception on the sign-in path is an outage.
+`compare_digest`, and one identical refusal for every failure — naming which half was wrong
+tells an attacker which half to keep working on.
+
+**The card path is different in kind.** Holding the card that paid does not prove you are the
+account holder — cards are shared, inherited, issued by employers — so it opens the **refund of
+what was paid** and nothing else. A test reads `card_recovery.py` and fails if it ever mentions
+a token, a password or a username; prose alone would not hold that line. `refundable_cents`
+returns the paid balance only, never the gift (FR51): a gift was never their money.
+
+Verification needs **three concordant elements, one of them a transaction detail**. Four digits
+are ten thousand guesses and are printed on receipts; an expiry is one of sixty and is on the
+same receipt. A single disagreement fails the whole check — three answers of which one is wrong
+is somebody guessing. Attempts are counted *and* written to `recovery_attempts` (no foreign key:
+it must survive the account being deleted, which is itself something an attacker might do), and
+the limit reopens after a day — a lockout with no end is a denial of service anybody can inflict
+on somebody else's account.
+
 ### Changing an identifier without losing the account (Story 10.6 / FR64)
 
 `api/src/identifier_change.py` + `pending_identifier_changes` (migration 054) +

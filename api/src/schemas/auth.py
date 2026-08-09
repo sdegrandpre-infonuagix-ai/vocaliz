@@ -42,3 +42,33 @@ class OtpRequestResponse(BaseModel):
 class AuthTokenResponse(BaseModel):
     token: str
     userId: str
+
+
+class PasswordSignInBody(BaseModel):
+    """The third way in (Story 10.7 / FR65). Never a replacement for the other two."""
+
+    username: str
+    password: str
+
+
+class CredentialsBody(BaseModel):
+    """A handle and a password, chosen alongside the identifiers."""
+
+    username: str
+    password: str
+
+
+class CardRecoveryBody(BaseModel):
+    """Which account, and what the payer can say about the card.
+
+    The identifier is required even though the person cannot receive a code at it: without
+    one there is nothing to compare a card against, and a card alone names no account.
+    """
+
+    identifier: str
+    # At least three elements must agree and one has to be a transaction detail: the last
+    # four digits are ten thousand guesses and are printed on receipts.
+    lastFour: str
+    expiry: str | None = None
+    recentAmountCents: int | None = None
+    recentChargeOn: str | None = None

@@ -103,3 +103,10 @@ class IdentifierConfirmBody(BaseModel):
     """The code that proves the person holds the new identifier."""
 
     code: str
+
+
+class CredentialsBody(BaseModel):
+    """A handle and a password, chosen alongside the identifiers (Story 10.7 / FR65)."""
+
+    username: str
+    password: str

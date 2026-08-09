@@ -6,7 +6,7 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DbSession
 
-from src import identifier_change
+from src import credentials, identifier_change
 from src.models.pending_identifier_change import PendingIdentifierChange
 
 from src.config import settings
@@ -14,6 +14,7 @@ from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.user import User
 from src.schemas.user import (
+    CredentialsBody,
     IdentifierChangeBody,
     IdentifierConfirmBody,
     LanguagePreferencesBody,
@@ -239,3 +240,25 @@ def confirm_identifier_change(
     db.commit()
     db.refresh(current_user)
     return _profile(current_user)
+
+
+@router.put("/credentials", status_code=200)
+def set_password(
+    body: CredentialsBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Choose a username and a password for this account (Story 10.7 / FR65).
+
+    Sets both together: a username with no password is a handle that opens nothing, and a
+    password with no username has nothing to be typed beside.
+    """
+    try:
+        credentials.set_credentials(
+            db, current_user, username=body.username, password=body.password
+        )
+    except credentials.CredentialsRefused as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    db.commit()
+    return {"username": current_user.username}
