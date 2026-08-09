@@ -345,6 +345,20 @@
     .say-row .btn { width: auto; flex: 0 0 auto; margin: 0; align-self: stretch; }
     .say-hint { font-size: 0.78rem; color: #6b6257; margin-top: 6px; min-height: 1.1em; }
 
+    /* ── Guest parity: pause the agent, add a source ─────────────────────────── */
+    .agent-row {
+      display: flex; align-items: center; gap: 10px; margin-top: 18px; text-align: left;
+    }
+    .agent-row .btn { width: auto; flex: 0 0 auto; }
+    .agent-hint { font-size: 0.8rem; color: #6b6257; }
+    .source-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+    .source-row input[type="text"] {
+      flex: 1; min-width: 160px; padding: 8px 10px; border: 1px solid #d9cfbe;
+      border-radius: 10px; font-size: 0.92rem; background: #fff; color: #2C2C2C;
+    }
+    .source-row input[type="file"] { font-size: 0.82rem; max-width: 100%; }
+    .source-row .btn { width: auto; flex: 0 0 auto; }
+
     /* ── Live captions ──────────────────────────────────────────────────────── */
     .cap-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     /* Caption size, chosen by the reader. Applied as a scale on the container rather than a
@@ -623,6 +637,34 @@
               data-i18n="sayButton">Send</button>
     </div>
     <div class="say-hint" id="say-hint" role="status" aria-live="polite"></div>
+
+    <!-- Guest parity: pausing the agent and adding a source, the same two controls the
+         host has, reached through the account this guest was given on confirming — see
+         `guestToken` below. Hidden until that token exists, which is only when this join
+         somehow could not register the guest as one; it succeeds in the ordinary case. -->
+    <div id="guest-controls" style="display:none">
+      <div class="agent-row">
+        <button class="btn btn-outline" id="btn-agent-pause" onclick="toggleAgentMute()"
+                data-i18n="agentPause">Pause the agent</button>
+        <span class="agent-hint" id="agent-hint" data-i18n="agentHintPresent">
+          Pausing keeps everything it has heard.
+        </span>
+      </div>
+
+      <div class="card-title" style="margin-top:18px" data-i18n="sourceTitle">Add a source</div>
+      <div class="card-sub" data-i18n="sourceSub">
+        The agent is told immediately and will take it into account without interrupting
+        the conversation.
+      </div>
+      <div class="source-row">
+        <input type="text" id="add-url" data-i18n-ph="addUrlPh" placeholder="https://…">
+        <input type="file" id="add-file" accept=".pdf,.txt,text/plain,application/pdf">
+        <button class="btn btn-outline" onclick="addSource()" data-i18n="addButton">
+          Add to the salon
+        </button>
+      </div>
+      <div class="say-hint" id="source-hint" role="status" aria-live="polite"></div>
+    </div>
   </div>
 
   <!-- State: error -->
@@ -754,7 +796,22 @@
       sayNoRoom: 'Not in the Salon.',
       capEmpty: 'Nothing said yet.',
       capNotice: 'What is said in this Salon is transcribed and stored so it can be '
-               + 'translated. Everyone here can read it in the language they choose.'
+               + 'translated. Everyone here can read it in the language they choose.',
+      agentPause: 'Pause the agent',
+      agentResume: 'Activate the agent',
+      agentHintPresent: 'Pausing keeps everything it has heard.',
+      agentHintPaused: 'The agent is here but hears nothing until it is activated. '
+                     + 'It keeps everything said before the pause.',
+      agentFailed: 'Could not reach the agent. Please try again.',
+      sourceTitle: 'Add a source',
+      sourceSub: 'The agent is told immediately and will take it into account without '
+               + 'interrupting the conversation.',
+      addUrlPh: 'https://…',
+      addButton: 'Add to the salon',
+      sourceNeeded: 'Enter a URL or choose a document.',
+      sourceAdded: 'Source added ({type}, {chars} characters). The agent has been told.',
+      sourceFailed: 'Could not add that source. Please try again.',
+      errHttp: 'Error {code}'
     },
     fr: {
       pageTitle: 'Vocaliz — Rejoindre la conversation',
@@ -836,7 +893,22 @@
       sayNoRoom: 'Pas dans le Salon.',
       capEmpty: 'Rien encore dit.',
       capNotice: 'Ce qui se dit dans ce Salon est transcrit et conservé afin de pouvoir '
-               + 'être traduit. Chacun ici peut le lire dans la langue de son choix.'
+               + 'être traduit. Chacun ici peut le lire dans la langue de son choix.',
+      agentPause: "Mettre l'agent en pause",
+      agentResume: "Activer l'agent",
+      agentHintPresent: "La pause conserve tout ce qu'il a entendu.",
+      agentHintPaused: "L'agent est là mais n'entend rien tant qu'il n'est pas activé. "
+                     + "Il conserve tout ce qui s'est dit avant la pause.",
+      agentFailed: "Impossible de joindre l'agent. Réessayez.",
+      sourceTitle: 'Ajouter une source',
+      sourceSub: "L'agent est prévenu immédiatement et en tiendra compte sans interrompre "
+               + 'la conversation.',
+      addUrlPh: 'https://…',
+      addButton: 'Ajouter au salon',
+      sourceNeeded: 'Indiquez une URL ou choisissez un document.',
+      sourceAdded: "Source ajoutée ({type}, {chars} caractères). L'agent en a été prévenu.",
+      sourceFailed: "Impossible d'ajouter cette source. Réessayez.",
+      errHttp: 'Erreur {code}'
     }
   };
 
@@ -921,7 +993,13 @@
   // Indexing straight through an absent dictionary threw, and because the first render runs
   // during boot the exception took the rest of the page with it. Falling back to English costs
   // one render in the wrong language; throwing cost the whole page.
-  function T(key) { return (I18N[lang] || {})[key] || I18N.en[key] || key; }
+  function T(key, params) {
+    var s = (I18N[lang] || {})[key] || I18N.en[key] || key;
+    if (params) {
+      for (var k in params) s = s.split('{' + k + '}').join(params[k]);
+    }
+    return s;
+  }
 
   async function setLang(next) {
     if (!isSupported(next)) return;
@@ -1115,6 +1193,79 @@
     el.style.color = ok ? '#4a6b3a' : '#9b2226';
   }
 
+  function setHint(id, key, ok, params) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = T(key, params);
+    el.style.color = ok ? '#4a6b3a' : '#9b2226';
+  }
+
+  // ── Guest parity: pausing the agent, adding a source ────────────────────────
+  // Reached through `guestToken`, the account this guest was given the moment their
+  // microphone started working (see spendToken). The permission check on the server side
+  // is the same one the host's own controls use, widened to an accepted guest of this
+  // Salon — nothing here is a second mechanism.
+  var agentState = { present: true, muted: false };
+
+  function renderAgentControls() {
+    var btn = document.getElementById('btn-agent-pause');
+    if (!btn) return;
+    btn.textContent = T(agentState.muted ? 'agentResume' : 'agentPause');
+    btn.className = 'btn ' + (agentState.muted ? 'btn-primary' : 'btn-outline');
+    setHint('agent-hint', agentState.muted ? 'agentHintPaused' : 'agentHintPresent', true);
+  }
+
+  async function readAgentState() {
+    if (!creds || !guestToken) return;
+    try {
+      agentState = await guestApi('/salons/' + creds.salonId + '/agent');
+      renderAgentControls();
+    } catch (e) {
+      // The button keeps whatever it was showing. A state that cannot be read is not a
+      // reason to tell the guest something untrue about the agent.
+      console.warn('Vocaliz: could not read the agent state', e);
+    }
+  }
+
+  async function toggleAgentMute() {
+    if (!creds || !guestToken) return;
+    var next = !agentState.muted;
+    try {
+      agentState = await guestApi('/salons/' + creds.salonId + '/agent/mute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ muted: next })
+      });
+      renderAgentControls();
+    } catch (e) {
+      setHint('agent-hint', 'agentFailed', false);
+    }
+  }
+
+  async function addSource() {
+    if (!creds || !guestToken) return;
+    var url = document.getElementById('add-url').value.trim();
+    var file = document.getElementById('add-file').files[0];
+    if (!url && !file) {
+      setHint('source-hint', 'sourceNeeded', false);
+      return;
+    }
+    var form = new FormData();
+    if (url) form.append('source_url', url);
+    if (file) form.append('file', file);
+    try {
+      var data = await guestApi('/salons/' + creds.salonId + '/sources', {
+        method: 'POST', body: form
+      });
+      setHint('source-hint', 'sourceAdded', true,
+              { type: data.sourceType, chars: data.contentLength });
+      document.getElementById('add-url').value = '';
+      document.getElementById('add-file').value = '';
+    } catch (e) {
+      setHint('source-hint', 'sourceFailed', false);
+    }
+  }
+
   function renderCaptions() {
       var log = document.getElementById('cap-log');
       if (!log) return;
@@ -1191,6 +1342,7 @@
     renderMic();
     renderJoinBtn();
     renderSound();
+    renderAgentControls();
     // The "As spoken" option and the empty-log line are interface text, so they follow
     // the interface language rather than the caption language.
     var capSel = document.getElementById('cap-lang');
@@ -1292,6 +1444,22 @@
   // ── App ─────────────────────────────────────────────────────────────────────
   var room = null;
   var creds = null;
+  // The account confirming this join hands back — see spendToken(). What lets this guest
+  // reach the two controls below the same way the host reaches them: pausing the agent and
+  // adding a source. Null until then, and on the rare failure to register the guest as an
+  // account at all.
+  var guestToken = null;
+
+  // Every guest-parity call funnels through here, mirroring the host console's own api().
+  async function guestApi(path, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (guestToken) options.headers['Authorization'] = 'Bearer ' + guestToken;
+    var resp = await fetch(path, options);
+    var body = await resp.json().catch(function() { return {}; });
+    if (!resp.ok) throw new Error(body.detail || T('errHttp', { code: resp.status }));
+    return body;
+  }
 
   // Extract join token from URL: /join/{token}
   var parts = window.location.pathname.split('/');
@@ -1700,6 +1868,17 @@
       country: browserCountry(),
       deviceToken: deviceToken()
     })
+    }).then(function(resp) { return resp.json(); }).then(function(data) {
+      // Absent on the rare failure to register the guest as an account (two identifiers
+      // on this invitation already belonging to two different people) — the conversation
+      // itself is unaffected either way, only these two controls stay hidden.
+      if (data && data.guestToken) {
+        guestToken = data.guestToken;
+        var box = document.getElementById('guest-controls');
+        if (box) box.style.display = '';
+        renderAgentControls();
+        readAgentState();
+      }
     }).catch(function() { /* best effort */ });
   }
 
