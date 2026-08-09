@@ -61,6 +61,11 @@ journal_table = Table(
     Column("language", String(16), nullable=False, server_default=""),
     Column("arrived_at", DateTime(timezone=True), nullable=False),
     Column("duration_seconds", Float, nullable=False),
+    # Where this message sits in the intervention it was cut from (Story 6.5). Persisted
+    # rather than derived: an instance taking a Salon over has to know it is part-way
+    # through somebody's sentence, or it will speak an announcement into the seam.
+    Column("part", Integer, nullable=False, server_default="1"),
+    Column("parts", Integer, nullable=False, server_default="1"),
 )
 
 # One row per reader, overwritten as it advances. No history: where an interpreter used to
@@ -139,6 +144,8 @@ class SqlJournalStore:
             language=entry.language,
             arrived_at=entry.arrived_at,
             duration_seconds=entry.duration_seconds,
+            part=entry.part,
+            parts=entry.parts,
         )
         async with self._engine.begin() as connection:
             await connection.execute(statement)
@@ -211,6 +218,8 @@ class SqlJournalStore:
                     language=row.language,
                     arrived_at=_as_utc(row.arrived_at),
                     duration_seconds=row.duration_seconds,
+                    part=row.part,
+                    parts=row.parts,
                 )
                 for row in entries
             ),

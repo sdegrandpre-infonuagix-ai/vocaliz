@@ -50,12 +50,7 @@
 - [x] Story 6.2: Port Interprète et Adaptateur Speech-to-Speech
 - [x] Story 6.3: Orchestrateur de Salon, Journal et Curseurs
 - [x] Story 6.4: Une Room LiveKit par Participant
-  > As a participant
-  > I want ma propre room avec mon interprète dédié
-  > So that je n'entende jamais d'écho ni d'audio superposé.
-  > AC: Given un participant rejoint un Salon, When son Salon démarre, Then une room LiveKit lui est provisionnée, contenant uniquement lui et son interprète, And Given trois participants dans un même Salon, When ils parlent tous, Then aucun flux audio n'est partagé entre les rooms — l'écho est impossible par construction (rend FR17 sans objet), And Given un participant quitte, When sa room se ferme, Then les autres rooms restent actives et la conversation continue sans interruption
-  > Spec: specs/planning-artifacts/epics.md#story-6-4
-- [ ] Story 6.5: Découpage des Interventions à 500 Caractères
+- [x] Story 6.5: Découpage des Interventions à 500 Caractères
   > As a participant
   > I want que mes longues interventions soient découpées proprement
   > So that les autres puissent s'intercaler sans que je monopolise la conversation.

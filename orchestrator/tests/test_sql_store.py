@@ -210,3 +210,31 @@ async def test_an_arrival_time_keeps_its_timezone(store):
     (entry,) = (await store.load("salon-1")).entries
 
     assert entry.arrived_at == T0
+
+
+async def test_a_split_intervention_survives_a_takeover_as_a_run(store):
+    """Story 6.5. An instance that picked this Salon up has to know it is part-way through
+    somebody's sentence — otherwise it speaks an announcement into the seam."""
+    log = SalonLog(salon_id="salon-1", store=store, translate=translate)
+    long_text = " ".join(f"Voici la phrase numéro {n} de mon intervention." for n in range(6))
+
+    await log.record_intervention(
+        participant_id="marie", text=long_text, language="fr", max_characters=60
+    )
+
+    resumed = await SalonLog.resume(salon_id="salon-1", store=store, translate=translate)
+    assert len(resumed.entries) > 1
+    assert [entry.part for entry in resumed.entries] == list(
+        range(1, len(resumed.entries) + 1)
+    )
+    assert {entry.parts for entry in resumed.entries} == {len(resumed.entries)}
+    assert resumed.entries[-1].mid_run is False
+
+
+async def test_an_unsplit_message_reads_back_as_one_of_one(store):
+    await store.append_entry("salon-1", _entry())
+
+    (entry,) = (await store.load("salon-1")).entries
+
+    assert (entry.part, entry.parts) == (1, 1)
+    assert entry.mid_run is False

@@ -184,7 +184,7 @@ async def test_an_empty_utterance_reaches_nobody(salon):
     await _join(salon, MARIE)
     await _join(salon, HANS)
 
-    assert await salon.ingest(MARIE.id, "   ", language="fr") is None
+    assert await salon.ingest(MARIE.id, "   ", language="fr") == ()
 
     await salon.deliver_all()
     assert salon.interpreter_of(HANS.id).spoken == []

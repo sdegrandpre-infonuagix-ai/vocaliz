@@ -14,10 +14,10 @@ What crosses between participants is text in the journal. No audio ever does.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from src.interprete import Interprete, InterpreteError, Participant, Tour
-from src.journal import JournalEntry, SalonLog
+from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
+from src.journal import MAX_MESSAGE_CHARACTERS, JournalEntry, SalonLog
 from src.salon.rooms import Room, RoomProvisioner
 
 
@@ -28,14 +28,26 @@ class Seat:
     participant: Participant
     room: Room
     interpreter: Interprete
+    # True between two pieces of one intervention (Story 6.5). Nothing third-party is
+    # spoken while it is.
+    mid_run: bool = False
+    # Announcements that arrived mid-run, in the order they arrived.
+    held: list[Annonce] = field(default_factory=list)
 
 
 class Salon:
     """One conversation, as an orchestrator instance holds it."""
 
-    def __init__(self, *, log: SalonLog, rooms: RoomProvisioner) -> None:
+    def __init__(
+        self,
+        *,
+        log: SalonLog,
+        rooms: RoomProvisioner,
+        max_message_characters: int = MAX_MESSAGE_CHARACTERS,
+    ) -> None:
         self.log = log
         self._rooms = rooms
+        self._max_message_characters = max_message_characters
         self._seats: dict[str, Seat] = {}
 
     @property
@@ -118,17 +130,21 @@ class Salon:
         *,
         language: str,
         duration_seconds: float | None = None,
-    ) -> JournalEntry | None:
-        """Put what one participant said into the journal, once.
+    ) -> tuple[JournalEntry, ...]:
+        """Put what one participant said into the journal, once, cut into messages.
 
         Once, whoever ends up hearing it — which is also why Story 6.11 cleans here rather
         than at rendering: paid for a single time, and every listener benefits.
+
+        A tuple because a long intervention is several messages (Story 6.5). Usually one,
+        and empty when there was nothing to record.
         """
-        return await self.log.record(
+        return await self.log.record_intervention(
             participant_id=participant_id,
             text=text,
             language=language,
             duration_seconds=duration_seconds,
+            max_characters=self._max_message_characters,
         )
 
     async def collect(self) -> tuple[JournalEntry, ...]:
@@ -140,11 +156,9 @@ class Salon:
             if heard is None:
                 continue
 
-            entry = await self.ingest(
-                heard.participant_id, heard.text, language=heard.language
+            recorded.extend(
+                await self.ingest(heard.participant_id, heard.text, language=heard.language)
             )
-            if entry is not None:
-                recorded.append(entry)
 
         return tuple(recorded)
 
@@ -162,7 +176,26 @@ class Salon:
         if seat is None:
             return
 
-        for entry in self.log.pending(participant_id):
+        await self._render(seat, self.log.pending(participant_id))
+
+    async def deliver_upto(self, participant_id: str, sequence: int) -> None:
+        """Render as far as one position and stop there.
+
+        For a caller that wants to leave an interpreter part-way through an intervention —
+        which is the only state in which Story 6.5's rule about announcements has anything
+        to say.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return
+
+        pending = self.log.pending(participant_id)
+        await self._render(seat, tuple(e for e in pending if e.sequence <= sequence))
+
+    async def _render(self, seat: Seat, entries: tuple[JournalEntry, ...]) -> None:
+        participant_id = seat.participant.id
+
+        for entry in entries:
             # Nobody is told what they themselves said. It is the one thing they certainly
             # already know, and a journal every reader reads is exactly what would say it
             # back to them.
@@ -175,12 +208,46 @@ class Salon:
                     # no other room is affected.
                     return
 
+                seat.mid_run = entry.mid_run
+
             await self.log.advance(participant_id, entry.sequence)
+
+            if not seat.mid_run:
+                await self._say_held(seat)
 
     async def deliver_all(self) -> None:
         """Let every interpreter catch up, each at its own pace and none blocking another."""
         for seat in self._ordered_seats():
             await self.deliver(seat.participant.id)
+
+    # ── Announcements ─────────────────────────────────────────────────────────
+
+    async def announce(self, participant_id: str, annonce: Annonce) -> None:
+        """Say something to one participant that nobody in the Salon said.
+
+        Held back while their interpreter is between two pieces of one intervention. An
+        announcement dropped into the middle of somebody's sentence is worse than the same
+        announcement a second later, and the seam is where a listener is least able to tell
+        the two speakers apart.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return
+
+        seat.held.append(annonce)
+        if not seat.mid_run:
+            await self._say_held(seat)
+
+    async def _say_held(self, seat: Seat) -> None:
+        """Say what was waiting, in the order it arrived."""
+        while seat.held:
+            annonce = seat.held.pop(0)
+            try:
+                await seat.interpreter.insert_annonce(annonce)
+            except InterpreteError:
+                # Their adapter has told them out loud already (NFR3). Putting it back would
+                # replay it on every later delivery, and an announcement is not worth that.
+                return
 
     def _ordered_seats(self) -> tuple[Seat, ...]:
         """Seats in a fixed order, so a Salon behaves the same way twice."""

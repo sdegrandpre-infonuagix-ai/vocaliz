@@ -21,6 +21,7 @@ from datetime import datetime
 
 from src.journal.cursors import Cursors
 from src.journal.journal import Journal, JournalEntry, _utcnow
+from src.journal.splitting import MAX_MESSAGE_CHARACTERS, split_intervention
 from src.journal.store import JournalStore
 from src.journal.translations import Translate, Translations
 
@@ -104,6 +105,33 @@ class SalonLog:
 
         await self._store.append_entry(self.salon_id, entry)
         return entry
+
+    async def record_intervention(
+        self,
+        *,
+        participant_id: str,
+        text: str,
+        language: str,
+        duration_seconds: float | None = None,
+        max_characters: int = MAX_MESSAGE_CHARACTERS,
+    ) -> tuple[JournalEntry, ...]:
+        """Add one intervention, cut into messages nobody has to wait out (Story 6.5).
+
+        The positions are assigned together and the writes follow. If the instance dies
+        between two of those writes, the takeover reads a run that stops short — which is
+        the same shape as an intervention that was interrupted, and is rendered as one.
+        """
+        entries = self._journal.append_run(
+            participant_id=participant_id,
+            texts=split_intervention(text, max_characters),
+            language=language,
+            duration_seconds=duration_seconds,
+        )
+
+        for entry in entries:
+            await self._store.append_entry(self.salon_id, entry)
+
+        return entries
 
     # ── Readers ───────────────────────────────────────────────────────────────
 

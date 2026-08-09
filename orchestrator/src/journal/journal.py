@@ -10,7 +10,7 @@ live outside in `Cursors`, and reading is a pure function of a position.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -50,6 +50,19 @@ class JournalEntry:
     language: str
     arrived_at: datetime
     duration_seconds: float
+    # Where this message sits in the intervention it was cut out of (Story 6.5). One of one
+    # for anything short enough not to have been cut, which is nearly everything.
+    part: int = 1
+    parts: int = 1
+
+    @property
+    def mid_run(self) -> bool:
+        """True while more of the same intervention is still to come.
+
+        What it guards: nothing third-party — no announcement — is spoken into the gap
+        between two halves of somebody's sentence.
+        """
+        return self.part < self.parts
 
 
 @dataclass
@@ -99,6 +112,55 @@ class Journal:
         )
         self._entries.append(entry)
         return entry
+
+    def append_run(
+        self,
+        *,
+        participant_id: str,
+        texts: Sequence[str],
+        language: str,
+        duration_seconds: float | None = None,
+    ) -> tuple[JournalEntry, ...]:
+        """Add the pieces of one intervention, at consecutive positions.
+
+        In one call, and with no await anywhere in it, which is the whole mechanism behind
+        the acceptance criterion: the positions are handed out together, so there is no gap
+        for another participant's message to land in.
+
+        A supplied duration is the whole intervention's, shared out in proportion to what
+        each piece holds. The lag of Story 7.2 is measured on these, and charging one piece
+        with the length of the lot would misreport every reader behind it.
+        """
+        kept = [stripped for stripped in (text.strip() for text in texts) if stripped]
+        if not kept:
+            return ()
+
+        total_characters = sum(len(text) for text in kept)
+        # One instant for the whole intervention: it was said in one breath, and Story 6.6
+        # settles order on arrival at the orchestrator, which happened once.
+        arrived_at = self.now()
+        entries: list[JournalEntry] = []
+
+        for index, text in enumerate(kept, start=1):
+            if duration_seconds is None:
+                share = content_seconds(text)
+            else:
+                share = duration_seconds * len(text) / total_characters
+
+            entry = JournalEntry(
+                sequence=self.head + 1,
+                participant_id=participant_id,
+                text=text,
+                language=language,
+                arrived_at=arrived_at,
+                duration_seconds=share,
+                part=index,
+                parts=len(kept),
+            )
+            self._entries.append(entry)
+            entries.append(entry)
+
+        return tuple(entries)
 
     def restore(self, entries: tuple[JournalEntry, ...]) -> None:
         """Put back what was read from storage, in place of whatever is here.

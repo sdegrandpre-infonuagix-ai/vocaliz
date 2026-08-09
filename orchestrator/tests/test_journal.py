@@ -248,3 +248,43 @@ def test_the_content_of_a_span_of_the_journal(journal):
     assert journal.content_seconds_between(1, 3) == pytest.approx(3.0)
     assert journal.content_seconds_between(0, 3) == pytest.approx(7.0)
     assert journal.content_seconds_between(3, 3) == 0
+
+
+# ── A run of pieces (Story 6.5) ───────────────────────────────────────────────
+
+
+def test_a_run_shares_out_the_duration_it_was_given(journal):
+    """The lag of Story 7.2 is measured on these. Charging one piece with the length of the
+    whole intervention would misreport every reader sitting behind it."""
+    entries = journal.append_run(
+        participant_id="marie",
+        texts=("aaaa", "bbbbbbbb"),
+        language="fr",
+        duration_seconds=12.0,
+    )
+
+    assert [entry.duration_seconds for entry in entries] == [4.0, 8.0]
+    assert sum(entry.duration_seconds for entry in entries) == 12.0
+
+
+def test_a_run_with_no_duration_estimates_each_piece(journal):
+    entries = journal.append_run(
+        participant_id="marie", texts=("aaaa", "bbbbbbbb"), language="fr"
+    )
+
+    assert entries[0].duration_seconds < entries[1].duration_seconds
+
+
+def test_a_run_of_nothing_is_no_run(journal):
+    assert journal.append_run(participant_id="marie", texts=("", "  "), language="fr") == ()
+    assert journal.head == 0
+
+
+def test_every_piece_of_a_run_arrived_at_the_same_instant(journal):
+    """It was said in one breath. Story 6.6 settles order on arrival at the orchestrator,
+    and that happened once."""
+    entries = journal.append_run(
+        participant_id="marie", texts=("un", "deux", "trois"), language="fr"
+    )
+
+    assert len({entry.arrived_at for entry in entries}) == 1

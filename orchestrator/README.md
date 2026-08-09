@@ -101,6 +101,24 @@ two signals this topology removes.
 `InMemoryRoomProvisioner` is the offline implementation; the LiveKit one is built by the
 interpreter worker, which is the only component with the SDK.
 
+## Long interventions
+
+`split_intervention` cuts anything over `MAX_MESSAGE_CHARACTERS` (500) into consecutive
+messages. The number is not the point: the journal is read in order, so one enormous
+message is a stretch during which nobody else can be heard by anybody.
+
+Where the cut falls is the craft — a sentence boundary is where a listener expects a pause
+anyway, so the seam is inaudible; between words when a sentence is itself too long; inside
+a word never, except for a word longer than the whole maximum, where the alternative is
+dropping it. `"..."` stays one hesitation and `3.5` stays one number.
+
+The pieces take consecutive positions, assigned together with no `await` between them, so
+no other participant's message can land in the middle. Each carries `part`/`parts` — and
+those are persisted, because an instance taking the Salon over has to know it is part-way
+through somebody's sentence. `Salon.announce` holds an announcement back while a listener
+is mid-run and says it at the seam's end: an announcement dropped between two halves of a
+sentence is worse than the same announcement a second later.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and
