@@ -36,6 +36,9 @@ DATA = [
     "invitations",
     "friends",
     "salons",
+    # Before `users`, which it cascades from: an identifier belongs to the person it points
+    # at, and emptying the accounts without it would leave keys to nobody.
+    "participant_identifiers",
     "users",
     "service_health",
 ]

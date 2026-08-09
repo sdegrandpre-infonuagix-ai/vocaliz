@@ -19,13 +19,29 @@ class User(Base):
             "caption_scale IS NULL OR (caption_scale BETWEEN 50 AND 300)",
             name="ck_users_caption_scale",
         ),
+        # Story 10.1. An address, a number, or both — and never neither. Anonymous access
+        # left nothing to hold the lifetime quota against, so somebody who had used theirs
+        # could have it back by arriving again as a stranger. The rule is in the schema
+        # rather than only in the signup path because it is the signup path's whole point.
+        CheckConstraint(
+            "email IS NOT NULL OR phone_number IS NOT NULL",
+            name="ck_users_one_identifier",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    # Account identifier: registered users (i.e. hosts) sign in with an email OTP.
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    # Account identifier: registered users sign in with an email OTP.
+    #
+    # Nullable since Story 10.1, which lets somebody sign up with a telephone number alone —
+    # a person invited by telephone has a number and no address, and demanding one anyway
+    # would be demanding a second identifier to prove the first. The CHECK above is what
+    # keeps "either" from becoming "neither". Note the consequence: sign-in is by email OTP,
+    # so a number-only person can be identified and cannot yet sign in.
+    email: Mapped[str | None] = mapped_column(
+        String(320), unique=True, nullable=True, index=True
+    )
 
     # Optional now that sign-in is email-based. Still the only key that correlates an
     # invitation of a guest without an account to the account they later register

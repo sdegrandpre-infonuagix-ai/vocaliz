@@ -137,6 +137,33 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — signing up with an address or a number (Story 10.1, partial / replaces FR27)
+
+`api/src/signup.py` + `participant_identifiers` (migration 052). The identifier is the **key**
+to the ten-minute lifetime quota — not the account (anybody can make another), not the Salon
+(anybody can recreate one), not the role (the same person hosts and is invited).
+
+`register(db, email=…, phone=…)` requires at least one, normalises both (lowercased address;
+digits and a leading plus for a number), resolves an existing person through the registry
+*then* through `users.email` / `users.phone_number` so accounts predating the table are found,
+and adds any new identifier as a second key to the same person. Two identifiers already
+belonging to two different people are **refused, never merged** — combining allowances and
+discarding a history is a decision for a human.
+
+Normalisation is load-bearing, not tidy: `Marie@Example.COM` and `marie@example.com` as two
+keys would be two lifetime allowances for the price of pressing shift. `otp.send_otp` now goes
+through `register`, so the live sign-in path keys the identifier and stops minting a second
+account per spelling; `verify_otp` normalises to match.
+
+`users.email` is nullable with a CHECK that one of email/phone is present. Consequence worth
+knowing: sign-in is email OTP, so a number-only person can be identified and **cannot yet sign
+in**.
+
+**Not done — AC4 is outstanding.** Anonymous access still exists: `invite_anonymously`,
+guest-join against a bare token with no identifier, and the dial-in path minting
+`anonymous_link` invitations. Also unreconciled: three free allowances now coexist (this
+quota, Story 8.2's 500-cent welcome credit, and the inherited `free_trial_limit_seconds` hour).
+
 ### Orchestrator — what each tier costs a listener (Story 9.4 / FR33, NFR6, NFR4)
 
 `orchestrator/src/tiers.py` — `Tier`, `MODELS` / `model_for`, `advert_interval_seconds`. Two

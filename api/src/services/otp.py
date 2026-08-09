@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session as DbSession
 from src.config import settings
 from src.models.user import User
 from src.services.email_text import bilingual_body, bilingual_subject
+from src.signup import normalise_email, register
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +22,15 @@ def _generate_otp() -> str:
 
 
 def send_otp(email: str, db: DbSession) -> None:
-    """Generate OTP, persist it, and email it via AWS SES."""
-    user = db.query(User).filter(User.email == email).first()
-    if user is None:
-        user = User(email=email)
-        db.add(user)
+    """Generate OTP, persist it, and email it via AWS SES.
+
+    Signing up and asking for a code are one act (Story 10.1), so the account is created
+    through `register`: the address is normalised and written into the identifier registry,
+    which is what keys the lifetime quota to the person rather than to the account. Creating
+    the row here instead would leave somebody registered with no key to their own allowance.
+    """
+    address = normalise_email(email)
+    user = register(db, email=address)
 
     code = _generate_otp()
     user.otp_code = code
@@ -33,12 +38,17 @@ def send_otp(email: str, db: DbSession) -> None:
     user.otp_attempts = 0
     db.commit()
 
-    _send_email(email, code)
+    _send_email(address, code)
 
 
 def verify_otp(email: str, code: str, db: DbSession) -> User:
-    """Verify OTP code. Returns the user on success, raises HTTPException on failure."""
-    user = db.query(User).filter(User.email == email).first()
+    """Verify OTP code. Returns the user on success, raises HTTPException on failure.
+
+    Normalised on the way in, exactly as `send_otp` normalises it: a code requested at
+    `marie@example.com` and confirmed at `Marie@Example.com` is one person confirming one
+    code, and matching the raw string would tell them there was no pending code.
+    """
+    user = db.query(User).filter(User.email == normalise_email(email)).first()
 
     if user is None or user.otp_code is None:
         raise HTTPException(status_code=400, detail="No pending code for this address.")
