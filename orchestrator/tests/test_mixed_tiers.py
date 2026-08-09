@@ -27,6 +27,16 @@ MARIE = Participant(id="marie", language="fr", name="Marie")  # Base
 HANS = Participant(id="hans", language="de", name="Hans")  # speech-to-speech
 
 
+
+def _turns(tts):
+    """What the synthetic voice actually read out, minus the introductions of Story 6.9."""
+    return [
+        words
+        for utterance, words in zip(tts.spoken, tts.words)
+        if utterance.kind == "tour"
+    ]
+
+
 async def translate(text, *, source, target):
     return f"{text} [{target}]"
 
@@ -83,12 +93,15 @@ async def test_each_tier_speaks_to_its_human_in_that_human_s_language(
     await salon.deliver_all()
 
     # Marie is on Base: her voice is synthetic and the text reached it already in French.
-    assert tts.words == ["Guten Tag [de→fr]"]
-    assert [line.language for line in tts.spoken] == ["fr"]
+    assert _turns(tts) == ["Guten Tag [de→fr]"]
+    # Everything said to Marie is in French, introductions included.
+    assert {line.language for line in tts.spoken} == {"fr"}
     # Hans is on speech-to-speech: the original goes to his model, which renders and speaks
     # in one movement.
-    assert [line.text for line in s2s_session.spoken] == ["Bonjour"]
-    assert [line.language for line in s2s_session.spoken] == ["de"]
+    assert [
+        line.text for line in s2s_session.spoken if line.kind == "tour"
+    ] == ["Bonjour"]
+    assert [line.language for line in s2s_session.spoken if line.kind == "tour"] == ["de"]
 
 
 async def test_the_base_participant_is_never_behind_the_other(salon, base_parts):
@@ -99,7 +112,7 @@ async def test_the_base_participant_is_never_behind_the_other(salon, base_parts)
 
     await salon.deliver_all()
 
-    assert len(tts.words) == 3
+    assert len(_turns(tts)) == 3
     assert salon.pending_for(MARIE.id) == ()
     assert salon.log.lag_seconds(salon.log.cursor(MARIE.id)) == 0.0
 
@@ -133,5 +146,5 @@ async def test_a_base_participant_catches_up_once_their_stack_recovers(salon, ba
     llm.fail_with = None
     await salon.deliver(MARIE.id)
 
-    assert tts.words == ["Guten Tag [de→fr]"]
+    assert _turns(tts) == ["Guten Tag [de→fr]"]
     assert salon.pending_for(MARIE.id) == ()

@@ -53,6 +53,13 @@ def salon():
     return Salon(log=log, rooms=InMemoryRoomProvisioner())
 
 
+def _turns(salon, participant_id):
+    """What was said, without the introductions of Story 6.9 — which are said in front of
+    a person's first message and are not themselves part of the conversation."""
+    lines = salon.interpreter_of(participant_id).spoken
+    return [line.text for line in lines if line.kind == "tour"]
+
+
 async def _join(salon, participant, **kwargs):
     return await salon.join(participant, InterpreteFake(participant=participant), **kwargs)
 
@@ -72,7 +79,11 @@ async def test_messages_are_restituted_in_the_order_they_arrived(salon):
     await salon.deliver_all()
 
     for listener in (MARIE, HANS, RHYS):
-        heard = [line.text for line in salon.interpreter_of(listener.id).spoken]
+        heard = [
+            line.text
+            for line in salon.interpreter_of(listener.id).spoken
+            if line.kind == "tour"
+        ]
         # Each listener is spared their own words, so the sequence they hear is the
         # conversation minus their contribution — in the order it arrived, either way.
         assert heard == [t for t in ["un", "zwei", "tri"] if t not in _own_words(listener)]
@@ -90,8 +101,12 @@ async def test_everybody_is_given_the_same_order(salon):
 
     await salon.deliver_all()
 
-    hans_heard = [line.text for line in salon.interpreter_of(HANS.id).spoken]
-    rhys_heard = [line.text for line in salon.interpreter_of(RHYS.id).spoken]
+    hans_heard = [
+        line.text for line in salon.interpreter_of(HANS.id).spoken if line.kind == "tour"
+    ]
+    rhys_heard = [
+        line.text for line in salon.interpreter_of(RHYS.id).spoken if line.kind == "tour"
+    ]
     assert hans_heard == ["un", "trois", "tri"]
     assert rhys_heard == ["un", "zwei", "trois"]
 

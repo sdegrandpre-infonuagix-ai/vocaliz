@@ -83,6 +83,11 @@ set and must match `by`, or `NotTheHost` is raised. A cut stops ingestion and no
 the participant keeps hearing everyone, and afterwards rejoins the arrival order with no
 priority.
 
+Introductions (Story 6.9) are spoken by each listener's own interpreter, once per person,
+just before that person's first message — `notices.py` holds the copy, per language. A
+newcomer is told who has already spoken; nobody silent is mentioned, and a telephone number
+is never used as a name.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

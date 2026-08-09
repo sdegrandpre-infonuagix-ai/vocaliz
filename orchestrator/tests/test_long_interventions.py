@@ -133,7 +133,7 @@ async def test_a_listener_receives_every_piece(salon):
 
     await salon.deliver(HANS.id)
 
-    spoken = salon.interpreter_of(HANS.id).spoken
+    spoken = [line for line in salon.interpreter_of(HANS.id).spoken if line.kind == "tour"]
     assert " ".join(line.text for line in spoken) == LONG
 
 
@@ -148,7 +148,8 @@ async def test_an_announcement_waits_for_the_end_of_a_run(salon):
     await salon.deliver_upto(HANS.id, pieces[0].sequence)
     await salon.announce(HANS.id, Annonce(text="Rhys est arrivé", language="de"))
 
-    assert [line.kind for line in hans.spoken] == ["tour"]
+    # An introduction, then the first piece — and nothing else until the run ends.
+    assert [line.kind for line in hans.spoken] == ["annonce", "tour"]
 
 
 async def test_the_announcement_is_spoken_once_the_run_is_over(salon):
@@ -186,7 +187,8 @@ async def test_announcements_held_back_keep_their_order(salon):
     await salon.announce(HANS.id, Annonce(text="second", language="de"))
     await salon.deliver(HANS.id)
 
-    held = [line.text for line in hans.spoken if line.kind == "annonce"]
+    # Marie's introduction is an announcement too, and it was said before the run began.
+    held = [line.text for line in hans.spoken if line.kind == "annonce"][-2:]
     assert held == ["premier", "second"]
 
 
@@ -230,4 +232,4 @@ async def test_an_announcement_that_cannot_be_spoken_is_not_replayed_forever(sal
     await salon.ingest(MARIE.id, "Bonjour.", language="fr")
     await salon.deliver(HANS.id)
 
-    assert [line.kind for line in hans.spoken] == ["tour"]
+    assert [line.kind for line in hans.spoken] == ["annonce", "tour"]

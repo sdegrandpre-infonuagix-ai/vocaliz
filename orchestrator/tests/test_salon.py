@@ -39,6 +39,19 @@ async def _join(salon, participant, **kwargs):
     return await salon.join(participant, InterpreteFake(participant=participant), **kwargs)
 
 
+def _tours(salon, participant_id):
+    """What was rendered to somebody, leaving out the introductions of Story 6.9 — these
+    assertions are about turns delivered, and were written before introductions existed."""
+    return [line.text for line in salon.interpreter_of(participant_id).spoken if line.kind == "tour"]
+
+
+def _tour_languages(salon, participant_id):
+    return [
+        line.language for line in salon.interpreter_of(participant_id).spoken
+        if line.kind == "tour"
+    ]
+
+
 # ── Joining ───────────────────────────────────────────────────────────────────
 
 
@@ -107,9 +120,7 @@ async def test_what_one_says_reaches_the_others(salon):
     await salon.ingest(MARIE.id, "Bonjour tout le monde", language="fr")
     await salon.deliver(HANS.id)
 
-    assert [line.text for line in salon.interpreter_of(HANS.id).spoken] == [
-        "Bonjour tout le monde"
-    ]
+    assert _tours(salon, HANS.id) == ["Bonjour tout le monde"]
 
 
 async def test_each_listener_is_spoken_to_in_their_own_language(salon):
@@ -120,8 +131,8 @@ async def test_each_listener_is_spoken_to_in_their_own_language(salon):
     await salon.ingest(MARIE.id, "Bonjour", language="fr")
     await salon.deliver_all()
 
-    assert [line.language for line in salon.interpreter_of(HANS.id).spoken] == ["de"]
-    assert [line.language for line in salon.interpreter_of(RHYS.id).spoken] == ["cy"]
+    assert _tour_languages(salon, HANS.id) == ["de"]
+    assert _tour_languages(salon, RHYS.id) == ["cy"]
 
 
 async def test_nobody_is_told_what_they_themselves_said(salon):
@@ -133,8 +144,8 @@ async def test_nobody_is_told_what_they_themselves_said(salon):
     await salon.ingest(MARIE.id, "Bonjour", language="fr")
     await salon.deliver_all()
 
-    assert salon.interpreter_of(MARIE.id).spoken == []
-    assert len(salon.interpreter_of(HANS.id).spoken) == 1
+    assert _tours(salon, MARIE.id) == []
+    assert _tours(salon, HANS.id) == ["Bonjour"]
 
 
 async def test_delivering_twice_says_nothing_twice(salon):
@@ -147,7 +158,7 @@ async def test_delivering_twice_says_nothing_twice(salon):
     await salon.deliver(HANS.id)
     await salon.deliver(HANS.id)
 
-    assert len(salon.interpreter_of(HANS.id).spoken) == 1
+    assert len(_tours(salon, HANS.id)) == 1
 
 
 async def test_three_people_talking_at_once_share_no_audio(salon, rooms):
@@ -164,7 +175,7 @@ async def test_three_people_talking_at_once_share_no_audio(salon, rooms):
         room = await salon.room_of(participant.id)
         # Nothing was ever put into anybody's room by anybody but their own interpreter.
         assert rooms.published(room) == ()
-        assert len(salon.interpreter_of(participant.id).spoken) == 2
+        assert len(_tours(salon, participant.id)) == 2
 
 
 async def test_the_journal_holds_what_was_said_in_the_language_it_was_said_in(salon):
@@ -214,7 +225,7 @@ async def test_the_conversation_carries_on_after_somebody_leaves(salon):
     await salon.ingest(HANS.id, "Guten Tag", language="de")
     await salon.deliver_all()
 
-    assert len(salon.interpreter_of(RHYS.id).spoken) == 1
+    assert len(_tours(salon, RHYS.id)) == 1
 
 
 async def test_somebody_who_left_is_no_longer_spoken_to(salon):
@@ -291,6 +302,6 @@ async def test_a_full_round_trip_between_two_languages(salon):
     await salon.collect()
     await salon.deliver_all()
 
-    spoken = salon.interpreter_of(HANS.id).spoken
-    assert [(line.text, line.language) for line in spoken] == [("Bonjour tout le monde", "de")]
-    assert salon.interpreter_of(MARIE.id).spoken == []
+    assert _tours(salon, HANS.id) == ["Bonjour tout le monde"]
+    assert _tour_languages(salon, HANS.id) == ["de"]
+    assert _tours(salon, MARIE.id) == []

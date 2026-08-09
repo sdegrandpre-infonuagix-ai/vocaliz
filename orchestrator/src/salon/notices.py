@@ -51,3 +51,145 @@ def microphone_restored(language: str) -> str:
     thing they say is spent testing whether anyone can hear them.
     """
     return _in(MICROPHONE_RESTORED, language)
+
+
+# ── Introducing people (Story 6.9) ────────────────────────────────────────────
+#
+# The topology removes the two things that normally say who is talking: nobody hears
+# anybody's real voice, and everything arrives in the listener's own language. Without an
+# introduction a Salon is a series of sentences from nowhere.
+
+# Language names, in the language of whoever is being told. A matrix rather than a list
+# because "Marie speaks French" has to be said in German to Hans and in Welsh to Rhys.
+# Unknown pairs fall back to the BCP-47 code, which is wrong but legible — and it is the
+# code the adapters themselves use, so it is at least traceable.
+LANGUAGE_NAMES: dict[str, dict[str, str]] = {
+    "fr": {"fr": "français", "en": "anglais", "es": "espagnol", "de": "allemand",
+           "pt": "portugais", "it": "italien", "cy": "gallois"},
+    "en": {"fr": "French", "en": "English", "es": "Spanish", "de": "German",
+           "pt": "Portuguese", "it": "Italian", "cy": "Welsh"},
+    "es": {"fr": "francés", "en": "inglés", "es": "español", "de": "alemán",
+           "pt": "portugués", "it": "italiano", "cy": "galés"},
+    "de": {"fr": "Französisch", "en": "Englisch", "es": "Spanisch", "de": "Deutsch",
+           "pt": "Portugiesisch", "it": "Italienisch", "cy": "Walisisch"},
+    "pt": {"fr": "francês", "en": "inglês", "es": "espanhol", "de": "alemão",
+           "pt": "português", "it": "italiano", "cy": "galês"},
+    "it": {"fr": "francese", "en": "inglese", "es": "spagnolo", "de": "tedesco",
+           "pt": "portoghese", "it": "italiano", "cy": "gallese"},
+    "cy": {"fr": "Ffrangeg", "en": "Saesneg", "es": "Sbaeneg", "de": "Almaeneg",
+           "pt": "Portiwgaleg", "it": "Eidaleg", "cy": "Cymraeg"},
+}
+
+# What somebody is called when nobody gave them a name. Never their telephone number or
+# their address: that is how they reached the Salon, not who they are, and the others have
+# no business being told it.
+SOMEBODY = {
+    "fr": "Quelqu'un d'autre",
+    "en": "Someone else",
+    "es": "Otra persona",
+    "de": "Jemand anderes",
+    "pt": "Outra pessoa",
+    "it": "Un'altra persona",
+    "cy": "Rhywun arall",
+}
+
+_INTRODUCES = {
+    "fr": "{name} parle {language}.",
+    "en": "{name} speaks {language}.",
+    "es": "{name} habla {language}.",
+    "de": "{name} spricht {language}.",
+    "pt": "{name} fala {language}.",
+    "it": "{name} parla {language}.",
+    "cy": "Mae {name} yn siarad {language}.",
+}
+
+_ALREADY_HERE = {
+    "fr": "Déjà là : {people}.",
+    "en": "Already here: {people}.",
+    "es": "Ya están aquí: {people}.",
+    "de": "Schon da: {people}.",
+    "pt": "Já aqui: {people}.",
+    "it": "Già qui: {people}.",
+    "cy": "Yma'n barod: {people}.",
+}
+
+_ALL_ONE_LANGUAGE = {
+    "fr": "Tout le monde ici parle {language}.",
+    "en": "Everyone here speaks {language}.",
+    "es": "Aquí todos hablan {language}.",
+    "de": "Hier sprechen alle {language}.",
+    "pt": "Aqui toda a gente fala {language}.",
+    "it": "Qui parlano tutti {language}.",
+    "cy": "Mae pawb yma'n siarad {language}.",
+}
+
+
+def _base(language: str) -> str:
+    return language.split("-")[0].lower()
+
+
+def language_name(spoken: str, *, told_in: str) -> str:
+    """What `spoken` is called in `told_in`.
+
+    Two fallbacks, and they point in the same direction as the sentence templates: a
+    listener whose language nobody has translated into hears English, not a bare code. Only
+    a *spoken* language nobody has named falls back to its BCP-47 code — wrong but legible,
+    and it is the code the adapters themselves use, so it is at least traceable.
+    """
+    return LANGUAGE_NAMES.get(_base(told_in), LANGUAGE_NAMES["en"]).get(_base(spoken), spoken)
+
+
+def display_name(name: str | None, *, told_in: str) -> str:
+    """What to call somebody out loud.
+
+    A neutral designation when nobody supplied a name — which is the ordinary case for a
+    telephone participant, and precisely the case where the obvious fallback would be to
+    read out their number.
+    """
+    return name.strip() if name and name.strip() else _in(SOMEBODY, told_in)
+
+
+def introduces(name: str | None, spoken: str, *, told_in: str) -> str:
+    """One person and the language they were heard in, said to one listener.
+
+    A neutral designation when there is no name — the ordinary case for a telephone
+    participant, and precisely the case where the obvious fallback would be to read out
+    their number.
+    """
+    return _in(_INTRODUCES, told_in).format(
+        name=display_name(name, told_in=told_in),
+        language=language_name(spoken, told_in=told_in),
+    )
+
+
+def already_here(people, *, told_in: str) -> str | None:
+    """Who has already spoken, said to somebody who has just arrived.
+
+    `people` is a sequence of (name, language) pairs, name possibly None.
+
+    None when there is nobody to name: an arrival into a Salon where nothing has been said
+    is told nothing, because there is nothing to say and no language to invent.
+
+    When everybody already heard shares one language, that is said once rather than spelled
+    out per person — naming each person's language when it is everybody's is several
+    sentences carrying one bit between them.
+    """
+    people = list(people)
+    if not people:
+        return None
+
+    # "Everyone here speaks French" is only worth saying to somebody who speaks it too. To
+    # anybody else it withholds the one thing they needed — who is here — and replaces it
+    # with a fact about a language they do not share.
+    spoken = {_base(language) for _, language in people}
+    if spoken == {_base(told_in)}:
+        return _in(_ALL_ONE_LANGUAGE, told_in).format(
+            language=language_name(people[0][1], told_in=told_in)
+        )
+
+    return _in(_ALREADY_HERE, told_in).format(
+        people="; ".join(
+            introduces(name, language, told_in=told_in).rstrip(".")
+            for name, language in people
+        )
+    )

@@ -54,12 +54,7 @@
 - [x] Story 6.6: Restitution Premier Arrivé Premier Servi
 - [x] Story 6.7: Adaptateur Base en Transcription et Synthèse
 - [x] Story 6.8: Coupure de Micro par l'Hôte
-  > As a hôte
-  > I want pouvoir couper le micro d'un participant
-  > So that je puisse gérer une situation problématique sans fermer le Salon.
-  > AC: Given un hôte dans un Salon actif, When il coupe le micro d'un participant, Then l'ingestion de ce participant s'arrête et son interprète l'en informe vocalement, And Given un micro coupé, When les autres participants parlent, Then le participant coupé continue de recevoir normalement la restitution, And Given le micro est coupé puis rétabli, When le participant reparle, Then son message rejoint le journal par ordre d'arrivée, sans aucune priorité
-  > Spec: specs/planning-artifacts/epics.md#story-6-8
-- [ ] Story 6.9: Présentation des Participants et de Leur Langue
+- [x] Story 6.9: Présentation des Participants et de Leur Langue
   > > ⚠️ **PARTIELLEMENT HÉRITÉ.** La détection de langue existe et est déjà enregistrée : `salon_events.first_spoken_language` — *« first heard »*, écrit une seule fois et jamais révisé — et `users.detected_language`.
   > `livekit_service.guest_display_name()` produit déjà un libellé affichable, dérivé de l'invitation et **jamais du courriel**, pour ne pas exposer l'adresse d'un invité aux autres.
   > > **Ce qui manque :** l'**annonce vocale** elle-même, déclenchée à la première prise de parole.

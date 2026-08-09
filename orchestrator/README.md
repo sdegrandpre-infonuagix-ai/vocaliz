@@ -119,6 +119,32 @@ through somebody's sentence. `Salon.announce` holds an announcement back while a
 is mid-run and says it at the seam's end: an announcement dropped between two halves of a
 sentence is worse than the same announcement a second later.
 
+## Who is speaking
+
+The topology took a signal away and this gives it back. Nobody hears anybody else's voice,
+so the cue that normally announces a new person — an unfamiliar voice — does not exist.
+Everything arrives in the same synthetic voice as everything else, and without this a Salon
+of three sounds exactly like a Salon of two.
+
+Each listener is told once, per person, immediately *before* that person's first message
+reaches them. Before, not after: knowing who spoke matters most while you are hearing what
+they said. A long intervention cut into pieces (Story 6.5) is still one person starting to
+speak, so it is introduced once.
+
+Somebody arriving into a conversation already under way is told who has spoken so far, in
+their own language. Only who has *spoken*: a participant who has said nothing has no
+detected language, and no language is ever invented. When several people already heard
+share one language and it is the newcomer's too, that is said once instead of being spelled
+out per person.
+
+Names come from `Participant.name` — a registered user's, or the one the host spoke at the
+invitation. Never a telephone number and never an internal identifier: a caller is
+identified by the number they dialled from, and reading it out publishes it to the room.
+`display_name` falls back to a neutral designation instead.
+
+Attribution outlives the seat. Somebody who left is still the author of what they said, so
+a late arrival given the history hears their words *and* hears whose they are.
+
 ## Cutting a microphone
 
 `Salon.mute` / `Salon.unmute`, host only — `NotTheHost` otherwise, and a Salon with no
@@ -146,6 +172,34 @@ interpreter too broken to say it does not leave the microphone open.
 
 When the microphone comes back, nothing is owed for the silence. The next thing they say
 takes the next position in the journal, behind whoever spoke while they were quiet.
+
+## Introducing people
+
+The topology takes away the two things that normally tell you who is talking: nobody hears
+anybody's real voice, and everything arrives in the listener's own language. Without an
+introduction a Salon is a series of sentences from nowhere.
+
+The trigger is the first thing somebody actually **says**, not their arrival. A language is
+detected, never declared — introducing somebody earlier would mean inventing a language for
+them or introducing them twice. Somebody who stays silent all Salon is never mentioned, and
+a switch of language later does not revise the introduction: "Marie now speaks English"
+mid-conversation is noise, not information.
+
+The introduction is spoken immediately before that speaker's first message, in the
+listener's own language, naming the speaker's. Once per listener — an introduction repeated
+is an introduction that stops being heard — which is why the state lives on the `Seat`
+rather than the Salon: two people who joined at different moments have heard different
+things.
+
+Somebody arriving mid-conversation is told who has already spoken, in one announcement,
+read from the journal (so it survives a takeover, and so somebody who has since left is
+still named in the words of theirs the arrival is about to hear). When everybody already
+heard shares the **arrival's own** language, that is said once instead of enumerated —
+though only then: "everyone here speaks French" tells a German speaker nothing they needed.
+
+Names come from the participant, and there is a neutral designation when there is none.
+That is the ordinary case for a telephone participant (FR57), and precisely the case where
+the obvious fallback would be to read out their number.
 
 ## Which languages are offered
 

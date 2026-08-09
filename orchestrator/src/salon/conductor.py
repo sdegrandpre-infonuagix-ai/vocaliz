@@ -14,12 +14,16 @@ What crosses between participants is text in the journal. No audio ever does.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, field
 
 from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
 from src.journal import MAX_MESSAGE_CHARACTERS, JournalEntry, SalonLog
-from src.salon.notices import microphone_cut, microphone_restored
-from src.salon.notices import microphone_cut, microphone_restored
+from src.salon.notices import (
+    already_here,
+    introduces,
+    microphone_cut,
+    microphone_restored,
+)
 from src.salon.rooms import Room, RoomProvisioner
 
 
@@ -52,6 +56,10 @@ class Seat:
     mid_run: bool = False
     # Announcements that arrived mid-run, in the order they arrived.
     held: list[Annonce] = field(default_factory=list)
+    # Who this listener has been introduced to (Story 6.9). Per seat rather than per Salon:
+    # what matters is that each person hears each introduction once, and somebody arriving
+    # late has heard none of them.
+    introduced: set[str] = field(default_factory=set)
 
 
 class Salon:
@@ -72,6 +80,15 @@ class Salon:
         # Salon whose host has not been declared: the alternative is everybody.
         self._host_id = host_id
         self._seats: dict[str, Seat] = {}
+        # The language each participant was first heard in. Written once and never revised,
+        # like `salon_events.first_spoken_language`: somebody switching language mid-Salon
+        # is not a second person and is not introduced again.
+        self._first_language: dict[str, str] = {}
+        # Everybody who has ever had a seat. The journal outlives the seat, so a late
+        # arrival given the history hears what somebody said after they left — and has to
+        # be told who said it.
+        self._ever_joined: dict[str, Participant] = {}
+        self._ever_joined: dict[str, Participant] = {}
 
     @property
     def salon_id(self) -> str:
@@ -121,9 +138,9 @@ class Salon:
             return existing.room
 
         room = await self._rooms.provision(self.salon_id, participant)
-        self._seats[participant.id] = Seat(
-            participant=participant, room=room, interpreter=interpreter
-        )
+        seat = Seat(participant=participant, room=room, interpreter=interpreter)
+        self._seats[participant.id] = seat
+        self._ever_joined[participant.id] = participant
 
         # At the head unless the host granted the history (Story 6.10). Written straight
         # away: a participant who joins and is then lost with the instance must come back
@@ -131,6 +148,8 @@ class Salon:
         # have all of.
         self.log.attach(participant.id, from_start=from_start)
         await self.log.checkpoint()
+
+        await self._say_who_is_here(self._seats[participant.id])
         return room
 
     async def leave(self, participant_id: str) -> None:
@@ -229,6 +248,8 @@ class Salon:
         if self.is_muted(participant_id):
             return ()
 
+        self._first_language.setdefault(participant_id, language)
+
         return await self.log.record_intervention(
             participant_id=participant_id,
             text=text,
@@ -296,6 +317,10 @@ class Salon:
             # already know, and a journal every reader reads is exactly what would say it
             # back to them.
             if entry.participant_id != participant_id:
+                # Who is speaking, before what they said (Story 6.9). Failing to say it must
+                # not cost the message it introduces, so this does not raise.
+                await self._introduce(seat, entry.participant_id)
+
                 try:
                     await seat.interpreter.render(_as_tour(entry))
                 except InterpreteError:
@@ -344,6 +369,70 @@ class Salon:
                 # Their adapter has told them out loud already (NFR3). Putting it back would
                 # replay it on every later delivery, and an announcement is not worth that.
                 return
+
+    # ── Who is speaking ───────────────────────────────────────────────────────
+
+    def _known_speakers(self, *, except_for: str = "") -> list[tuple[Participant, str]]:
+        """Everybody who has actually been heard, and the language they were heard in.
+
+        Only them. Somebody who has not spoken has no detected language, and there is
+        nothing true to say about them yet — they are introduced when they speak.
+        """
+        # From everybody who has ever joined, not from who is still here. What somebody
+        # said stays in the journal after they leave, so a late arrival given the history
+        # hears them — and has to be told whose words those are.
+        return [
+            (self._ever_joined[key].name, language)
+            for key, language in self._first_language.items()
+            if key in self._ever_joined and key != except_for
+        ]
+
+    async def _say_who_is_here(self, seat: Seat) -> None:
+        """Tell somebody arriving who has already spoken, and in what language.
+
+        Nothing at all when nobody has: an announcement that names nobody is worse than no
+        announcement. They are marked as introduced either way, so the next thing each of
+        those people says is not prefaced a second time.
+        """
+        listener = seat.participant
+        people = self._known_speakers(except_for=listener.id)
+
+        # `already_here` decides whether there is anything worth saying; duplicating that
+        # test here would be a second place for the two answers to drift apart.
+        text = already_here(people, told_in=listener.language)
+        seat.introduced.update(self._first_language)
+
+        if text is not None:
+            await self.announce(listener.id, Annonce(text=text, language=listener.language))
+
+    async def _introduce(self, seat: Seat, speaker_id: str) -> None:
+        """Say who is about to speak, once per listener.
+
+        Silent when the speaker's language is somehow unknown — which cannot happen for a
+        message that came through `ingest`, and inventing one would be worse than saying
+        nothing.
+        """
+        if speaker_id in seat.introduced:
+            return
+
+        speaker = self._ever_joined.get(speaker_id)
+        language = self._first_language.get(speaker_id)
+        if speaker is None or language is None:
+            return
+
+        # Marked before it is said, not after: an interpreter that fails on the
+        # introduction must not be asked for it again on every later message.
+        seat.introduced.add(speaker_id)
+
+        await self.announce(
+            seat.participant.id,
+            Annonce(
+                text=introduces(
+                    speaker.name, language, told_in=seat.participant.language
+                ),
+                language=seat.participant.language,
+            ),
+        )
 
     def _ordered_seats(self) -> tuple[Seat, ...]:
         """Seats in a fixed order, so a Salon behaves the same way twice."""

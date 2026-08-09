@@ -12,7 +12,7 @@ import pytest
 
 from src.interprete import Annonce, InterpreteFake, Participant
 from src.journal import InMemoryJournalStore, SalonLog
-from src.salon import InMemoryRoomProvisioner, NotTheHost, Salon
+from src.salon import InMemoryRoomProvisioner, NotTheHost, Salon, microphone_cut
 
 MARIE = Participant(id="marie", language="fr", name="Marie")
 HANS = Participant(id="hans", language="de", name="Hans")
@@ -320,7 +320,9 @@ async def test_the_notice_waits_for_the_end_of_an_intervention(salon):
     await tight.deliver_upto(HANS.id, pieces[0].sequence)
     await tight.mute(HANS.id, by=MARIE.id)
 
-    assert [line.kind for line in tight.interpreter_of(HANS.id).spoken] == ["tour"]
+    # Marie's introduction, then her first piece — and the microphone notice held back
+    # behind the rest of the run rather than dropped into the seam.
+    assert [line.kind for line in tight.interpreter_of(HANS.id).spoken] == ["annonce", "tour"]
 
 
 async def test_a_cut_participant_whose_interpreter_is_down_is_still_cut(salon):
