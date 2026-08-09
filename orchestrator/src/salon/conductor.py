@@ -68,6 +68,10 @@ class Seat:
     # a choice in its own right and the difference matters.
     caption_language: str | None = None
     caption_scale: float = DEFAULT_CAPTION_SCALE
+    # Story 6.16. What they were reading before the screen went black, kept so it can be
+    # given back. `None` means there is nothing to give back — either they are not driving,
+    # or they have chosen something since, which supersedes it.
+    captions_before: tuple[str | None, float] | None = None
     # True between two pieces of one intervention (Story 6.5). Nothing third-party is
     # spoken while it is.
     mid_run: bool = False
@@ -570,6 +574,9 @@ class Salon:
 
         seat.caption_language = language
         seat.caption_scale = scale
+        # Somebody who reaches for this during a red light meant it. Putting the older choice
+        # back when the drive ends would overwrite a decision with the one it replaced.
+        seat.captions_before = None
 
     async def _send_caption(self, seat: Seat, entry: JournalEntry) -> None:
         """Put one turn into this reader's own room, as text.
@@ -675,21 +682,40 @@ class Salon:
             await self._stop_video(seat)
 
     async def start_driving(self, participant_id: str) -> None:
-        """FR75. Video is suspended both ways; the wish for it survives."""
+        """FR75. The screen goes black, so everything that exists only to be looked at stops.
+
+        Video is suspended both ways and the wish for it survives. Captions are emptied, and
+        that one has a price on it: a translation is paid for per turn, so leaving the
+        language set would buy text for a screen nobody is looking at. The speaking board
+        stops at the broadcast (`speaking`), since there is no state to suspend.
+        """
         seat = self._seats.get(participant_id)
         if seat is None:
             return
 
+        # Only on the way in. Starting twice must not save the emptied state over the real
+        # one — the second call would otherwise erase what the first put aside.
+        if not seat.driving:
+            seat.captions_before = (seat.caption_language, seat.caption_scale)
         seat.driving = True
+        seat.caption_language = None
         await self._stop_video(seat)
 
     async def stop_driving(self, participant_id: str) -> None:
-        """Restore what was on before, and nothing that was not."""
+        """Restore what was on before, and nothing that was not.
+
+        They did not choose to stop reading, or to turn the camera off; they chose to start
+        driving. Both come back — unless they have chosen otherwise since, which
+        `set_captions` records by dropping what was put aside.
+        """
         seat = self._seats.get(participant_id)
         if seat is None:
             return
 
         seat.driving = False
+        if seat.captions_before is not None:
+            seat.caption_language, seat.caption_scale = seat.captions_before
+            seat.captions_before = None
         if seat.wants_video:
             await self.enable_video(participant_id)
 

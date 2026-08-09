@@ -61,12 +61,7 @@
 - [x] Story 6.13: Vidéo Muette en Direct
 - [x] Story 6.14: Sous-Titres Traduits en Direct
 - [x] Story 6.15: Voyant de Parole par Paire
-  > As a participant
-  > I want voir qui est en train de parler
-  > So that je sache qu'une conversation a lieu, même quand je n'entends personne.
-  > AC: Given la topologie multi-rooms, où personne n'entend directement personne, When le besoin de ce voyant est évalué, Then il comble un signal que la topologie a supprimé : le silence dans mon oreille ne veut plus dire que personne ne parle — il veut dire que mon interprète n'a pas encore de quoi me restituer, And Given chaque paire humain-interprète du Salon, When son état est affiché, Then il l'est en deux couleurs : vert quand la voix est active, rouge quand elle ne l'est pas, And Given les deux voix d'une même paire, When elles sont représentées, Then l'humain et son interprète ont chacun leur voyant — savoir que Marie parle et savoir que son interprète restitue sont deux informations différentes, et la seconde explique le délai de la première, And Given un participant, When il consulte l'affichage, Then il voit l'état de toutes les paires du Salon, pas seulement de la sienne — c'est tout l'objet du voyant, And Given LiveKit, qui publie nativement l'état de parole des participants d'une room, When cet état doit atteindre les autres participants, Then il transite par l'orchestrateur, car les humains ne partagent aucune room : c'est le même chemin que les tours de parole, sur le canal de données, And Given la détection de parole, When elle est produite, Then elle s'appuie sur le VAD Silero déjà présent dans `livekit-agents[silero]` et sur l'état de parole natif de LiveKit — rien de neuf à construire côté détection, And Given un participant en mode conduite, When l'écran est noir, Then aucun voyant n'est affiché — il n'y a rien à regarder, c'est tout l'objet du mode. Le voyant sert à qui peut regarder ; en conduite, la conversation est vocale et rien d'autre (FR75), And Given un participant téléphonique (FR57), When son état est affiché, Then sa paire a les mêmes voyants que les autres : c'est la seule information visuelle disponible à son sujet, puisqu'il n'a pas de vidéo, And Given un participant daltonien, When les voyants sont affichés, Then la couleur n'est pas le seul porteur d'information — la forme ou l'animation distingue les deux états, conformément à l'exigence de contraste et d'accessibilité de UX-DR7
-  > Spec: specs/planning-artifacts/epics.md#story-6-15
-- [ ] Story 6.16: Mode Conduite — Écran Noir, Vocal Uniquement
+- [x] Story 6.16: Mode Conduite — Écran Noir, Vocal Uniquement
   > As a participant au volant
   > I want que l'application n'ait rien à me montrer
   > So that je n'aie aucune raison de baisser les yeux.

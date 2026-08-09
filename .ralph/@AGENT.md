@@ -123,6 +123,14 @@ each carrying a colour *and* a shape so colour is never the only carrier (UX-DR7
 actually changed and never to a screen blacked out by driving mode. Detection stays with
 LiveKit and Silero; this only carries state between rooms that share nothing.
 
+Driving mode (Story 6.16): `Salon.start_driving`/`stop_driving` suspend everything that only
+exists to be looked at — video both ways, captions, and the speaking board. The captions are
+the one that costs money, since a translation is billed per turn, so `caption_language` is
+emptied for the duration and the `(language, scale)` pair restored on exit — unless a choice
+was made during the drive, which `set_captions` records by dropping what was put aside. The
+black screen, the wake lock, the whole-surface exit and the low hang-up target are the
+client's, in `mobile/src/components/DrivingMode.tsx`.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

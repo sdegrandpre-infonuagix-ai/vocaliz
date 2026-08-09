@@ -416,6 +416,37 @@ whole economy of the feature — Silero reports continuously, and rebroadcasting
 board to everybody many times a second would be the most expensive possible way to say
 nothing. Nothing is sent to a screen that is black in driving mode either.
 
+## Driving mode
+
+`Salon.start_driving` / `stop_driving`. The screen goes black and *replaces* the room rather
+than dimming part of it, so everything that exists only to be looked at stops at once: the
+video both ways, the captions, and the speaking board. The conversation itself is untouched.
+Somebody driving still hears every turn, still speaks, and is still told when somebody
+joins — announcements are spoken, and a black screen is no reason to stop hearing them.
+
+Of the three, the captions are the one with a price on them. A translation is billed per
+turn, so leaving the language set would buy text for a screen nobody is looking at.
+`start_driving` empties `caption_language`, which is enough on its own: `_send_caption`
+already gates on it, so nothing is rendered and nothing is published.
+
+Both suspensions are restored on the way out, because they did not choose to stop reading or
+to turn the camera off — they chose to start driving. Two details make the restore correct
+rather than approximately correct:
+
+- Starting twice must not save the emptied state over the real one, so the previous choice
+  is put aside only on the transition into the mode.
+- A choice made *during* the drive wins. Somebody who reaches for the setting at a red light
+  meant it, so `set_captions` drops what was put aside; restoring the older value would
+  overwrite a decision with the one it replaced.
+
+`""` (`AS_SPOKEN`) has to come back as `""` and not as `None` — the difference between
+"show me the original" and "never chosen" is exactly the difference between captions on and
+captions off, which is why the seat remembers a `(language, scale)` pair and not a language.
+
+The black screen itself, the wake lock that keeps the phone from locking after 30 seconds,
+the whole-surface exit target and the separate hang-up target low where the thumb rests all
+belong to the client and live in `mobile/src/components/DrivingMode.tsx`.
+
 A telephone participant (FR57) gets the same two lights as everybody. With no video, it is
 the only visual information about them there is, which makes leaving them off the board the
 one thing that would actually hurt.
