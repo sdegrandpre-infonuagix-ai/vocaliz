@@ -65,6 +65,24 @@ class JournalEntry:
         return self.part < self.parts
 
 
+def arrival_key(entry: JournalEntry) -> tuple[datetime, int]:
+    """How two messages are ordered against each other: when they arrived, then where they
+    landed.
+
+    The timestamp is what decides, and the position settles the ties — of which there are
+    many. A clock has finite resolution, two rooms can hand over a message inside the same
+    microsecond, and the pieces of one split intervention deliberately share a single
+    instant. Sorting on the timestamp alone would leave those free to shuffle, and a
+    conversation that reorders itself between two readings is not a record of anything.
+
+    Note what this is not: it is not how the journal is read. Reading follows the positions,
+    which are monotone whatever the clock does — NTP moves a drifting clock backwards, and
+    what was already said must not become something said later. This is for comparing
+    messages that did not come from the same journal.
+    """
+    return (entry.arrived_at, entry.sequence)
+
+
 @dataclass
 class Journal:
     """A Salon's messages, in arrival order."""

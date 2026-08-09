@@ -51,7 +51,7 @@
 - [x] Story 6.3: Orchestrateur de Salon, Journal et Curseurs
 - [x] Story 6.4: Une Room LiveKit par Participant
 - [x] Story 6.5: Découpage des Interventions à 500 Caractères
-- [ ] Story 6.6: Restitution Premier Arrivé Premier Servi
+- [x] Story 6.6: Restitution Premier Arrivé Premier Servi
   > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** `utterances.sequence` est un entier monotone assigné à l'insertion, unique par Salon (`uq_utterances_salon_sequence`).
   > C'est **exactement** l'ordre d'arrivée que FR44 demande.
   > Salon n'a d'ailleurs jamais eu de mécanisme d'attribution de parole à supprimer.

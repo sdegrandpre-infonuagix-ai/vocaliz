@@ -8,8 +8,10 @@ readers share.
 from src.journal.cursors import Cursors
 from src.journal.journal import (
     CHARACTERS_PER_SECOND,
+    arrival_key,
     Journal,
     JournalEntry,
+    arrival_key,
     content_seconds,
 )
 from src.journal.salon_log import SalonLog
@@ -19,6 +21,7 @@ from src.journal.store import InMemoryJournalStore, JournalStore, SalonState
 from src.journal.translations import Translate, Translations
 
 __all__ = [
+    "arrival_key",
     "CHARACTERS_PER_SECOND",
     "Cursors",
     "InMemoryJournalStore",
@@ -29,6 +32,7 @@ __all__ = [
     "SalonLog",
     "SalonState",
     "SqlJournalStore",
+    "arrival_key",
     "Translate",
     "Translations",
     "content_seconds",
