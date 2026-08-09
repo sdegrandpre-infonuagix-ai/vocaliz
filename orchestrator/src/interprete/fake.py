@@ -31,9 +31,10 @@ class InterpreteFake(Interprete):
     # Set to raise from the next provider call, standing in for a model that stops
     # answering. The whole point is that it fails on demand rather than by luck.
     fail_with: Exception | None = None
-
-    def __post_init__(self) -> None:
-        self._closed = False
+    # Public, and spelled the same way as on `InterpreteS2S`: whether an interpreter is
+    # still open is something the Salon asks of every adapter, so it cannot be private on
+    # one of them.
+    closed: bool = field(default=False, kw_only=True)
 
     # ── Driving it ────────────────────────────────────────────────────────────
 
@@ -43,14 +44,14 @@ class InterpreteFake(Interprete):
 
     def close_room(self) -> None:
         """Its human has gone. `ingest` returns None from here on."""
-        self._closed = True
+        self.closed = True
 
     # ── The port ──────────────────────────────────────────────────────────────
 
     async def ingest(self) -> Tour | None:
         if self.fail_with is not None:
             await self._fail(self.fail_with)
-        if self._closed or not self.heard:
+        if self.closed or not self.heard:
             return None
 
         text, language = self.heard.pop(0)
@@ -93,7 +94,7 @@ class InterpreteFake(Interprete):
         )
 
     async def aclose(self) -> None:
-        self._closed = True
+        self.closed = True
 
     async def _say(self, utterance: Utterance) -> None:
         if utterance.language in self.unsupported:

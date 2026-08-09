@@ -76,6 +76,31 @@ tables the orchestrator owns, tested against SQLite so the suite needs no databa
 against Postgres. The API's `utterances` tables are untouched: they serve a Salon's
 transcript to a client, which is a different job.
 
+## Rooms, and a Salon running
+
+`src/salon/` — one room per participant, and the object that ties rooms, interpreters and
+the journal together.
+
+A `Room` holds exactly two occupants: one human and that human's interpreter. There is
+never a second human in it, so there is no audio to leak from one person into another's
+microphone and nothing for FR17 to cancel — **echo is unavailable rather than suppressed**.
+Room names are derived (`{salon_id}--{participant_id}`) rather than random, so an instance
+taking a Salon over can name the rooms again from what it re-read.
+
+`Salon` (in `conductor.py`) keeps the two directions apart. `collect`/`ingest` is what comes
+out of a room and into the journal; `deliver` is what goes from the journal back into one
+room. Neither waits on the other — an interpreter that has fallen behind must not hold up
+anybody else's words reaching the journal. Nobody is ever told what they themselves said,
+and one interpreter failing costs its own participant a spoken apology (NFR3) and a position
+that stays put, while every other room carries on.
+
+The consequence worth stating: no participant ever hears another participant's voice.
+Stories 6.13 and 6.15 — the muted video and the speaking indicator — exist to give back the
+two signals this topology removes.
+
+`InMemoryRoomProvisioner` is the offline implementation; the LiveKit one is built by the
+interpreter worker, which is the only component with the SDK.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and

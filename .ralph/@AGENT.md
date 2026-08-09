@@ -65,6 +65,12 @@ on (sequence, language). Everything is written through a `JournalStore` as it ha
 tables the orchestrator owns) for durability. The SQL one is tested against SQLite, so the
 suite still needs no database; Postgres is what it runs on.
 
+`src/salon/` provisions one room per participant (`rooms.py`, one human + their interpreter,
+never two humans) and holds the `Salon` that joins rooms to the journal (`conductor.py`):
+`collect`/`ingest` for a room reaching the journal, `deliver`/`deliver_all` for the journal
+reaching a room. `InMemoryRoomProvisioner` is the offline implementation; the LiveKit one
+belongs to the interpreter worker, which is the only component with the SDK.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

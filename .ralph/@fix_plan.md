@@ -49,7 +49,7 @@
 - [x] Story 6.1: Initialisation du Composant Orchestrateur
 - [x] Story 6.2: Port Interprète et Adaptateur Speech-to-Speech
 - [x] Story 6.3: Orchestrateur de Salon, Journal et Curseurs
-- [ ] Story 6.4: Une Room LiveKit par Participant
+- [x] Story 6.4: Une Room LiveKit par Participant
   > As a participant
   > I want ma propre room avec mon interprète dédié
   > So that je n'entende jamais d'écho ni d'audio superposé.
