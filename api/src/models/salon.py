@@ -65,4 +65,9 @@ class Salon(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Story 8.3. The host's own tier, and nobody else's. A Salon does not have a mode —
+    # each participant has one, and the host choosing Mode C imposes nothing on a guest who
+    # chose Base. Null means the floor applies, which is what happens when nothing is picked.
+    host_tier: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     host = relationship("User", foreign_keys=[host_user_id])

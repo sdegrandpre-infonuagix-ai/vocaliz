@@ -131,6 +131,23 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+### API — the tier catalogue (Story 8.3 / FR69)
+
+`api/src/tiers.py`. `TierOffer.of(tier)` describes a tier as it appears on the creation
+screen: rate, natural voice, advertising, premium voice. The invariant is that each tier adds
+exactly **one** thing to the one below — `differences_from` is walked over every neighbouring
+pair by a test, because a price gap covering two changes at once is one nobody can evaluate.
+
+`offer_for(db, subject_id)` prices every tier and, when gifted credit remains, times it:
+`covers_minutes` on the **remaining** balance, rounded down, and `None` rather than 0 when
+there is nothing left — "your credit covers 0 minutes" advertises a disappointment. The
+catalogue is identical for everyone; only the credit is personal.
+
+`salons.host_tier` (migration 048) holds the host's own choice. Named for the host on
+purpose: a Salon does not have a mode, each participant has one, and a column called `mode`
+would assert the opposite by its name. Null means the floor applies — distinct from actively
+choosing Base.
+
 ### API — the welcome credit (Story 8.2 / FR67)
 
 `api/src/credit.py` + `api/src/models/burned_identifier.py`. 5 USD once per *identifier*, not
