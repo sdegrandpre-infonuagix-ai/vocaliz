@@ -7,7 +7,7 @@ from src.config import settings
 from src.models.billing_event import BillingEvent  # noqa: F401 — ensure table is registered
 from src.services.stripe_metadata import namespaced
 
-logger = logging.getLogger("salon.stripe")
+logger = logging.getLogger(__name__)
 
 
 def attach_payment_method(user, payment_method_id: str, db) -> None:

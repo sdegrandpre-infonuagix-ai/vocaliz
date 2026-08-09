@@ -552,7 +552,7 @@ FR30: Epic 3  - Courriel automatique avec lien d'installation
 FR31: Epic 3  - Installation et conversion en utilisateur inscrit
 
 FR32: Epic 8  - Speech-to-speech toujours offert en option
-FR33: Epic 9  - Quatre paliers payants (Base 2$ / A 5$ / B 10$ / C 15$), aucun gratuit
+FR33: Epic 9  - Quatre paliers payants (Base 3$ / A 7,50$ / B 15$ / C 22,50$), aucun gratuit
 FR34: Epic 8  - Choix du mode par l'hôte à la création
 FR35: Epic 8  - Choix du mode par le participant à la jonction
 FR36: Epic 8  - Persistance du mode pendant le Salon
@@ -621,7 +621,7 @@ Un hôte inscrit peut créer un Salon à partir d'un document ou d'une actualit�
 **FRs covered:** FR1, FR2, FR3, FR6, FR7, FR8, FR9, FR10, FR11, FR12, FR13, FR14, FR15, FR16, FR17, FR24, FR26
 
 ### Epic 3: Accès Invité Sans Installation
-Un contact sans l'application peut rejoindre un Salon Salon depuis son navigateur, vivre l'expérience complète, et être invité à installer l'application après coup.
+Un contact sans l'application peut rejoindre un Salon depuis son navigateur, vivre l'expérience complète, et être invité à installer l'application après coup.
 **FRs covered:** FR4, FR5, FR25, FR27, FR30, FR31
 
 ### Epic 4: Essai Gratuit & Facturation
@@ -905,7 +905,7 @@ So that mon ressenti soit capturé sans effort. (FR26)
 
 ## Epic 3: Accès Invité Sans Installation
 
-Un contact sans l'application peut rejoindre un Salon Salon depuis son navigateur, vivre l'expérience complète, et être invité à installer l'application après coup.
+Un contact sans l'application peut rejoindre un Salon depuis son navigateur, vivre l'expérience complète, et être invité à installer l'application après coup.
 
 > **⚠ Superseded par l'Epic 10 (2026-08-08).** Les stories 3.1 à 3.5 ci-dessous sont livrées et conservées comme trace de l'existant, mais la notion d'« invité anonyme » n'existe plus : FR51 impose désormais une inscription légère (courriel ou téléphone) à toute personne. La promesse retenue est « sans installation », pas « sans compte ». En cas de contradiction, l'Epic 10 fait autorité.
 

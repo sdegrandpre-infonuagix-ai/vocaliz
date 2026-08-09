@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 inputDocuments:
   - '_bmad-output/planning-artifacts/prd.md'
   - '_bmad-output/planning-artifacts/epics.md'
@@ -564,3 +564,309 @@ La distinction est celle-ci : **il y a de l'audio dans LiveKit, il n'y a pas de 
 | **`livekit_room_max_participants`** | Devient **2 par room** (un humain, un agent) ; le plafond de participants du Salon se déplace sur l'orchestrateur |
 | **Coût LiveKit** | N Salons d'agent au lieu d'une — la structure de prix par participant l'épouse (voir PRD, Technical Success) |
 | **Vidéo** | Chemin média **distinct**, plafonné à 200 kbps, jamais persisté, sacrifié avant l'audio |
+
+---
+
+## Implementation Patterns & Consistency Rules
+
+_Ces patterns ne sont pas proposés, ils sont **relevés**. Le dépôt porte 45 migrations, 760 tests et quatre surfaces livrées ; les conventions existent déjà et sont cohérentes. Les écrire ici a un seul but : empêcher qu'un agent en invente une seconde, parce que deux conventions concurrentes dans une base de code coûtent plus cher que n'importe laquelle des deux._
+
+**Règle qui prime sur tout ce qui suit :** en cas de doute, lire le code voisin et l'imiter. Ce document décrit ce que le code fait ; là où les deux divergent, c'est le code qui a raison et ce document qui doit être corrigé.
+
+### Nommage — base de données
+
+Tout en `snake_case`. Tables au **pluriel**, colonnes au singulier.
+
+```
+salons · salon_events · utterance_translations · ad_broadcasts
+salon_id · host_user_id · livekit_room_name · first_spoken_language
+```
+
+Clés étrangères : `<entité_au_singulier>_id`, jamais `fk_user` ni `userId`.
+
+Objets nommés — le préfixe dit ce que l'objet **fait**, pas où il est :
+
+| Préfixe | Sens | Occurrences |
+|---|---|---|
+| `ix_` | index de performance, ne peut rien refuser | 66 |
+| `uq_` | unicité, **peut** refuser une écriture | 8 |
+| `ck_` | contrainte de validation | 45 |
+| `fk_` | clé étrangère nommée explicitement | 4 |
+
+Puis `<table>_<colonnes>` : `ix_utterances_salon_spoken`, `uq_utterances_salon_sequence`, `ck_salon_events_user_type`.
+
+> ⚠️ **Un objet nommé `uq_` ou `ck_` doit être déclaré sur le modèle, pas seulement dans la migration.** La base de test est construite depuis les modèles : une contrainte absente du modèle n'existe dans aucun test, et le code qui la viole passe toute la suite avant d'échouer devant un utilisateur. C'est arrivé — `uq_invitations_phone_pin_pending` ne vivait que dans la migration 022, et toutes les invitations de la plateforme ont répondu 500 pendant que 615 tests passaient. `api/tests/test_schema_visibility.py` l'interdit désormais.
+
+### Nommage — API
+
+Chemins au **pluriel**, paramètre positionnel en UUID nu :
+
+```
+GET  /salons/{salon_id}/utterances
+POST /salons/{salon_id}/heartbeat
+POST /invitations/{invitation_id}/accept
+```
+
+**Les champs JSON sont en `camelCase`, écrits littéralement dans les modèles Pydantic.** Aucun `alias_generator`, aucune conversion automatique :
+
+```python
+class SalonResponse(BaseModel):
+    salonId: str
+    livekitRoomName: str
+    createdAt: str
+```
+
+La frontière est nette : `snake_case` en Python et en base, `camelCase` dès qu'un octet part vers un client. La conversion est manuelle et visible dans le schéma — un générateur d'alias la rendrait invisible, et un agent finirait par écrire les deux formes.
+
+**Pas d'enveloppe de réponse.** L'objet est rendu directement, jamais `{data: …}`.
+
+**Les dates sont des chaînes ISO 8601** produites par `.isoformat()`, jamais des horodatages numériques.
+
+### Nommage — code
+
+| | Python | TypeScript |
+|---|---|---|
+| fichier | `salon_lifecycle.py` | `salonsApi.ts` · `SalonCreationScreen.tsx` |
+| fonction | `record_entry` | `createSalonFromUrl` |
+| classe / composant | `SalonEvent` | `SalonCreationScreen` |
+| variable | `salon_id` | `salonId` |
+
+Composants React en `PascalCase`, fichier compris. Tout le reste en TS est `camelCase`.
+
+### Structure
+
+```
+api/src/models/           une entité par fichier, nommé comme la table au singulier
+api/src/schemas/          Pydantic, groupés par domaine
+api/src/routers/          un routeur par ressource, préfixe déclaré dans le fichier
+api/src/services/         logique métier, aucun import de FastAPI
+api/tests/                test_<sujet>.py — jamais co-localisé
+api/migrations/versions/  NNN_description_courte.py, numérotation continue
+```
+
+Un service ne connaît ni `Request` ni `HTTPException` sauf raison écrite : il doit rester appelable depuis une fonction Lambda de maintenance, ce que `migrate_handler.py` fait pour dix d'entre eux.
+
+### Erreurs
+
+`HTTPException(status_code=…, detail="Phrase complète.")` — une phrase en anglais, majuscule initiale, point final. Pas de code d'erreur, pas d'objet imbriqué.
+
+```python
+raise HTTPException(status_code=404, detail="Salon not found or access denied.")
+```
+
+**404 plutôt que 403 quand la ressource existe mais n'appartient pas à l'appelant.** Un 403 confirmerait l'existence de l'objet à quelqu'un qui n'a pas le droit de le savoir.
+
+Codes employés : `401` non authentifié · `404` absent ou non autorisé · `409` état incompatible (Salon terminé, invitation déjà acceptée) · `410` définitivement parti.
+
+### Journalisation
+
+`logger = logging.getLogger(__name__)`, sans exception — 23 modules sur 23 depuis la correction du seul écart, qui portait en plus l'ancien nom de projet.
+
+**Aucun contenu de conversation dans les journaux.** Les identifiants et les compteurs, jamais ce qui a été dit.
+
+### Écritures qui ne doivent jamais bloquer
+
+Un motif propre à ce produit, et le plus facile à casser par inadvertance. Les écritures d'observation — participations, langue entendue, métriques — sont **au mieux** : elles avalent leur exception, journalisent un avertissement, et rendent la main.
+
+```python
+try:
+    ...
+    db.commit()
+except Exception:  # noqa: BLE001
+    db.rollback()
+    logger.warning("Could not record …", exc_info=True)
+```
+
+Ne jamais transformer cela en erreur remontée : échouer à noter une arrivée ne doit pas empêcher quelqu'un d'entrer dans une room.
+
+> ⚠️ **Le prix de ce motif :** il cache aussi les vrais défauts. `record_first_language` a passé toute sa vie à lever une exception avalée par ce `except`, sans jamais rien écrire, et rien ne l'a signalé. **Toute fonction protégée ainsi doit avoir un test qui vérifie le chemin qui réussit.** C'est la contrepartie non négociable du motif.
+
+### Événements du canal de données LiveKit
+
+`{"action": "<verbe_au_passé>"}` en `snake_case` : `salon_ended`. Le producteur est `livekit_service.notify_room` ; les consommateurs sont l'agent, l'app mobile et les deux clients web. **Quatre consommateurs — un renommage se fait des cinq côtés dans le même commit.**
+
+### Argent
+
+Les montants sont des **entiers**, jamais des flottants. Les millicents pour le solde, les cents pour Stripe. Un `float` sur une somme est un défaut, pas un choix de style.
+
+Les métadonnées écrites sur un objet Stripe passent par `stripe_metadata.namespaced()` et portent le préfixe `vocaliz_`. Un préfixe recopié à la main est appliqué inégalement, et l'écriture réussit avec la mauvaise clé.
+
+### Ce que tout agent doit faire
+
+- **Lire le code voisin avant d'écrire.** Ce document résume ; le code décide.
+- **Déclarer sur le modèle toute contrainte qui peut refuser une écriture**, sans quoi aucun test ne la connaît.
+- **Tester le chemin qui réussit** de toute fonction dont les erreurs sont avalées.
+- **Écrire en `snake_case` côté serveur, en `camelCase` côté fil**, et rendre la conversion visible.
+- **Ne jamais laisser de contenu de conversation atteindre un journal.**
+- **Traiter les montants en entiers.**
+
+### Anti-patterns, tous rencontrés dans ce dépôt
+
+| À ne pas faire | Pourquoi |
+|---|---|
+| Contrainte créée en migration seulement | Invisible aux tests ; a déjà mis les invitations à 500 en production |
+| `except Exception` sans test du chemin nominal | A rendu `record_first_language` muet depuis toujours |
+| Renommer un jeton sans vérifier ce qu'il désigne | `sessionStorage` → `salonStorage` : `ReferenceError` à la connexion de l'hôte |
+| Préfixe de namespace recopié à la main | Appliqué inégalement, et l'écriture réussit avec la mauvaise clé |
+| Boucle f-string dans une migration | Les noms d'objets deviennent illisibles pour le relecteur et pour l'outillage |
+
+---
+
+## Project Structure
+
+_L'arborescence existe déjà et n'est pas à créer. Ce qui suit dit **où chaque Epic atterrit** et **où passent les frontières** — c'est-à-dire ce qu'un agent doit savoir avant d'ajouter un fichier, et ce qu'il ne doit pas franchir._
+
+### Où atterrit chaque Epic
+
+| Epic | Atterrit principalement dans | Nature |
+|---|---|---|
+| **1 · Inscription & Identité** | `api/src/routers/auth.py` · `services/otp.py` · `services/jwt_service.py` · `mobile/src/contexts/AuthContext.tsx` | ✅ livré |
+| **2 · Salon de Discussion Vocale** | `api/src/routers/salons.py` · `services/livekit_service.py` · `agent/agent.py` | ✅ livré, **amendé par 6** |
+| **3 · Accès Invité** | `api/src/routers/guest_web.py` · `api/web/join.html` | ✅ livré, **amendé par 10** |
+| **4 · Essai & Facturation** | `api/src/services/stripe_service.py` · `models/billing_event.py` | ✅ livré, **remplacé par 8** |
+| **5 · Historique & Reconnexion** | `api/src/services/partner_service.py` · `routers/users.py` | ✅ livré |
+| **6 · Socle Multi-Rooms** | **`api/src/services/orchestrator/`** (nouveau) · `services/livekit_service.py` · `models/utterance.py` · `agent/agent.py` | 🔨 le cœur |
+| **7 · Régulation & Observabilité** | `api/src/services/orchestrator/` · **`models/operational_setting.py`** (nouveau) | 🔨 |
+| **8 · Modes & Paliers** | **`api/src/services/billing/`** (nouveau) · `models/user.py` · `services/stripe_service.py` | 🔨 remplace 4 |
+| **9 · Régie d'Annonces** | `api/src/services/ad_auction_service.py` · `ad_billing_service.py` · `models/ad.py` | ⚠️ **hérité, à conserver** |
+| **10 · Inscription Légère** | `api/src/routers/auth.py` · `services/invitation_service.py` · `api/web/` | 🔨 amende 1 et 3 |
+
+> ⚠️ **Epic 9 est le piège de cette carte.** La régie existe déjà et fonctionne : enchère au second prix, ciblage par Plus Code, contrainte `ck_ad_broadcasts_billed_only_if_delivered` qui interdit de facturer une annonce non diffusée. Les stories de l'Epic 9 ont été écrites comme si de rien n'était et **dégraderaient** l'existant si elles étaient suivies littéralement. Voir `story-audit-2026-08-08.md`.
+
+### Ce qui s'ajoute, et seulement cela
+
+```
+api/src/services/orchestrator/        ← Epic 6 et 7. Le seul vrai nouveau sous-système.
+    journal.py                        écriture et lecture du journal polyglotte
+    cursors.py                        un curseur par interprète ; retard = tête − curseur
+    interpreter.py                    le port : InterpreteS2S · InterpreteBase · InterpreteFake
+    saturation.py                     seuils par room, condensation, blocage d'entrée
+
+api/src/services/billing/             ← Epic 8. Le prépayé remplace le post-payé.
+    ledger.py                         millicents, accumulateur entier, report de reste
+    sampler.py                        prélèvement toutes les 5 s
+    coverage.py                       vérification de couverture, arrondie à la hausse
+
+api/src/models/operational_setting.py ← Epic 7. Seuils modifiables sans déploiement.
+```
+
+Rien d'autre ne se crée. Toute autre fonctionnalité s'ajoute à un fichier existant : `models/` gagne des colonnes, `routers/salons.py` gagne des routes, `services/` gagne des fonctions.
+
+### Frontières, et ce qu'elles interdisent
+
+```
+                    mobile/          api/web/         agent/
+                       │                │                │
+                       └──── HTTP ──────┴──── HTTP ──────┘
+                                    │
+                            api/src/routers/     ← HTTP uniquement
+                                    │              valide, autorise, traduit en erreurs
+                            api/src/services/    ← toute la logique métier
+                                    │              ne connaît ni Request ni HTTPException
+                            api/src/models/      ← schéma
+                                    │
+                              Aurora PostgreSQL
+```
+
+**Un service n'importe jamais de FastAPI.** La règle a une raison mesurable : `migrate_handler.py` appelle dix services depuis une Lambda de maintenance, sans requête HTTP. Un service qui lève une `HTTPException` casse ce chemin.
+
+**Un routeur ne contient pas de logique métier.** Il valide, autorise, délègue, traduit. La preuve qu'on a franchi la limite : le besoin d'un test qui monte un client HTTP pour vérifier une règle de calcul.
+
+**L'agent ne touche jamais la base.** Il passe par l'API avec le jeton de l'hôte. C'est ce qui permet de l'héberger chez LiveKit Cloud plutôt que dans le VPC.
+
+**L'orchestrateur ne parle pas à xAI.** Il parle au port `Interprete` — NFR6. Un appel direct au fournisseur depuis l'orchestrateur rendrait `InterpreteFake` inutile et les tests de charge impossibles.
+
+### Où vit quoi, dans les grandes lignes
+
+```
+api/
+  src/
+    main.py                 assemblage FastAPI, montage des routeurs
+    migrate_handler.py      migrations + dix actions de maintenance (Lambda)
+    config.py               pydantic-settings, une seule source des paramètres
+    database.py             engine, SessionLocal, get_db
+    routers/                auth · salons · invitations · sources · users · admin · guest_web
+    services/               logique métier + les deux nouveaux sous-dossiers
+    schemas/                Pydantic, camelCase vers le fil
+    models/                 SQLAlchemy, snake_case
+  migrations/versions/      NNN_description.py — 45 révisions, numérotation continue
+  tests/                    49 fichiers, test_<sujet>.py
+  web/                      host.html · join.html · index.html · report.html + i18n/
+
+agent/
+  agent.py                  l'interprète LiveKit ; instructions, outils, cycle de vie
+  src/                      captions · mixed_audio_input · opening
+  livekit.toml              déploiement LiveKit Cloud Agents — pas AWS
+
+mobile/
+  src/screens · components · contexts · hooks · navigation · services · i18n · theme
+  app.json                  identité, slug, projectId, updates
+
+infra/
+  lib/salon-api-stack.ts    la pile entière — un seul fichier, volontairement
+  bin/salon.ts              point d'entrée CDK
+```
+
+### Deux frontières de déploiement à ne pas confondre
+
+**`api/web/` est servi par l'API.** Les clients web et l'API basculent ensemble, atomiquement. Un changement de protocole n'y pose aucun problème.
+
+**`mobile/` ne l'est pas.** Il se publie par EAS, indépendamment. Tout changement de contrat — chemin d'URL, forme de réponse, action du canal de données — casse les installations qui n'ont pas suivi. C'est la seule frontière du projet où la compatibilité ascendante se pose vraiment, et elle s'est déjà posée lors du renommage.
+
+**`agent/` non plus.** Il tourne sur LiveKit Cloud Agents et se déploie par `lk agent deploy`. Un `cdk deploy` ne le met pas à jour.
+
+---
+
+## Architecture Validation
+
+_Validation faite par vérification, pas par relecture. Les chiffres ci-dessous sortent d'un recoupement programmatique du PRD et des epics, et les défauts trouvés ont été corrigés avant d'écrire cette section._
+
+### Couverture des exigences
+
+| | Résultat |
+|---|---|
+| FR déclarées au PRD v2 | **68** |
+| FR rattachées à un Epic | **68 — aucune orpheline** |
+| FR rattachées mais retirées du PRD | 7 (`FR2`, `FR9`, `FR17`, `FR19`, `FR22`, `FR23`, `FR27`) |
+| NFR déclarées | **9** |
+| NFR rattachées à un Epic | **9 — aucune orpheline** |
+
+Les sept FR retirées restent dans la carte de couverture, marquées `⛔ SANS OBJET` ou `⛔ SUPPRIMÉE PAR`. C'est volontaire : elles ont été implémentées et livrées, elles existent dans le code, et un agent qui rencontre `FR22` dans un commentaire doit pouvoir apprendre qu'elle a été remplacée par FR40 plutôt que de conclure à une erreur.
+
+### Deux défauts trouvés pendant la validation
+
+**La carte de couverture annonçait les anciens tarifs.** `FR33` disait encore `Base 2$ / A 5$ / B 10$ / C 15$` alors que le bloc de paramètres et le PRD portent les prix majorés de la commission des magasins — `3 / 7,50 / 15 / 22,50`. Un agent lisant la carte plutôt que le PRD aurait codé la mauvaise grille tarifaire. Corrigé.
+
+**Deux occurrences de « Salon Salon »** subsistaient du renommage. Corrigées.
+
+### Cohérence des décisions
+
+**Le port Interprète et les deux jeux de langues tiennent ensemble.** Les langues parlées sont l'intersection des adaptateurs, la plus restrictive étant `InterpreteS2S`. C'est ce qui garantit que passer de Base au Mode C ne retire jamais une langue à personne — la propriété que le produit promet. Les sous-titres écrits, eux, tirent d'un ensemble plus large, ce qui est cohérent : traduire du texte n'a pas les contraintes de la voix.
+
+**Le journal sans langue pivot et la topologie multi-rooms se renforcent.** Chaque traduction part de l'original émis ; en Salon monolingue, aucune traduction n'a lieu. Le coût et la latence suivent la diversité linguistique, jamais le volume de conversation — ce qui est exactement le comportement voulu pour le parcours principal, qui est monolingue.
+
+**Le journal et les curseurs suffisent à l'ordre FCFS.** `utterances.sequence`, monotone par Salon, **est** l'ordre d'arrivée. Un curseur par interprète donne le retard par simple soustraction. Aucune file d'attente n'est nécessaire, et en introduire une créerait une seconde source de vérité sur le même ordre.
+
+**Le prépayé en millicents est cohérent avec l'échantillonnage à 5 s.** L'accumulateur entier reporte le reste d'un prélèvement au suivant ; la facturation arrondit vers le bas aux blocs complets, la vérification de couverture arrondit vers le haut. Les deux arrondis vont dans le sens qui protège le client, ce qui est le point.
+
+### Contradiction résiduelle, assumée
+
+**NFR8 abroge la promesse d'origine de NFR2.** Le produit promettait de ne conserver aucun transcript ; il conserve désormais les journaux un an à compter de la création du Salon, pour la reprise après panne et la preuve de diffusion des annonces. Ce n'est pas une incohérence à résoudre mais une décision à assumer publiquement : **la politique de confidentialité doit dire ce que NFR8 fait**, et le dire avant le premier utilisateur réel.
+
+### Ce que l'architecture ne couvre pas encore
+
+| Manque | Conséquence |
+|---|---|
+| **Rétention de `salon_events`** | Le modèle le dit lui-même : la ligne porte un courriel, un téléphone, parfois une position approximative, et *« elle mérite une règle de rétention ; il n'y en a aucune »*. NFR8 couvre les journaux, pas les participations. |
+| **Réamorçage du pool de codes téléphoniques** | Aucune action ne l'alimente. FR57 (invitation téléphonique) ne peut pas fonctionner tant que `code_available` est vide. |
+| **Charge au-delà de 3 participants** | Le plafond est une valeur de configuration, et le franchir est conditionné à des critères mesurés. L'infrastructure de test de charge est prévue mais pas construite. |
+
+### Prêt pour l'implémentation
+
+L'architecture est **suffisante pour démarrer**, et les trois manques ci-dessus ne bloquent aucune des 48 stories restantes : le premier est une dette de conformité, le deuxième bloque une seule FR, le troisième conditionne un palier futur.
+
+Ce qui doit être fait **avant** toute story de l'Epic 6 : rien. Le rekeyage de `salon_events`, qui était la migration bloquante, est livré (migration `045`).
+
+---
+
+_Document d architecture complet — 8 etapes. Vocaliz, 2026-08-08._
