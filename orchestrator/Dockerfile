@@ -21,6 +21,10 @@ ENV PORT=8080
 
 EXPOSE 8080
 
+# `app:app` and not `src.main:app`. The composition root is what wires the real journal and
+# real rooms into the application; `src.main` on its own is the domain, which by design does
+# not know what implements it and would refuse to host a Salon.
+#
 # Nothing to gain from more than one worker: the state of a hosted Salon lives in the
 # process, and a second worker would be a second, unrelated instance sharing a port.
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]

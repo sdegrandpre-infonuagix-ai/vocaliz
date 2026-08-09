@@ -17,6 +17,7 @@ import logging
 import signal
 from contextlib import asynccontextmanager
 from types import FrameType
+from typing import Callable
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -25,6 +26,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.config import DEFAULT_DRAIN_TIMEOUT_SECONDS, Settings, load_settings
 from src.journal.sql_store import async_url
+from src.salon import Salon
+from src.serving import build_router
 from src.settings import LiveSettings, SettingsStore, SqlSettingsStore
 from src.lifecycle import SalonRegistry
 from src.logging_config import configure_logging
@@ -116,9 +119,23 @@ async def _drain(target: FastAPI) -> None:
         )
 
 
+def _no_factory(salon_id: str) -> Salon:
+    """What an application built without a factory does when asked to host a Salon.
+
+    Raising rather than returning something empty. An application that accepted a Salon and
+    then had nowhere to put what was said would answer every request cheerfully and lose the
+    conversation, which is the failure that takes longest to notice.
+    """
+    raise RuntimeError(
+        f"cannot host salon {salon_id}: this application was built with no salon factory. "
+        "The composition root in app.py supplies the real one."
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     settings_store: SettingsStore | None = None,
+    salon_factory: Callable[..., Callable[[str], Salon]] | None = None,
 ) -> FastAPI:
     """Build the application.
 
@@ -129,6 +146,12 @@ def create_app(
     `settings_store` is the same arrangement for Story 7.1's parameters: left out, the
     instance opens the database named in the configuration, which is what production does
     and what makes an unreachable database a startup failure rather than a surprise later.
+
+    `salon_factory` is what turns an identifier into a running conversation, and it is a
+    parameter rather than an import because the real one names LiveKit. The composition root
+    in `app.py` — outside `src/`, where a vendor may be named — supplies it. Left out, this
+    application serves health and readiness and refuses to host anything, which is what the
+    tests of the lifecycle itself want and all they want.
     """
 
     @asynccontextmanager
@@ -150,12 +173,30 @@ def create_app(
         # instance at startup rather than a week later. `LiveSettings` re-reads on an
         # interval, which is what lets a change reach a running fleet without a deploy.
         store = settings_store
+        engine = None
         if store is None:
             engine = create_async_engine(async_url(resolved.database_url))
             store = SqlSettingsStore(engine)
             await store.create_all()
         target.state.salon_settings = LiveSettings(store=store)
-        await target.state.salon_settings.get()
+        salon_settings = await target.state.salon_settings.get()
+
+        # Nothing here names an adapter, and nothing here may: the domain does not know what
+        # implements it. `salon_factory` arrives from the composition root in `app.py`,
+        # which sits outside `src/` precisely so this file can stay ignorant of LiveKit.
+        if salon_factory is None:
+            target.state.build_salon = _no_factory
+        else:
+            # Configuration in, a callable out. The factory opens whatever it needs and
+            # creates whatever tables it owns — this file does not know that it needs any,
+            # which is the point of it arriving from outside `src/`.
+            target.state.build_salon = await salon_factory(
+                database_url=resolved.database_url,
+                livekit_url=resolved.livekit_url,
+                livekit_api_key=resolved.livekit_api_key,
+                livekit_api_secret=resolved.livekit_api_secret,
+                settings=salon_settings,
+            )
 
         _install_shutdown_handlers(target)
 
@@ -199,9 +240,14 @@ def create_app(
             },
         )
 
+    application.include_router(build_router())
+
     return application
 
 
+# The domain application: health, readiness, and routes that refuse to host anything,
+# because nothing here knows what a real journal or a real room is. `app.py` at the root is
+# what wires those in, and what the container runs.
 app = create_app()
 
 
