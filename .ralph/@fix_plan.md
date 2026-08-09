@@ -48,12 +48,7 @@
 
 - [x] Story 6.1: Initialisation du Composant Orchestrateur
 - [x] Story 6.2: Port Interprète et Adaptateur Speech-to-Speech
-  > As a développeur
-  > I want un port Interprète accompagné d'un premier adaptateur speech-to-speech
-  > So that l'orchestrateur ne dépende jamais d'un fournisseur en particulier.
-  > AC: Given aucun port n'existe encore, When je définis l'interface Interprète (`ingest`, `render`, `insert_annonce`, `condense`), Then l'orchestrateur ne référence que cette interface, jamais un SDK fournisseur, And Given le port est défini, When j'implémente `InterpreteS2S` sur le modèle temps réel audio↔audio, Then un humain seul dans sa room converse avec son interprète en voix naturelle, sans passage par du texte à l'intérieur de la room, And Given un appel fournisseur échoue, When l'adaptateur ne répond pas, Then l'orchestrateur reçoit une erreur typée et le participant en est informé vocalement (NFR3)
-  > Spec: specs/planning-artifacts/epics.md#story-6-2
-- [ ] Story 6.3: Orchestrateur de Salon, Journal et Curseurs
+- [x] Story 6.3: Orchestrateur de Salon, Journal et Curseurs
   > > ⚠️ **PARTIELLEMENT HÉRITÉ — étendre, ne pas réécrire.** > **Le journal existe :** `models/utterance.py` — `utterances` (tour, langue, `sequence` monotone unique par Salon) et `utterance_translations` (couple tour-langue, mis en cache).
   > `services/utterance_service.py`, endpoints `POST` et `GET /{salon_id}/utterances`.
   > > **Ce qui manque :** les **curseurs par interprète**, et le passage d'un journal *par Salon en base* à un journal *tenu par un orchestrateur par Salon*.

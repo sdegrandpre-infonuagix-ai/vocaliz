@@ -57,6 +57,12 @@ docker build -t salon-orchestrator .
 `tests/test_interprete_port.py` fails the build if one appears. New adapters are added to
 the `ADAPTERS` list in that file, which runs the whole contract against them.
 
+`src/journal/` holds one `SalonLog` per Salon: the journal (append-only, monotonic
+sequence, stamped on arrival), one cursor per interpreter, and the translation cache keyed
+on (sequence, language). Everything is written through a `JournalStore` as it happens;
+`SalonLog.resume()` rebuilds a Salon on another instance. `InMemoryJournalStore` is the
+offline implementation — the durable one is still to come.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.
