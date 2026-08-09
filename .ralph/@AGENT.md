@@ -137,6 +137,24 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — low balance and closing (Story 8.9 / FR55)
+
+`api/src/ending.py`. A host is warned at `HOST_ALERT_COVERAGE_SECONDS` (300) rather than a
+guest's 180 — courtesy, not rank: other people's conversation depends on their balance, so
+they need longer to decide. `host_alert_text` names the consequence explicitly, because a
+decision taken without knowing the Salon closes for everybody is not a decision.
+
+`guest_notice_text` gives the fact and not the cause. A test asserts the words "host",
+"balance", "credit", "money" and "budget" are absent — somebody's finances never become
+audible to the people they invited.
+
+One alert, then one final reminder under `FINAL_REMINDER_SECONDS` (60), then silence;
+`rearm` fires once the balance recovers so the next fall is warned afresh. `ClosingSequence`
+is the single bounded exemption to "no consumption without coverage": never billable, asks
+the FR26 question like any other ending, and `accepts_speech is False` throughout — the
+exemption covers the interpreter's voice, never a resumption, or a free closing would be a
+free Salon.
+
 ### API — the coverage tick (Story 8.8 / FR56)
 
 `api/src/coverage.py`. `check_coverage` does both halves of one tick, in this order:
