@@ -296,6 +296,43 @@ def _probe_orchestrator() -> dict:
     return asyncio.run(run())
 
 
+def _list_users(limit: int) -> dict:
+    """Read-only: the accounts that exist, most recent first.
+
+    Capped rather than open-ended — a growing table must not turn one lookup into a payload
+    nobody asked for the whole of. `password_hash` and OTP fields never leave this function:
+    they answer no question this action exists for.
+    """
+    from src.database import SessionLocal
+    from src.models.user import User
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(User)
+            .order_by(User.created_at.desc())
+            .limit(max(1, min(limit, 500)))
+            .all()
+        )
+        return {
+            "status": "ok",
+            "count": len(rows),
+            "users": [
+                {
+                    "id": str(u.id),
+                    "email": u.email,
+                    "phoneNumber": u.phone_number,
+                    "displayName": u.display_name,
+                    "username": u.username,
+                    "createdAt": u.created_at.isoformat(),
+                }
+                for u in rows
+            ],
+        }
+    finally:
+        db.close()
+
+
 def _table_census() -> dict:
     """Row counts per table. Read-only."""
     from src.database import SessionLocal
@@ -339,6 +376,7 @@ def handler(event, context):
     event = {"action": "backfill_stripe_namespace"} reports what metadata on existing Stripe
     objects would move into the vocaliz_ namespace; add "apply": true to write it. Nothing
     schedules this — it is a one-off, run by hand, and safe to repeat.
+    event = {"action": "list_users", "limit": 50} the most recent accounts, read-only.
     Any other event runs migrations.
     """
     action = (event or {}).get("action")
@@ -376,6 +414,8 @@ def handler(event, context):
         result = _probe_orchestrator()
         _report(f"probe_orchestrator: {result}")
         return result
+    if action == "list_users":
+        return _list_users(int(event.get("limit", 50)))
     if action == "table_census":
         return _table_census()
     if action == "truncate_tables":

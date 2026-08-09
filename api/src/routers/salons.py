@@ -619,6 +619,7 @@ def get_salon(
         hostIdentity=str(salon.host_user_id),
         agentLanguage=salon.agent_language,
         agentVoice=salon.agent_voice or "ara",
+        hostTier=salon.host_tier or "Base",
         frontDesk=_is_front_desk(salon, db),
     )
 
@@ -1247,6 +1248,16 @@ def request_ad(
     )
     if already is not None:
         return {"pitch": "", "reason": "already_broadcast"}
+
+    # Mode B and Mode C sell exactly this: no advertising, for a rate the auction's own
+    # revenue does not have to cover. Nothing enforced that before — the auction ran for
+    # every Salon regardless of what its host paid for, which is not a missing feature so
+    # much as a bill nobody was keeping.
+    from src.credit import Tier as _Tier
+
+    host_tier = _Tier(salon.host_tier) if salon.host_tier else _Tier.BASE
+    if host_tier in (_Tier.MODE_B, _Tier.MODE_C):
+        return {"pitch": "", "reason": "tier_excludes_ads"}
 
     # Where the participants are and what they speak, from the participation records. Both may
     # be empty this early — someone who declined the location prompt has no position, and a

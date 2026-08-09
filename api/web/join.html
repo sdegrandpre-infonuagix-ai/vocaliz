@@ -344,6 +344,11 @@
     }
     .say-row .btn { width: auto; flex: 0 0 auto; margin: 0; align-self: stretch; }
     .say-hint { font-size: 0.78rem; color: #6b6257; margin-top: 6px; min-height: 1.1em; }
+    .say-scope {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      font-size: 0.68rem; color: #6b6257; flex: 0 0 auto; padding-top: 8px;
+    }
+    .say-scope input { width: 18px; height: 18px; margin: 0; }
 
     /* ── Guest parity: pause the agent, add a source ─────────────────────────── */
     .agent-row {
@@ -630,6 +635,13 @@
          preferring to write. Sent to the agent, which puts it back on the wire as a caption —
          so it reaches everyone in the language they are reading, exactly like speech. -->
     <div class="say-row">
+      <!-- Checked by default: the ordinary case is speaking to the room, and the box is
+           what lets this become a private line to the interpreter alone instead — an
+           instruction or a question nobody else in the Salon needs to see. -->
+      <label class="say-scope">
+        <input type="checkbox" id="say-salon" checked>
+        <span data-i18n="saySalonLabel">Salon</span>
+      </label>
       <textarea id="say-text" rows="2" maxlength="800"
                 data-i18n-ph="sayPlaceholder"
                 placeholder="Write to the room and to Vocaliz…"></textarea>
@@ -791,6 +803,7 @@
       capAsSpoken: 'As spoken',
       sayPlaceholder: 'Write to the room and to Vocaliz…',
       sayButton: 'Send',
+      saySalonLabel: 'Salon',
       saySent: 'Sent. It will appear above, translated for each reader.',
       sayFailed: 'Could not send. Your message is still in the box.',
       sayNoRoom: 'Not in the Salon.',
@@ -888,6 +901,7 @@
       capAsSpoken: 'Tel que dit',
       sayPlaceholder: 'Écrire au Salon et à Vocaliz…',
       sayButton: 'Envoyer',
+      saySalonLabel: 'Salon',
       saySent: 'Envoyé. Le message apparaîtra ci-dessus, traduit pour chaque lecteur.',
       sayFailed: 'Envoi impossible. Votre message est resté dans la boîte.',
       sayNoRoom: 'Pas dans le Salon.',
@@ -1169,10 +1183,16 @@
     if (!room) { setSayHint('sayNoRoom', false); return; }
 
     var button = document.getElementById('btn-say');
+    var salonBox = document.getElementById('say-salon');
+    // Checked means the room; unchecked keeps it between this human and their own
+    // interpreter — read by the agent, never reported to the journal for anyone else.
+    var toSalon = !salonBox || salonBox.checked;
     button.disabled = true;
     try {
       await room.localParticipant.publishData(
-        new TextEncoder().encode(JSON.stringify({ action: 'text_message', text: text })),
+        new TextEncoder().encode(
+          JSON.stringify({ action: 'text_message', text: text, salon: toSalon })
+        ),
         { reliable: true }
       );
       box.value = '';

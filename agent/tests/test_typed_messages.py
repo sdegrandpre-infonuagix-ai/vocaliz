@@ -44,7 +44,16 @@ def _code(block: str) -> str:
 def test_a_typed_message_is_reported_to_the_journal():
     handler = _handler()
     assert "journal_link.report(text)" in handler
-    assert "if follow_journal and journal_link is not None:" in handler
+    assert "if broadcast_to_salon and follow_journal and journal_link is not None:" in handler
+
+
+def test_the_checkbox_can_keep_a_line_from_the_journal():
+    """Unchecked on the page means private to this human's own interpreter. Defaulted to
+    True when the field is absent — an older client, or anything else that never sends it —
+    the same direction every other field read from outside code already fails in."""
+    handler = _handler()
+    assert 'msg.get("salon", True)' in handler
+    assert "if broadcast_to_salon and follow_journal and journal_link is not None:" in handler
 
 
 def test_the_report_happens_before_any_branch_decides_how_to_answer():

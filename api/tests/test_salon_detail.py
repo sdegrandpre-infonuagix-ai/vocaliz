@@ -115,6 +115,24 @@ def test_get_salon_reports_the_chosen_voice(client, host, salon_with_content, db
     assert resp.json()["agentVoice"] == "orion"
 
 
+def test_get_salon_reports_the_hosts_chosen_tier(client, host, salon_with_content, db):
+    salon_with_content.host_tier = "Mode C"
+    db.commit()
+    resp = client.get(
+        f"/salons/{salon_with_content.id}",
+        headers={"Authorization": f"Bearer {host[1]}"},
+    )
+    assert resp.json()["hostTier"] == "Mode C"
+
+
+def test_get_salon_defaults_the_tier_to_base(client, host, salon_with_content):
+    resp = client.get(
+        f"/salons/{salon_with_content.id}",
+        headers={"Authorization": f"Bearer {host[1]}"},
+    )
+    assert resp.json()["hostTier"] == "Base"
+
+
 def test_get_salon_defaults_the_voice_to_ara(client, host, salon_with_content):
     """Null on the row, not the literal string — so a Salon that never touched this
     setting stays visibly distinct from one that chose "ara" on purpose. The default is

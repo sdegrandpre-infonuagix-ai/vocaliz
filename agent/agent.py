@@ -1283,6 +1283,7 @@ async def entrypoint(ctx: agents.JobContext):
     host_identity = ""
     forced_language = "auto"
     chosen_voice = "ara"
+    host_tier = "Base"
     front_desk = False
 
     if salon_id and api_url and host_token:
@@ -1309,6 +1310,11 @@ async def entrypoint(ctx: agents.JobContext):
             # Salon spoke in before there was a choice, so it is also what an older API or a
             # Salon that never touched the setting answers with.
             chosen_voice = str(detail.get("agentVoice") or "ara")
+            # The host's own tier — Base when nothing was chosen. Used below to pick the
+            # model quality Mode B and Mode C are actually selling; everything before this
+            # ran every tier on the same model, so "the most attentive interpreter" and
+            # "Base" were the same interpreter with a different price tag.
+            host_tier = str(detail.get("hostTier") or "Base")
             front_desk = bool(detail.get("frontDesk"))
 
     # The key is passed explicitly rather than left to the plugin's env lookup: the job
@@ -1321,27 +1327,34 @@ async def entrypoint(ctx: agents.JobContext):
         xai_key[-4:] if xai_key else "ABSENT",
     )
 
+    # Pinned, not aliased. An alias means the model can change under a running product
+    # without a deploy, and a voice, a latency and a price changing on their own is a
+    # behaviour change nobody can attribute afterwards: was it the new model, or was it one
+    # of today's twenty edits?
+    #
+    # 1.0 for Base and Mode A, and the reason is the price. 2.0 is $0.08/min — $4.80/h —
+    # against a Mode A sold at $5/h. That leaves twenty cents to pay for LiveKit, the
+    # orchestrator, Stripe and the pivot translation, so the tier loses money on every second
+    # it runs. 1.0 is $0.05/min, $3.00/h, and the same tier clears about $1.30/h. The trade is
+    # voice quality on the two ad-supported tiers.
+    #
+    # 2.0 for Mode B and Mode C: both have the margin for it, and both sell being better than
+    # Base and Mode A as the entire reason to cost more. Before this, every tier ran on 1.0 —
+    # "the most attentive interpreter" and Base were the same interpreter with a different
+    # price tag, which is exactly the gap a host testing Mode C against Base could hear.
+    xai_model = (
+        "grok-voice-think-fast-2.0"
+        if host_tier in ("Mode B", "Mode C")
+        else "grok-voice-think-fast-1.0"
+    )
+
     agent_session = AgentSession(
-        # Pinned, not aliased. An alias means the model can change under a running product
-        # without a deploy, and a voice, a latency and a price changing on their own is a
-        # behaviour change nobody can attribute afterwards: was it the new model, or was it
-        # one of today's twenty edits?
-        #
-        # 1.0 rather than 2.0, and the reason is the price. 2.0 is $0.08/min — $4.80/h —
-        # against a Mode A sold at $5/h. That leaves twenty cents to pay for LiveKit, the
-        # orchestrator, Stripe and the pivot translation, so the tier loses money on every
-        # second it runs. 1.0 is $0.05/min, $3.00/h, and the same tier clears about $1.30/h.
-        # The trade is voice quality on the ad-supported tier.
-        #
-        # Not a permanent verdict: once the interpreter port lands, the adapter can differ
-        # per tier and Mode B — which has the margin for it — goes back to 2.0.
-        #
         # Voice ids are lowercase — "Ara" is not a valid identifier. Chosen by the host at
         # creation and read from the job detail above; "ara" — what every Salon spoke in
         # before there was a choice — is what an older Salon or a bad value falls back to,
         # since a typo here must not fail the job over a voice nobody would notice was wrong.
         llm=xai.realtime.RealtimeModel(
-            model="grok-voice-think-fast-1.0", voice=chosen_voice, api_key=xai_key or None
+            model=xai_model, voice=chosen_voice, api_key=xai_key or None
         ),
         vad=silero.VAD.load(),
         # The multilingual turn detector that used to sit here never actually ran: it
@@ -1538,6 +1551,13 @@ async def entrypoint(ctx: agents.JobContext):
                 return
             sender = getattr(getattr(packet, "participant", None), "identity", "") or ""
 
+            # The checkbox beside the box: checked reaches the room, unchecked keeps this
+            # between the one human here and their own interpreter. Defaulted to True for a
+            # message with no such field — an older client, or the API relaying somebody
+            # else's plain data — which is the same direction "not present" already fails in
+            # for `agentMuted`, `follow_journal` and everything else read from outside code.
+            broadcast_to_salon = bool(msg.get("salon", True))
+
             # Reported to the journal exactly as a spoken turn would be (see
             # `_report_to_the_journal` below), and for the same reason: under the
             # per-participant topology this room holds only the one human who typed this, so
@@ -1545,7 +1565,7 @@ async def entrypoint(ctx: agents.JobContext):
             # learns of it only through the journal — this used to be unnecessary, when a
             # shared room meant publishing here already reached them directly, and stayed
             # unnecessary in the code after the topology that made it so had already changed.
-            if follow_journal and journal_link is not None:
+            if broadcast_to_salon and follow_journal and journal_link is not None:
                 asyncio.create_task(journal_link.report(text))
 
             # The typed line is spoken aloud, word for word, in the agent's voice — not

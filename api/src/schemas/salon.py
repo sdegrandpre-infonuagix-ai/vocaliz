@@ -84,6 +84,10 @@ class SalonDetailResponse(BaseModel):
     # Which xAI voice the interpreter speaks in. Read at start-up like agentLanguage; "ara" is
     # what every Salon had before a host could choose, so it stays the default here too.
     agentVoice: str = "ara"
+    # The host's own tier — Base when nothing was chosen, the same floor `host_tier` null
+    # means everywhere else. Read at start-up so the agent can pick the model quality the
+    # tier is actually selling (FR69's "premium" tiers), not just charge for it.
+    hostTier: str = "Base"
     # True when this Salon was opened by somebody ringing the front page.
     #
     # Computed from who owns it rather than stored: a column would have to be written at

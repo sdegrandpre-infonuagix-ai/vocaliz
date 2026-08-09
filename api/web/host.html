@@ -269,6 +269,12 @@
        appear — a composer placed away from the conversation reads as a separate channel, and
        this is the same one. */
     .say-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; }
+    .say-scope {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      font-size: 0.68rem; color: #6b6257; text-transform: none; letter-spacing: normal;
+      margin: 0; flex: 0 0 auto; padding-top: 8px;
+    }
+    .say-scope input { width: 18px; height: 18px; margin: 0; }
     .say-row textarea {
       flex: 1; min-width: 0; resize: vertical;
       font-family: inherit; font-size: 0.92rem; line-height: 1.45;
@@ -605,6 +611,13 @@
            It reaches a participant who joined by telephone and can read nothing, and it is
            the only way to say something in a room where speaking is not possible. -->
       <div class="say-row">
+        <!-- Checked by default: the ordinary case is speaking to the room, and the box is
+             what lets this become a private line to the interpreter alone instead — an
+             instruction or a question nobody else in the Salon needs to see. -->
+        <label class="say-scope">
+          <input type="checkbox" id="say-salon" checked>
+          <span data-i18n="saySalonLabel">Salon</span>
+        </label>
         <textarea id="say-text" rows="2" maxlength="800"
                   data-i18n-ph="sayPlaceholder"
                   placeholder="Write to the room and to Vocaliz…"></textarea>
@@ -738,6 +751,7 @@
         codeSent: 'Code sent to {email}.',
         sayPlaceholder: 'Write here and Vocaliz says it out loud…',
         sayButton: 'Send',
+        saySalonLabel: 'Salon',
         saySent: 'Vocaliz is saying it, word for word.',
         sayFailed: 'Could not send. Your message is still in the box.',
         sayNoRoom: 'Not in the Salon.',
@@ -877,6 +891,7 @@
         codeSent: 'Code envoyé à {email}.',
         sayPlaceholder: 'Écrivez ici et Vocaliz le dira à voix haute…',
         sayButton: 'Envoyer',
+        saySalonLabel: 'Salon',
         saySent: 'Vocaliz le dit, mot pour mot.',
         sayFailed: 'Envoi impossible. Votre message est resté dans la boîte.',
         sayNoRoom: 'Pas dans le Salon.',
@@ -1934,10 +1949,16 @@
       if (!room) { setSayHint('sayNoRoom', false); return; }
 
       var button = document.getElementById('btn-say');
+      var salonBox = document.getElementById('say-salon');
+      // Checked means the room; unchecked keeps it between this human and their own
+      // interpreter — read by the agent, never reported to the journal for anyone else.
+      var toSalon = !salonBox || salonBox.checked;
       button.disabled = true;
       try {
         await room.localParticipant.publishData(
-          new TextEncoder().encode(JSON.stringify({ action: 'text_message', text: text })),
+          new TextEncoder().encode(
+            JSON.stringify({ action: 'text_message', text: text, salon: toSalon })
+          ),
           { reliable: true }
         );
         box.value = '';

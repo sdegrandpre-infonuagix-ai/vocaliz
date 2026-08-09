@@ -89,16 +89,41 @@ def test_nothing_still_waits_on_an_invitation():
     assert not hasattr(salon, "INVITATION_OPENING_SECONDS")
 
 
-# ─── The voice model is pinned, not aliased ───────────────────────────────────
+# ─── The voice model is pinned per tier, never aliased ────────────────────────
 
 def test_the_voice_model_is_named_explicitly():
     """An alias lets the model change under a running product without a deploy, and a voice, a
     latency and a price moving on their own is a behaviour change nobody can attribute
-    afterwards. 1.0 rather than 2.0 because $0.08/min against a $5/h tier is a loss on every
-    second; $0.05/min is not."""
+    afterwards."""
     source = inspect.getsource(salon.entrypoint)
-    assert 'model="grok-voice-think-fast-1.0"' in source
-    # The assignment, not the bare word: the comment above the call names the alternative to
-    # explain why it was not taken. Sixth time today a test has quoted its own reasoning.
+    assert '"grok-voice-think-fast-1.0"' in source
+    assert '"grok-voice-think-fast-2.0"' in source
     assert 'model="grok-voice-latest"' not in source
-    assert 'model="grok-voice-think-fast-2.0"' not in source
+    assert 'model=xai_model' in source
+
+
+def test_base_and_mode_a_run_on_the_cheaper_model():
+    """$0.08/min against a $5/h Mode A is a loss on every second the model runs; $0.05/min is
+    not. Base has no natural-voice claim to fund the difference at all."""
+    source = inspect.getsource(salon.entrypoint)
+    block = source[source.index("xai_model = (") :]
+    block = block[: block.index("agent_session = AgentSession(")]
+    assert '"grok-voice-think-fast-1.0"' in block
+    assert 'else' in block
+
+
+def test_mode_b_and_mode_c_run_on_the_better_model():
+    """Both sell being better than Base and Mode A as the entire reason to cost more — before
+    this, every tier ran on the same model, which is exactly the gap a host testing Mode C
+    against Base could hear and report as "not working"."""
+    source = inspect.getsource(salon.entrypoint)
+    block = source[source.index("xai_model = (") :]
+    block = block[: block.index("agent_session = AgentSession(")]
+    assert '"Mode B", "Mode C"' in block
+    assert '"grok-voice-think-fast-2.0"' in block
+
+
+def test_the_tier_comes_from_the_salon_not_a_guess():
+    source = inspect.getsource(salon.entrypoint)
+    assert 'host_tier = "Base"' in source
+    assert 'detail.get("hostTier")' in source
