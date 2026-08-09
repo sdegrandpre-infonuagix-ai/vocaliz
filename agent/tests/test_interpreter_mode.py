@@ -17,6 +17,7 @@ is the wrong topology but a working one.
 still the first voice a participant hears in their room — the one-shot introduction is what
 keeps that from reading as a broken connection.
 """
+import inspect
 import os
 import sys
 
@@ -138,6 +139,16 @@ def test_the_facilitation_prompt_uses_the_same_fixed_welcome_instead_of_improvis
     assert salon._WELCOME_MESSAGE in no_source
     assert "Greet them warmly" not in with_source
     assert "Greet participants" not in no_source
+
+
+def test_the_arrival_opening_does_not_fire_a_second_welcome_under_follow_journal():
+    """A participant reported hearing two welcomes: `_speak_the_opening` improvising its own
+    account of what Vocaliz and a Salon are, immediately followed by the canonical one from
+    `_follow_the_journal`'s own one-shot intro once the orchestrator link confirmed. Under
+    this topology the journal's intro is the only opening there is."""
+    source = inspect.getsource(salon.entrypoint)
+
+    assert "if not starts_paused and not follow_journal:" in source
 
 
 def test_the_one_shot_intro_does_not_invite_a_reply():

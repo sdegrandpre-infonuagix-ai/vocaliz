@@ -70,9 +70,13 @@ def test_an_unpaused_salon_opens_on_arrival():
     wait for. Waiting would be silence the host cannot end.
 
     The paused default was tried for an afternoon and reversed; pausing survives as a control
-    rather than a starting gate."""
+    rather than a starting gate.
+
+    Also gated on `not follow_journal` since Story 11.1: `_speak_the_opening` improvises its
+    own account of what Vocaliz and a Salon are, which produced a doubled welcome once the
+    per-participant topology added its own canonical, non-improvised one."""
     source = _entrypoint()
-    assert "if not starts_paused:" in source
+    assert "if not starts_paused and not follow_journal:" in source
     assert "opening.schedule(0)" in source
 
 

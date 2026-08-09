@@ -1449,9 +1449,16 @@ async def entrypoint(ctx: agents.JobContext):
     # Speech before it lands stands it down — see src/opening.py for why that produces no
     # reply of its own.
     opening = OpeningGate(_speak_the_opening, label=f"salon {salon_id}")
-    if not starts_paused:
+    if not starts_paused and not follow_journal:
         # Opens on arrival. A Salon starts with its agent listening, so there is no button
         # coming and nothing to wait for — waiting would be silence the host cannot end.
+        #
+        # Skipped under `follow_journal`: `_speak_the_opening` improvises its own account of
+        # what Vocaliz and a Salon are, and firing it here produced exactly the doubled
+        # welcome a participant reported hearing — this one first, then the canonical,
+        # non-improvised welcome a moment later from `_follow_the_journal`'s own one-shot
+        # intro once the orchestrator link confirms. Under this topology that intro is the
+        # only opening there is.
         opening.schedule(0)
 
 
