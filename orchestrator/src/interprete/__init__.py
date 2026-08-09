@@ -4,7 +4,9 @@
 orchestrator never names any of them — see `test_interprete_port.py`, which fails the build
 if a provider SDK ever appears under `src/`.
 """
+from src.interprete.base import InterpreteBase, LanguageModel, SpeechToText, TextToSpeech
 from src.interprete.fake import InterpreteFake
+from src.interprete.languages import base_language, offered_languages
 from src.interprete.port import (
     Annonce,
     FallbackVoice,
@@ -25,13 +27,19 @@ __all__ = [
     "FallbackVoice",
     "Interprete",
     "InterpreteError",
+    "InterpreteBase",
     "InterpreteFake",
     "InterpreteS2S",
     "Participant",
     "ProviderUnavailable",
     "RealtimeSession",
+    "LanguageModel",
+    "SpeechToText",
+    "TextToSpeech",
     "Tour",
     "UnsupportedLanguage",
     "Utterance",
+    "base_language",
     "notice_for",
+    "offered_languages",
 ]

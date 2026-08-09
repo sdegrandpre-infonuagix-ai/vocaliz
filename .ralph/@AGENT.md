@@ -53,7 +53,9 @@ docker build -t salon-orchestrator .
 
 `src/interprete/` holds the Interpreter port (`ingest`, `render`, `insert_annonce`,
 `condense`) and its adapters — `InterpreteS2S` over a realtime audio↔audio session,
-`InterpreteFake` for deterministic tests. No provider SDK is importable under `src/`, and
+`InterpreteBase` over a transcribe-render-synthesise chain, `InterpreteFake` for
+deterministic tests. `offered_languages` takes the intersection of what the adapters speak,
+never their union — a language only one tier handles would vanish on an upgrade. No provider SDK is importable under `src/`, and
 `tests/test_interprete_port.py` fails the build if one appears. New adapters are added to
 the `ADAPTERS` list in that file, which runs the whole contract against them.
 

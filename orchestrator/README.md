@@ -41,7 +41,7 @@ is allowed to know about one. Four verbs: `ingest`, `render`, `insert_annonce`, 
 |---------|-----------|
 | `InterpreteS2S` | A realtime audio↔audio session. The human speaks, the model answers in voice; no text step inside the room, and a turn in another language is handed over whole for the model to render and speak in one movement. |
 | `InterpreteFake` | A queue. Deterministic, in memory, no socket — what Story 7.2 verifies condensation against. |
-| `InterpreteBase` | Story 6.7: STT + LLM + TTS, same contract, no change to the orchestrator. |
+| `InterpreteBase` | Transcribe, render, synthesise. Three collaborators and a text step between them, so it can fail in three places the other cannot. Cheaper, a little slower, and answered in a synthetic voice — which is the whole of what the tier gives up. |
 
 No provider SDK is imported anywhere under `src/` — `test_interprete_port.py` fails the
 build if one ever is. The realtime session is supplied by whatever hosts the adapter (the
@@ -118,6 +118,21 @@ those are persisted, because an instance taking the Salon over has to know it is
 through somebody's sentence. `Salon.announce` holds an announcement back while a listener
 is mid-run and says it at the seam's end: an announcement dropped between two halves of a
 sentence is worse than the same announcement a second later.
+
+## Which languages are offered
+
+`offered_languages` takes the **intersection** of what the adapters speak, never their
+union. Speech-to-speech is the most restrictive, so speech-to-speech decides.
+
+The rule is commercial before it is technical. A language only the Base stack handles would
+work perfectly until the customer upgraded, and would then vanish — at the exact moment
+they started paying more. Refusing it up front costs a language nobody had yet; offering it
+costs a customer, at the worst possible moment. The corollary is what makes tiers usable at
+all: the offer is a subset of every adapter, so changing tier — mid-Salon or between Salons
+— never changes what somebody can be spoken to in.
+
+The orchestrator is never told which tier anybody is on. That is not an omission: `Salon`
+has no parameter that could carry the answer, and `test_mixed_tiers.py` asserts it.
 
 ## Who speaks when
 

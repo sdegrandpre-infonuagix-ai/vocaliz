@@ -1,9 +1,9 @@
 """The Interpreter port, and the contract every adapter owes it.
 
-The tests below run against every implementation there is. That is the whole purpose of a
-port: `InterpreteFake` and `InterpreteS2S` answer the same questions the same way, and
-Story 6.7 will add `InterpreteBase` to the list without a line changing in the
-orchestrator.
+The tests below run against every implementation there is, which is the whole purpose of a
+port: `InterpreteFake`, `InterpreteS2S` and `InterpreteBase` answer the same questions the
+same way. Story 6.7 added the third to the list, and not one line of the orchestrator moved
+to accommodate it — that was its acceptance criterion, and this file is where it is met.
 """
 import inspect
 from pathlib import Path
@@ -19,7 +19,7 @@ from src.interprete import (
     Tour,
     UnsupportedLanguage,
 )
-from tests.harness import FakeHarness, S2SHarness
+from tests.harness import BaseHarness, FakeHarness, S2SHarness
 
 MARIE = Participant(id="marie", language="fr", name="Marie")
 
@@ -28,9 +28,11 @@ TOURS = [
     Tour(participant_id="hans", text="Wie geht es dir?", language="de", sequence=2),
 ]
 
-# Every adapter of the port. Adding one here is how Story 6.7 proves `InterpreteBase`
-# satisfies exactly the same contract as the speech-to-speech adapter.
-ADAPTERS = pytest.mark.parametrize("harness_class", [FakeHarness, S2SHarness], ids=["fake", "s2s"])
+# Every adapter of the port. Adding one here is the whole of what it costs to prove a new
+# one satisfies the same contract as the others.
+ADAPTERS = pytest.mark.parametrize(
+    "harness_class", [FakeHarness, S2SHarness, BaseHarness], ids=["fake", "s2s", "base"]
+)
 
 
 @pytest.fixture

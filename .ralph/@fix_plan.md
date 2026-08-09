@@ -52,12 +52,7 @@
 - [x] Story 6.4: Une Room LiveKit par Participant
 - [x] Story 6.5: Découpage des Interventions à 500 Caractères
 - [x] Story 6.6: Restitution Premier Arrivé Premier Servi
-  > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** `utterances.sequence` est un entier monotone assigné à l'insertion, unique par Salon (`uq_utterances_salon_sequence`).
-  > C'est **exactement** l'ordre d'arrivée que FR44 demande.
-  > Salon n'a d'ailleurs jamais eu de mécanisme d'attribution de parole à supprimer.
-  > AC: Given plusieurs participants parlent, When leurs messages sont ajoutés au journal, Then ils sont restitués strictement dans l'ordre du journal, qui est l'ordre d'arrivée — aucune structure d'ordonnancement supplémentaire n'est nécessaire, And Given un participant souhaite parler, When il commence, Then aucun tour, aucune demande de parole et aucune attribution par l'agent n'est requis (supprime FR9), And Given deux messages arrivent au même instant, When l'ordre doit être départagé, Then l'horodatage d'arrivée à l'orchestrateur fait foi, de façon déterministe et reproductible
-  > Spec: specs/planning-artifacts/epics.md#story-6-6
-- [ ] Story 6.7: Adaptateur Base en Transcription et Synthèse
+- [x] Story 6.7: Adaptateur Base en Transcription et Synthèse
   > As a utilisateur du mode Base
   > I want participer pleinement avec une voix synthétique
   > So that je puisse utiliser Salon au tarif le plus bas.
