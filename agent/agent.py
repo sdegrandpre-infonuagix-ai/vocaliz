@@ -1763,19 +1763,55 @@ async def entrypoint(ctx: agents.JobContext):
     following_task: asyncio.Task | None = None
     stop_following = asyncio.Event()
 
-    # This dispatch was made for one specific human — `participant_id`, from the API — not
-    # for whoever happens to be in the room when this line runs. Matched by identity rather
-    # than inferred from a head count: a job can start before its human's browser has
-    # finished connecting, and a room briefly empty is not evidence that nobody is coming.
-    listener = None
-    if participant_id:
-        for _ in range(20):  # ~5s at the interval below, generous next to a browser's connect
-            listener = ctx.room.remote_participants.get(participant_id)
-            if listener is not None:
-                break
-            await asyncio.sleep(0.25)
+    async def _await_listener() -> "rtc.RemoteParticipant | None":
+        """Wait for the one human this job was dispatched for — however long that takes.
 
-    if follow_journal and orchestrator_url and salon_id and listener is not None:
+        The fixed five-second wait this replaced was measured against a job starting cold,
+        not against a human granting their browser microphone access. A guest who takes a
+        moment on that prompt was already connecting; the old loop simply stopped looking
+        before they finished, and nothing ever looked again — this Salon then ran with one
+        interpreter silently never on the journal, for the rest of the conversation.
+
+        Event-driven rather than a longer poll: a participant already present when this
+        runs is returned immediately, and one who connects later is caught by the room's
+        own "participant_connected" event instead of guessed at on an interval.
+        """
+        existing = ctx.room.remote_participants.get(participant_id)
+        if existing is not None:
+            return existing
+
+        found: asyncio.Future = asyncio.get_event_loop().create_future()
+
+        def _on_connected(participant) -> None:
+            if participant.identity == participant_id and not found.done():
+                found.set_result(participant)
+
+        ctx.room.on("participant_connected", _on_connected)
+        try:
+            # Bounded loosely, and only against the pathological case: a dispatch for a
+            # human who never opens the link at all. The agent already occupies this room,
+            # so LiveKit's own empty-room timeout does not apply — nothing else would ever
+            # stop this from waiting forever.
+            return await asyncio.wait_for(found, timeout=600)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "participant %s never joined room for salon %s; giving up on the journal",
+                participant_id,
+                salon_id,
+            )
+            return None
+        finally:
+            ctx.room.off("participant_connected", _on_connected)
+
+    async def _follow_the_journal() -> None:
+        """The whole journal setup, run once the human this job is for has actually
+        connected — never blocking the rest of `entrypoint`, which has its own setup (the
+        heartbeat, the disconnect handler) to get on with regardless of how long this takes.
+        """
+        listener = await _await_listener()
+        if listener is None:
+            return
+
         listener_language = forced_language if forced_language != "auto" else "en"
         link = OrchestratorLink(
             base_url=orchestrator_url,
@@ -1805,22 +1841,31 @@ async def entrypoint(ctx: agents.JobContext):
                 link.report(event.transcript, language=getattr(event, "language", None))
             )
 
+        nonlocal following_task
         following_task = asyncio.create_task(
             follow(link, SessionVoice(agent_session), stop=stop_following)
         )
         logger.info("Following the journal for %s in salon %s", participant_id, salon_id)
+
+    awaiting_journal_task: asyncio.Task | None = None
+    if follow_journal and orchestrator_url and salon_id and participant_id:
+        awaiting_journal_task = asyncio.create_task(_follow_the_journal())
     elif follow_journal and orchestrator_url and salon_id:
         # Said out loud in the log rather than left as silence. A worker that was told to
-        # follow a journal and quietly did not is the hardest kind of failure to notice — in
-        # this case, because the human it was dispatched for never actually connected.
+        # follow a journal and quietly did not is the hardest kind of failure to notice.
         logger.warning(
-            "Not following the journal for salon %s: participant %s never joined this room",
+            "Not following the journal for salon %s: dispatch carried no participant_id",
             salon_id,
-            participant_id,
         )
 
     async def _stop_following() -> None:
         stop_following.set()
+        # Two tasks, not one, and the first can still be waiting on a human who never
+        # connects. Cancelling it directly is what stops that wait outliving the job it
+        # belongs to; `following_task` inside it may not even exist yet at this point.
+        if awaiting_journal_task is not None:
+            awaiting_journal_task.cancel()
+            await asyncio.gather(awaiting_journal_task, return_exceptions=True)
         if following_task is not None:
             await asyncio.gather(following_task, return_exceptions=True)
 
