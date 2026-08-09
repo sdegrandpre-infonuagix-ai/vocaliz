@@ -34,6 +34,27 @@ def _code(block: str) -> str:
     )
 
 
+# ─── Reaching the other rooms ──────────────────────────────────────────────────
+#
+# Under the per-participant topology a room holds exactly one human. Speaking or
+# captioning a typed line only ever reached that one room — publishing here used to reach
+# everybody, back when a room held the whole Salon, and the code was never updated once
+# that stopped being true. The journal is what makes it reach anyone else now.
+
+def test_a_typed_message_is_reported_to_the_journal():
+    handler = _handler()
+    assert "journal_link.report(text)" in handler
+    assert "if follow_journal and journal_link is not None:" in handler
+
+
+def test_the_report_happens_before_any_branch_decides_how_to_answer():
+    """Reported once, regardless of whether this room's own agent goes on to lend its
+    voice, answer, or stay silent for a pause — all three still owe every other room the
+    line itself."""
+    handler = _handler()
+    assert handler.index("journal_link.report(text)") < handler.index("speaks_aloud = ")
+
+
 # ─── Who may lend the agent its voice ─────────────────────────────────────────
 
 def test_only_the_host_is_relayed_in_their_own_words():

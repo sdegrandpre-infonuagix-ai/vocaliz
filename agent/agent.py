@@ -1538,6 +1538,16 @@ async def entrypoint(ctx: agents.JobContext):
                 return
             sender = getattr(getattr(packet, "participant", None), "identity", "") or ""
 
+            # Reported to the journal exactly as a spoken turn would be (see
+            # `_report_to_the_journal` below), and for the same reason: under the
+            # per-participant topology this room holds only the one human who typed this, so
+            # speaking or captioning it here reaches nobody else. Everyone else's own agent
+            # learns of it only through the journal — this used to be unnecessary, when a
+            # shared room meant publishing here already reached them directly, and stayed
+            # unnecessary in the code after the topology that made it so had already changed.
+            if follow_journal and journal_link is not None:
+                asyncio.create_task(journal_link.report(text))
+
             # The typed line is spoken aloud, word for word, in the agent's voice — not
             # handed to the model as something to respond to. Whoever wrote it is borrowing
             # the voice, and a paraphrase would be the agent saying something they did not
@@ -1822,6 +1832,10 @@ async def entrypoint(ctx: agents.JobContext):
     orchestrator_url = f"{api_url}/orchestrator" if api_url else ""
     following_task: asyncio.Task | None = None
     stop_following = asyncio.Event()
+    # Set once the journal link is confirmed, in `_follow_the_journal` below. `_on_data` closes
+    # over this by name — it is defined above where this is still None, and reads whatever this
+    # holds by the time a typed message actually arrives, which is always after start-up.
+    journal_link: OrchestratorLink | None = None
 
     async def _await_listener() -> "rtc.RemoteParticipant | None":
         """Wait for the one human this job was dispatched for — however long that takes.
@@ -1902,6 +1916,8 @@ async def entrypoint(ctx: agents.JobContext):
                 return
 
             salon_agent._journal_linked = True
+            nonlocal journal_link
+            journal_link = link
 
             # The one thing this agent says on its own initiative, said once. A model told to
             # stay silent unless instructed is still the first voice this person hears in
