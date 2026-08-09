@@ -91,12 +91,15 @@ async def test_joining_twice_does_not_make_a_second_room(salon, rooms):
     assert salon.participants == ("marie",)
 
 
-async def test_somebody_joining_late_hears_only_what_follows(salon):
-    """Story 6.10 is where a host may decide otherwise; the default is the head."""
+async def test_a_host_who_refuses_the_history_starts_somebody_at_the_head(salon):
+    """Story 6.10 turned the default the other way round — saying nothing now grants the
+    history — so keeping somebody out of it is a decision the host has to make."""
+    from src.salon import HistoryAccess
+
     await _join(salon, MARIE)
     await salon.ingest(MARIE.id, "Bonjour", language="fr")
 
-    await _join(salon, HANS)
+    await _join(salon, HANS, history=HistoryAccess.REFUSED)
 
     assert salon.pending_for(HANS.id) == ()
 

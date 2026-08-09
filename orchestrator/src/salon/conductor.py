@@ -18,8 +18,10 @@ from dataclasses import dataclass, field, field
 
 from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
 from src.journal import MAX_MESSAGE_CHARACTERS, JournalEntry, SalonLog
+from src.salon.history import HistoryAccess, grants_history
 from src.salon.notices import (
     already_here,
+    history_shared_with,
     introduces,
     microphone_cut,
     microphone_restored,
@@ -72,6 +74,7 @@ class Salon:
         rooms: RoomProvisioner,
         max_message_characters: int = MAX_MESSAGE_CHARACTERS,
         host_id: str | None = None,
+        condensation_threshold_seconds: float = 120.0,
     ) -> None:
         self.log = log
         self._rooms = rooms
@@ -79,6 +82,7 @@ class Salon:
         # Who may cut a microphone. None means nobody can, which is the right default for a
         # Salon whose host has not been declared: the alternative is everybody.
         self._host_id = host_id
+        self._condensation_threshold = condensation_threshold_seconds
         self._seats: dict[str, Seat] = {}
         # The language each participant was first heard in. Written once and never revised,
         # like `salon_events.first_spoken_language`: somebody switching language mid-Salon
@@ -126,6 +130,7 @@ class Salon:
         interpreter: Interprete,
         *,
         from_start: bool = False,
+        history: HistoryAccess = HistoryAccess.UNSPECIFIED,
     ) -> Room:
         """Give a participant a room, an interpreter and a position in the journal.
 
@@ -133,6 +138,12 @@ class Salon:
         exists is returned rather than a second room opened — a room nobody accounts for is
         a room nobody closes, and rooms are billed by the minute.
         """
+        # The host's decision, taken in the same breath as the invitation. Saying nothing
+        # falls to `DEFAULT_HISTORY_FOR_ARRIVALS`, which grants it: somebody invited into a
+        # conversation is being invited into what it has been about. `from_start` stays the
+        # low-level knob underneath, and forcing it on still works.
+        from_start = from_start or grants_history(history)
+
         existing = self._seats.get(participant.id)
         if existing is not None:
             return existing.room
@@ -150,6 +161,8 @@ class Salon:
         await self.log.checkpoint()
 
         await self._say_who_is_here(self._seats[participant.id])
+        if from_start:
+            await self._say_the_history_was_shared(participant)
         return room
 
     async def leave(self, participant_id: str) -> None:
@@ -293,6 +306,9 @@ class Salon:
         if seat is None:
             return
 
+        if await self._condense_if_far_behind(seat):
+            return
+
         await self._render(seat, self.log.pending(participant_id))
 
     async def deliver_upto(self, participant_id: str, sequence: int) -> None:
@@ -308,6 +324,40 @@ class Salon:
 
         pending = self.log.pending(participant_id)
         await self._render(seat, tuple(e for e in pending if e.sequence <= sequence))
+
+    async def _condense_if_far_behind(self, seat: Seat) -> bool:
+        """Say the backlog in substance rather than replaying it, when there is too much.
+
+        Whether to condense is decided by volume and by nothing else. Granting somebody the
+        history and summarising it are two separate decisions (Story 6.10): a Salon two
+        minutes old is replayed in full however it was granted, and a listener who has
+        fallen twenty minutes behind is summarised however they got there.
+
+        Returns whether it condensed. Nothing arriving afterwards is a special case — the
+        next delivery weighs the same threshold against whatever has accumulated since.
+        """
+        participant_id = seat.participant.id
+        pending = self.log.pending(participant_id)
+        if not pending:
+            return False
+        if self.log.lag_seconds(participant_id) <= self._condensation_threshold:
+            return False
+
+        # Everybody covered counts as introduced: they were named in the summary, and
+        # introducing them again with their next sentence would be introducing them twice.
+        for entry in pending:
+            seat.introduced.add(entry.participant_id)
+
+        try:
+            await seat.interpreter.condense([_as_tour(entry) for entry in pending])
+        except InterpreteError:
+            # Their adapter has told them out loud (NFR3). The position does not move, so
+            # the backlog is still theirs to catch up on.
+            return True
+
+        await self.log.advance(participant_id, pending[-1].sequence)
+        await self._say_held(seat)
+        return True
 
     async def _render(self, seat: Seat, entries: tuple[JournalEntry, ...]) -> None:
         participant_id = seat.participant.id
@@ -433,6 +483,30 @@ class Salon:
                 language=seat.participant.language,
             ),
         )
+
+    async def _say_the_history_was_shared(self, arrival: Participant) -> None:
+        """Tell everybody already here that the arrival will hear what they said.
+
+        Nothing when the journal is empty: granting access to nothing discloses nothing, and
+        saying so would worry people about a disclosure that did not happen.
+
+        There is no way to take this back, so the only honest moment to say it is now.
+        """
+        if not self.log.entries:
+            return
+
+        for seat in self._ordered_seats():
+            if seat.participant.id == arrival.id:
+                continue
+
+            language = seat.participant.language
+            await self.announce(
+                seat.participant.id,
+                Annonce(
+                    text=history_shared_with(arrival.name, told_in=language),
+                    language=language,
+                ),
+            )
 
     def _ordered_seats(self) -> tuple[Seat, ...]:
         """Seats in a fixed order, so a Salon behaves the same way twice."""

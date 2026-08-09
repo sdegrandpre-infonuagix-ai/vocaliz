@@ -193,3 +193,26 @@ def already_here(people, *, told_in: str) -> str | None:
             for name, language in people
         )
     )
+
+
+# ── Giving a late arrival the history (Story 6.10) ────────────────────────────
+
+_HISTORY_SHARED = {
+    "fr": "{name} vient d'arriver et va entendre ce qui s'est dit avant.",
+    "en": "{name} has just joined and will hear what was said earlier.",
+    "es": "{name} acaba de llegar y oirá lo que se dijo antes.",
+    "de": "{name} ist gerade dazugekommen und hört, was vorher gesagt wurde.",
+    "pt": "{name} acabou de entrar e vai ouvir o que foi dito antes.",
+    "it": "{name} è appena arrivato e sentirà quanto è stato detto prima.",
+    "cy": "Mae {name} newydd gyrraedd a bydd yn clywed yr hyn a ddywedwyd yn gynharach.",
+}
+
+
+def history_shared_with(name: str | None, *, told_in: str) -> str:
+    """Told to everybody already here when an arrival is given the history.
+
+    What they said before this person existed to them is about to be said to that person.
+    Nobody should find that out afterwards, and there is no way to take it back — so the
+    only honest moment to say it is now.
+    """
+    return _in(_HISTORY_SHARED, told_in).format(name=display_name(name, told_in=told_in))

@@ -88,6 +88,11 @@ just before that person's first message — `notices.py` holds the copy, per lan
 newcomer is told who has already spoken; nobody silent is mentioned, and a telephone number
 is never used as a name.
 
+`Salon.join(..., history=)` (Story 6.10) takes the host's decision — `history_from_invitation`
+parses it from the spoken invitation; saying nothing grants it. Above
+`condensation_threshold_seconds` a backlog is condensed rather than replayed, and everybody
+already present is told when an arrival is given the history.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

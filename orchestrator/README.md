@@ -201,6 +201,35 @@ Names come from the participant, and there is a neutral designation when there i
 That is the ordinary case for a telephone participant (FR57), and precisely the case where
 the obvious fallback would be to read out their number.
 
+## Giving a late arrival the history
+
+Three decisions, and they are genuinely separate.
+
+**Whether** somebody gets it is the host's, taken in the same breath as the invitation —
+"invite Marie, with the history" or "without". `history_from_invitation` reads it out of
+what was actually said, in whichever language the host said it in. Refusals are matched
+before grants, and that ordering is the whole subtlety: "sans l'historique" contains
+"l'historique", so the other order would turn every refusal into permission.
+
+Saying nothing is **not** a refusal. It falls to `DEFAULT_HISTORY_FOR_ARRIVALS`, which
+grants: somebody invited into a conversation is being invited into what it has been about,
+and a host who wants otherwise says so. This reversed the Story 6.4 default.
+
+**Where** that puts their position needs no mechanism of its own — zero or the head, and
+the ordinary rules do the rest.
+
+**Whether it is replayed or summarised** is decided by volume and nothing else. Below
+`condensation_threshold_seconds` the backlog is replayed message by message; above it, the
+interval is said in substance. A Salon two minutes old is replayed in full however it was
+granted; a listener twenty minutes behind is summarised however they got there. Anything
+arriving during the catch-up is no special case — the next delivery weighs the same
+threshold against whatever has accumulated since.
+
+Everybody already in the room is told when an arrival is granted the history. What they
+said before this person existed to them is about to be said to that person, there is no
+taking it back, and the only honest moment to say so is before it happens. Nothing is said
+when the journal is empty: granting access to nothing discloses nothing.
+
 ## Which languages are offered
 
 `offered_languages` takes the **intersection** of what the adapters speak, never their
