@@ -119,7 +119,11 @@ def test_add_payment_method_requires_auth(client):
     assert resp.status_code == 401
 
 
-# ─── Salon creation gating ─────────────────────────────────────────────────
+# ─── Salon creation, since the trial-hour gate was retired ────────────────────
+#
+# FR51 replaces FR19: there is no stored-payment-method gate any more, because there is no
+# post-paid hour left to gate. These pin that retirement rather than delete the coverage —
+# a gate that quietly came back here would block hosts with no error pointing at why.
 
 @pytest.fixture
 def exhausted_host(db):
@@ -130,24 +134,12 @@ def exhausted_host(db):
     return u, issue_token(str(u.id))
 
 
-def test_create_salon_blocked_when_trial_exhausted_and_no_payment_method(client, exhausted_host):
-    """POST /salons returns 402 when trial is exhausted and no payment method exists."""
+def test_create_salon_is_not_blocked_by_an_exhausted_trial_or_a_missing_payment_method(
+    client, exhausted_host
+):
+    """The exact account that used to get a 402 here — trial-exhausted, no card on file —
+    now succeeds, because the check it used to fail no longer exists."""
     _, token = exhausted_host
-
-    resp = client.post(
-        "/salons",
-        data={"source_url": "https://example.com/article"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert resp.status_code == 402
-    assert "trial" in resp.json()["detail"].lower() or "payment" in resp.json()["detail"].lower()
-
-
-def test_create_salon_allowed_when_trial_exhausted_with_payment_method(client, db, exhausted_host):
-    """POST /salons succeeds when trial is exhausted but a payment method exists."""
-    host_user, token = exhausted_host
-    host_user.stripe_payment_method_id = "pm_existing_method"
-    db.commit()
 
     with (
         patch(
@@ -168,7 +160,8 @@ def test_create_salon_allowed_when_trial_exhausted_with_payment_method(client, d
 
 
 def test_create_salon_allowed_when_trial_not_exhausted(client, host):
-    """POST /salons is not gated when trial has remaining time."""
+    """POST /salons is not gated when trial has remaining time either — the same absence
+    of a gate, from the side that always passed."""
     _, token = host
 
     with (

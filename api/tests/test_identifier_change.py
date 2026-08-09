@@ -384,7 +384,10 @@ def test_no_gift_is_granted_across_the_whole_chain(db, person):
         db.commit()
 
     assert balance(db, person.id).gifted_cents == WELCOME_CREDIT_CENTS
-    assert db.query(BurnedIdentifier).count() == 3
+    # Four: the address and the number this person signed up with, plus the two identifiers
+    # the changes moved them onto. Every one burned exactly once, and the balance above is
+    # what proves no second gift came of any of it.
+    assert db.query(BurnedIdentifier).count() == 4
 
 
 def test_a_normalised_identifier_is_what_gets_stored(db, person):

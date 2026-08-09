@@ -1,8 +1,8 @@
 """Signing up with an address, a number, or both (FR27 replaced).
 
 The point of the story is not the form. It is that the identifier becomes the **key** to the
-ten-minute lifetime quota, so the quota cannot be reset by making a new Salon, taking a
-different role, or signing up again with the same address typed differently.
+welcome credit (FR51), so it cannot be reset by making a new Salon, taking a different role,
+or signing up again with the same address typed differently.
 
 Which makes normalisation load-bearing rather than tidy. `Marie@Example.COM ` and
 `marie@example.com` are one person, and a key that treated them as two would hand out a second
@@ -17,16 +17,15 @@ import uuid
 
 import pytest
 
+from src.credit import WELCOME_CREDIT_CENTS, balance
 from src.models.participant_identifier import ParticipantIdentifier
 from src.models.user import User
 from src.signup import (
-    LIFETIME_QUOTA_SECONDS,
     InvalidRegistration,
     find_by_identifier,
     identifiers_of,
     normalise_email,
     normalise_phone,
-    quota_remaining_seconds,
     register,
 )
 
@@ -179,71 +178,37 @@ def test_an_unknown_identifier_belongs_to_nobody(db):
     assert find_by_identifier(db, "nobody@example.com") is None
 
 
-# ── The quota the identifier keys ─────────────────────────────────────────────
+# ── What the identifier is keyed to now ───────────────────────────────────────
+#
+# This used to be a ten-minute quota, keyed the same way. Retired 2026-08-09: three free
+# allowances coexisted in this codebase and none was wired to the live path, which was the
+# moment to settle it rather than reconcile them later. The welcome credit stays; this
+# quota and the inherited host trial go. What the identifier keys now is the credit below.
 
 
-def test_the_lifetime_quota_is_ten_minutes():
-    assert LIFETIME_QUOTA_SECONDS == 600
-
-
-def test_a_new_person_has_the_whole_quota(db):
+def test_registering_grants_the_welcome_credit(db):
     person = register(db, email="marie@example.com")
 
-    assert quota_remaining_seconds(db, person) == LIFETIME_QUOTA_SECONDS
+    assert balance(db, person.id).gifted_cents == WELCOME_CREDIT_CENTS
 
 
-def test_what_has_been_used_comes_off_it(db):
-    person = register(db, email="marie@example.com")
-    person.trial_seconds_used = 200
-    db.flush()
+def test_signing_up_again_does_not_grant_it_twice(db):
+    """The obvious attempt. The identifier is what was burned, so the second signup finds
+    the first person and nothing is granted a second time."""
+    first = register(db, email="marie@example.com")
+    register(db, email="marie@example.com")
 
-    assert quota_remaining_seconds(db, person) == 400
-
-
-def test_the_quota_never_goes_negative(db):
-    """Somebody may overrun the last few seconds of it. A negative remainder would read as a
-    debt, and this is an allowance rather than a balance."""
-    person = register(db, email="marie@example.com")
-    person.trial_seconds_used = LIFETIME_QUOTA_SECONDS + 90
-    db.flush()
-
-    assert quota_remaining_seconds(db, person) == 0
-
-
-def test_a_new_salon_does_not_reset_it(db):
-    """The acceptance criterion, stated as the attack it refuses. The quota is keyed to the
-    identifier and not to a Salon, so there is nothing about making another one that could
-    return any of it."""
-    person = register(db, email="marie@example.com")
-    person.trial_seconds_used = 550
-    db.flush()
-
-    returning = register(db, email="marie@example.com")
-
-    assert quota_remaining_seconds(db, returning) == 50
-
-
-def test_the_remainder_is_found_by_the_other_identifier_too(db):
-    """Whatever their role. Hosting under an address and being invited on a number are the
-    same person spending the same allowance."""
-    person = register(db, email="marie@example.com", phone="+15145550123")
-    person.trial_seconds_used = 550
-    db.flush()
-
-    as_a_guest = register(db, phone="+15145550123")
-
-    assert quota_remaining_seconds(db, as_a_guest) == 50
-
-
-def test_signing_up_again_never_returns_any_of_it(db):
-    """Recreating the account is the obvious attempt. The identifier is what is spent, so
-    the second signup finds the first person rather than making a second."""
-    person = register(db, email="marie@example.com")
-    person.trial_seconds_used = LIFETIME_QUOTA_SECONDS
-    db.flush()
-
-    assert quota_remaining_seconds(db, register(db, email="marie@example.com")) == 0
+    assert balance(db, first.id).gifted_cents == WELCOME_CREDIT_CENTS
     assert db.query(User).count() == 1
+
+
+def test_a_second_identifier_on_the_same_person_grants_nothing_further(db):
+    """Hosting under an address and being invited on a number are the same person. A second
+    identifier added to somebody already granted is not a second chance at the gift."""
+    person = register(db, email="marie@example.com")
+    register(db, email="marie@example.com", phone="+15145550123")
+
+    assert balance(db, person.id).gifted_cents == WELCOME_CREDIT_CENTS
 
 
 # ── The registry itself ───────────────────────────────────────────────────────

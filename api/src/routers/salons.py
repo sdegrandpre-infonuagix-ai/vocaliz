@@ -139,18 +139,12 @@ async def create_salon(
     GET /me/partners) to auto-invite that partner in the same call, so the new salon
     starts with the partner already identified — no separate invitation step needed.
     """
-    # Trial gate: trial exhausted + no payment method → require Stripe setup before continuing
-    if (
-        current_user.trial_seconds_used >= settings.free_trial_limit_seconds
-        and not current_user.stripe_payment_method_id
-    ):
-        raise HTTPException(
-            status_code=402,
-            detail=(
-                "Your free trial hour is used up. "
-                "Please add a payment method to continue."
-            ),
-        )
+    # The free-trial-hour gate that used to live here is retired (FR51 replaces FR19):
+    # billing is prepaid now, off the welcome credit signup grants, not a stored payment
+    # method checked against a post-paid hour. No balance gate has taken its place yet —
+    # that arrives with the per-Salon metering tick this cuts over to next, which is also
+    # what will let somebody who has spent their credit actually top up. Until then,
+    # creation is ungated: nothing here can charge anybody past what metering later finds.
 
     # 0. A host may never have two salons open at once. A stale salon keeps its agent
     # alive and talking, so a new room could surface the previous agent instead of its own

@@ -359,10 +359,18 @@ def test_erasure_never_restores_the_welcome_credit(db, person):
     assert again.refused_because
 
 
-def test_an_identifier_never_burned_is_unaffected(db, person):
+def test_an_identifier_never_burned_is_unaffected(db):
     """Nothing is invented. Erasing somebody who never had a credit must not make one look
-    as though it had been given."""
-    erase(db, person, verified=True, now=NOW)
+    as though it had been given.
+
+    Built directly rather than through `register`, which grants the welcome credit and
+    therefore burns as it goes. Accounts that predate that — and any made another way — are
+    the ones this has to be true of."""
+    untouched = User(id=uuid.uuid4(), email="untouched@example.com")
+    db.add(untouched)
+    db.flush()
+
+    erase(db, untouched, verified=True, now=NOW)
     db.flush()
 
     assert db.query(BurnedIdentifier).count() == 0

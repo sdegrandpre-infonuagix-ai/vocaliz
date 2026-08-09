@@ -1,42 +1,38 @@
 """Signing up with an address, a number, or both (Story 10.1, replacing FR27).
 
 An identifier is required, and that requirement is the story. Anonymous access left nothing to
-key an allowance to: somebody who used up their free minutes could have them back by arriving
+key an allowance to: somebody who spent their welcome credit could have it back by arriving
 again as a stranger, and no amount of accounting downstream could notice.
 
-So the identifier is what the ten-minute lifetime quota belongs to. Not the account, which
-anybody can make again; not the Salon, which anybody can recreate; not the role, which the
-same person changes between hosting and being invited. Registering with an identifier that has
-been seen before returns the person it belongs to, with whatever they have left.
+So the identifier is what the welcome credit (FR51) belongs to. Not the account, which anybody
+can make again; not the Salon, which anybody can recreate; not the role, which the same person
+changes between hosting and being invited. Registering with an identifier that has been seen
+before returns the person it belongs to, credit already settled or not.
 
 Which makes normalisation load-bearing rather than tidy. `Marie@Example.COM` and
 `marie@example.com` are one person, and a key that treated them as two would hand a second
-lifetime allowance to anybody who pressed shift. Numbers are worse, since every form of
-punctuation in them is optional.
+grant to anybody who pressed shift. Numbers are worse, since every form of punctuation in
+them is optional.
 
 **What this does not do.** It resolves and keys; it does not merge. Two identifiers already
-belonging to two different people are refused rather than joined: combining two allowances is a
+belonging to two different people are refused rather than joined: combining two accounts is a
 decision nobody has made, and picking one silently would discard the other's history.
+
+This used to also key a ten-minute lifetime quota, alongside the inherited host trial
+(`free_trial_limit_seconds`, an hour). Three free allowances coexisted here and none was wired
+to the live path — retired 2026-08-09, before any of them could be. The welcome credit is the
+one that stayed.
 """
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from src.credit import grant_welcome_credit
 from src.models.participant_identifier import ParticipantIdentifier
 from src.models.user import User
-
-# Ten minutes, for a lifetime, per identifier. A number here rather than in `config.py` for
-# the same reason the Salon's parameters are not there: this is a product decision, not a
-# deployment one.
-#
-# It sits beside the welcome credit of Story 8.2 (500 cents, about a hundred minutes at Base)
-# and the inherited host trial (`free_trial_limit_seconds`, an hour). Three free allowances is
-# two too many, and reconciling them is a product decision rather than a refactor — none of
-# the three is wired to the live path yet, which is the moment to settle it.
-LIFETIME_QUOTA_SECONDS = 600
 
 
 class InvalidRegistration(ValueError):
@@ -116,12 +112,14 @@ def register(
     phone: str | None = None,
     now: datetime | None = None,
 ) -> User:
-    """Find the person these identifiers belong to, or make them, and key both to them.
+    """Find the person these identifiers belong to, or make them, key both to them, and grant
+    the welcome credit (FR51) unless one of these identifiers already had it.
 
     Returning rather than creating is the whole mechanism: a second signup with an identifier
-    already spent is the same person with what they have left, which is what makes the quota
-    survive a new account, a new Salon and a change of role.
+    already used is the same person, which is what makes the credit un-grantable a second
+    time by the same route that grants it the first.
     """
+    now = now or datetime.now(timezone.utc)
     wanted = identifiers_of(email=email, phone=phone)
 
     found = {}
@@ -169,14 +167,13 @@ def register(
                 )
             )
     db.flush()
-    return person
 
-
-def quota_remaining_seconds(db: Session, person: User) -> int:
-    """What is left of the ten minutes, never below zero.
-
-    Never negative: somebody may overrun the last few seconds of an allowance, and a negative
-    remainder would read as a debt. This is an allowance, not a balance.
-    """
+    # Refused rather than raised when it was already given: register() is called on every
+    # sign-in, not only the first, and a returning person is not a failed signup.
+    grant_welcome_credit(db, subject_id=person.id, identifiers=wanted, now=now)
+    # Flushed like everything else here, and for the reason `credit.debit` gives: the grant
+    # is an unflushed insert until something sends it, so a caller reading the balance back
+    # on a session with autoflush off would be told the credit was never given.
     db.flush()
-    return max(0, LIFETIME_QUOTA_SECONDS - (person.trial_seconds_used or 0))
+
+    return person
