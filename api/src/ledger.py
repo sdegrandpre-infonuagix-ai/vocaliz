@@ -13,12 +13,23 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy.orm import Session
 
 from src.models.ledger_event import LedgerEvent
+
+
+def as_utc(moment: datetime) -> datetime:
+    """Put the timezone back on a timestamp that lost it in the database.
+
+    Postgres keeps it; SQLite has no timezone type and hands back a naive value. Attaching
+    UTC is not a guess — every writer here stamps an aware instant — but leaving it naive
+    would be, and comparing a naive timestamp to an aware one raises rather than being
+    quietly wrong. Which is the only reason this has a name instead of being forgotten.
+    """
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
 
 
 class EventType(Enum):
@@ -30,6 +41,10 @@ class EventType(Enum):
     REFUNDED = "refunded"
     EXPIRED = "expired"
     ABANDONED = "abandoned"
+    # Operational rather than financial: the person was told their credit is about to
+    # lapse. In the same stream because "was he warned?" is a question a dispute asks,
+    # and a second log of it would be the two-log mistake again.
+    EXPIRY_WARNED = "expiry_warned"
     # A compensating event. Never a rewrite: it points at what it corrects and both survive.
     CORRECTED = "corrected"
 
@@ -101,7 +116,7 @@ def _events_for(
     query = db.query(LedgerEvent).filter(LedgerEvent.subject_id == subject_id)
     if kinds:
         query = query.filter(LedgerEvent.type.in_([kind.value for kind in kinds]))
-    return sorted(query.all(), key=lambda row: (row.occurred_at, str(row.id)))
+    return sorted(query.all(), key=lambda row: (as_utc(row.occurred_at), str(row.id)))
 
 
 @dataclass(frozen=True)

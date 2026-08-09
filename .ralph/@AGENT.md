@@ -131,6 +131,26 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+### API — the welcome credit (Story 8.2 / FR67)
+
+`api/src/credit.py` + `api/src/models/burned_identifier.py`. 5 USD once per *identifier*, not
+per account: a gift given per account is given as often as somebody makes accounts. Every
+address and number supplied at signup is checked against `burned_identifiers`, and on a grant
+all of them are burned — including ones never used to authenticate. A refusal burns nothing
+new. The registry has no FK to users and no expiry column, both deliberately: it must survive
+account deletion and outlive the credit's own 30-day lapse.
+
+Balances are folds over the 8.1 stream, never stored totals — `gifted` and `paid` kept apart
+so a refund is answerable, gifted spent first so the money actually paid stays intact longest,
+and a debit spanning both written as two movements. Expiry is grant + 2 592 000 s to the
+second. The warning fires inside the last 7 days, once, never when the balance is already
+empty, and states what the money buys per tier rather than a bare date. Labels are canonical
+English, translated at rendering like every other participant-facing string.
+
+**Not done in 8.2:** `users.trial_seconds_used` still exists and still drives the old
+time-based trial across 10 source files. The new model is complete beside it; the cutover is
+its own change.
+
 ### API — the accounting event stream (Story 8.1 / NFR7)
 
 `api/src/models/ledger_event.py` + `api/src/ledger.py`. One append-only stream, `ledger_events`,
