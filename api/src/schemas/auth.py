@@ -10,6 +10,11 @@ def _normalize_email(v: str) -> str:
 
 class OtpRequestBody(BaseModel):
     email: EmailStr
+    # Required to create an account, ignored when signing in to one — and optional here
+    # because this one request is both. The rule is enforced in `otp.send_otp`, which is the
+    # only place that can tell the two apart: an address nobody has seen before is somebody
+    # signing up, and an address already on file is somebody coming back.
+    name: str | None = None
 
     @field_validator("email")
     @classmethod

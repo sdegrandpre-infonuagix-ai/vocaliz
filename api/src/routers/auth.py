@@ -23,16 +23,37 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/otp/request", response_model=OtpRequestResponse, status_code=202)
 @limiter.limit("5/minute")
 def request_otp(request: Request, body: OtpRequestBody, db: DbSession = Depends(get_db)):
-    """Email an OTP to the given address via AWS SES."""
-    otp_service.send_otp(body.email, db)
+    """Email an OTP to the given address via AWS SES.
+
+    422 when a new address arrives with no name, which is the status a missing required
+    field deserves — the client asks for one and sends the request again, where a 400 would
+    read as "this address is wrong".
+    """
+    try:
+        otp_service.send_otp(body.email, db, name=body.name)
+    except otp_service.MissingName as missing:
+        raise HTTPException(
+            status_code=422, detail="A name is required to create an account."
+        ) from missing
     return OtpRequestResponse(message="Code sent.")
 
 
 @router.post("/otp/resend", response_model=OtpRequestResponse, status_code=202)
 @limiter.limit("5/minute")
 def resend_otp(request: Request, body: OtpRequestBody, db: DbSession = Depends(get_db)):
-    """Resend a fresh OTP (rate-limited to 5/minute per IP)."""
-    otp_service.send_otp(body.email, db)
+    """Resend a fresh OTP (rate-limited to 5/minute per IP).
+
+    Carries the name too. A resend normally follows a request that already created the
+    account, so there is nothing to supply — but a first request that failed leaves nothing
+    on file, and refusing the retry for want of a field the client is holding would strand
+    somebody at the second step of signing up.
+    """
+    try:
+        otp_service.send_otp(body.email, db, name=body.name)
+    except otp_service.MissingName as missing:
+        raise HTTPException(
+            status_code=422, detail="A name is required to create an account."
+        ) from missing
     return OtpRequestResponse(message="New code sent.")
 
 

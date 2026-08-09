@@ -217,6 +217,28 @@ def guest_display_name(invitation_id) -> str:
     return f"Guest {str(invitation_id).replace('-', '')[:GUEST_LABEL_CHARS].upper()}"
 
 
+def display_name_of(user) -> str:
+    """The name other participants see for somebody signed in.
+
+    The name they gave when they created their account, which is required for exactly this
+    reason: a listener in headphones is told "Marie says…" before what Marie said, because
+    they have no screen and no second voice to ask.
+
+    This replaced `user.email`, and that was not a matter of taste. Joining a conversation
+    published your address to everybody in it — a leak nobody chose, in exchange for a poor
+    thing to be called by. `guest_display_name` above had said so about guests since it was
+    written; the host was the one case still doing it.
+
+    Falls back to the same opaque shape when there is no name — a guest registered from an
+    invitation was never asked for one. Derived from the identity and never from the address,
+    so the absence of a name cannot reintroduce the leak by another route.
+    """
+    given = (getattr(user, "display_name", None) or "").strip()
+    if given:
+        return given
+    return f"Guest {str(user.id).replace('-', '')[:GUEST_LABEL_CHARS].upper()}"
+
+
 async def notify_room(
     room_name: str, message: dict, *, identities: list[str] | None = None
 ) -> None:

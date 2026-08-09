@@ -34,16 +34,23 @@ type Props = {
 
 export default function EmailScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const { sendOtp, isLoading, error } = useAuth();
   const { t } = useLanguage();
 
   // Deliberately loose: the API validates properly, this only gates the button.
   const normalized = email.trim().toLowerCase();
-  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalized);
+  const trimmedName = name.trim();
+  // The name gates the button alongside the address. A required field the API enforces and
+  // the screen does not would show somebody a 422 for a question nobody asked them.
+  const isValid =
+    /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalized) && trimmedName.length > 0;
 
   async function handleSend() {
     if (!isValid) return;
-    await sendOtp(normalized);
+    // Sent whether this is a first sign-up or a return. The client cannot tell which, and
+    // the API ignores it for an address already on file.
+    await sendOtp(normalized, trimmedName);
     // Navigate on success (error state handled by AuthContext)
     if (!error) {
       navigation.navigate('Otp', { email: normalized });
@@ -82,6 +89,26 @@ export default function EmailScreen({ navigation }: Props) {
           {t.email.subtitle}
         </Text>
 
+        {/* ── Name input ──
+            First, and required. This is what the others in a Salon are told somebody is
+            called: a listener in headphones is told "Marie says…" before what Marie said,
+            because they have no screen and no second voice to ask. It used to be the email
+            address, which published it to everybody in the room. */}
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder={t.email.namePlaceholder}
+          placeholderTextColor={colors.muted}
+          textContentType="name"
+          autoComplete="name"
+          autoCapitalize="words"
+          accessibilityLabel={t.email.nameLabel}
+          accessibilityHint={t.email.nameHint}
+          autoFocus
+          maxLength={60}
+        />
+
         {/* ── Email input ── */}
         <TextInput
           style={[styles.input, error ? styles.inputError : null]}
@@ -96,7 +123,6 @@ export default function EmailScreen({ navigation }: Props) {
           autoCorrect={false}
           accessibilityLabel={t.email.inputLabel}
           accessibilityHint={t.email.inputHint}
-          autoFocus
           maxLength={254}
         />
 

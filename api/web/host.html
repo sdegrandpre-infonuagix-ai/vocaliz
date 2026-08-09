@@ -387,6 +387,13 @@
     <div id="c-login" class="card">
       <div class="card-title" data-i18n="loginTitle">Sign in</div>
       <div class="card-sub" data-i18n="loginSub">The verification code is sent to you by email.</div>
+      <!-- Required, and first. This is what the others in a Salon are told you are called:
+           each of them hears "Marie says..." before what Marie said, because a listener in
+           headphones has no screen and no second voice to ask. It used to be the email
+           address, which published it to everybody in the room. -->
+      <label for="name" data-i18n="nameLabel">Your name</label>
+      <input type="text" id="name" placeholder="Your name" data-i18n-ph="namePh"
+             autocomplete="name" maxlength="60">
       <label for="email" data-i18n="emailLabel">Email address</label>
       <input type="email" id="email" placeholder="you@example.com" data-i18n-ph="emailPh" autocomplete="email">
       <button class="btn btn-primary" id="btn-otp" onclick="requestOtp()" data-i18n="otpButton">Send me a code</button>
@@ -593,6 +600,9 @@
         badge: 'Host console',
         loginTitle: 'Sign in',
         loginSub: 'The verification code is sent to you by email.',
+        nameLabel: 'Your name',
+        namePh: 'Your name',
+        nameRequired: 'Please enter your name — it is what the others hear when you speak.',
         emailLabel: 'Email address',
         emailPh: 'you@example.com',
         otpButton: 'Send me a code',
@@ -717,6 +727,9 @@
         badge: 'Console hôte',
         loginTitle: 'Connexion',
         loginSub: 'Le code de vérification est envoyé par courriel.',
+        nameLabel: 'Votre nom',
+        namePh: 'Votre nom',
+        nameRequired: "Entrez votre nom — c'est ce que les autres entendent quand vous parlez.",
         emailLabel: 'Adresse courriel',
         emailPh: 'vous@exemple.com',
         otpButton: 'Recevoir mon code',
@@ -1097,11 +1110,17 @@
     // ── Authentication ────────────────────────────────────────────────────────
     async function requestOtp() {
       var email = document.getElementById('email').value.trim().toLowerCase();
+      var name = document.getElementById('name').value.trim();
+      // Refused here rather than by a 422, so the message names the field somebody left
+      // blank instead of reporting that their address was rejected.
+      if (!name) { setStatus('login-status', 'nameRequired', false); return; }
       try {
         await api('/auth/otp/request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email })
+          // Sent whether this is a first sign-up or a return: the page cannot tell which,
+          // and the API ignores it for an address already on file.
+          body: JSON.stringify({ email: email, name: name })
         });
         show('login-otp', true);
         setStatus('login-status', 'codeSent', true, { email: email });

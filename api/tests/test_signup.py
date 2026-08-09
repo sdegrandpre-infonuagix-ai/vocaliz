@@ -250,7 +250,7 @@ def test_asking_for_a_sign_in_code_registers_the_identifier(db, monkeypatch):
     from src.services import otp
 
     monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
-    otp.send_otp("Marie@Example.COM", db)
+    otp.send_otp("Marie@Example.COM", db, name="Marie")
 
     assert find_by_identifier(db, "marie@example.com") is not None
     assert db.query(User).filter(User.email == "marie@example.com").count() == 1
@@ -262,7 +262,7 @@ def test_a_code_requested_in_one_case_is_confirmed_in_another(db, monkeypatch):
     from src.services import otp
 
     monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
-    otp.send_otp("marie@example.com", db)
+    otp.send_otp("marie@example.com", db, name="Marie")
     code = db.query(User).filter(User.email == "marie@example.com").one().otp_code
 
     confirmed = otp.verify_otp("MARIE@Example.com", code, db)
@@ -276,8 +276,8 @@ def test_two_spellings_do_not_become_two_accounts(db, monkeypatch):
     from src.services import otp
 
     monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
-    otp.send_otp("marie@example.com", db)
-    otp.send_otp("Marie@Example.COM ", db)
+    otp.send_otp("marie@example.com", db, name="Marie")
+    otp.send_otp("Marie@Example.COM ", db, name="Marie")
 
     assert db.query(User).count() == 1
 
@@ -291,3 +291,94 @@ def test_the_registry_is_not_the_burned_credit_registry(db):
     assert ParticipantIdentifier.__tablename__ != BurnedIdentifier.__tablename__
     assert ParticipantIdentifier.__table__.c.user_id.foreign_keys != set()
     assert BurnedIdentifier.__table__.c.granted_to.foreign_keys == set()
+
+
+# ── A name, required to create an account and never to sign in ────────────────
+#
+# The rule exists for one reason, and it is not tidiness: a listener in headphones is told
+# "Marie says…" before what Marie said, because they have no screen and no second voice to
+# ask. An account with no name would be introduced as nothing, in every conversation, for
+# as long as it existed.
+
+
+def test_creating_an_account_without_a_name_is_refused(db, monkeypatch):
+    from src.services import otp
+
+    monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
+
+    with pytest.raises(otp.MissingName):
+        otp.send_otp("stranger@example.com", db)
+
+    assert db.query(User).filter(User.email == "stranger@example.com").count() == 0
+
+
+def test_a_blank_name_is_not_a_name(db, monkeypatch):
+    """Whitespace is what a client sends when the field was shown and left alone."""
+    from src.services import otp
+
+    monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
+
+    with pytest.raises(otp.MissingName):
+        otp.send_otp("stranger@example.com", db, name="   ")
+
+
+def test_signing_in_again_needs_no_name(db, monkeypatch):
+    """Signing up and signing in are the same request, so the distinction has to be drawn on
+    whether the address is known. Demanding the name again to let somebody back in would be
+    a lock rather than a form."""
+    from src.services import otp
+
+    monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
+    otp.send_otp("marie@example.com", db, name="Marie")
+
+    otp.send_otp("marie@example.com", db)
+
+    assert db.query(User).filter(User.email == "marie@example.com").one().display_name == "Marie"
+
+
+def test_signing_in_never_clears_the_name(db, monkeypatch):
+    """`register` runs on every sign-in. A call that omits the name is not a request to
+    become anonymous, and a blank name would be read out loud as nothing at all."""
+    from src.services import otp
+
+    monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
+    otp.send_otp("marie@example.com", db, name="Marie")
+
+    register(db, email="marie@example.com")
+
+    assert db.query(User).filter(User.email == "marie@example.com").one().display_name == "Marie"
+
+
+def test_a_guest_registered_from_an_invitation_has_no_name_yet(db):
+    """The second path that creates accounts, where nobody was asked anything. Null rather
+    than a placeholder: a placeholder looks like an answer, and null says plainly that this
+    person has not been asked."""
+    person = register(db, email="guest@example.com")
+
+    assert person.display_name is None
+
+
+def test_a_guest_gets_their_name_the_first_time_they_sign_up_properly(db, monkeypatch):
+    from src.services import otp
+
+    monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
+    register(db, email="guest@example.com")
+
+    otp.send_otp("guest@example.com", db, name="Rhys")
+
+    assert db.query(User).filter(User.email == "guest@example.com").one().display_name == "Rhys"
+
+
+def test_a_name_is_never_the_email_address(db, monkeypatch):
+    """What this replaced. A host's LiveKit token carried their email as their display name,
+    so joining a conversation published their address to everybody in it."""
+    from src.services import livekit_service, otp
+
+    monkeypatch.setattr(otp, "_send_email", lambda *args, **kwargs: None)
+    otp.send_otp("marie@example.com", db, name="Marie")
+    person = db.query(User).filter(User.email == "marie@example.com").one()
+
+    assert livekit_service.display_name_of(person) == "Marie"
+
+    person.display_name = None
+    assert "@" not in livekit_service.display_name_of(person)

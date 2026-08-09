@@ -19,7 +19,7 @@ def _user(db, email=EMAIL):
 @patch("src.services.otp._send_email")
 def test_request_otp_creates_user(mock_email, client):
     """First OTP request for a new address creates a User row."""
-    response = client.post("/auth/otp/request", json={"email": EMAIL})
+    response = client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
     assert response.status_code == 202
     assert response.json()["message"] == "Code sent."
     mock_email.assert_called_once()
@@ -28,10 +28,10 @@ def test_request_otp_creates_user(mock_email, client):
 @patch("src.services.otp._send_email")
 def test_request_otp_reuses_existing_user(mock_email, client, db):
     """Second OTP request refreshes the code on an existing User row."""
-    client.post("/auth/otp/request", json={"email": EMAIL})
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
     code_before = _user(db).otp_code
 
-    client.post("/auth/otp/request", json={"email": EMAIL})
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
     db.expire_all()
 
     assert _user(db).otp_code != code_before
@@ -41,15 +41,15 @@ def test_request_otp_reuses_existing_user(mock_email, client, db):
 @patch("src.services.otp._send_email")
 def test_request_otp_is_case_insensitive(mock_email, client, db):
     """Address casing must not create a second account."""
-    first = client.post("/auth/otp/request", json={"email": "  Seb@Example.COM "})
-    second = client.post("/auth/otp/request", json={"email": "seb@example.com"})
+    first = client.post("/auth/otp/request", json={"email": "  Seb@Example.COM ", "name": "Seb"})
+    second = client.post("/auth/otp/request", json={"email": "seb@example.com", "name": "Seb"})
     assert (first.status_code, second.status_code) == (202, 202)
     assert db.query(User).count() == 1
     assert _user(db) is not None
 
 
 def test_request_otp_invalid_email(client):
-    response = client.post("/auth/otp/request", json={"email": "not-an-email"})
+    response = client.post("/auth/otp/request", json={"email": "not-an-email", "name": "Seb"})
     assert response.status_code == 422
 
 
@@ -64,7 +64,7 @@ def test_request_otp_rejects_phone_number(client):
 @patch("src.services.otp._send_email")
 def test_verify_otp_success_returns_jwt(mock_email, client, db):
     """Valid OTP returns a JWT and userId."""
-    client.post("/auth/otp/request", json={"email": EMAIL})
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
     code = _user(db).otp_code
 
     response = client.post("/auth/otp/verify", json={"email": EMAIL, "code": code})
@@ -76,7 +76,7 @@ def test_verify_otp_success_returns_jwt(mock_email, client, db):
 
 @patch("src.services.otp._send_email")
 def test_verify_otp_wrong_code_returns_400(mock_email, client, db):
-    client.post("/auth/otp/request", json={"email": EMAIL})
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
 
     response = client.post("/auth/otp/verify", json={"email": EMAIL, "code": "000000"})
     assert response.status_code == 400
@@ -84,7 +84,7 @@ def test_verify_otp_wrong_code_returns_400(mock_email, client, db):
 
 @patch("src.services.otp._send_email")
 def test_verify_otp_expired_returns_400(mock_email, client, db):
-    client.post("/auth/otp/request", json={"email": EMAIL})
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
 
     user = _user(db)
     user.otp_expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
@@ -106,7 +106,7 @@ def test_verify_otp_no_pending_code_returns_400(mock_email, client):
 @patch("src.services.otp._send_email")
 def test_verify_otp_clears_code_after_success(mock_email, client, db):
     """OTP code is cleared from DB after successful verification."""
-    client.post("/auth/otp/request", json={"email": EMAIL})
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
     code = _user(db).otp_code
 
     client.post("/auth/otp/verify", json={"email": EMAIL, "code": code})
@@ -119,7 +119,7 @@ def test_verify_otp_clears_code_after_success(mock_email, client, db):
 @patch("src.services.otp._send_email")
 def test_signup_leaves_phone_number_unset(mock_email, client, db):
     """Email is the identifier; a phone number is not collected at sign-in."""
-    client.post("/auth/otp/request", json={"email": EMAIL})
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
     user = _user(db)
     assert user.email == EMAIL
     assert user.phone_number is None
@@ -131,7 +131,7 @@ def test_signup_leaves_phone_number_unset(mock_email, client, db):
 def test_dev_mode_logs_code_instead_of_emailing(mock_boto, client, db, caplog):
     """With DEV_MODE on, no SES client is built and the code reaches the log."""
     with patch.object(settings, "dev_mode", True), caplog.at_level(logging.WARNING):
-        response = client.post("/auth/otp/request", json={"email": EMAIL})
+        response = client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
 
     assert response.status_code == 202
     mock_boto.assert_not_called()
@@ -142,7 +142,7 @@ def test_dev_mode_logs_code_instead_of_emailing(mock_boto, client, db, caplog):
 def test_dev_mode_off_sends_through_ses(mock_boto, client):
     """The bypass is opt-in: with DEV_MODE off the SES path is used."""
     with patch.object(settings, "dev_mode", False):
-        response = client.post("/auth/otp/request", json={"email": EMAIL})
+        response = client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
 
     assert response.status_code == 202
     mock_boto.assert_called_once_with("sesv2", region_name=settings.aws_region)
@@ -155,7 +155,7 @@ def test_dev_mode_off_sends_through_ses(mock_boto, client):
 def test_dev_mode_code_still_verifies_normally(mock_boto, client, db):
     """A DEV_MODE-issued code goes through the same verification path."""
     with patch.object(settings, "dev_mode", True):
-        client.post("/auth/otp/request", json={"email": EMAIL})
+        client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
         code = _user(db).otp_code
         response = client.post("/auth/otp/verify", json={"email": EMAIL, "code": code})
 
@@ -178,3 +178,31 @@ def test_jwt_decode_invalid_raises():
     with pytest.raises(HTTPException) as exc_info:
         decode_token("not.a.valid.jwt")
     assert exc_info.value.status_code == 401
+
+
+def test_a_new_address_with_no_name_is_refused_with_422(client):
+    """422 rather than 400: a missing required field, which the client fixes by asking for
+    one and sending the request again. A 400 would read as "this address is wrong"."""
+    response = client.post("/auth/otp/request", json={"email": "stranger@example.com"})
+
+    assert response.status_code == 422
+
+
+@patch("src.services.otp._send_email")
+def test_a_returning_address_needs_no_name(mock_email, client):
+    client.post("/auth/otp/request", json={"email": EMAIL, "name": "Seb"})
+
+    response = client.post("/auth/otp/request", json={"email": EMAIL})
+
+    assert response.status_code == 202
+
+
+@patch("src.services.otp._send_email")
+def test_a_resend_carries_the_name_too(mock_email, client):
+    """A first request that failed leaves nothing on file. Refusing the retry for want of a
+    field the client is holding would strand somebody at the second step of signing up."""
+    response = client.post(
+        "/auth/otp/resend", json={"email": "newcomer@example.com", "name": "Rhys"}
+    )
+
+    assert response.status_code == 202

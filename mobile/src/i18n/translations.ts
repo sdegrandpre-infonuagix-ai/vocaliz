@@ -8,6 +8,9 @@ export interface Translations {
     subtitle: string;
     inputLabel: string;
     inputHint: string;
+    nameLabel: string;
+    nameHint: string;
+    namePlaceholder: string;
     button: string;
     legal: string;
   };
@@ -96,9 +99,12 @@ const fr: Translations = {
   whatIsVocaliz:
     "Vocaliz est une plateforme permettant de créer des Salons. Dans un Salon, des gens et un agent vocal IA discutent ensemble d'un site web ou d'un document.",
   email: {
-    subtitle: 'Entrez votre adresse courriel pour commencer.',
+    subtitle: 'Entrez votre nom et votre adresse courriel pour commencer.',
     inputLabel: 'Adresse courriel',
     inputHint: 'Entrez votre adresse courriel, par exemple vous@exemple.com',
+    nameLabel: 'Votre nom',
+    nameHint: 'Le nom que les autres entendront quand vous parlerez',
+    namePlaceholder: 'Votre nom',
     button: 'Recevoir mon code',
     legal: "En continuant, vous acceptez nos conditions d'utilisation.",
   },
@@ -191,9 +197,12 @@ const en: Translations = {
   whatIsVocaliz:
     'Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.',
   email: {
-    subtitle: 'Enter your email address to get started.',
+    subtitle: 'Enter your name and email address to get started.',
     inputLabel: 'Email address',
     inputHint: 'Enter your email address, e.g. you@example.com',
+    nameLabel: 'Your name',
+    nameHint: 'The name others hear when you speak',
+    namePlaceholder: 'Your name',
     button: 'Receive my code',
     legal: 'By continuing, you accept our terms of use.',
   },

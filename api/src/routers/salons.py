@@ -185,7 +185,7 @@ async def create_salon(
     host_token = livekit_service.generate_participant_token(
         room_name=room_name,
         user_id=str(current_user.id),
-        display_name=current_user.email,
+        display_name=livekit_service.display_name_of(current_user),
         can_publish=True,
     )
 
@@ -640,7 +640,7 @@ def join_salon(
     token = livekit_service.generate_participant_token(
         room_name=salon.livekit_room_name,
         user_id=str(current_user.id),
-        display_name=current_user.email,
+        display_name=livekit_service.display_name_of(current_user),
         can_publish=True,
     )
 

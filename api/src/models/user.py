@@ -96,6 +96,14 @@ class User(Base):
     # jumping on first sign-in.
     caption_scale: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # What the others in a Salon are told this person is called. Required when somebody
+    # creates their own account, and enforced where that happens rather than here — a guest
+    # registered from an invitation was never asked anything, and null says so honestly
+    # where a placeholder would look like an answer.
+    #
+    # Emphatically not `username` below. That is a credential; this is read out loud.
+    display_name: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
     # Story 10.7 / FR65. A third way in, never a replacement: both identifier routes stay
     # open, because the failure this one covers is precisely that they stopped working.
     # Nullable — everybody who signed up before this story has neither.

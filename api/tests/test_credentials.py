@@ -485,7 +485,7 @@ def test_the_code_route_still_works_afterwards(client, db, person, signed_in, mo
         headers=signed_in,
     )
 
-    assert client.post("/auth/otp/request", json={"email": "marie@example.com"}).status_code == 202
+    assert client.post("/auth/otp/request", json={"email": "marie@example.com", "name": "Seb"}).status_code == 202
 
 
 def test_the_recovery_endpoint_refunds_without_opening_the_account(client, db, person):

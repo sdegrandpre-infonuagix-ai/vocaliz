@@ -110,6 +110,7 @@ def register(
     *,
     email: str | None = None,
     phone: str | None = None,
+    name: str | None = None,
     now: datetime | None = None,
 ) -> User:
     """Find the person these identifiers belong to, or make them, key both to them, and grant
@@ -150,6 +151,15 @@ def register(
         person.email = normalised_email
     if normalised_phone:
         person.phone_number = normalised_phone
+
+    # Written on every registration that carries one, not only the first. `register` runs on
+    # every sign-in, so this is also how somebody who was created without a name — a guest
+    # arriving on an invitation, who was never asked — gets one the first time they sign up
+    # properly. Never cleared by a call that omits it: signing in is not a request to become
+    # anonymous, and a blank name would be read out loud as nothing at all.
+    cleaned = (name or "").strip()
+    if cleaned:
+        person.display_name = cleaned[:60]
 
     db.flush()
 

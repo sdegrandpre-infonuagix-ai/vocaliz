@@ -158,7 +158,7 @@ def test_email_signup_links_anonymous_participation(client, db, host, salon_for_
     inv = _make_anonymous_invitation(db, host, salon_for_host)
 
     with patch("src.services.otp._send_email"):
-        client.post("/auth/otp/request", json={"email": GUEST_EMAIL})
+        client.post("/auth/otp/request", json={"email": GUEST_EMAIL, "name": "Seb"})
 
     user = db.query(User).filter(User.email == GUEST_EMAIL).first()
     assert user is not None
@@ -180,7 +180,7 @@ def test_conversion_is_case_insensitive(client, db, host, salon_for_host):
     inv = _make_anonymous_invitation(db, host, salon_for_host, email="guest@example.com")
 
     with patch("src.services.otp._send_email"):
-        client.post("/auth/otp/request", json={"email": "GUEST@Example.COM"})
+        client.post("/auth/otp/request", json={"email": "GUEST@Example.COM", "name": "Seb"})
 
     user = db.query(User).filter(User.email == GUEST_EMAIL).first()
     assert user is not None

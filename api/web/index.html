@@ -454,7 +454,10 @@
       await api('/auth/otp/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email })
+        // The desk is a role rather than a person, so its name is fixed here. A name is
+        // required to create an account and this address may not have one yet — leaving it
+        // out would refuse the very first sign-in at the desk, on an empty database.
+        body: JSON.stringify({ email: email, name: 'Vocaliz' })
       });
       document.getElementById('code-row').className = '';
       say('signin-status', 'Code sent. It expires in ten minutes.');

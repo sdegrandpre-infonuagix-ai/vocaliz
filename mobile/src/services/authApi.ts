@@ -17,20 +17,24 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function requestOtp(email: string): Promise<void> {
+// `name` is required to create an account and ignored when signing in to one — the API
+// draws that line, because only it knows whether the address is already on file. Sent on
+// every request rather than only the first: the client cannot tell a new address from a
+// returning one, and guessing wrong locks somebody out of their own account.
+export async function requestOtp(email: string, name?: string): Promise<void> {
   const res = await fetch(`${API_URL}/auth/otp/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, name }),
   });
   await handleResponse<{ message: string }>(res);
 }
 
-export async function resendOtp(email: string): Promise<void> {
+export async function resendOtp(email: string, name?: string): Promise<void> {
   const res = await fetch(`${API_URL}/auth/otp/resend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, name }),
   });
   await handleResponse<{ message: string }>(res);
 }

@@ -12,25 +12,49 @@ from sqlalchemy.orm import Session as DbSession
 from src.config import settings
 from src.models.user import User
 from src.services.email_text import bilingual_body, bilingual_subject
-from src.signup import normalise_email, register
+from src.signup import find_by_identifier, normalise_email, register
 
 logger = logging.getLogger(__name__)
+
+
+class MissingName(ValueError):
+    """Somebody tried to create an account without saying what to call them.
+
+    A name is the one thing a Salon cannot work around. Every other participant hears "Marie
+    says…" before what Marie said, because a listener in headphones has no screen and no
+    second voice to ask — introductions are how they tell two strangers apart. An account
+    with no name would be introduced as nothing, in every conversation, for as long as it
+    existed.
+    """
+
+    def __init__(self, address: str) -> None:
+        self.address = address
+        super().__init__("a name is required to create an account")
 
 
 def _generate_otp() -> str:
     return "".join(random.choices(string.digits, k=6))
 
 
-def send_otp(email: str, db: DbSession) -> None:
+def send_otp(email: str, db: DbSession, *, name: str | None = None) -> None:
     """Generate OTP, persist it, and email it via AWS SES.
 
     Signing up and asking for a code are one act (Story 10.1), so the account is created
     through `register`: the address is normalised and written into the identifier registry,
     which is what keys the lifetime quota to the person rather than to the account. Creating
     the row here instead would leave somebody registered with no key to their own allowance.
+
+    A name is required to create an account and never to sign in to one, and because the two
+    are the same request that distinction has to be drawn here. An address nobody has seen
+    before is somebody signing up; an address already on file is somebody coming back, and
+    demanding their name again to let them in would be a lock rather than a form.
     """
     address = normalise_email(email)
-    user = register(db, email=address)
+
+    if find_by_identifier(db, address) is None and not (name or "").strip():
+        raise MissingName(address)
+
+    user = register(db, email=address, name=name)
 
     code = _generate_otp()
     user.otp_code = code

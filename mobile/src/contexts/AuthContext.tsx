@@ -13,8 +13,8 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  sendOtp: (email: string) => Promise<void>;
-  resendOtpCode: (email: string) => Promise<void>;
+  sendOtp: (email: string, name?: string) => Promise<void>;
+  resendOtpCode: (email: string, name?: string) => Promise<void>;
   confirmOtp: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -36,20 +36,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setLoading = () => setState(s => ({ ...s, isLoading: true, error: null }));
   const setError = (error: string) => setState(s => ({ ...s, isLoading: false, error }));
 
-  const sendOtp = useCallback(async (email: string) => {
+  const sendOtp = useCallback(async (email: string, name?: string) => {
     setLoading();
     try {
-      await requestOtp(email);
+      await requestOtp(email, name);
       setState(s => ({ ...s, isLoading: false }));
     } catch (e: any) {
       setError(e.message ?? t.auth.errorSendCode);
     }
   }, [t]);
 
-  const resendOtpCode = useCallback(async (email: string) => {
+  const resendOtpCode = useCallback(async (email: string, name?: string) => {
     setLoading();
     try {
-      await resendOtp(email);
+      await resendOtp(email, name);
       setState(s => ({ ...s, isLoading: false }));
     } catch (e: any) {
       setError(e.message ?? t.auth.errorResendCode);

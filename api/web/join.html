@@ -569,6 +569,10 @@
     <div class="card-sub" data-i18n="accountSub">
       Your reading language and your caption language are kept, so you do not set them again.
     </div>
+    <!-- Required. A guest has been "Guest 4F2A" for the whole conversation; this is where
+         they stop being that, and the name is the point of creating the account. -->
+    <input type="text" id="acct-name" placeholder="Your name" data-i18n-ph="namePh"
+           autocomplete="name" maxlength="60">
     <input type="email" id="acct-email" placeholder="you@example.com" data-i18n-ph="emailPh"
            autocomplete="email" inputmode="email">
     <button class="btn btn-primary" id="acct-send" onclick="requestAccountCode()"
@@ -685,6 +689,8 @@
       accountLater: 'Not now',
       accountCodeSent: 'Code sent. Check your email.',
       accountBadEmail: 'That does not look like an email address.',
+      accountNoName: 'Please enter your name — it is what the others hear when you speak.',
+      namePh: 'Your name',
       accountDone: 'Account created. Your languages are saved.',
       accountFailed: 'That did not work. Please try again.',
       whatIsVocaliz: 'Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.',
@@ -763,6 +769,8 @@
       accountLater: 'Plus tard',
       accountCodeSent: 'Code envoyé. Consultez votre courriel.',
       accountBadEmail: "Cela ne ressemble pas à une adresse courriel.",
+      accountNoName: "Entrez votre nom — c'est ce que les autres entendent quand vous parlez.",
+      namePh: "Votre nom",
       accountDone: 'Compte créé. Vos langues sont enregistrées.',
       accountFailed: "Cela n'a pas fonctionné. Réessayez.",
       whatIsVocaliz: "Vocaliz est une plateforme permettant de créer des Salons. Dans un Salon, des gens et un agent vocal IA discutent ensemble d'un site web ou d'un document.",
@@ -1825,12 +1833,14 @@
 
   async function requestAccountCode() {
     var email = (document.getElementById('acct-email').value || '').trim().toLowerCase();
+    var name = (document.getElementById('acct-name').value || '').trim();
     if (!email || email.indexOf('@') < 1) { acctStatus('accountBadEmail', false); return; }
+    if (!name) { acctStatus('accountNoName', false); return; }
     try {
       var resp = await fetch('/auth/otp/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email })
+        body: JSON.stringify({ email: email, name: name })
       });
       if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).detail);
       document.getElementById('acct-code-row').style.display = '';
