@@ -78,10 +78,8 @@ def test_guest_join_returns_livekit_credentials(client, db, host, active_salon):
     assert body["salonId"] == str(active_salon.id)
 
 
-def test_guest_join_provisions_the_guests_own_room_once(client, db, host, active_salon):
-    """One room and one dispatch, made on the first open and handed back on every one after.
-    A guest who reloads, or whose first attempt never reached a microphone, must return to
-    the room they already have rather than be given a second one nobody closes."""
+def test_guest_join_provisions_a_room_and_dispatches_one_agent(client, db, host, active_salon):
+    """One room, one dispatch, for the one successful open a single-use link ever gets."""
     from unittest.mock import AsyncMock, patch
 
     host_user, _ = host
@@ -95,14 +93,11 @@ def test_guest_join_provisions_the_guests_own_room_once(client, db, host, active
             "src.routers.invitations.livekit_service.dispatch_agent", new_callable=AsyncMock
         ) as dispatch,
     ):
-        first = client.get(f"/invitations/guest-join/{inv.join_token}")
-        second = client.get(f"/invitations/guest-join/{inv.join_token}")
+        resp = client.get(f"/invitations/guest-join/{inv.join_token}")
 
     create_room.assert_awaited_once()
     dispatch.assert_awaited_once()
-    assert first.json()["livekitRoomName"] == second.json()["livekitRoomName"]
-
-    assert dispatch.await_args.kwargs["participant_id"] == first.json()["participantIdentity"]
+    assert dispatch.await_args.kwargs["participant_id"] == resp.json()["participantIdentity"]
     assert dispatch.await_args.kwargs["salon_id"] == str(active_salon.id)
 
 
@@ -131,14 +126,15 @@ def test_guest_join_requires_no_authentication(client, db, host, active_salon):
 
 
 # ─── One-time use ─────────────────────────────────────────────────────────────
+#
+# The token survives the fetch on purpose: it is spent at confirm, once the guest's
+# microphone is genuinely working. A guest whose first browser cannot reach a microphone —
+# a mail app's embedded webview, typically — reopens the same link elsewhere instead of
+# asking the host for a fresh one.
+
 
 def test_fetching_credentials_does_not_spend_the_token(client, db, host, active_salon):
-    """Opening the page must not burn the link — only a working microphone does.
-
-    This asserted the opposite. Consuming on fetch meant a guest whose browser refused the
-    microphone — an embedded webview in a mail app, typically — had spent their single-use
-    link on a page they could never speak from.
-    """
+    """Opening the page must not burn the link — only a working microphone does."""
     host_user, _ = host
     inv = _make_invitation(db, host_user, active_salon)
     client.get(f"/invitations/guest-join/{inv.join_token}")
@@ -173,13 +169,31 @@ def test_confirm_is_idempotent(client, db, host, active_salon):
 
 
 def test_link_survives_a_failed_microphone(client, db, host, active_salon):
-    """The whole point: no confirm, so the link still opens elsewhere."""
+    """The whole point: no confirm, so the link still opens elsewhere — and comes back to
+    the same room and the same agent, not a second pair nobody asked for."""
+    from unittest.mock import AsyncMock, patch
+
     host_user, _ = host
     inv = _make_invitation(db, host_user, active_salon)
-    # First attempt: page opens, microphone never works, nothing is confirmed.
-    assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 200
-    # Reopened in a real browser — still valid.
-    assert client.get(f"/invitations/guest-join/{inv.join_token}").status_code == 200
+
+    with (
+        patch(
+            "src.routers.invitations.livekit_service.create_room", new_callable=AsyncMock
+        ) as create_room,
+        patch(
+            "src.routers.invitations.livekit_service.dispatch_agent", new_callable=AsyncMock
+        ) as dispatch,
+    ):
+        # First attempt: page opens, microphone never works, nothing is confirmed.
+        first = client.get(f"/invitations/guest-join/{inv.join_token}")
+        # Reopened in a real browser — still valid.
+        second = client.get(f"/invitations/guest-join/{inv.join_token}")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["livekitRoomName"] == second.json()["livekitRoomName"]
+    create_room.assert_awaited_once()
+    dispatch.assert_awaited_once()
 
 
 def test_guest_join_second_use_returns_410(client, db, host, active_salon):

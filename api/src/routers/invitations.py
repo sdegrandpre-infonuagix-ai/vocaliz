@@ -123,6 +123,7 @@ def resend_invitation_email(
 @guest_router.get("/guest-join/{join_token}", response_model=GuestJoinResponse)
 async def guest_join_salon(
     join_token: str,
+    name: str | None = None,
     db: DbSession = Depends(get_db),
 ):
     """Hand out LiveKit credentials for a join token, without spending it.
@@ -134,11 +135,25 @@ async def guest_join_salon(
     practice. A guest who opened the link inside their mail app's embedded browser, which
     typically cannot reach a microphone, burned the link on a page they could never speak
     from: they heard everyone, nobody heard them, and the only way out was to ask the host
-    for a fresh invitation. Reloading, the obvious reflex, made it worse.
+    for a fresh invitation. Reloading, the obvious reflex, made it worse. This was tried the
+    other way once more, briefly, before landing back here for exactly that reason.
 
     What keeps this from becoming a link anyone can share: the participant identity is
     derived from the invitation, so two people opening the same link get the same LiveKit
     identity and the second connection displaces the first. Only one can be in the room.
+
+    `name` is what a guest with no account is asked for on the way in — not a sign-up, no
+    code, nothing to verify: the address is already known from the invitation, and this is
+    the one thing it cannot supply. Given, it becomes both this account's `display_name` and
+    this join's LiveKit display name, which is what lets the Salon introduce them as
+    themselves — "Marie says…" — rather than as "Guest 4F2A" for the rest of the
+    conversation. Omitted, nothing changes: anonymity stays the default, exactly as before.
+
+    The name has to arrive here and not at `confirm_guest_join`. LiveKit's own display name
+    is fixed at the moment this mints a token, and the agent reads it once, at the start of
+    the job — a name given any later would never reach the introduction it was for. Reopening
+    this link before confirming keeps whichever name was given the first time; a second name
+    offered on a retry changes nothing, since the token behind it was already minted.
 
     **The room is the guest's own, not the host's.** One human, one interpreter, one room —
     the topology this Salon is built on — so this provisions a room sized for exactly that and
@@ -235,15 +250,40 @@ async def guest_join_salon(
         invitation.livekit_room_name = room_name
         db.commit()
 
+    # A name given is a name asked for, and creates the account it belongs to. This is not
+    # the silent registration confirm_guest_join still does with no name at all — that one
+    # covers a guest who never touched this field, and never invents a name for them.
+    given_name = (name or "").strip()
+    if given_name:
+        try:
+            register(
+                db, email=invitation.guest_email, phone=invitation.guest_phone, name=given_name
+            )
+            db.commit()
+        except InvalidRegistration:
+            # Two identifiers on this one invitation already belong to two different people
+            # — a support question, not a reason to refuse somebody a seat they were invited
+            # to. The name is simply not used for this join; anonymity is always the safe
+            # fallback.
+            db.rollback()
+            given_name = ""
+
     token = livekit_service.generate_participant_token(
         room_name=invitation.livekit_room_name,
         user_id=guest_id,
         # Every guest used to carry the same fixed label, which made them addressable but
-        # still indistinguishable — on screen and to the agent alike. The label carries a
-        # slice of the identity, never the email: that address is between the host and
-        # their guest, not something to publish to the room.
-        display_name=livekit_service.guest_display_name(invitation.id),
+        # still indistinguishable — on screen and to the agent alike, and stayed that way
+        # even for a guest who did have an account: anonymity between participants is
+        # carried by this label, not by the identity underneath it. Giving a name here is
+        # this guest choosing to set that label themselves, for this Salon — not a
+        # side-effect of the account existing.
+        display_name=given_name[:60] if given_name else livekit_service.guest_display_name(
+            invitation.id
+        ),
         can_publish=True,
+    )
+    shown_as = given_name[:60] if given_name else livekit_service.guest_display_name(
+        invitation.id
     )
 
     return GuestJoinResponse(
@@ -252,7 +292,7 @@ async def guest_join_salon(
         livekitUrl=livekit_service._http_url(),
         salonId=str(salon.id),
         participantIdentity=guest_id,
-        participantName=livekit_service.guest_display_name(invitation.id),
+        participantName=shown_as,
         hostPaysAll=bool(salon.host_pays_all),
     )
 
