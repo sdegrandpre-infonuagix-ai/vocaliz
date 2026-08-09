@@ -89,11 +89,6 @@
 > Goal: Les participants en Base et en Mode A entendent des annonces pertinentes pour leur région, dans leur langue, glissées entre deux messages et jamais au milieu d'une pensée.
 
 - [x] Story 9.1: Consentement de Géolocalisation à l'Inscription
-  > > ⚠️ **PARTIELLEMENT HÉRITÉ — et le modèle hérité est plus prudent que la story.** `salon_events.plus_code` stocke une **cellule Open Location Code de six chiffres** (≈ 5,5 km), encodée à l'ingestion : *« the precise coordinates never reach the disk »*.
-  > Le commentaire précise pourquoi une cellule plutôt que des décimales arrondies — *« a decimal pair still reads as a point, and a point invites being treated as one »* — et pourquoi il n'y a **aucun repli par géolocalisation IP**.
-  > La demande au navigateur existe : le champ est vide quand la personne refuse.
-  > AC: Given une personne s'inscrit, When l'inscription se déroule, Then un écran unique lui demande explicitement son consentement à l'utilisation de sa géolocalisation à des fins publicitaires, And Given une personne refuse, When elle utilise Salon, Then elle reçoit des annonces génériques non ciblées et conserve l'accès complet au produit — le refus n'entraîne jamais une perte de service, And Given une personne a consenti, When elle souhaite revenir sur son choix, Then elle peut retirer son consentement à tout moment, avec effet immédiat
-  > Spec: specs/planning-artifacts/epics.md#story-9-1
 - [ ] Story 9.2: Adaptation de l'Échange Publicitaire Hérité
   > As a exploitant de Vocaliz
   > I want conserver l'échange publicitaire de Salon et l'adapter à la topologie multi-rooms

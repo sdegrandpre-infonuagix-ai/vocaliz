@@ -137,6 +137,29 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — choosing an advertisement (Story 9.2 / FR39, FR50)
+
+`api/src/ad_selection.py`. The inherited exchange is untouched — auction, billing and proof of
+delivery all stay. What the multi-rooms topology changes is *where* an ad goes: one
+participant's room, their interpreter, their language. Selection is a **pull**; there is no
+shared room to push into.
+
+Two criteria only, cell and language. `ads.topic` stays unwired and a test greps this file to
+keep it so — targeting on what a conversation is about is a different consent nobody has been
+asked for. Cells compare as exact six-digit strings: a precision mismatch matches nothing
+rather than being coerced, so an advertiser who supplied a finer code sees it in their
+delivery count instead of having their money spent somewhere they did not choose.
+
+Unheard first, then oldest-heard, so the inventory cycles and never runs dry; the cycle
+restarts without accelerating, since frequency belongs to the tier. Generic is a fallback,
+never a preference — silence is not an available outcome. `rendered_text` returns
+`(text, verbatim)`: a substitution applies to one language only and, when it does, no
+cleaning, condensation or shortening may touch it.
+
+**Not done in 9.2:** the `ad_languages` and substitution tables (the module takes them as
+plain attributes), and the removal of the dead `advertisers.target_countries` /
+`target_regions` / `circle` JSONB columns.
+
 ### API — location consent (Story 9.1 / FR50)
 
 `api/src/consent.py` + `users.location_consent` (migration 050). The storage was already
