@@ -199,6 +199,51 @@ def _backfill_stripe_namespace(apply: bool) -> dict:
         db.close()
 
 
+def _inspect_salon(salon_id: str) -> dict:
+    """Read-only: this Salon's own row and every invitation against it.
+
+    Written to answer one question directly rather than by inference from access logs:
+    did a guest's `guest_join_salon` call ever actually run for this Salon, and if it did,
+    is that guest's own room recorded? `invitations.livekit_room_name` is null until that
+    call succeeds — a guest who only opened the link in a browser that never reached this
+    endpoint, or whose invitation was never accepted, leaves it null, which is the honest
+    difference between "never tried" and "tried and failed".
+    """
+    from src.database import SessionLocal
+    from src.models.invitation import Invitation
+    from src.models.salon import Salon
+
+    db = SessionLocal()
+    try:
+        import uuid as _uuid
+
+        salon = db.query(Salon).filter(Salon.id == _uuid.UUID(salon_id)).first()
+        if salon is None:
+            return {"status": "not_found", "salonId": salon_id}
+        invitations = (
+            db.query(Invitation).filter(Invitation.salon_id == salon.id).all()
+        )
+        return {
+            "status": "ok",
+            "salonId": salon_id,
+            "hostUserId": str(salon.host_user_id),
+            "livekitRoomName": salon.livekit_room_name,
+            "orchestratorUrl": salon.orchestrator_url,
+            "salonStatus": salon.status,
+            "invitations": [
+                {
+                    "id": str(inv.id),
+                    "status": inv.status,
+                    "livekitRoomName": inv.livekit_room_name,
+                    "guestUserId": str(inv.guest_user_id) if inv.guest_user_id else None,
+                }
+                for inv in invitations
+            ],
+        }
+    finally:
+        db.close()
+
+
 def _probe_orchestrator() -> dict:
     """Make the one call the API makes at salon creation, and say whether it arrived.
 
@@ -324,6 +369,8 @@ def handler(event, context):
         result = _invoice_advertisers()
         _report(f"invoice_advertisers: {result}")
         return result
+    if action == "inspect_salon":
+        return _inspect_salon(event["salonId"])
     if action == "probe_orchestrator":
         result = _probe_orchestrator()
         _report(f"probe_orchestrator: {result}")
