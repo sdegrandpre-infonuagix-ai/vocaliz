@@ -60,12 +60,7 @@
 - [x] Story 6.12: Chiffrement au Repos
 - [x] Story 6.13: Vidéo Muette en Direct
 - [x] Story 6.14: Sous-Titres Traduits en Direct
-  > As a participant
-  > I want lire la conversation traduite en même temps que je l'entends
-  > So that je puisse suivre même dans une langue que la voix ne sait pas prononcer.
-  > AC: Given une conversation en cours, When un participant active les sous-titres, Then il lit chaque tour de parole traduit dans sa langue de sous-titres, indépendamment de celle des autres participants, And Given l'ensemble des langues de sous-titres, When il est comparé à celui des langues parlées, Then il est plus large : la traduction textuelle supporte des langues que le speech-to-speech ne prononce pas, et on peut donc suivre en lisant ce qu'on ne pourrait pas entendre, And Given un participant dont la langue de sous-titres n'est pas parlée par les adaptateurs, When il rejoint, Then il lit normalement — seule la restitution vocale se rabat sur une langue parlée disponible, And Given la traduction d'un tour, When elle est produite, Then elle part de l'original tel que prononcé (`utterances.text`), jamais d'une autre traduction, et est mise en cache dans `utterance_translations` — un tour lu par trois personnes dans la même langue coûte une seule traduction, And Given un tour prononcé dans la langue de sous-titres du lecteur, When il s'affiche, Then aucune traduction n'a lieu : l'original s'affiche tel quel. C'est aussi le sens de `caption_language = ""` — « comme prononcé, ne rien traduire », un choix à part entière, And Given les sous-titres, When ils sont offerts, Then ils le sont sur le web comme sur mobile, à l'hôte comme à chaque participant — aucune des deux plateformes n'est un citoyen de seconde classe, And Given un participant, When il règle son affichage, Then il choisit sa langue de sous-titres et leur taille (`caption_scale`), réglages qui suivent son compte d'un appareil à l'autre, And Given la valeur vide de `caption_language`, When elle est enregistrée, Then elle signifie « comme prononcé, ne rien traduire » — un choix à part entière, distinct de NULL qui signifie « jamais choisi », And Given la topologie multi-rooms, When les sous-titres sont diffusés, Then ils transitent par le canal de données de la room du participant, sans jamais rejoindre le chemin audio
-  > Spec: specs/planning-artifacts/epics.md#story-6-14
-- [ ] Story 6.15: Voyant de Parole par Paire
+- [x] Story 6.15: Voyant de Parole par Paire
   > As a participant
   > I want voir qui est en train de parler
   > So that je sache qu'une conversation a lieu, même quand je n'entends personne.

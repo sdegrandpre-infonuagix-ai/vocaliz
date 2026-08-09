@@ -16,6 +16,7 @@ from src.salon.notices import (
     microphone_restored,
     on_the_telephone,
 )
+from src.salon.speaking import Pair, SpeakingBoard, Voice
 from src.salon.captions import (
     AS_SPOKEN,
     DEFAULT_CAPTION_SCALE,
@@ -56,7 +57,10 @@ __all__ = [
     "Room",
     "RoomClosed",
     "RoomProvisioner",
+    "Pair",
     "Salon",
+    "SpeakingBoard",
+    "Voice",
     "interpreter_identity",
     "grants_history",
     "history_from_invitation",

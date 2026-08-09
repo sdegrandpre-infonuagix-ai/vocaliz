@@ -117,6 +117,12 @@ takes `None` (never chosen), `""` (`AS_SPOKEN`) or a language, plus `caption_sca
 Captions go out over the reader's own room via `rooms.publish`, never to the interpreter,
 and reuse the journal's translation cache.
 
+`src/salon/speaking.py` (Story 6.15): two lights per pair — the human and their interpreter —
+each carrying a colour *and* a shape so colour is never the only carrier (UX-DR7).
+`Salon.speaking(...)` broadcasts the whole board to every room, but only when something
+actually changed and never to a screen blacked out by driving mode. Detection stays with
+LiveKit and Silero; this only carries state between rooms that share nothing.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

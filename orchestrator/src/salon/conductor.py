@@ -14,6 +14,8 @@ What crosses between participants is text in the journal. No audio ever does.
 """
 from __future__ import annotations
 
+import json
+
 from dataclasses import dataclass, field, field
 
 from src.interprete import Annonce, Interprete, InterpreteError, Participant, Tour
@@ -29,6 +31,7 @@ from src.salon.notices import (
 )
 from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
 from src.salon.rooms import Room, RoomProvisioner
+from src.salon.speaking import SpeakingBoard
 from src.salon.video import VideoPath, VideoTrack
 
 
@@ -98,6 +101,9 @@ class Salon:
         self._condensation_threshold = condensation_threshold_seconds
         # Optional: a deployment without it loses the pictures and nothing else.
         self._video = video
+        # Story 6.15. LiveKit publishes speaking state per room; the humans share none, so
+        # this is what carries it between them.
+        self._speaking = SpeakingBoard()
         self._seats: dict[str, Seat] = {}
         # The language each participant was first heard in. Written once and never revised,
         # like `salon_events.first_spoken_language`: somebody switching language mid-Salon
@@ -167,6 +173,7 @@ class Salon:
         seat = Seat(participant=participant, room=room, interpreter=interpreter)
         self._seats[participant.id] = seat
         self._ever_joined[participant.id] = participant
+        self._speaking.attach(participant.id)
 
         # At the head unless the host granted the history (Story 6.10). Written straight
         # away: a participant who joins and is then lost with the instance must come back
@@ -193,6 +200,7 @@ class Salon:
             return
 
         await self._stop_video(seat)
+        self._speaking.detach(participant_id)
         self.log.detach(participant_id)
         await seat.interpreter.aclose()
         await self._rooms.close(seat.room)
@@ -576,6 +584,38 @@ class Salon:
         text = await self.log.render(entry, seat.caption_language or "")
         # A pause marker says how to *say* something. There is nothing to read in a silence.
         await self._rooms.publish(seat.room, without_markers(text).encode())
+
+    # ── Who is speaking (Story 6.15) ──────────────────────────────────────────
+
+    @property
+    def speaking_board(self) -> SpeakingBoard:
+        return self._speaking
+
+    async def speaking(
+        self,
+        participant_id: str,
+        *,
+        human: bool | None = None,
+        interpreter: bool | None = None,
+    ) -> None:
+        """Record what one pair is doing, and show everybody if it changed.
+
+        Everybody, including the pair itself: seeing your own interpreter still red is how
+        you know your last sentence has not reached anybody yet.
+
+        Nothing is sent when nothing moved, and nothing is sent to a screen that is black —
+        a board nobody can look at costs the same to deliver as one somebody can.
+        """
+        if participant_id not in self._seats:
+            return
+        if not self._speaking.set(participant_id, human=human, interpreter=interpreter):
+            return
+
+        payload = json.dumps(self._speaking.as_message()).encode()
+        for seat in self._ordered_seats():
+            if seat.driving:
+                continue
+            await self._rooms.publish(seat.room, payload)
 
     # ── Video (Story 6.13) ────────────────────────────────────────────────────
 

@@ -391,6 +391,38 @@ isolation that makes echo impossible. They are never handed to the voice: a capt
 something to read, and sending it to the interpreter would say everything twice. Pause
 markers are stripped, because there is nothing to read in a silence.
 
+## The speaking indicator
+
+`src/salon/speaking.py`. The signal this replaces is the one the topology destroyed:
+silence in your ear used to mean nobody was speaking, and now it means your interpreter has
+nothing to render yet. From the inside those are indistinguishable.
+
+So each pair carries **two** lights rather than one. Somebody speaking and their interpreter
+rendering are different facts, and the second explains the delay in the first — seeing Marie
+green and her interpreter still red is seeing exactly why you are still waiting. One light
+would collapse the two and lose the explanation.
+
+Nothing here detects anything. LiveKit publishes speaking state natively and the Silero VAD
+is already in `livekit-agents[silero]`; what is missing is only that a room's state stops at
+the room, and the humans share none. This is the carrying, over the same data channel as the
+turns and the captions.
+
+`Voice` carries a **colour and a shape**. UX-DR7 asks that colour never be the only carrier:
+somebody who cannot tell green from red still has to be able to read the board, and it has
+to survive being printed in black and white.
+
+`SpeakingBoard.set` returns whether anything actually moved, and that return value is the
+whole economy of the feature — Silero reports continuously, and rebroadcasting an unchanged
+board to everybody many times a second would be the most expensive possible way to say
+nothing. Nothing is sent to a screen that is black in driving mode either.
+
+A telephone participant (FR57) gets the same two lights as everybody. With no video, it is
+the only visual information about them there is, which makes leaving them off the board the
+one thing that would actually hurt.
+
+A board is JSON with a `kind`; a caption is the text itself. Both travel the same channel,
+so a client can tell them apart without guessing.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and
