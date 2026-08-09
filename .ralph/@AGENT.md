@@ -137,6 +137,30 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — the coverage tick (Story 8.8 / FR56)
+
+`api/src/coverage.py`. `check_coverage` does both halves of one tick, in this order:
+**debit what elapsed, then judge the next block**. Verifying first would promise a block the
+debit about to happen makes impossible — the one way this can be wrong while looking right.
+
+`block_cost_cents` rounds **up**, the opposite direction to `billing.cost_cents`. A test
+asserts the relation that makes it the right direction: the check never demands less than the
+billing will take. The debit is on *actually elapsed* seconds, never the nominal cadence,
+since jitter at five seconds is not negligible.
+
+Judged per **payer** on the aggregate rate, so a host covering three is evaluated once. Under
+`ALERT_COVERAGE_SECONDS` (180) it alerts and asks for exactly one top-up — `already_alerted`
+and `top_up_pending` stop a periodic mechanism asking twelve times a minute. Past
+`SILENT_WORKER_SECONDS` (60) it charges nothing and ends nothing: silence is a different
+problem from an empty balance, and conflating them blames a network failure on a budget.
+
+`validate_top_up_cents` refuses out-of-range amounts **explicitly** rather than clamping —
+somebody quietly given 10.00 when they asked for 3.00 finds out from their statement.
+
+**Not done in 8.8:** nothing schedules this tick. The existing 30-second heartbeat is
+untouched, and the polite spoken switch-to-Base notice belongs to the interpreter's voice
+path.
+
 ### API — prepaid metering (Story 8.7 / FR63)
 
 `api/src/metering.py`. Consumption accumulates in whole **cent-seconds** (rate/hour ×
