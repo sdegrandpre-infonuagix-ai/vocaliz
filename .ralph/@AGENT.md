@@ -137,6 +137,40 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### How many people fit in a Salon (Story 10.2 / replaces FR2)
+
+`api/src/participant_cap.py` + `salons.participant_cap` (migration 053) +
+`participant_ceiling` in the orchestrator's `DEFAULTS`. Three is a starting value, never a fact
+about the product: one room and one interpreter per participant means a fourth person costs one
+more interpreter — a price question, not an architectural one.
+
+The ceiling moved out of `LIVEKIT_ROOM_MAX_PARTICIPANTS` into Story 7.1's persisted settings,
+and **the API reads the same `salon_settings` table the orchestrator writes** — one number, two
+readers, no second copy to disagree. Read per call, not at import, so a change applies to the
+next Salon without a deploy. A missing row *or a missing table* falls back to the documented 3:
+refusing to create Salons because a tuning table is absent would be an outage caused by a knob.
+
+`bounded()`: nothing asked for → the ceiling (that is the offer); more than the ceiling →
+bounded down, never refused (they asked for the biggest available); floor of 2, since one
+participant and their interpreter is somebody talking to a translation of themselves.
+`SalonSettings` refuses `participant_ceiling < 2` so the code cannot produce a value the
+`salons` CHECK would reject.
+
+`salons.participant_cap` is stored rather than looked up, because the two answer different
+questions: the ceiling is what is allowed *now*, the cap is what the host was promised *then*.
+Lowering the ceiling must not throw somebody out of a Salon they are already in.
+
+The door is `guest_join_salon` → **409 with a readable message naming the size**. LiveKit's own
+limit is the backstop, not the mechanism: it rejects silently, and a guest whose link just fails
+cannot tell a full Salon from a broken one. Seats are counted as *given* (host + accepted
+invitations), not heads present — a seat that came back when somebody closed a tab would let a
+fourth person in behind the host's back.
+
+`orchestrator/tests/test_participant_ceiling.py` parses `src/` with `ast` and fails on any
+comparison between a participant count and an integer literal (zero excepted — emptiness is not
+a limit). A hard-coded count would fail nothing; it would refuse the fourth person somewhere
+nobody thought to look.
+
 ### API — signing up with an address or a number (Story 10.1 / replaces FR27)
 
 `api/src/signup.py` + `participant_identifiers` (migration 052). The identifier is the **key**

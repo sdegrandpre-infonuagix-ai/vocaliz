@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session as DbSession
 
+from src import participant_cap as participant_cap_service
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.ad import Ad
@@ -123,6 +124,10 @@ async def create_salon(
     # Opt-in, per source, and only ever honoured for a URL. False by default: a host who
     # says nothing has shared nothing.
     share_with_platform: bool = Form(False),
+    # Story 10.2. How many people this Salon is opened for. Saying nothing takes the
+    # deployment's ceiling, which is the offer; asking for more is bounded down to it rather
+    # than refused, since the host asked for the biggest Salon available.
+    participant_cap: Optional[int] = Form(None),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -175,9 +180,12 @@ async def create_salon(
 
     article_date = content_service.parse_article_date(provenance.get("article_date", ""))
 
-    # 2. Provision LiveKit room
+    # 2. Provision LiveKit room, sized for the number this host was given (Story 10.2).
+    cap = participant_cap_service.bounded(
+        participant_cap, ceiling=participant_cap_service.ceiling(db)
+    )
     room_name = livekit_service.new_room_name()
-    await livekit_service.create_room(room_name)
+    await livekit_service.create_room(room_name, max_participants=cap)
 
     # 3. Generate host LiveKit token
     host_token = livekit_service.generate_participant_token(
@@ -207,6 +215,7 @@ async def create_salon(
         source_filename=source_filename,
         source_content=content,
         source_summary=summary,
+        participant_cap=cap,
     )
     db.add(salon)
     db.commit()

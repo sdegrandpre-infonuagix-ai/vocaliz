@@ -18,6 +18,7 @@ from src.schemas.invitation import (
     InviteGuestBody,
     PendingInvitationResponse,
 )
+from src import participant_cap as participant_cap_service
 from src.rate_limit import limiter
 from src.signup import InvalidRegistration, identifiers_of, register
 from src.services import voice_languages
@@ -157,6 +158,26 @@ def guest_join_salon(
     ).first()
     if not salon or salon.status != "active":
         raise HTTPException(status_code=410, detail="This salon is no longer available.")
+
+    # Story 10.2, replacing FR2. Refused here, with words, rather than left to LiveKit's own
+    # limit: that one rejects the connection silently, and a guest whose link simply does not
+    # work has no way to tell a full Salon from a broken one.
+    #
+    # Counted as seats given, not heads currently present. A spent invitation is spent whether
+    # or not its guest is still in the room, and a seat that came back when somebody closed a
+    # tab would let a fourth person in behind the host's back.
+    if invitation.status == "pending":
+        taken = 1 + db.query(Invitation).filter(
+            Invitation.salon_id == salon.id,
+            Invitation.status == "accepted",
+        ).count()
+        if participant_cap_service.is_full(taken, cap=salon.participant_cap):
+            raise HTTPException(
+                status_code=409,
+                detail=participant_cap_service.room_full_message(
+                    cap=salon.participant_cap
+                ),
+            )
 
     # Derived from the invitation instead of random. The old `guest-<8 hex>` was minted
     # here and stored nowhere, so no part of Salon could name a specific guest — messages

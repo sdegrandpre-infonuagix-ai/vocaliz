@@ -17,8 +17,17 @@ def _http_url() -> str:
     return settings.livekit_url.replace("wss://", "https://").replace("ws://", "http://")
 
 
-async def create_room(room_name: str) -> None:
-    """Provision a new LiveKit room. Raises HTTPException on failure."""
+async def create_room(room_name: str, *, max_participants: int | None = None) -> None:
+    """Provision a new LiveKit room. Raises HTTPException on failure.
+
+    The size comes from the caller since Story 10.2 — a Salon is opened for the number its
+    host was given, which is the persisted ceiling bounded by what they asked for. The
+    environment variable remains only as the answer for a caller that names no size, so a
+    room is never created without a limit at all.
+
+    LiveKit refusing at the door is the backstop and not the mechanism: a connection that
+    fails there is silent, and the API refuses first with something a person can read.
+    """
     try:
         async with lk_api.LiveKitAPI(
             _http_url(), settings.livekit_api_key, settings.livekit_api_secret
@@ -27,7 +36,11 @@ async def create_room(room_name: str) -> None:
                 lk_api.CreateRoomRequest(
                     name=room_name,
                     empty_timeout=settings.livekit_room_empty_timeout,
-                    max_participants=settings.livekit_room_max_participants,
+                    max_participants=(
+                        max_participants
+                        if max_participants is not None
+                        else settings.livekit_room_max_participants
+                    ),
                 )
             )
     except Exception as exc:

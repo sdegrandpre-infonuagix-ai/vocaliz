@@ -41,6 +41,14 @@ DEFAULTS: dict[str, float | int] = {
     # would put that promise one typo away from being broken.
     "advert_interval_base_seconds": 300.0,
     "advert_interval_mode_a_seconds": 600.0,
+    # The largest Salon this deployment allows (Story 10.2, replacing FR2). Three to begin
+    # with, and a starting value rather than a fact about the product: one room and one
+    # interpreter per participant means a fourth person costs one more interpreter, which is
+    # a price question and not an architectural one. Build for N, configure at 3.
+    #
+    # Read by the API as well, out of this same table — the ceiling has to be raisable for
+    # one customer on a Tuesday, and a knob behind a deployment is one that never gets turned.
+    "participant_ceiling": 3,
 }
 
 
@@ -63,6 +71,7 @@ class SalonSettings:
     max_pause_ms: int = DEFAULTS["max_pause_ms"]
     advert_interval_base_seconds: float = DEFAULTS["advert_interval_base_seconds"]
     advert_interval_mode_a_seconds: float = DEFAULTS["advert_interval_mode_a_seconds"]
+    participant_ceiling: int = DEFAULTS["participant_ceiling"]
 
     def __post_init__(self) -> None:
         for field in fields(self):
@@ -95,6 +104,14 @@ class SalonSettings:
                 f"saturation_threshold_seconds ({self.saturation_threshold_seconds:g}). "
                 "Otherwise a room would unblock straight back into the condition that blocked "
                 "it, oscillating between the two."
+            )
+
+        if self.participant_ceiling < 2:
+            raise InvalidSettings(
+                f"participant_ceiling is {self.participant_ceiling:g}, and a Salon needs two "
+                "people to be a conversation: one participant and their interpreter is "
+                "somebody talking to a translation of themselves. Build for N, configure at 3 "
+                "— but not at one."
             )
 
         if self.advert_interval_base_seconds >= self.advert_interval_mode_a_seconds:

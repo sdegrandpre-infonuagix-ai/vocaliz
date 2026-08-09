@@ -1,7 +1,17 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,6 +20,14 @@ from src.database import Base
 
 class Salon(Base):
     __tablename__ = "salons"
+
+    # Declared here as well as in migration 053, because the test database is built from
+    # these models: a constraint living only in a migration is one no test can see, and the
+    # first thing to violate it does so in production. That has happened once already, to the
+    # invitations table.
+    __table_args__ = (
+        CheckConstraint("participant_cap >= 2", name="ck_salons_participant_cap"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -74,6 +92,15 @@ class Salon(Base):
     # their own row placing them at Mode B, never a mode stored on the Salon itself.
     host_pays_all: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false"), default=False
+    )
+
+    # Story 10.2. How many people this Salon was opened for, bounded at creation by the
+    # deployment's `participant_ceiling`. Stored rather than read back from the settings,
+    # because the two answer different questions: the ceiling is what is allowed *now*, and
+    # this is what the host was promised *then*. A ceiling lowered mid-conversation must not
+    # throw somebody out of a Salon they were already in.
+    participant_cap: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("3"), default=3
     )
 
     host = relationship("User", foreign_keys=[host_user_id])

@@ -96,12 +96,7 @@
 > Goal: Toute personne invitée rejoint un Salon depuis son navigateur en quelques secondes avec un courriel ou un téléphone, sans installer d'application, dans la limite du plafond de participants.
 
 - [x] Story 10.1: Inscription par Courriel ou Téléphone
-  > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** OTP par courriel via SES (`services/otp.py`, `routers/auth.py`), `users.email` unique et indexé, `users.phone_number` optionnel et unique.
-  > `invitation_service.link_prior_invitations` rattache même les participations antérieures d'un invité qui s'inscrit ensuite.
-  > > > **Ce qui reste :** le registre des identifiants brûlés et le crédit de bienvenue — traités en Story 8.2.
-  > AC: Given une personne rejoint pour la première fois, When elle s'inscrit, Then elle fournit une adresse courriel, un numéro de téléphone, ou les deux, And Given l'identifiant fourni, When l'inscription est validée, Then il devient la clé du quota de 10 minutes à vie et empêche sa réinitialisation par recréation de Salon, And Given une personne déjà inscrite revient, When elle rejoint un nouveau Salon, Then son quota résiduel est retrouvé, quel que soit son rôle, And Given l'ancienne notion d'invité anonyme, When une personne rejoint, Then plus aucun accès sans identifiant n'est possible (rend FR27 sans objet)
-  > Spec: specs/planning-artifacts/epics.md#story-10-1
-- [ ] Story 10.2: Plafond de Participants Configurable
+- [x] Story 10.2: Plafond de Participants Configurable
   > > ✅ **DÉJÀ LIVRÉ PAR SALON.** `livekit_room_max_participants` est passé à `CreateRoomRequest` dans `services/livekit_service.py` — LiveKit refuse la jonction au-delà.
   > > > **Ce qui reste :** déplacer le réglage des variables d'environnement vers la configuration persistée de la Story 7.1, et l'exposer à l'hôte à la création.
   > As a hôte
