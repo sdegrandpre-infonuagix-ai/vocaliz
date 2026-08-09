@@ -285,3 +285,35 @@ async def test_an_unsupported_language_is_not_announced_as_a_breakdown(marie):
 async def test_closing_an_interpreter_twice_is_harmless(marie):
     await marie.interprete.aclose()
     await marie.interprete.aclose()
+
+
+def test_the_domain_never_depends_on_an_adapter():
+    """The other half of the rule above, and the one that makes it a boundary rather than a
+    naming convention.
+
+    The guard forbidding provider SDKs under `src/` says where a vendor import may not go.
+    This says which way the dependency runs: adapters know the domain, the domain does not
+    know its adapters. Without it, `src/` could import `adapters.livekit_rooms` and pull the
+    SDK in transitively — passing the first test while defeating its whole purpose.
+    """
+    source = Path(__file__).resolve().parents[1] / "src"
+
+    offenders = [
+        (path.name, stripped)
+        for path in source.rglob("*.py")
+        for stripped in (line.strip() for line in path.read_text(encoding="utf-8").splitlines())
+        if stripped.startswith(("import adapters", "from adapters"))
+    ]
+
+    assert offenders == []
+
+
+def test_the_livekit_provisioner_answers_the_port():
+    """The adapter exists and is shaped like the thing it replaces. A port with no real
+    implementation is a design nobody has tested against reality."""
+    from adapters.livekit_rooms import LiveKitRoomProvisioner
+    from src.salon.rooms import RoomProvisioner
+
+    for method in ("provision", "close", "publish"):
+        assert inspect.iscoroutinefunction(getattr(LiveKitRoomProvisioner, method))
+        assert hasattr(RoomProvisioner, method)

@@ -12,6 +12,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "asyncpg>=0.31.0",
+    # Server SDK, used only by adapters/ — never under src/, where a test fails the
+    # build on a provider import. See adapters/livekit_rooms.py.
+    "livekit-api>=1.2.0",
 ]
 
 [build-system]
