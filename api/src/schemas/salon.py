@@ -180,6 +180,21 @@ class HeartbeatResponse(BaseModel):
     # True when this very heartbeat is the one that closed the salon.
     salonEnded: bool = False
 
+    # ── Prepaid metering (FR63), replacing the post-paid trial above ──────────────
+    # What this heartbeat actually took, and what is left. Reported every time rather than
+    # only when low: an agent that learns the balance only once it is nearly gone has no way
+    # to say anything useful before then.
+    balanceCents: int = 0
+    chargedCents: int = 0
+    # How long the balance lasts at the rate in force. `None` when nothing is being
+    # consumed — carrying nobody costs nothing, and reporting that as zero would read as
+    # "out of money" rather than "not spending any".
+    balanceSecondsRemaining: int | None = None
+    # True when the balance ran out and this heartbeat closed the Salon for want of it.
+    # Distinct from `salonEnded`, which is also true when the per-Salon cap was reached:
+    # running out of money and running out of time need different things said about them.
+    balanceExhausted: bool = False
+
 
 class UtteranceBody(BaseModel):
     """One final turn of speech, posted by the agent as it is transcribed.

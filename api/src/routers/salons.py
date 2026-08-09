@@ -659,14 +659,29 @@ async def salon_heartbeat(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Record a metering heartbeat from the agent worker.
+    Record a metering heartbeat from the agent worker, and charge what elapsed.
 
-    Called every 30 seconds by the agent to commit elapsed trial time in real time.
-    Ensures metered time is not lost if the salon ends unexpectedly.
-    Only the salon host may call this endpoint.
+    Called every 30 seconds by the agent. This is the tick: it is the only thing that fires
+    reliably while a conversation is live, so it is where consumption is settled rather than
+    at the end. Metered time is therefore not lost if the Salon ends unexpectedly.
+
+    **Prepaid, since the Epic 8 cutover.** The host's balance is debited for their own tier
+    and the Salon ends when it cannot cover what comes next — no debt is ever created. The
+    host's `trial_seconds_used` is still advanced, but only as a usage counter now: nothing
+    gates on it, and the free-trial hour it used to enforce is retired (FR51 replaces FR19).
+
+    Only the host is charged here, and only for their own tier. Each guest paying for
+    themselves is metered by the orchestrator, which is the component that knows every
+    participant; this endpoint sees one. A host who opted to pay for everybody (FR42) is
+    likewise not yet charged per head here — that arrives with the same slice, and until
+    then this undercharges rather than over-, which is the right direction to be wrong in.
     """
     import uuid as _uuid
     from datetime import datetime, timezone
+
+    from src.coverage import check_coverage
+    from src.credit import Tier, balance, debit
+    from src.metering import effective_rate_cents_per_hour, remaining_seconds
 
     try:
         salon_uuid = _uuid.UUID(salon_id)
@@ -691,6 +706,32 @@ async def salon_heartbeat(
     salon.last_heartbeat_at = now
     db.commit()
 
+    # ── Charge what elapsed, then judge what comes next ───────────────────────────
+    #
+    # Debit before verify, which is the order `check_coverage` exists to enforce: verifying
+    # first would promise a block that the debit about to happen makes impossible.
+    charged = 0
+    balance_cents = 0
+    balance_left: int | None = None
+    balance_exhausted = False
+
+    if host is not None:
+        host_tier = Tier(salon.host_tier) if salon.host_tier else Tier.BASE
+        rate = effective_rate_cents_per_hour([host_tier])
+        verdict = check_coverage(
+            balance_cents=max(0, balance(db, host.id).total_cents),
+            rate_cents_per_hour=rate,
+            elapsed_seconds=seconds,
+        )
+        if verdict.charged_cents:
+            debit(db, host.id, cents=verdict.charged_cents, now=now)
+            db.commit()
+            charged = verdict.charged_cents
+
+        balance_cents = verdict.balance_after_cents
+        balance_left = remaining_seconds(balance_cents, rate_cents_per_hour=rate)
+        balance_exhausted = verdict.ends_salon
+
     # Per-salon cap, enforced here because the heartbeat is the only thing that ticks
     # reliably while a conversation is live. Doing it server-side rather than trusting the
     # agent to stop itself matters: a worker that crashes or loses its connection would
@@ -703,8 +744,12 @@ async def salon_heartbeat(
         started = started.replace(tzinfo=timezone.utc)
     remaining = max(0, settings.max_salon_seconds - int((now - started).total_seconds()))
 
+    # Two reasons to close, and they are not the same reason. The cap is time the Salon was
+    # allowed; the balance is money it was allowed. Both end it here — the agent is told
+    # which, because "your ten minutes are up" and "your balance ran out" call for different
+    # things to be said, and one standing in for the other would be a lie to a paying person.
     ended_now = False
-    if remaining == 0:
+    if remaining == 0 or balance_exhausted:
         # Deleting the room is what actually stops the agent; finalizing only settles the
         # accounting. Same order as close_previous_host_salons, for the same reason.
         room_name = salon.livekit_room_name
@@ -712,9 +757,9 @@ async def salon_heartbeat(
         await livekit_service.delete_room(room_name)
         ended_now = True
         logger.info(
-            "Salon %s reached the %ds cap and was closed",
+            "Salon %s closed: %s",
             salon.id,
-            settings.max_salon_seconds,
+            "balance exhausted" if balance_exhausted else f"{settings.max_salon_seconds}s cap",
         )
 
     # Re-read after finalize_salon, which may have accrued the closing span.
@@ -724,6 +769,10 @@ async def salon_heartbeat(
         trialSecondsUsed=used,
         secondsRemaining=remaining,
         salonEnded=ended_now,
+        balanceCents=balance_cents,
+        chargedCents=charged,
+        balanceSecondsRemaining=balance_left,
+        balanceExhausted=balance_exhausted,
     )
 
 

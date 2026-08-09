@@ -1,8 +1,16 @@
-"""Tests for Story 4.2 — Accurate metering of conversation time."""
+"""Tests for Story 4.2 — Accurate metering of conversation time.
+
+Prepaid since the Epic 8 cutover: the heartbeat is the tick, so it charges what elapsed and
+closes the Salon when the balance cannot cover what comes next. The host fixture therefore
+has a balance — a host without one is a real and separate case, tested at the bottom, and
+building every fixture that way would have every test here also testing exhaustion.
+"""
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from src.credit import Tier
+from src.ledger import EventType, Pool, append
 from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
@@ -10,9 +18,34 @@ from src.services.jwt_service import issue_token
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
+def _fund(db, user, cents):
+    """Put paid balance on somebody, through the stream like everything else."""
+    append(
+        db,
+        type=EventType.RECHARGED,
+        subject_id=user.id,
+        amount_cents=cents,
+        pool=Pool.PAID,
+    )
+    db.commit()
+
+
 @pytest.fixture
 def host(db):
     u = User(email="15148880010@example.com", phone_number="+15148880010")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    # Ten dollars: enough that no test here runs out by accident, so a Salon that closes in
+    # one of them closed for the reason that test is about.
+    _fund(db, u, 1000)
+    return u, issue_token(str(u.id))
+
+
+@pytest.fixture
+def penniless_host(db):
+    """A host with no balance at all — the case the cutover creates."""
+    u = User(email="15148880011@example.com", phone_number="+15148880011")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -273,3 +306,123 @@ def test_heartbeat_on_a_capped_salon_is_refused_afterwards(client, db, host):
     client.post(f"/salons/{sess.id}/heartbeat", json={"seconds": 30}, headers=headers)
     second = client.post(f"/salons/{sess.id}/heartbeat", json={"seconds": 30}, headers=headers)
     assert second.status_code == 409
+
+
+# ─── Prepaid metering (FR63), since the Epic 8 cutover ───────────────────────
+#
+# The heartbeat is the tick. Everything below is behaviour that did not exist while
+# billing was post-paid: money comes off as the conversation happens, and running out
+# ends it rather than accruing a debt.
+
+
+def test_a_heartbeat_charges_the_balance_for_what_elapsed(client, db, host):
+    """Thirty seconds of Base is 300 cents/hour × 30 / 3600 = 2 cents."""
+    host_user, token = host
+
+    resp = client.post(
+        f"/salons/{_active_salon(db, host_user, 'charge').id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    body = resp.json()
+    assert body["chargedCents"] == 2
+    assert body["balanceCents"] == 998
+
+
+def test_the_host_tier_is_what_is_charged(client, db, host):
+    """Not a flat rate. Mode C is 2250 cents/hour, so the same thirty seconds costs more."""
+    host_user, token = host
+    salon = _active_salon(db, host_user, "tier")
+    salon.host_tier = Tier.MODE_C.value
+    db.commit()
+
+    resp = client.post(
+        f"/salons/{salon.id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.json()["chargedCents"] == 18
+
+
+def test_charges_accumulate_across_heartbeats(client, db, host):
+    host_user, token = host
+    salon = _active_salon(db, host_user, "accumulate")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    for _ in range(3):
+        resp = client.post(
+            f"/salons/{salon.id}/heartbeat", json={"seconds": 30}, headers=headers
+        )
+
+    assert resp.json()["balanceCents"] == 994
+
+
+def test_the_time_a_balance_buys_is_reported(client, db, host):
+    """The number somebody actually wants. Ten dollars of Base is a little under 3 h 20."""
+    host_user, token = host
+
+    resp = client.post(
+        f"/salons/{_active_salon(db, host_user, 'left').id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # 998 cents at 300/h → 11976 s.
+    assert resp.json()["balanceSecondsRemaining"] == 11976
+
+
+def test_a_salon_with_no_balance_behind_it_closes(client, db, penniless_host):
+    """No consumption without coverage (FR63). Ending is the designed outcome — the
+    alternative is a conversation carrying on while it accrues something nobody
+    authorised."""
+    host_user, token = penniless_host
+
+    resp = client.post(
+        f"/salons/{_active_salon(db, host_user, 'broke').id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    body = resp.json()
+    assert body["balanceExhausted"] is True
+    assert body["salonEnded"] is True
+    assert body["chargedCents"] == 0
+
+
+def test_running_out_of_money_is_told_apart_from_running_out_of_time(client, db, host):
+    """Both close the Salon, and the agent is told which. "Your ten minutes are up" and
+    "your balance ran out" call for different things to be said, and one standing in for
+    the other would be a lie to somebody who has paid."""
+    from src.config import settings
+
+    host_user, token = host
+    salon = _active_salon(db, host_user, "capped-not-broke")
+    salon.created_at = datetime.now(tz=timezone.utc) - timedelta(
+        seconds=settings.max_salon_seconds + 60
+    )
+    db.commit()
+
+    body = client.post(
+        f"/salons/{salon.id}/heartbeat",
+        json={"seconds": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    assert body["salonEnded"] is True
+    assert body["balanceExhausted"] is False
+
+
+def test_nothing_is_charged_for_a_heartbeat_reporting_no_time(client, db, host):
+    """A zero-second heartbeat is a sign of life, not consumption."""
+    host_user, token = host
+
+    body = client.post(
+        f"/salons/{_active_salon(db, host_user, 'zero').id}/heartbeat",
+        json={"seconds": 0},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    assert body["chargedCents"] == 0
+    assert body["balanceCents"] == 1000
