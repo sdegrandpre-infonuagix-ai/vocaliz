@@ -29,12 +29,20 @@ def _build_livekit_stubs() -> None:
     # livekit.plugins.turn_detector package.
     inference_mod = _register_stub("livekit.agents.inference", TurnDetector=MagicMock)
 
+    # Raised from `Agent.on_user_turn_completed` to skip the framework's automatic reply for
+    # that turn (mirrors livekit.agents.StopResponse, defined for real in llm/tool_context.py
+    # — a submodule this stub package does not have, so importing it from there would fail
+    # exactly as it does at the top level when the stub lacks the name).
+    class _StopResponse(Exception):
+        pass
+
     # livekit.agents ── Agent base class, function_tool passthrough, etc.
     agents_mod = _register_stub(
         "livekit.agents",
         Agent=_AgentBase,
         AgentSession=MagicMock,
         JobContext=MagicMock,
+        StopResponse=_StopResponse,
         function_tool=lambda f: f,  # passthrough — keeps the function callable
         inference=inference_mod,
         cli=MagicMock(),

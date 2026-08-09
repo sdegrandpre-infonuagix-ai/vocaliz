@@ -12,7 +12,7 @@ from typing import Annotated, Callable
 import httpx
 from dotenv import load_dotenv
 from livekit import agents, rtc
-from livekit.agents import AgentSession, Agent, function_tool, inference
+from livekit.agents import AgentSession, Agent, StopResponse, function_tool, inference
 # RoomOptions is not re-exported at the livekit.agents top level the way RoomInputOptions
 # was, so it has to be imported from its own module.
 from livekit.agents.voice.room_io import RoomOptions
@@ -285,6 +285,52 @@ _BASE_INSTRUCTIONS = (
 _CONTENT_PREVIEW_CHARS = 2500
 _EXTRA_SOURCE_PREVIEW_CHARS = 1000
 
+# ── The interpreter, under the per-participant topology ────────────────────────
+#
+# `_BASE_INSTRUCTIONS` above is written for the topology this agent is leaving: several
+# humans sharing one room, with the model deciding on its own when to speak, what to ask,
+# and when to surface a contrasting source. Under Story 11.1 this agent's room holds exactly
+# one human, and everything about what to say to them is decided by the orchestrator and
+# delivered as an explicit instruction — the model's own initiative is exactly what has to
+# stop, not something to keep tuning.
+#
+# `on_user_turn_completed` (below) is what actually enforces the silence: it raises
+# `StopResponse` so the framework never calls its own `_generate_reply` after this human
+# speaks. This prompt is the other half — what the model is told about the one thing it may
+# still decide on its own, which is nothing.
+_INTERPRETER_INSTRUCTIONS = (
+    "You are Vocaliz, working as one participant's personal voice interpreter in a Salon — "
+    "a facilitated, multilingual conversation. You are not shared: this room holds this one "
+    "person and nobody else, and every other participant of the Salon has their own agent, "
+    "in their own room, exactly like this one. "
+    "\n\n"
+    "You never decide what to say. Everything you say arrives as an explicit instruction — "
+    "a sentence to relay, an announcement, a summary of what was missed. You say it "
+    "naturally, translating into this participant's language when the instruction gives you "
+    "text in another one, in the first person as whoever said it would have said it "
+    "themselves. "
+    "\n\n"
+    "Outside of that, you are silent. Do not ask questions, do not comment on what this "
+    "person says, do not facilitate, do not fill a pause — even when spoken to directly. "
+    "Their words are being carried to the rest of the Salon by another part of the system; "
+    "your only job is to speak what you are given, in their language, and otherwise say "
+    "nothing at all."
+)
+
+
+def _journal_intro_instructions(language: str) -> str:
+    """The one thing this agent says on its own initiative: who it is, said once.
+
+    A model told to stay silent unless instructed is still the first voice a participant
+    ever hears in their room. Saying nothing at all about that would read as the connection
+    being broken, not as an interpreter waiting its turn.
+    """
+    return (
+        f"In {language}, in one or two short sentences: introduce yourself as this "
+        "person's interpreter for this Vocaliz Salon — a conversation where each "
+        "participant is heard by the others through their own interpreter. Say nothing "
+        "else, ask nothing, and do not wait for a reply."
+    )
 
 
 def _language_override(tag: str) -> str:
@@ -411,18 +457,28 @@ class SalonAgent(Agent):
         source_summary: str | None = None,
         room=None,
         forced_language: str = "auto",
+        follow_journal: bool = False,
     ) -> None:
         # Kept so a rebuild after source_added does not quietly drop the constraint. That
         # path builds fresh instructions from the salon detail, and a language held only
         # in the first build would vanish the moment a host added a link.
         self._forced_language = forced_language
-        instructions = _build_instructions(
-            source_content=source_content,
-            source_type=source_type,
-            source_url=source_url,
-            additional_sources=additional_sources,
-            source_summary=source_summary,
-        ) + _language_override(forced_language)
+        # Which prompt, and which rule below actually applies. `follow_journal` is decided
+        # by the API from whether an orchestrator holds this Salon (`salon.orchestrator_url`)
+        # — never guessed here — and is the same flag that gates `on_user_turn_completed`.
+        # The two must agree: a facilitation prompt paired with a silenced reply would leave
+        # the model composing interventions it is never allowed to speak.
+        self._follow_journal = follow_journal
+        if follow_journal:
+            instructions = _INTERPRETER_INSTRUCTIONS + _language_override(forced_language)
+        else:
+            instructions = _build_instructions(
+                source_content=source_content,
+                source_type=source_type,
+                source_url=source_url,
+                additional_sources=additional_sources,
+                source_summary=source_summary,
+            ) + _language_override(forced_language)
         super().__init__(instructions=instructions)
         self._salon_id = salon_id
         self._api_url = api_url
@@ -464,6 +520,24 @@ class SalonAgent(Agent):
         }
         logger.info("Frequency preference set to: %s", direction)
         return confirmations[direction]
+
+    async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
+        """The one line that makes the interpreter prompt true rather than aspirational.
+
+        Without this, the framework calls its own `_generate_reply` right after this method
+        returns — the same automatic response that facilitation depends on. Telling the
+        model to stay quiet in its instructions and then triggering a reply anyway produces
+        exactly the double voice this topology exists to remove: the model's own opinion,
+        followed a moment later by whatever the orchestrator actually asked for.
+
+        `StopResponse` is caught by the framework specifically to skip this one turn — the
+        transcript that got us here still reaches `user_input_transcribed` on an entirely
+        separate path (the realtime session's own transcription-completed event), which is
+        what `agent.py`'s journal-reporting hook listens to. Silencing the reply does not
+        silence the report.
+        """
+        if self._follow_journal:
+            raise StopResponse()
 
     async def _broadcast_translation_control(self, action: str) -> None:
         """Publish a translation control data message to all room participants."""
@@ -1117,6 +1191,18 @@ async def entrypoint(ctx: agents.JobContext):
         except (json.JSONDecodeError, AttributeError):
             logger.warning("Could not parse job metadata: %r", raw_metadata)
 
+    # Decided now, before the agent's own instructions are built — not later, in the journal
+    # section below. `SalonAgent` needs the final answer at construction time, to choose
+    # between the facilitation prompt and the interpreter one, and a prompt built from a
+    # provisional value that the manual kill switch then overrides would be the wrong one.
+    #
+    # `VOCALIZ_JOURNAL=off` forces every job silent regardless of what the API sent — the
+    # fastest way to stop the whole fleet talking to the orchestrator if that is ever the
+    # right call. Anything else leaves the API's own per-Salon decision in force.
+    follow_journal = follow_journal and os.environ.get(
+        "VOCALIZ_JOURNAL", ""
+    ).strip().lower() != "off"
+
     # Fetch salon content so the agent can read it aloud and introduce contrast
     source_content: str | None = None
     source_summary: str | None = None
@@ -1214,6 +1300,7 @@ async def entrypoint(ctx: agents.JobContext):
         source_summary=source_summary,
         room=ctx.room,
         forced_language=forced_language,
+        follow_journal=follow_journal,
     )
 
     # How the agent actually leaves. ctx.shutdown ends the job, which closes the room
@@ -1634,14 +1721,9 @@ async def entrypoint(ctx: agents.JobContext):
     # back as text to be spoken here. The interpreter is this session, beside this
     # microphone; the orchestrator never hears a sound.
     #
-    # `follow_journal` and `relay_token` are the API's own answer to "should this job follow
-    # a journal, and as whom" — decided at dispatch time from whether this Salon actually has
-    # an orchestrator, not guessed here from an environment variable. `VOCALIZ_JOURNAL` still
-    # exists as a manual kill switch: set to "off", it forces every job silent regardless of
-    # what the API sent, which is the fastest way to stop the whole fleet talking to the
-    # orchestrator if that is ever the right call.
-    manual_override = os.environ.get("VOCALIZ_JOURNAL", "").strip().lower()
-    follow_journal = bool(follow_journal) and manual_override != "off"
+    # `follow_journal` is already decided — computed above, before `SalonAgent` was built,
+    # because the prompt it chose and the silence `on_user_turn_completed` enforces both have
+    # to agree with what happens here. Nothing left to compute; this section only acts on it.
 
     # The orchestrator answers inside the VPC and this worker runs on LiveKit Cloud, outside
     # it — so the address that works from the API does not work from here. The relay behind
@@ -1665,14 +1747,23 @@ async def entrypoint(ctx: agents.JobContext):
             await asyncio.sleep(0.25)
 
     if follow_journal and orchestrator_url and salon_id and listener is not None:
+        listener_language = forced_language if forced_language != "auto" else "en"
         link = OrchestratorLink(
             base_url=orchestrator_url,
             salon_id=salon_id,
             participant_id=participant_id,
-            language=forced_language if forced_language != "auto" else "en",
+            language=listener_language,
             token=relay_token,
         )
         await link.join(name=listener.name or None)
+
+        # The one thing this agent says on its own initiative, said once. A model told to
+        # stay silent unless instructed is still the first voice this person hears in their
+        # room, and saying nothing at all about that would read as a broken connection
+        # rather than an interpreter waiting its turn.
+        agent_session.generate_reply(
+            instructions=_journal_intro_instructions(listener_language)
+        )
 
         @agent_session.on("user_input_transcribed")
         def _report_to_the_journal(event) -> None:

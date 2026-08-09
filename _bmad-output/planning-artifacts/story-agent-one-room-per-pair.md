@@ -133,7 +133,7 @@ l'interprète dans l'agent. (a) est la seule des trois qui crée une surface à 
 | 1 | ~~**Joignabilité**~~ | **Fait** — relais (b) par l'API, `VOCALIZ_JOURNAL=relay` | — |
 | 2 | ~~**Dépêche par participant**~~ | **Fait pour les invités** — une room et un agent par invité au clic, l'hôte suit ; jetons de relais bornés | 1 |
 | 3 | **Amaigrissement de l'agent** | Supprimer le mélangeur et l'attribution | 2 |
-| 4 | **La conversation par le journal** | Activer `follow` ; retirer la traduction dans la room | 1, 3 |
+| 4 | ~~**La conversation par le journal**~~ | **Fait** — StopResponse coupe la réplique auto, prompt d'interprète, intro unique | 1 |
 | 5 | **Modes par siège** | Chaque interprète à son tarif | 4 |
 
 Les tranches 1 et 2 sont indépendantes et peuvent avancer en parallèle. **Rien de la logique
@@ -189,3 +189,38 @@ convertir est un travail identique à celui déjà fait, pas un nouveau problèm
 `MixedParticipantAudioInput` n'a pas été retiré (AC4, tranche 3) : avec une seule personne
 par room il ne fait que mélanger une seule source, ce qui est inoffensif à laisser en place
 pour l'instant.
+
+---
+
+## Tranche 4 — la réplique automatique coupée, pas seulement la traduction
+
+**Le vrai problème n'était pas « où traduire », c'était « qui décide de parler ».** L'agent
+temps réel génère sa propre réponse dès qu'il détecte une fin de tour — c'est le mécanisme
+même de la facilitation sous l'ancienne topologie. Sous le journal, cette initiative doit
+disparaître : tout ce que l'agent dit doit venir d'une instruction explicite envoyée par
+`following.py`, jamais d'une décision du modèle.
+
+`Agent.on_user_turn_completed` peut lever `StopResponse` pour annuler la réplique automatique
+d'un tour précis, sans rien couper d'autre — la transcription continue d'arriver par un
+chemin entièrement séparé (l'événement de transcription propre à la session temps réel), qui
+est exactement ce que `agent.py` écoute déjà pour rapporter au journal. `SalonAgent` lève
+maintenant cette exception dès que `follow_journal` est vrai, et jamais sinon — `dial_in`,
+`call_the_desk` et tout Salon sans orchestrateur continuent de fonctionner à l'identique.
+
+`follow_journal` choisit aussi le jeu d'instructions : `_INTERPRETER_INSTRUCTIONS` remplace
+l'invite de facilitation, en disant au modèle qu'il ne décide jamais quoi dire et qu'il reste
+silencieux en dehors de ce qu'on lui donne explicitement — même si on lui parle directement.
+
+Rester silencieux n'est pas la même chose que disparaître : le modèle reste la première voix
+qu'un participant entend dans sa room. Une introduction unique, déclenchée par le code juste
+après `link.join(...)` réussi (jamais laissée à l'initiative du modèle), se présente comme
+l'interprète de ce Salon avant de se taire.
+
+Vérifié par 8 tests dédiés (`tests/test_interpreter_mode.py`) : le prompt choisi correspond
+au bon mode, `StopResponse` est levée sous `follow_journal` et jamais sinon, la langue forcée
+survit au changement de prompt, l'introduction nomme la langue et le produit sans jamais
+inviter de réponse.
+
+Déployé sur le worker LiveKit Cloud (`lk agent deploy`) — un push git seul ne l'aurait jamais
+atteint, leçon apprise plus tôt dans cette même session quand le worker s'est avéré tourner
+sur le code du 5 août pendant que cinq commits d'agent.py l'attendaient sans effet.
