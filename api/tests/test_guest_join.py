@@ -64,7 +64,8 @@ def _make_invitation(db, host_user, salon, *, status="pending", expired=False, t
 # ─── Success case ─────────────────────────────────────────────────────────────
 
 def test_guest_join_returns_livekit_credentials(client, db, host, active_salon):
-    """Valid pending token returns LiveKit credentials."""
+    """Valid pending token returns LiveKit credentials — for the guest's own room, not the
+    host's. One human, one interpreter, one room; the host's room is now theirs alone."""
     host_user, _ = host
     inv = _make_invitation(db, host_user, active_salon)
     resp = client.get(f"/invitations/guest-join/{inv.join_token}")
@@ -72,9 +73,53 @@ def test_guest_join_returns_livekit_credentials(client, db, host, active_salon):
     body = resp.json()
     assert "participantToken" in body
     assert body["participantToken"]
-    assert body["livekitRoomName"] == active_salon.livekit_room_name
+    assert body["livekitRoomName"] != active_salon.livekit_room_name
     assert "livekitUrl" in body
     assert body["salonId"] == str(active_salon.id)
+
+
+def test_guest_join_provisions_the_guests_own_room_once(client, db, host, active_salon):
+    """One room and one dispatch, made on the first open and handed back on every one after.
+    A guest who reloads, or whose first attempt never reached a microphone, must return to
+    the room they already have rather than be given a second one nobody closes."""
+    from unittest.mock import AsyncMock, patch
+
+    host_user, _ = host
+    inv = _make_invitation(db, host_user, active_salon)
+
+    with (
+        patch(
+            "src.routers.invitations.livekit_service.create_room", new_callable=AsyncMock
+        ) as create_room,
+        patch(
+            "src.routers.invitations.livekit_service.dispatch_agent", new_callable=AsyncMock
+        ) as dispatch,
+    ):
+        first = client.get(f"/invitations/guest-join/{inv.join_token}")
+        second = client.get(f"/invitations/guest-join/{inv.join_token}")
+
+    create_room.assert_awaited_once()
+    dispatch.assert_awaited_once()
+    assert first.json()["livekitRoomName"] == second.json()["livekitRoomName"]
+
+    assert dispatch.await_args.kwargs["participant_id"] == first.json()["participantIdentity"]
+    assert dispatch.await_args.kwargs["salon_id"] == str(active_salon.id)
+
+
+def test_the_guests_room_holds_exactly_the_guest_and_their_agent(
+    client, db, host, active_salon
+):
+    from unittest.mock import AsyncMock, patch
+
+    host_user, _ = host
+    inv = _make_invitation(db, host_user, active_salon)
+
+    with patch(
+        "src.routers.invitations.livekit_service.create_room", new_callable=AsyncMock
+    ) as create_room:
+        client.get(f"/invitations/guest-join/{inv.join_token}")
+
+    assert create_room.await_args.kwargs["max_participants"] == 2
 
 
 def test_guest_join_requires_no_authentication(client, db, host, active_salon):

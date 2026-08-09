@@ -50,6 +50,7 @@ from src.services import (
     jwt_service,
     livekit_service,
     orchestrator_client,
+    relay_token as relay_token_service,
     salon_event_service,
     salon_lifecycle,
     shared_source_service,
@@ -272,8 +273,9 @@ async def create_salon(
             article_date=article_date,
         )
 
-    # 5. Dispatch the agent with the salon context it needs to read sources, invite
-    # guests and report metering. Done after the commit so the salon id exists.
+    # 5. Dispatch the host's own agent — one participant, one room, one interpreter — with
+    # the salon context it needs to read sources, invite guests and report metering. Done
+    # after the commit so the salon id exists.
     #
     # This is a Salon API JWT, not the LiveKit participant token above: the agent calls
     # our REST API with it, and passing the LiveKit token here yields 401 on every call.
@@ -281,6 +283,15 @@ async def create_salon(
         room_name,
         salon_id=str(salon.id),
         host_token=jwt_service.issue_token(str(current_user.id)),
+        participant_id=str(current_user.id),
+        relay_token=relay_token_service.issue(
+            salon_id=str(salon.id), participant_id=str(current_user.id)
+        ),
+        # False until an orchestrator actually took this Salon — set two steps above. An
+        # agent told to follow a journal that does not exist would ask forever and answer
+        # nobody; running the conversation it can, one room and one human, is the honest
+        # fallback.
+        follow_journal=bool(salon.orchestrator_url),
     )
 
     # Quick-start with a previous partner: auto-invite so the salon starts with

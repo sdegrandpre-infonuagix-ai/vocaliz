@@ -62,22 +62,47 @@ async def create_room(room_name: str, *, max_participants: int | None = None) ->
 SALON_AGENT_NAME = "salon-agent"
 
 
-async def dispatch_agent(room_name: str, *, salon_id: str, host_token: str) -> None:
-    """Dispatch the Salon agent into a room, handing it the salon context it needs.
+async def dispatch_agent(
+    room_name: str,
+    *,
+    salon_id: str,
+    host_token: str,
+    participant_id: str,
+    relay_token: str,
+    follow_journal: bool,
+) -> None:
+    """Dispatch one participant's agent into their own room, and tell it whose it is.
 
-    Explicit dispatch rather than room metadata: the agent needs the host's JWT to read
-    salon sources and send invitations on the host's behalf, and room metadata is
-    readable by every participant — including browser guests. Job metadata is
-    not, so the token stays out of reach.
+    One agent per participant now, not one per Salon — each dispatch is for a single human,
+    in a room that holds only them and this agent. `participant_id` is what lets the agent
+    stop guessing who it is here for from how many people happen to be in the room, which is
+    a race the moment a job starts before its human's browser has finished connecting.
 
-    Failure is not fatal: the room already exists and participants can talk. The agent
-    simply will not join, which is logged rather than surfaced as a salon error.
+    `host_token` and `relay_token` are two different credentials for two different things.
+    `host_token` is always the host's own Vocaliz JWT — reading a Salon's source content is a
+    host-only action (`GET /salons/{id}`), the same for every agent regardless of which
+    participant it serves, so every dispatch carries it. `relay_token` is scoped to exactly
+    this participant in this Salon (`relay_token.py`) and is what the agent presents to
+    `/orchestrator/...` — a guest has no Vocaliz account to hold a JWT as, and even the host's
+    account should not be handed a credential good for every Salon it will ever host.
+
+    `follow_journal` says whether an orchestrator is actually holding this Salon. `False`
+    means the agent runs the conversation it can — its own room, its own human — rather than
+    asking a journal that does not exist.
+
+    Explicit dispatch rather than room metadata, still: room metadata is readable by every
+    participant, and none of these three should be. Failure is not fatal — the room exists
+    and its one human can still be spoken to by whatever joined it — and is logged rather than
+    surfaced as a salon error.
     """
     payload = json.dumps(
         {
             "salon_id": salon_id,
             "api_url": settings.salon_web_base_url,
             "host_token": host_token,
+            "participant_id": participant_id,
+            "relay_token": relay_token,
+            "follow_journal": follow_journal,
         }
     )
     try:

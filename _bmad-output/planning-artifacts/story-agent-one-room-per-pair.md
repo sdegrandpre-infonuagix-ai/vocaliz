@@ -131,7 +131,7 @@ l'interprète dans l'agent. (a) est la seule des trois qui crée une surface à 
 | # | Tranche | Contenu | Dépend de |
 |---|---|---|---|
 | 1 | ~~**Joignabilité**~~ | **Fait** — relais (b) par l'API, `VOCALIZ_JOURNAL=relay` | — |
-| 2 | **Dépêche par participant** | API : une room et un agent par humain | — |
+| 2 | ~~**Dépêche par participant**~~ | **Fait pour les invités** — une room et un agent par invité au clic, l'hôte suit ; jetons de relais bornés | 1 |
 | 3 | **Amaigrissement de l'agent** | Supprimer le mélangeur et l'attribution | 2 |
 | 4 | **La conversation par le journal** | Activer `follow` ; retirer la traduction dans la room | 1, 3 |
 | 5 | **Modes par siège** | Chaque interprète à son tarif | 4 |
@@ -156,3 +156,36 @@ agent/agent.py                       branché, inerte tant qu'ORCHESTRATOR_BASE_
 
 Le circuit est complet de bout en bout et vérifié contre un vrai orchestrateur en conteneur,
 avec de vraies rooms LiveKit. Il ne lui manque qu'une topologie où il a le droit de parler.
+
+---
+
+## Ce que la tranche 2 a livré, et sa faille refermée en cours de route
+
+Chaque invité qui ouvre son lien reçoit maintenant sa propre room et son propre agent,
+dépêché au premier `GET /guest-join/{token}` réussi et réutilisé sur tous les suivants
+(`invitations.livekit_room_name`, migration 060). L'hôte, symétriquement, dépêche son propre
+agent à la création — nécessaire pour que la conversation fonctionne dans les deux sens.
+
+**La faille que tranche 1 avait ouverte sans le savoir.** Le relais vérifiait un compte
+Vocaliz authentifié, jamais lequel Salon ce compte pouvait toucher — n'importe quel
+utilisateur connecté pouvait interroger le journal de n'importe quel Salon. Rien ne l'avait
+encore exploitée seulement parce que rien n'avait encore émis de second jeton. Un invité n'a
+d'ailleurs aucun compte pour porter un jeton complet. `relay_token.py` mint désormais un
+jeton borné à `(salon_id, participant_id)` — il autorise à parler comme ce participant dans
+ce Salon, rien de plus, et un jeton pour Marie ne peut pas se faire passer pour Hans.
+
+**Vérifié de bout en bout contre un vrai orchestrateur et de vraies rooms LiveKit** :
+hébergement, deux participants qui rejoignent chacun leur propre room, ce que Hans dit en
+allemand qui arrive à Marie marqué `de→fr`, la mauvaise portée refusée à 403, le départ
+propre.
+
+**Ce que ceci n'a pas fait, délibérément.** `dial_in` (le bouton de simulation d'appel
+téléphonique) et `call_the_desk` restent sur la room partagée et ne dépêchent pas un agent
+par participant — le premier n'a aucun trafic réel derrière lui tant qu'aucun trunk SIP
+n'existe, le second garde sa propre room pour le bureau et n'appelle jamais
+`orchestrator_client.host_salon`. Ni l'un ni l'autre n'était dans la demande, et les
+convertir est un travail identique à celui déjà fait, pas un nouveau problème.
+
+`MixedParticipantAudioInput` n'a pas été retiré (AC4, tranche 3) : avec une seule personne
+par room il ne fait que mélanger une seule source, ce qui est inoffensif à laisser en place
+pour l'instant.

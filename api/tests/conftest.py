@@ -61,11 +61,14 @@ def _fresh_db():
 
 @pytest.fixture(autouse=True)
 def _no_livekit_side_calls(request):
-    """Stop agent dispatch and room notifications from reaching LiveKit in tests.
+    """Stop room provisioning, agent dispatch and room notifications from reaching LiveKit.
 
-    Both swallow their own exceptions, so without this every salon-creating test
-    would silently attempt a real connection to the configured LiveKit URL — slow and
-    dependent on the network.
+    Dispatch, notification and deletion swallow their own exceptions, so without this every
+    salon-creating test would silently attempt a real connection to the configured LiveKit
+    URL — slow and dependent on the network. `create_room` does not swallow its own failure
+    (it raises a 503 for the caller to answer with), so leaving it real here would fail these
+    tests outright rather than slowly: every guest-join test provisions the guest's own room
+    now, on top of the host's own tests that already patched this locally.
 
     Tests that exercise those functions themselves opt out with
     @pytest.mark.real_livekit_service, otherwise they would assert against this mock.
@@ -77,6 +80,7 @@ def _no_livekit_side_calls(request):
         return
 
     with (
+        patch("src.services.livekit_service.create_room", new_callable=AsyncMock),
         patch("src.services.livekit_service.dispatch_agent", new_callable=AsyncMock),
         patch("src.services.livekit_service.notify_room", new_callable=AsyncMock),
         patch("src.services.livekit_service.delete_room", new_callable=AsyncMock),

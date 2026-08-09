@@ -1091,6 +1091,18 @@ async def entrypoint(ctx: agents.JobContext):
     salon_id: str | None = None
     api_url: str | None = None
     host_token: str | None = None
+    # Who this job was dispatched for, and the credential scoped to exactly that participant
+    # in this Salon (`relay_token.py`, on the API). Distinct from `host_token`: that one is
+    # always the host's own account and is the same for every agent of this Salon, because
+    # reading its source content is a host-only action regardless of whose room asks.
+    # `relay_token` is never the host's identity for a guest's job — a guest has no account
+    # to hold one as — and it authorises speaking as this one participant, nothing wider.
+    participant_id: str | None = None
+    relay_token: str | None = None
+    # Whether an orchestrator is actually holding this Salon, decided by the API at dispatch
+    # time from `salon.orchestrator_url` — not guessed here. `False` for a Salon nobody
+    # reachable could be handed to, which is the ordinary case until Story 11.1 is complete.
+    follow_journal: bool = False
 
     raw_metadata = getattr(ctx.job, "metadata", None)
     if raw_metadata:
@@ -1099,6 +1111,9 @@ async def entrypoint(ctx: agents.JobContext):
             salon_id = meta.get("salon_id")
             api_url = meta.get("api_url")
             host_token = meta.get("host_token")
+            participant_id = meta.get("participant_id")
+            relay_token = meta.get("relay_token")
+            follow_journal = bool(meta.get("follow_journal", False))
         except (json.JSONDecodeError, AttributeError):
             logger.warning("Could not parse job metadata: %r", raw_metadata)
 
@@ -1619,49 +1634,43 @@ async def entrypoint(ctx: agents.JobContext):
     # back as text to be spoken here. The interpreter is this session, beside this
     # microphone; the orchestrator never hears a sound.
     #
-    # Empty `ORCHESTRATOR_BASE_URL` keeps every line below inert, which is the state today —
-    # and not only because the service is young. **The orchestrator answers inside the VPC
-    # and this worker runs on LiveKit Cloud**, so the address that works from the API does
-    # not work from here. That gap is real and is named in the story rather than papered over
-    # with a public endpoint nobody designed.
-    # Off unless asked for, and that default is deliberate rather than cautious. Following a
-    # journal is only correct under Story 11.1's topology — one human per room — and this
-    # worker still joins rooms holding two. An agent that followed one anyway would say a
-    # script into a room already being served the old way, and the person in it would hear
-    # every sentence twice.
-    #
-    #   off       nothing happens (the default, and what production runs today)
-    #   relay     through the API, which is already public and already authenticated
-    #   <url>     straight at an orchestrator, for a worker inside the VPC
-    #
-    # `relay` is the way in today because the orchestrator answers inside a VPC this worker is
-    # not in. The paths behind `/orchestrator` mirror the orchestrator's own exactly, so the
-    # day the worker moves into that VPC this becomes a URL in the same setting and the client
-    # below does not move at all.
-    journal = os.environ.get("VOCALIZ_JOURNAL", "off").strip()
-    if journal.lower() in ("", "off"):
-        orchestrator_url = ""
-    elif journal.lower() == "relay":
-        orchestrator_url = f"{api_url}/orchestrator" if api_url and host_token else ""
-    else:
-        orchestrator_url = journal
+    # `follow_journal` and `relay_token` are the API's own answer to "should this job follow
+    # a journal, and as whom" — decided at dispatch time from whether this Salon actually has
+    # an orchestrator, not guessed here from an environment variable. `VOCALIZ_JOURNAL` still
+    # exists as a manual kill switch: set to "off", it forces every job silent regardless of
+    # what the API sent, which is the fastest way to stop the whole fleet talking to the
+    # orchestrator if that is ever the right call.
+    manual_override = os.environ.get("VOCALIZ_JOURNAL", "").strip().lower()
+    follow_journal = bool(follow_journal) and manual_override != "off"
+
+    # The orchestrator answers inside the VPC and this worker runs on LiveKit Cloud, outside
+    # it — so the address that works from the API does not work from here. The relay behind
+    # `/orchestrator` is the way through today: it mirrors the orchestrator's own paths
+    # exactly, so the day this worker moves into that VPC, pointing straight at the
+    # orchestrator is one changed base URL and this client does not move at all.
+    orchestrator_url = f"{api_url}/orchestrator" if api_url else ""
     following_task: asyncio.Task | None = None
     stop_following = asyncio.Event()
 
-    # One human per room is what the orchestrator's topology means; this agent still joins
-    # rooms holding two. Delivery is engaged only where the two agree, because a script is
-    # written for one listener and there is one audio output — saying Marie's script into a
-    # room where Hans is also sitting would read him her half of the conversation.
-    humans = [p for p in ctx.room.remote_participants.values()]
-    listener = humans[0] if len(humans) == 1 else None
+    # This dispatch was made for one specific human — `participant_id`, from the API — not
+    # for whoever happens to be in the room when this line runs. Matched by identity rather
+    # than inferred from a head count: a job can start before its human's browser has
+    # finished connecting, and a room briefly empty is not evidence that nobody is coming.
+    listener = None
+    if participant_id:
+        for _ in range(20):  # ~5s at the interval below, generous next to a browser's connect
+            listener = ctx.room.remote_participants.get(participant_id)
+            if listener is not None:
+                break
+            await asyncio.sleep(0.25)
 
-    if orchestrator_url and salon_id and listener is not None:
+    if follow_journal and orchestrator_url and salon_id and listener is not None:
         link = OrchestratorLink(
             base_url=orchestrator_url,
             salon_id=salon_id,
-            participant_id=listener.identity,
+            participant_id=participant_id,
             language=forced_language if forced_language != "auto" else "en",
-            token=host_token,
+            token=relay_token,
         )
         await link.join(name=listener.name or None)
 
@@ -1679,15 +1688,15 @@ async def entrypoint(ctx: agents.JobContext):
         following_task = asyncio.create_task(
             follow(link, SessionVoice(agent_session), stop=stop_following)
         )
-        logger.info("Following the journal for %s in salon %s", listener.identity, salon_id)
-    elif orchestrator_url and salon_id:
-        # Said out loud in the log rather than left as silence. A worker that was configured
-        # to follow a journal and quietly did not is the hardest kind of failure to notice.
-        logger.info(
-            "Not following the journal for salon %s: the room holds %d humans and a script "
-            "is written for one",
+        logger.info("Following the journal for %s in salon %s", participant_id, salon_id)
+    elif follow_journal and orchestrator_url and salon_id:
+        # Said out loud in the log rather than left as silence. A worker that was told to
+        # follow a journal and quietly did not is the hardest kind of failure to notice — in
+        # this case, because the human it was dispatched for never actually connected.
+        logger.warning(
+            "Not following the journal for salon %s: participant %s never joined this room",
             salon_id,
-            len(humans),
+            participant_id,
         )
 
     async def _stop_following() -> None:

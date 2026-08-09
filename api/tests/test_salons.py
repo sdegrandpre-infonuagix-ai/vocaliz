@@ -88,6 +88,20 @@ def test_create_salon_dispatches_agent_with_context(
     assert kwargs["host_token"] != "tok"
     assert decode_token(kwargs["host_token"])["sub"] == str(host.id)
 
+    # The host is this dispatch's participant. The relay token is scoped to them and to
+    # this Salon specifically — never the host_token above, which every agent of this Salon
+    # carries regardless of whose room it is dispatched into.
+    from src.services import relay_token as relay_token_service
+
+    assert kwargs["participant_id"] == str(host.id)
+    assert relay_token_service.scope_of(kwargs["relay_token"]) == (
+        response.json()["salonId"],
+        str(host.id),
+    )
+    # No orchestrator is reachable in this test environment, so nothing was handed to one —
+    # `False` is the honest record of that, not a stand-in for "not implemented yet".
+    assert kwargs["follow_journal"] is False
+
 
 @pytest.mark.real_livekit_service
 @pytest.mark.asyncio
@@ -102,7 +116,12 @@ async def test_dispatch_agent_swallows_livekit_failure(mock_api):
 
     mock_api.side_effect = RuntimeError("livekit unreachable")
     assert await livekit_service.dispatch_agent(
-        "salon-test", salon_id="s1", host_token="tok"
+        "salon-test",
+        salon_id="s1",
+        host_token="tok",
+        participant_id="marie",
+        relay_token="scoped-tok",
+        follow_journal=False,
     ) is None
 
 

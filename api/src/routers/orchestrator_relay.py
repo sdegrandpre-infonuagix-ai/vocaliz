@@ -23,26 +23,54 @@ router goes away, nothing on the agent side has to be rewritten to prove it stil
 **Which orchestrator.** Never the configured one: the one written on this Salon's row when it
 was created. A Salon is stateful — the journal, every reader's position — and any other
 instance would answer with a second, emptier version of the same conversation.
+
+**Who may call this.** Not a Vocaliz sign-in — a guest's agent has no account to sign in as,
+and even the host's account proves an identity, not a Salon. Every route here is guarded by a
+token from `relay_token`, scoped to exactly one participant's one Salon: it authorises
+speaking as that participant in that Salon, and nothing else. The first version of this file
+accepted any signed-in user's token for any Salon at all, which nothing had yet exploited only
+because nothing yet minted a token that told two Salons apart.
 """
 import logging
 from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session as DbSession
 
 from src.database import get_db
-from src.dependencies.auth import get_current_user
 from src.models.salon import Salon
-from src.models.user import User
+from src.services import relay_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
 
+_bearer = HTTPBearer()
+
 # Short, for the same reason as everywhere else on this path: each of these sits between one
 # person speaking and another hearing it, so a slow answer is worse than no answer.
 TIMEOUT_SECONDS = 5.0
+
+
+def _authorised(
+    salon_id: str,
+    participant_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> None:
+    """Refuse unless this token was minted for exactly this participant in this Salon.
+
+    A wrong participant id in an otherwise valid token is refused here rather than reported —
+    it is the shape a bug takes, not an attack, and 403 says so without a stack trace.
+    """
+    scope = relay_token.scope_of(credentials.credentials)
+    if scope is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    if scope != (salon_id, participant_id):
+        raise HTTPException(
+            status_code=403, detail="This token is not scoped to this participant."
+        )
 
 
 def _salon(db: DbSession, salon_id: str) -> Salon:
@@ -102,11 +130,26 @@ async def _forward(
 async def join(
     salon_id: str,
     request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     db: DbSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    """A human takes a seat. Their interpreter stays in their agent, beside their audio."""
-    return await _forward(_salon(db, salon_id), "POST", "/participants", await request.json())
+    """A human takes a seat. Their interpreter stays in their agent, beside their audio.
+
+    The one route here where the participant's identity is not in the path — it is in the
+    body, because this is the call that announces it. Authorised against the body rather
+    than a path segment, which is why this cannot share `_authorised`'s signature with the
+    other three.
+    """
+    body = await request.json()
+    participant_id = body.get("participantId", "")
+    scope = relay_token.scope_of(credentials.credentials)
+    if scope is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    if scope != (salon_id, participant_id):
+        raise HTTPException(
+            status_code=403, detail="This token is not scoped to this participant."
+        )
+    return await _forward(_salon(db, salon_id), "POST", "/participants", body)
 
 
 @router.get("/salons/{salon_id}/participants/{participant_id}/script")
@@ -114,7 +157,7 @@ async def script(
     salon_id: str,
     participant_id: str,
     db: DbSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _: None = Depends(_authorised),
 ):
     """What this participant is owed, in their language, in order.
 
@@ -132,7 +175,7 @@ async def report(
     participant_id: str,
     request: Request,
     db: DbSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _: None = Depends(_authorised),
 ):
     """What this participant's human just said, for the journal."""
     return await _forward(
@@ -148,7 +191,7 @@ async def leave(
     salon_id: str,
     participant_id: str,
     db: DbSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _: None = Depends(_authorised),
 ):
     """Somebody left. Their room closes and nothing else does — what they said stays in the
     journal, because leaving is not a reason for everybody else to lose half the

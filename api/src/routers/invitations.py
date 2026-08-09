@@ -32,6 +32,7 @@ from src.services import (
     jwt_service,
     invitation_service,
     livekit_service,
+    relay_token as relay_token_service,
     salon_code_service,
     salon_event_service,
     utterance_service,
@@ -120,7 +121,7 @@ def resend_invitation_email(
 
 
 @guest_router.get("/guest-join/{join_token}", response_model=GuestJoinResponse)
-def guest_join_salon(
+async def guest_join_salon(
     join_token: str,
     db: DbSession = Depends(get_db),
 ):
@@ -138,6 +139,13 @@ def guest_join_salon(
     What keeps this from becoming a link anyone can share: the participant identity is
     derived from the invitation, so two people opening the same link get the same LiveKit
     identity and the second connection displaces the first. Only one can be in the room.
+
+    **The room is the guest's own, not the host's.** One human, one interpreter, one room —
+    the topology this Salon is built on — so this provisions a room sized for exactly that and
+    dispatches an agent into it, the first time this invitation is opened. Reopened, the same
+    room is handed back: a guest who reloads, or whose first attempt never reached a
+    microphone, must return to the room they already have rather than be given a second one
+    nobody closes and a second agent nobody dispatched for.
     """
     now = datetime.now(tz=timezone.utc)
 
@@ -203,8 +211,32 @@ def guest_join_salon(
     # participants can read it, as they can read any identity in the room, and gain
     # nothing by it.
     guest_id = livekit_service.identity_for(invitation)
+
+    # The guest's own room, made on the first successful open and handed back on every one
+    # after. Not `salon.livekit_room_name`: that is the host's room now, and nobody else ever
+    # joins it under this topology.
+    if invitation.livekit_room_name is None:
+        room_name = livekit_service.new_room_name()
+        # 2, always — this guest and their agent, never anybody else. `salon.participant_cap`
+        # still bounds how many invitations the Salon may accept; it no longer sizes a room,
+        # because no room holds more than one human.
+        await livekit_service.create_room(room_name, max_participants=2)
+        await livekit_service.dispatch_agent(
+            room_name,
+            salon_id=str(salon.id),
+            # The host's own JWT, not the guest's — reading a Salon's source content is a
+            # host-only action and the same for every agent regardless of whose room it is
+            # dispatched into.
+            host_token=jwt_service.issue_token(str(salon.host_user_id)),
+            participant_id=guest_id,
+            relay_token=relay_token_service.issue(salon_id=str(salon.id), participant_id=guest_id),
+            follow_journal=bool(salon.orchestrator_url),
+        )
+        invitation.livekit_room_name = room_name
+        db.commit()
+
     token = livekit_service.generate_participant_token(
-        room_name=salon.livekit_room_name,
+        room_name=invitation.livekit_room_name,
         user_id=guest_id,
         # Every guest used to carry the same fixed label, which made them addressable but
         # still indistinguishable — on screen and to the agent alike. The label carries a
@@ -216,7 +248,7 @@ def guest_join_salon(
 
     return GuestJoinResponse(
         participantToken=token,
-        livekitRoomName=salon.livekit_room_name,
+        livekitRoomName=invitation.livekit_room_name,
         livekitUrl=livekit_service._http_url(),
         salonId=str(salon.id),
         participantIdentity=guest_id,
@@ -372,8 +404,11 @@ def confirm_guest_join(
             email=invitation.guest_email or "",
             phone=invitation.guest_phone or "",
             user_type="guest",
-            salon_name=salon.livekit_room_name,
-        salon_id=salon.id,
+            # The guest's own room, not the host's — this invitation opened one at
+            # `guest_join_salon`. Falling back to the host's room only covers a confirmation
+            # that somehow arrives before its own join call ever did.
+            salon_name=invitation.livekit_room_name or salon.livekit_room_name,
+            salon_id=salon.id,
             latitude=body.latitude if body else None,
             longitude=body.longitude if body else None,
             # The client's own answer when it gave one, the header only as a fallback: an iPad
@@ -585,6 +620,15 @@ async def call_the_desk(
         room_name,
         salon_id=str(salon.id),
         host_token=jwt_service.issue_token(str(desk.id)),
+        participant_id=str(desk.id),
+        relay_token=relay_token_service.issue(
+            salon_id=str(salon.id), participant_id=str(desk.id)
+        ),
+        # Always False today: this Salon is never handed to an orchestrator (there is no
+        # `orchestrator_client.host_salon` call on this path), so there is nothing to follow
+        # yet. Left explicit rather than silently true, so extending this call is one line
+        # to change and not a gap somebody has to notice first.
+        follow_journal=bool(salon.orchestrator_url),
     )
 
     caller = invitation_service.invite_caller(

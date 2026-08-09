@@ -68,6 +68,14 @@ class Invitation(Base):
     # code identifies the guest through what the host already typed.
     phone_pin: Mapped[str | None] = mapped_column(String(6), nullable=True)
 
+    # The guest's own room, paired with their own agent — never the host's shared room.
+    # Created on the first successful `GET /guest-join/{token}` and reused on every one
+    # after: a guest who reloads, or whose first attempt never reached a microphone, comes
+    # back to the room they already have rather than being handed a second one nobody closes.
+    #
+    # Null until then. An invitation sent but never opened has no room to name.
+    livekit_room_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     guest_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
