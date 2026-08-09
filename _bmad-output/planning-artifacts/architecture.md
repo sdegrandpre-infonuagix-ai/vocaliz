@@ -880,3 +880,50 @@ Ce qui doit être fait **avant** toute story de l'Epic 6 : rien. Le rekeyage de 
 ---
 
 _Document d architecture complet — 8 etapes. Vocaliz, 2026-08-08._
+
+---
+
+## L'orchestrateur ne voit jamais d'audio — décision du 2026-08-09
+
+_La deuxième décision structurante après la topologie elle-même, et celle qui range tout le reste._
+
+> **`agent/`** — audio ↔ texte. Il tient la room LiveKit, la session temps réel xAI, et **l'interprète**. C'est le seul composant qui entend et qui parle.
+>
+> **`orchestrator/`** — **texte seulement**. Journal, curseurs, ordre, traduction, condensation, saturation, annonces, présentations. Pas un octet d'audio ne le traverse.
+
+### Le trou que cette décision comble
+
+`InterpreteS2S` vivait dans l'orchestrateur et réclamait un `RealtimeSession` — écouter un humain, lui parler. **Rien ne construisait le vrai.** La Story 6.2 l'a signalé et renvoyé à la 6.4, qui l'a renvoyé plus loin. Il ne pouvait pas y être construit : l'audio arrive par la room LiveKit, qui est chez l'agent.
+
+Deux issues existaient, et elles n'étaient pas équivalentes.
+
+**Faire relayer l'audio par l'agent jusqu'à l'orchestrateur** aurait préservé le rangement du code écrit — 861 tests portent sur des interprètes dans l'orchestrateur — au prix d'un aller-retour réseau supplémentaire dans le chemin audio : humain → LiveKit → agent → orchestrateur → xAI, et retour, à chaque tour de parole. **La latence est ce que ce produit vend.** Payer un saut réseau par tour pour préserver un rangement est le mauvais côté du marché.
+
+**L'interprète descend donc dans l'agent**, qui a déjà le SDK et une session xAI qui fonctionne. Le chemin audio redevient le plus court possible.
+
+### Ce que cela change vraiment : l'orchestrateur sert au lieu de pousser
+
+C'est la conséquence à ne pas manquer. `Salon.deliver()` appelait `interprete.render()` directement. Cet appel devient inter-processus, donc il disparaît : l'orchestrateur ne pilote plus personne.
+
+```
+AVANT   orchestrateur → interprète.render(...)        un appel en mémoire
+
+APRÈS   agent → « que dois-je à mon humain ? »        HTTP, texte
+        orchestrateur → une liste ordonnée, dans la langue de l'écoutant
+        agent → la dit avec son propre interprète
+        agent → « j'ai dit jusqu'à N »                le curseur avance
+```
+
+**Rien de la logique textuelle ne bouge.** Les créneaux publicitaires, les présentations de la Story 6.9, la condensation, la saturation, le découpage à 500 caractères, l'ordre d'arrivée — tout reste dans l'orchestrateur, parce que tout cela décide **quoi dire**, jamais **comment le prononcer**. Ce qui descend dans l'agent, c'est uniquement l'acte de parler.
+
+### Pourquoi cette ligne est la bonne, et pas seulement commode
+
+Elle se vérifie d'un coup d'œil : **un octet d'audio dans `orchestrator/` est un défaut.** Un garde-fou peut l'affirmer, comme celui qui interdit déjà un SDK fournisseur sous `src/`.
+
+Elle explique aussi pourquoi le port `Interprete` était une bonne idée dès le départ, et pourquoi il survit au déménagement : l'orchestrateur n'a jamais eu besoin de savoir *comment* on parle, seulement qu'on parle. Le port passe de « frontière entre deux modules » à « frontière entre deux processus », ce qui est exactement ce qu'un port est censé pouvoir devenir.
+
+### Ce que le déménagement coûte
+
+`src/interprete/` — le port, `InterpreteS2S`, `InterpreteBase`, `InterpreteFake` et la liste des langues — descend dans `agent/`. Les tests de contrat suivent. L'orchestrateur garde `journal/`, `salon/` moins le rendu, `settings/`, `load/` et `cohorts`.
+
+`adapters/livekit_rooms.py` reste discutable et reste où il est : provisionner une room est un appel de plan de contrôle, pas de l'audio. Si cette ligne devait bouger un jour, ce serait vers l'API, qui crée déjà les rooms à la création d'un Salon.

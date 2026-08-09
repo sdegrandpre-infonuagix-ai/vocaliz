@@ -317,3 +317,29 @@ def test_the_livekit_provisioner_answers_the_port():
     for method in ("provision", "close", "publish"):
         assert inspect.iscoroutinefunction(getattr(LiveKitRoomProvisioner, method))
         assert hasattr(RoomProvisioner, method)
+
+
+def test_no_audio_ever_reaches_the_orchestrator():
+    """The line drawn on 2026-08-09: `agent/` is audio↔text, this is text only.
+
+    Asserted rather than described, because it is the kind of boundary that erodes one
+    convenient import at a time. Audio in this process would mean the sound of a
+    conversation crossing the network twice on its way to the model — and latency is what
+    this product sells.
+
+    The names below are what an audio path actually looks like in Python: the buffer
+    libraries, the frame types, the codecs. A module that needed one of them would be
+    handling sound, whatever it was called.
+    """
+    audio_imports = ("numpy", "soundfile", "av", "pyaudio", "webrtcvad", "scipy")
+    source = Path(__file__).resolve().parents[1] / "src"
+
+    offenders = [
+        (path.name, stripped)
+        for path in source.rglob("*.py")
+        for stripped in (line.strip() for line in path.read_text(encoding="utf-8").splitlines())
+        for name in audio_imports
+        if stripped.startswith((f"import {name}", f"from {name}"))
+    ]
+
+    assert offenders == []
