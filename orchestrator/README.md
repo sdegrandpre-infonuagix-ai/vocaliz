@@ -230,6 +230,39 @@ said before this person existed to them is about to be said to that person, ther
 taking it back, and the only honest moment to say so is before it happens. Nothing is said
 when the journal is empty: granting access to nothing discloses nothing.
 
+## Falling behind, and being caught up
+
+`Salon._condense_if_far_behind`. The lag is `head − cursor_i`, measured in seconds of
+*content* rather than of clock, and it belongs to one interpreter. Past
+`condensation_threshold_seconds` the backlog is said in substance instead of replayed, the
+cursor jumps to the end of what was summarised, and the lag collapses — catching up faster
+than real time is the only way a reader who has fallen behind ever gets back.
+
+It is not a mode. Nothing switches condensation on or off: each delivery weighs the same
+threshold against whatever has accumulated, so full message-by-message rendering resumes by
+itself the moment the lag is down. There is no state to get stuck in.
+
+Because the journal is not a queue and reading consumes nothing, one interpreter racing
+through a summary takes nothing from anybody. Another participant's cursor does not move,
+the journal is not edited, and somebody equally far behind is condensed on their own
+account, from their own position, because of their own lag.
+
+Two details are less obvious than the threshold:
+
+- **It is announced first.** `condensed_while_listening` says how many people spoke before
+  the gist arrives. Without it a summary is indistinguishable from the conversation having
+  been quiet — the listener gets less than everybody else and has no way of knowing. Said
+  afterwards it would explain something they have already had to make sense of unaided.
+  The count is of *people*, not messages: somebody who spoke four times is one person to
+  catch up on. There are separate singular and plural sentences per language, because a
+  number glued onto a stem reads as machine-written in all six.
+- **Nobody is summarised about their own words.** A long speaker puts themselves behind by
+  exactly the amount they just said, so without excluding their own entries they would be
+  told that one person spoke while they were listening, and handed the gist of themselves.
+
+Failing to speak the announcement never costs the summary it introduces, the same rule
+introductions follow.
+
 ## Cleaning, and the pause marker
 
 `src/journal/cleaning.py`. Hesitation is removed **at ingestion**, once, so N listeners

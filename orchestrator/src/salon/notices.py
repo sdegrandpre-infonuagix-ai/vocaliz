@@ -238,3 +238,41 @@ def on_the_telephone(name: str | None, *, told_in: str) -> str:
     thing, and one that invites a judgement they have not earned.
     """
     return _in(_ON_THE_TELEPHONE, told_in).format(name=display_name(name, told_in=told_in))
+
+
+# ── A backlog said in substance (Story 7.2 / FR53) ────────────────────────────
+
+# Two tables rather than one with a plural rule. Six languages disagree about how plurals
+# work, and a sentence built by gluing a number onto a stem is exactly the kind of copy that
+# reads as machine-written in every one of them.
+_CONDENSED_ONE = {
+    "fr": "Pendant que vous écoutiez, une personne a parlé. Voici l'essentiel.",
+    "en": "While you were listening, someone else spoke. Here is the gist.",
+    "es": "Mientras escuchabas, habló otra persona. Esto es lo esencial.",
+    "de": "Während Sie zugehört haben, hat jemand gesprochen. Hier das Wesentliche.",
+    "pt": "Enquanto ouvia, outra pessoa falou. Aqui está o essencial.",
+    "it": "Mentre ascoltavi, ha parlato un'altra persona. Ecco l'essenziale.",
+}
+
+_CONDENSED_MANY = {
+    "fr": "Pendant que vous écoutiez, {count} personnes ont parlé. Voici l'essentiel.",
+    "en": "While you were listening, {count} people spoke. Here is the gist.",
+    "es": "Mientras escuchabas, hablaron {count} personas. Esto es lo esencial.",
+    "de": "Während Sie zugehört haben, haben {count} Personen gesprochen. Hier das Wesentliche.",
+    "pt": "Enquanto ouvia, falaram {count} pessoas. Aqui está o essencial.",
+    "it": "Mentre ascoltavi, hanno parlato {count} persone. Ecco l'essenziale.",
+}
+
+
+def condensed_while_listening(count: int, *, told_in: str) -> str:
+    """Said just before a summary, naming how many people it covers.
+
+    Without it a summary is indistinguishable from the conversation having been quiet: the
+    listener hears less than everybody else and has no way of knowing it happened. The count
+    is of people rather than of messages, because that is what tells them how much of the
+    room they are getting the gist of — somebody who spoke four times is one person to catch
+    up on, not four.
+    """
+    if count <= 1:
+        return _in(_CONDENSED_ONE, told_in)
+    return _in(_CONDENSED_MANY, told_in).format(count=count)

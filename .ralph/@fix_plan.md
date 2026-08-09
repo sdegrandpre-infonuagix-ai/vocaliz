@@ -64,12 +64,7 @@
 - [x] Story 6.16: Mode Conduite — Écran Noir, Vocal Uniquement
 - [x] Story 6.17: Activation Automatique du Mode Conduite
 - [x] Story 7.1: Configuration Persistée des Paramètres du Salon
-  > > ⚠️ **PARTIELLEMENT HÉRITÉ.** `src/config.py` centralise déjà les réglages — `livekit_room_max_participants`, `livekit_room_empty_timeout` et le reste.
-  > > **Ce qui manque :** ils vivent en **variables d'environnement**, donc leur modification exige un redéploiement.
-  > FR54 demande une **table persistée modifiable à chaud**.
-  > AC: Given les paramètres opérationnels du Salon, When le système démarre, Then chacun est lu depuis un stockage persistant, avec les valeurs initiales documentées, And Given un paramètre est modifié, When la modification est enregistrée, Then elle prend effet sans redéploiement ni redémarrage, And Given `seuil_condensation` est configuré, When il est supérieur ou égal à `seuil_saturation`, Then la configuration est refusée avec une erreur explicite — sinon la condensation ne se déclencherait jamais avant l'alarme, And Given `seuil_deblocage` est configuré, When il est supérieur ou égal à `seuil_saturation`, Then la configuration est refusée — sinon le système oscille
-  > Spec: specs/planning-artifacts/epics.md#story-7-1
-- [ ] Story 7.2: Condensation par l'Interprète en Retard
+- [x] Story 7.2: Condensation par l'Interprète en Retard
   > As a participant
   > I want que mon interprète résume plutôt que de m'ensevelir
   > So that je reste dans la conversation même quand elle s'emballe.

@@ -131,6 +131,14 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+Condensation (Story 7.2 / FR53) lives in `Salon._condense_if_far_behind`: past
+`condensation_threshold_seconds` the backlog is said in substance, the cursor jumps to the
+end of it and the lag collapses. It is not a mode — every delivery re-weighs the threshold,
+so full rendering resumes on its own. `condensed_while_listening` announces it first, naming
+how many *people* (not messages) are being summarised, and the listener's own entries are
+excluded so nobody is handed the gist of themselves. One interpreter condensing changes
+nothing for any other cursor or for the journal.
+
 `src/settings/` (Story 7.1) holds the Salon's *operational* parameters, which is a different
 thing from `src/config.py` and deliberately so: a credential should cost a deploy to change,
 a threshold should not. They live in a key/value table (`salon_settings`), are read at

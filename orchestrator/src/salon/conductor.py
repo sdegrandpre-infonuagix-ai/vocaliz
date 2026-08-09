@@ -24,6 +24,7 @@ from src.settings import SalonSettings
 from src.salon.history import HistoryAccess, grants_history
 from src.salon.notices import (
     already_here,
+    condensed_while_listening,
     history_shared_with,
     introduces,
     microphone_cut,
@@ -386,16 +387,30 @@ class Salon:
         if self.log.lag_seconds(participant_id) <= self._condensation_threshold:
             return False
 
+        # Nobody is summarised about their own words. `_render` already refuses to say them
+        # back, and a long speaker puts themselves behind by exactly the amount they just
+        # said — without this they would be told that one person spoke while they were
+        # listening, and given the gist of themselves.
+        from_others = tuple(e for e in pending if e.participant_id != participant_id)
+        if not from_others:
+            await self.log.advance(participant_id, pending[-1].sequence)
+            return True
+
         # Everybody covered counts as introduced: they were named in the summary, and
         # introducing them again with their next sentence would be introducing them twice.
-        for entry in pending:
+        for entry in from_others:
             seat.introduced.add(entry.participant_id)
+
+        # Said before the summary, not after: afterwards it would explain something the
+        # listener has already had to make sense of unaided. Counting people rather than
+        # messages is what tells them how much of the room they are getting the gist of.
+        await self._announce_condensation(seat, from_others)
 
         try:
             # Markers are dropped with the rest (Story 6.11): one does not summarise
             # silences, and a summary that reproduced them would spend its time on them.
             await seat.interpreter.condense(
-                [_as_tour(entry, spoken_only=True) for entry in pending]
+                [_as_tour(entry, spoken_only=True) for entry in from_others]
             )
         except InterpreteError:
             # Their adapter has told them out loud (NFR3). The position does not move, so
@@ -405,6 +420,25 @@ class Salon:
         await self.log.advance(participant_id, pending[-1].sequence)
         await self._say_held(seat)
         return True
+
+    async def _announce_condensation(
+        self, seat: Seat, covered: tuple[JournalEntry, ...]
+    ) -> None:
+        """Tell a listener that what follows is the gist, and of how many people.
+
+        Without it a summary is indistinguishable from the conversation having been quiet:
+        they hear less than everybody else and have no way of knowing it happened. Failing
+        to say it must not cost the summary it introduces, so an adapter that cannot speak
+        it is not allowed to stop the catching up — the same rule introductions follow.
+        """
+        speakers = {entry.participant_id for entry in covered}
+        text = condensed_while_listening(len(speakers), told_in=seat.participant.language)
+        try:
+            await seat.interpreter.insert_annonce(
+                Annonce(text=text, language=seat.participant.language)
+            )
+        except InterpreteError:
+            return
 
     async def _render(self, seat: Seat, entries: tuple[JournalEntry, ...]) -> None:
         participant_id = seat.participant.id
