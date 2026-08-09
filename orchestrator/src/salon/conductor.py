@@ -25,8 +25,10 @@ from src.salon.notices import (
     introduces,
     microphone_cut,
     microphone_restored,
+    on_the_telephone,
 )
 from src.salon.rooms import Room, RoomProvisioner
+from src.salon.video import VideoPath, VideoTrack
 
 
 class NotTheHost(PermissionError):
@@ -53,6 +55,11 @@ class Seat:
     # Set by the host (Story 6.8). Nothing this participant says reaches the journal while
     # it holds; everything the others say still reaches them.
     muted: bool = False
+    # Story 6.13. Off until asked for, and `wanted` remembers the asking across a drive:
+    # somebody whose camera was on before they started driving did not choose to stop.
+    video: VideoTrack | None = None
+    wants_video: bool = False
+    driving: bool = False
     # True between two pieces of one intervention (Story 6.5). Nothing third-party is
     # spoken while it is.
     mid_run: bool = False
@@ -75,6 +82,7 @@ class Salon:
         max_message_characters: int = MAX_MESSAGE_CHARACTERS,
         host_id: str | None = None,
         condensation_threshold_seconds: float = 120.0,
+        video: VideoPath | None = None,
     ) -> None:
         self.log = log
         self._rooms = rooms
@@ -83,6 +91,8 @@ class Salon:
         # Salon whose host has not been declared: the alternative is everybody.
         self._host_id = host_id
         self._condensation_threshold = condensation_threshold_seconds
+        # Optional: a deployment without it loses the pictures and nothing else.
+        self._video = video
         self._seats: dict[str, Seat] = {}
         # The language each participant was first heard in. Written once and never revised,
         # like `salon_events.first_spoken_language`: somebody switching language mid-Salon
@@ -161,6 +171,7 @@ class Salon:
         await self.log.checkpoint()
 
         await self._say_who_is_here(self._seats[participant.id])
+        await self._say_who_is_on_the_telephone(participant)
         if from_start:
             await self._say_the_history_was_shared(participant)
         return room
@@ -176,6 +187,7 @@ class Salon:
         if seat is None:
             return
 
+        await self._stop_video(seat)
         self.log.detach(participant_id)
         await seat.interpreter.aclose()
         await self._rooms.close(seat.room)
@@ -510,6 +522,105 @@ class Salon:
                     text=history_shared_with(arrival.name, told_in=language),
                     language=language,
                 ),
+            )
+
+    # ── Video (Story 6.13) ────────────────────────────────────────────────────
+
+    @property
+    def publishing_video(self) -> tuple[str, ...]:
+        return tuple(sorted(key for key, seat in self._seats.items() if seat.video))
+
+    def video_on(self, participant_id: str) -> bool:
+        seat = self._seats.get(participant_id)
+        return seat is not None and seat.video is not None
+
+    def receives_video(self, participant_id: str) -> bool:
+        """Whether there is any point sending pictures to this participant.
+
+        A telephone has no screen, and in driving mode there is nothing to look at — that
+        being the whole purpose of the mode.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is None or seat.participant.by_telephone:
+            return False
+        return not seat.driving
+
+    async def enable_video(self, participant_id: str) -> None:
+        """Turn a camera on, at somebody's request and never otherwise.
+
+        Refused for a telephone participant, who has none, and while driving, where the
+        screen is black and a camera aimed at a windscreen helps nobody.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is None or seat.participant.by_telephone:
+            return
+
+        seat.wants_video = True
+        if seat.driving or seat.video is not None or self._video is None:
+            return
+
+        seat.video = await self._video.publish(self.salon_id, seat.participant)
+
+    async def disable_video(self, participant_id: str) -> None:
+        """Turn it off. Deliberate, so it is not restored when a drive ends."""
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return
+
+        seat.wants_video = False
+        await self._stop_video(seat)
+
+    async def shed_video(self, participant_id: str) -> None:
+        """Drop the pictures to save the conversation.
+
+        Always in this order, and never the other way round: a conversation without
+        pictures is still a conversation, and pictures without a conversation are nothing.
+        The wish is kept, so it comes back when the connection does.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is not None:
+            await self._stop_video(seat)
+
+    async def start_driving(self, participant_id: str) -> None:
+        """FR75. Video is suspended both ways; the wish for it survives."""
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return
+
+        seat.driving = True
+        await self._stop_video(seat)
+
+    async def stop_driving(self, participant_id: str) -> None:
+        """Restore what was on before, and nothing that was not."""
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return
+
+        seat.driving = False
+        if seat.wants_video:
+            await self.enable_video(participant_id)
+
+    async def _stop_video(self, seat: Seat) -> None:
+        if seat.video is None or self._video is None:
+            seat.video = None
+            return
+
+        track, seat.video = seat.video, None
+        await self._video.stop(track)
+
+    async def _say_who_is_on_the_telephone(self, arrival: Participant) -> None:
+        """Tell the others, so an empty tile is not mistaken for somebody hiding."""
+        if not arrival.by_telephone:
+            return
+
+        for seat in self._ordered_seats():
+            if seat.participant.id == arrival.id:
+                continue
+
+            language = seat.participant.language
+            await self.announce(
+                seat.participant.id,
+                Annonce(text=on_the_telephone(arrival.name, told_in=language), language=language),
             )
 
     def _ordered_seats(self) -> tuple[Seat, ...]:

@@ -105,6 +105,12 @@ and live, by running a full Salon at DEBUG and asserting nothing said appears in
 `logging_config.about(entry)` is the sanctioned way to describe a message: identifiers and
 lengths only.
 
+`src/salon/video.py` (Story 6.13) is a media path separate from the interpretation rooms,
+carrying no audio, capped at `MAX_VIDEO_BITRATE_KBPS` (200) / 240p / 15 fps, and with no
+method that could record a frame. `Salon.enable_video`/`disable_video`/`start_driving`/
+`shed_video` govern it; off by default, suspended while driving with the wish remembered,
+and unavailable to a `by_telephone` participant, whose presence the others are told about.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

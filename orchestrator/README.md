@@ -327,6 +327,40 @@ long somebody hesitated is a fact about them even though it is not a word.
 lengths, and the length is of the speech alone. The wrong way is one f-string away, which is
 why the right one is worth keeping close at hand.
 
+## Video, muted
+
+`src/salon/video.py`. It exists because the topology took something away: nobody hears
+anybody's real voice any more, so the oldest proof of identity there is — recognising
+somebody by how they sound — is gone. Seeing them gives it back, and that is the entire job.
+
+Everything else follows from it being the *only* job:
+
+- **No sound.** `VideoTrack.audio` is a field rather than an omission, so the promise is
+  visible in the data. A second sound channel would be a second way for two humans to hear
+  each other, and the absence of that is what makes echo unavailable rather than cancelled.
+- **A separate path.** `VideoPath` is not `RoomProvisioner`, and track names carry a
+  `video--` prefix so the two paths are distinguishable at a glance. Derived, like room
+  names, so a takeover can name them again from what it re-read.
+- **Never kept.** There is no method on the port that could retain a frame — which is how
+  "never recorded" is stated in a way that cannot rot. NFR8 does not reach it: the text
+  journal is what a takeover needs and what proves an advertisement was broadcast.
+- **A vignette.** 240p at 15 fps under an explicit 200 kbps cap, never the SDK default,
+  which climbs to 720p and costs about 15% of the Base tier instead of about 2% — for no
+  gain at all in answering "is that the person I think it is".
+
+Off until somebody asks. A camera that comes on by itself is a camera nobody consented to.
+Driving mode (FR75) suspends it both ways and **remembers the wish**: somebody whose camera
+was on before the drive did not choose to turn it off, and somebody who never turned it on
+does not find it running afterwards. `shed_video` drops pictures to save the conversation —
+always in that order, because a conversation without pictures is still a conversation.
+
+A telephone participant (FR57) has no video either way, and the others are told. Without
+that, their empty tile reads as somebody who chose not to be seen, which is a different
+thing and invites a judgement they have not earned.
+
+The layer is optional: a Salon built without a `VideoPath` loses the pictures and nothing
+else.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and

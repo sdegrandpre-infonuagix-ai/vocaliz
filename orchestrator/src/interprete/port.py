@@ -34,6 +34,10 @@ class Participant:
     id: str
     language: str
     name: str | None = None
+    # Reached the Salon by telephone (FR57). No camera and no screen, so no video either
+    # way — and the others are told, because a black tile otherwise reads as somebody who
+    # chose not to be seen, which invites a different judgement.
+    by_telephone: bool = False
 
 
 @dataclass(frozen=True)

@@ -216,3 +216,25 @@ def history_shared_with(name: str | None, *, told_in: str) -> str:
     only honest moment to say it is now.
     """
     return _in(_HISTORY_SHARED, told_in).format(name=display_name(name, told_in=told_in))
+
+
+# ── A participant on the telephone (Story 6.13 / FR57) ────────────────────────
+
+_ON_THE_TELEPHONE = {
+    "fr": "{name} participe par téléphone : ni caméra, ni écran.",
+    "en": "{name} is on the telephone: no camera and no screen.",
+    "es": "{name} participa por teléfono: sin cámara ni pantalla.",
+    "de": "{name} ist per Telefon dabei: keine Kamera und kein Bildschirm.",
+    "pt": "{name} participa por telefone: sem câmara nem ecrã.",
+    "it": "{name} partecipa per telefono: niente telecamera né schermo.",
+    "cy": "Mae {name} ar y ffôn: dim camera na sgrin.",
+}
+
+
+def on_the_telephone(name: str | None, *, told_in: str) -> str:
+    """Said when somebody joins by telephone.
+
+    Without it their empty tile reads as a person who chose not to be seen — a different
+    thing, and one that invites a judgement they have not earned.
+    """
+    return _in(_ON_THE_TELEPHONE, told_in).format(name=display_name(name, told_in=told_in))

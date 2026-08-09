@@ -58,12 +58,7 @@
 - [x] Story 6.10: Accès à l'Historique pour un Arrivant Tardif
 - [x] Story 6.11: Nettoyage des Disfluences et Métadonnée de Pause
 - [x] Story 6.12: Chiffrement au Repos
-  > > ✅ **LARGEMENT DÉJÀ LIVRÉ.** Le cluster Aurora est chiffré par KMS, ce qui couvre **le stockage, les instantanés et les sauvegardes** — c'est documenté dans `models/salon_event.py`, avec la raison de ne pas chiffrer au niveau colonne : *« column encryption would have forced a deterministic scheme on the key columns and ruled out every query but equality »*.
-  > > > **Ce qui reste :** vérifier qu'**aucun contenu de conversation n'atteint CloudWatch**.
-  > C'est le seul point non acquis, et le plus facile à violer par accident.
-  > AC: Given le journal d'un Salon et les curseurs de ses interprètes, When ils sont écrits, Then ils le sont chiffrés au repos, avec des clés gérées par AWS KMS, And Given les autres données personnelles persistées — soldes, écritures comptables, identifiants, consentements de géolocalisation, registre des identifiants brûlés, When elles sont écrites, Then elles sont chiffrées au repos au même titre : le chiffrement porte sur tout stockage de donnée personnelle, jamais sur le seul journal, And Given les sauvegardes et les instantanés, When ils sont produits, Then ils sont chiffrés au même titre — une sauvegarde en clair annule le chiffrement de la base qu'elle copie, And Given les clés de chiffrement, When leur cycle de vie est défini, Then elles font l'objet d'une rotation, et leur usage est journalisé par KMS, And Given les journaux applicatifs — CloudWatch et sortie standard, When l'orchestrateur ou un interprète écrit une trace, Then aucun contenu de conversation n'y figure jamais : ni message, ni condensé, ni métadonnée de pause, ni fragment de transcription, And Given un message de diagnostic portant sur un message du journal, When il est écrit, Then il ne référence que des identifiants et des longueurs, jamais du texte — ce qui est chiffré en base ne doit pas reparaître en clair dans les traces, And Given le transport, When les données circulent, Then elles le sont déjà chiffrées par TLS et WebRTC — le chiffrement au repos complète cette protection, il ne la remplace pas
-  > Spec: specs/planning-artifacts/epics.md#story-6-12
-- [ ] Story 6.13: Vidéo Muette en Direct
+- [x] Story 6.13: Vidéo Muette en Direct
   > As a participant
   > I want voir mon interlocuteur sans l'entendre
   > So that je sache que c'est bien lui, maintenant que je n'entends plus jamais sa vraie voix.

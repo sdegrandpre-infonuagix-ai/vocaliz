@@ -10,7 +10,21 @@ from src.salon.history import (
     grants_history,
     history_from_invitation,
 )
-from src.salon.notices import history_shared_with, microphone_cut, microphone_restored
+from src.salon.notices import (
+    history_shared_with,
+    microphone_cut,
+    microphone_restored,
+    on_the_telephone,
+)
+from src.salon.video import (
+    MAX_VIDEO_BITRATE_KBPS,
+    VIDEO_FPS,
+    VIDEO_HEIGHT,
+    InMemoryVideoPath,
+    VideoPath,
+    VideoTrack,
+    video_track_name,
+)
 from src.salon.rooms import (
     InMemoryRoomProvisioner,
     Room,
@@ -24,6 +38,12 @@ __all__ = [
     "DEFAULT_HISTORY_FOR_ARRIVALS",
     "HistoryAccess",
     "InMemoryRoomProvisioner",
+    "InMemoryVideoPath",
+    "MAX_VIDEO_BITRATE_KBPS",
+    "VIDEO_FPS",
+    "VIDEO_HEIGHT",
+    "VideoPath",
+    "VideoTrack",
     "NotTheHost",
     "Room",
     "RoomClosed",
@@ -35,5 +55,7 @@ __all__ = [
     "history_shared_with",
     "microphone_cut",
     "microphone_restored",
+    "on_the_telephone",
     "room_name",
+    "video_track_name",
 ]
