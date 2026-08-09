@@ -318,6 +318,20 @@ _INTERPRETER_INSTRUCTIONS = (
 )
 
 
+# Appended to both prompts. `xai.WebSearch()` below is what actually grants the capability —
+# this is what tells the model it is allowed to reach for it, since a tool being technically
+# available does not mean a realtime voice model will use it unprompted.
+_WEB_SEARCH_INSTRUCTIONS = (
+    "\n\n"
+    "WEB SEARCH: You have a real-time web search tool. Use it when a participant asks about "
+    "something current — news, prices, scores, anything that could have changed since your "
+    "training — or when the discussion would clearly benefit from a fact you are not certain "
+    "of. Say briefly that you are checking before you use it, so the pause is not silence. "
+    "Do not search for things you already know with confidence, and never narrate the search "
+    "itself beyond that one short sentence."
+)
+
+
 def _journal_intro_instructions(language: str) -> str:
     """The one thing this agent says on its own initiative: who it is, said once.
 
@@ -470,16 +484,31 @@ class SalonAgent(Agent):
         # the model composing interventions it is never allowed to speak.
         self._follow_journal = follow_journal
         if follow_journal:
-            instructions = _INTERPRETER_INSTRUCTIONS + _language_override(forced_language)
+            instructions = (
+                _INTERPRETER_INSTRUCTIONS
+                + _WEB_SEARCH_INSTRUCTIONS
+                + _language_override(forced_language)
+            )
         else:
-            instructions = _build_instructions(
-                source_content=source_content,
-                source_type=source_type,
-                source_url=source_url,
-                additional_sources=additional_sources,
-                source_summary=source_summary,
-            ) + _language_override(forced_language)
-        super().__init__(instructions=instructions)
+            instructions = (
+                _build_instructions(
+                    source_content=source_content,
+                    source_type=source_type,
+                    source_url=source_url,
+                    additional_sources=additional_sources,
+                    source_summary=source_summary,
+                )
+                + _WEB_SEARCH_INSTRUCTIONS
+                + _language_override(forced_language)
+            )
+        # xai.WebSearch() is what actually grants the capability — a server-side tool xAI
+        # runs on its own infrastructure, unrelated to `function_tool`s like
+        # `set_intervention_frequency` below, which the framework calls back into this
+        # process for. Works the same whichever Realtime model is pinned in `agent_session`:
+        # the tool list travels with the session, not with a particular model version, so
+        # moving from 1.0 to 2.0 (see the model comment where the session is built) needs no
+        # change here.
+        super().__init__(instructions=instructions, tools=[xai.WebSearch()])
         self._salon_id = salon_id
         self._api_url = api_url
         self._host_token = host_token

@@ -82,7 +82,9 @@ def _build_livekit_stubs() -> None:
 
     # plugins
     xai_realtime = MagicMock()
-    xai_mod = _register_stub("livekit.plugins.xai", realtime=xai_realtime)
+    xai_mod = _register_stub(
+        "livekit.plugins.xai", realtime=xai_realtime, WebSearch=MagicMock
+    )
     silero_mod = _register_stub("livekit.plugins.silero", VAD=MagicMock())
     # livekit.plugins.turn_detector is gone from agent.py: it was deprecated, and it never
     # ran anyway for want of PyTorch. Turn detection now comes from livekit.agents.inference.
