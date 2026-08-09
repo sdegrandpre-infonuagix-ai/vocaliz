@@ -179,3 +179,31 @@ def cost_cents(tier: Tier, seconds: int) -> int:
         return 0
     per_hour = TIER_RATES_CENTS_PER_HOUR[tier] + TELEPHONE_SUPPLEMENT_CENTS_PER_HOUR
     return per_hour * seconds // SECONDS_PER_HOUR
+
+
+def spends_own_quota() -> bool:
+    """Whether a telephone participant's own free allowance is touched. It is not.
+
+    They decided nothing, so they spend nothing. Somebody whose telephone rang did not choose
+    a tier, did not sign up, and did not agree to a price — charging their ten free minutes
+    for a conversation they were called into would make the one participant with no say the
+    one paying for everybody's convenience.
+
+    A function rather than a comment, because a rule that lives only in prose is one the next
+    person to touch the metering will not know about.
+    """
+    return False
+
+
+def charged_to(*, host_id, participant_id):
+    """Whose account a telephone participant's cost lands on. Always the host's.
+
+    All of it — the interpreter, the SIP minutes, the PSTN termination and the supplement.
+    Splitting the bill would mean asking somebody to hold an account they never made, and it
+    is the host who caused the telephone to ring.
+
+    `participant_id` is accepted and deliberately unused: a signature that did not take it
+    would make the rule look like an oversight rather than a decision, and the first person
+    to add per-participant billing would not find this.
+    """
+    return host_id

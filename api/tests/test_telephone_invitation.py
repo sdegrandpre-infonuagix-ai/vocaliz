@@ -16,6 +16,8 @@ is the same reasoning that makes the payment check independent of "the host pays
 option is about the *other* participants, and it being off says nothing about somebody the host
 personally caused to be telephoned.
 """
+import uuid
+
 import pytest
 
 from src.credit import Tier
@@ -28,7 +30,9 @@ from src.telephone_invitation import (
     cost_cents,
     heard_confirmation,
     may_dial,
+    charged_to,
     recognise_number,
+    spends_own_quota,
     tier_from,
 )
 
@@ -226,3 +230,31 @@ def test_the_supplement_applies_at_every_offered_tier():
             cost_cents(tier, 3600)
             == TIER_RATES_CENTS_PER_HOUR[tier] + TELEPHONE_SUPPLEMENT_CENTS_PER_HOUR
         )
+
+
+# ── Whose allowance pays ──────────────────────────────────────────────────────
+
+
+def test_a_telephone_guest_spends_none_of_their_own_quota():
+    """They decided nothing, so they spend nothing. Somebody whose telephone rang did not
+    choose a tier, did not sign up, and did not agree to a price — charging their ten free
+    minutes for a conversation they were called into would be the one participant with no
+    say paying for everybody's convenience."""
+    assert spends_own_quota() is False
+
+
+def test_every_cost_is_the_host_s():
+    """The interpreter, the SIP minutes, the PSTN termination and the supplement, all of it.
+    Splitting the bill would mean asking the guest to hold an account they never made."""
+    host = uuid.uuid4()
+    guest = uuid.uuid4()
+
+    assert charged_to(host_id=host, participant_id=guest) == host
+
+
+def test_the_host_pays_even_for_themselves():
+    """A host who telephones their own second line is still the host. The rule is about the
+    seat, not about who happens to be sitting in it."""
+    host = uuid.uuid4()
+
+    assert charged_to(host_id=host, participant_id=host) == host

@@ -278,8 +278,16 @@ three would make the feature unusable. None carries the number — the host know
 asked for, and these are spoken into a room with other people in it. None of them sounds like
 an ending, because the Salon carries on.
 
+`spends_own_quota()` returns **False** and `charged_to()` always returns the host. A rule in
+code rather than in prose, because a telephone guest decided nothing and must therefore spend
+nothing — charging their ten free minutes for a conversation they were called into would make
+the one participant with no say the one paying for everybody's convenience. `charged_to` takes
+`participant_id` and ignores it deliberately: a signature without it would read as an oversight
+rather than a decision.
+
 **Still not buildable here:** placing the call, SIP room provisioning, the callee's language
-detection, hangup teardown, and the voice-command path that would call any of this.
+detection, hangup teardown, and the voice-command path that would call any of this. All of it
+needs an outbound trunk, which is provisioning rather than code.
 
 ### Joining from a browser (Story 10.4 / UX-DR5, DR7, DR8, NFR3)
 
