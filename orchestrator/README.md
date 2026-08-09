@@ -52,6 +52,30 @@ Failures are typed: `ProviderUnavailable` and `UnsupportedLanguage`, both under
 through a fallback voice — never through the model that has just failed — and the
 orchestrator gets the typed error regardless (NFR3).
 
+## The journal
+
+`src/journal/` — one `SalonLog` per Salon, which is what an instance holds and what
+another instance can take over.
+
+- **The journal** is append-only, numbered monotonically per Salon and stamped on arrival.
+  It is the only structure of messages there is. Not a queue: a message is rendered once
+  per participant, at a rhythm each interpreter sets for itself, so there is no point at
+  which it has been consumed. Entries are frozen — the speaker makes the original.
+- **The cursors** are the only thing that moves. One per reader, independent, never
+  backwards. A reader's lag is the content between its position and the head, measured in
+  seconds of content rather than of clock.
+- **The translations** are keyed on (position, language) and shared by everybody listening
+  in that language. A message already in the listener's language is never translated and
+  leaves nothing behind; every translation is made from the original, never from another
+  translation. A Salon held in one language never touches the translator at all.
+
+Everything is written through a `JournalStore` as it happens, and `SalonLog.resume()`
+rebuilds a Salon elsewhere with no loss and nothing said twice. `InMemoryJournalStore` is
+for offline work; `SqlJournalStore` is the durable one (NFR8) — SQLAlchemy Core over three
+tables the orchestrator owns, tested against SQLite so the suite needs no database, and run
+against Postgres. The API's `utterances` tables are untouched: they serve a Salon's
+transcript to a client, which is a different job.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and

@@ -13,6 +13,7 @@ from src.journal.journal import (
     content_seconds,
 )
 from src.journal.salon_log import SalonLog
+from src.journal.sql_store import SqlJournalStore
 from src.journal.store import InMemoryJournalStore, JournalStore, SalonState
 from src.journal.translations import Translate, Translations
 
@@ -25,6 +26,7 @@ __all__ = [
     "JournalStore",
     "SalonLog",
     "SalonState",
+    "SqlJournalStore",
     "Translate",
     "Translations",
     "content_seconds",

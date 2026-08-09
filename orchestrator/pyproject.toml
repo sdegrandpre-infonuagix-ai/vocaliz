@@ -10,6 +10,8 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "boto3>=1.38.0",
     "python-dotenv>=1.0.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.31.0",
 ]
 
 [build-system]
@@ -27,6 +29,7 @@ dev = [
     # Reads the GitHub Actions workflow in test_deployment.py, so that the orchestrator
     # dropping out of the pipeline is a test failure rather than a silent non-deploy.
     "pyyaml>=6.0.0",
+    "aiosqlite>=0.22.1",
 ]
 
 [tool.pytest.ini_options]

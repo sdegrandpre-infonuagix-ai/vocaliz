@@ -60,8 +60,10 @@ the `ADAPTERS` list in that file, which runs the whole contract against them.
 `src/journal/` holds one `SalonLog` per Salon: the journal (append-only, monotonic
 sequence, stamped on arrival), one cursor per interpreter, and the translation cache keyed
 on (sequence, language). Everything is written through a `JournalStore` as it happens;
-`SalonLog.resume()` rebuilds a Salon on another instance. `InMemoryJournalStore` is the
-offline implementation — the durable one is still to come.
+`SalonLog.resume()` rebuilds a Salon on another instance. Two implementations:
+`InMemoryJournalStore` for offline work, and `SqlJournalStore` (SQLAlchemy Core, three
+tables the orchestrator owns) for durability. The SQL one is tested against SQLite, so the
+suite still needs no database; Postgres is what it runs on.
 
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
