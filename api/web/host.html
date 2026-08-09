@@ -203,6 +203,35 @@
 
     .field-hint { font-size: 0.78rem; color: #6b6257; line-height: 1.45; margin-top: 8px; }
 
+    /* The tier chooser, at Salon creation — the host's own version of join.html's
+       tier-choice. Same visual language on purpose: it is the same question. */
+    #host-tier-choice { margin-top: 14px; text-align: left; }
+    #host-tier-heading { margin-bottom: 10px; font-weight: 700; }
+    .tier-option {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      grid-template-areas: "radio name" "radio what";
+      gap: 0 10px;
+      align-items: center;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border: 2px solid #DDD;
+      border-radius: 8px;
+      cursor: pointer;
+      min-height: 44px;
+    }
+    .tier-option input {
+      grid-area: radio;
+      width: 20px;
+      height: 20px;
+      margin: 0;
+      accent-color: #7B2D3B;
+    }
+    .tier-option:has(input:checked) { border-color: #7B2D3B; background: #FBF6F7; }
+    .tier-option:focus-within { outline: 3px solid #7B2D3B; outline-offset: 2px; }
+    .tier-name { grid-area: name; font-weight: 700; color: #2C2C2C; }
+    .tier-what { grid-area: what; font-size: 0.85rem; color: #5A5A5A; }
+
     .powered a { color: #7B1528; text-decoration: none; }
     .powered a:hover { text-decoration: underline; }
 
@@ -438,6 +467,37 @@
         Documents you upload are never shared between Salons — only a public web
         address can be, because anyone could already read it by following the link.
       </div>
+
+      <!-- The host's own tier choice, asked once, at creation — same four tiers, same
+           reasoning as the one offered to a guest at join.html. -->
+      <div id="host-tier-choice">
+        <div class="field-hint" id="host-tier-heading" data-i18n="hostTierHeading">
+          How would you like to hear this conversation?
+        </div>
+        <div id="host-tier-options" role="radiogroup" aria-labelledby="host-tier-heading">
+          <label class="tier-option">
+            <input type="radio" name="host-tier" value="Base" checked>
+            <span class="tier-name" data-i18n="tierBase">Base</span>
+            <span class="tier-what" data-i18n="tierBaseWhat">A synthetic voice, with advertising</span>
+          </label>
+          <label class="tier-option">
+            <input type="radio" name="host-tier" value="Mode A">
+            <span class="tier-name" data-i18n="tierA">Mode A</span>
+            <span class="tier-what" data-i18n="tierAWhat">A natural voice, with less advertising</span>
+          </label>
+          <label class="tier-option">
+            <input type="radio" name="host-tier" value="Mode B">
+            <span class="tier-name" data-i18n="tierB">Mode B</span>
+            <span class="tier-what" data-i18n="tierBWhat">A natural voice, no advertising</span>
+          </label>
+          <label class="tier-option">
+            <input type="radio" name="host-tier" value="Mode C">
+            <span class="tier-name" data-i18n="tierC">Mode C</span>
+            <span class="tier-what" data-i18n="tierCWhat">The most attentive interpreter, no advertising</span>
+          </label>
+        </div>
+      </div>
+
       <button class="btn btn-primary" onclick="createSalon()" data-i18n="startButton">Start the salon</button>
       <div id="create-status" class="status"></div>
     </div>
@@ -720,7 +780,16 @@
         capAsSpoken: 'As spoken',
         capEmpty: 'Nothing said yet.',
         capNotice: 'What is said in this Salon is transcribed and stored so it can be '
-                 + 'translated. Everyone here can read it in the language they choose.'
+                 + 'translated. Everyone here can read it in the language they choose.',
+        hostTierHeading: 'How would you like to hear this conversation?',
+        tierBase: 'Base',
+        tierBaseWhat: 'A synthetic voice, with advertising',
+        tierA: 'Mode A',
+        tierAWhat: 'A natural voice, with less advertising',
+        tierB: 'Mode B',
+        tierBWhat: 'A natural voice, no advertising',
+        tierC: 'Mode C',
+        tierCWhat: 'The most attentive interpreter, no advertising'
       },
       fr: {
         pageTitle: 'Vocaliz — Console hôte',
@@ -851,7 +920,16 @@
         capAsSpoken: 'Tel que dit',
         capEmpty: 'Rien encore dit.',
         capNotice: 'Ce qui se dit dans ce Salon est transcrit et conservé afin de pouvoir '
-                 + 'être traduit. Chacun ici peut le lire dans la langue de son choix.'
+                 + 'être traduit. Chacun ici peut le lire dans la langue de son choix.',
+        hostTierHeading: 'Comment souhaitez-vous entendre cette conversation ?',
+        tierBase: 'Base',
+        tierBaseWhat: 'Une voix synthétique, avec publicité',
+        tierA: 'Mode A',
+        tierAWhat: 'Une voix naturelle, avec moins de publicité',
+        tierB: 'Mode B',
+        tierBWhat: 'Une voix naturelle, sans publicité',
+        tierC: 'Mode C',
+        tierCWhat: "L'interprète le plus attentif, sans publicité"
       }
     };
 
@@ -1302,6 +1380,8 @@
       if (url && share && share.checked) {
         form.append('share_with_platform', 'true');
       }
+      var pickedTier = document.querySelector('#host-tier-options input[name="host-tier"]:checked');
+      form.append('host_tier', pickedTier ? pickedTier.value : 'Base');
       try {
         var data = await api('/salons', { method: 'POST', body: form });
         salonId = data.salonId;

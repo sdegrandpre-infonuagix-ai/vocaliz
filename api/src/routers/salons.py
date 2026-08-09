@@ -130,6 +130,12 @@ async def create_salon(
     # deployment's ceiling, which is the offer; asking for more is bounded down to it rather
     # than refused, since the host asked for the biggest Salon available.
     participant_cap: Optional[int] = Form(None),
+    # The same choice a guest makes at join.html's tier-choice — Base, Mode A, Mode B or
+    # Mode C — now asked of the host too, at the moment they open the Salon. `host_tier` has
+    # carried this since Story 8.4's billing landed; nothing before this wrote it, so every
+    # host was silently billed at Base regardless of which natural voice or ad-free tier they
+    # thought they were getting.
+    host_tier: Optional[str] = Form(None),
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -141,6 +147,22 @@ async def create_salon(
     GET /me/partners) to auto-invite that partner in the same call, so the new salon
     starts with the partner already identified — no separate invitation step needed.
     """
+    from src.credit import Tier as _Tier
+
+    # Named rather than coerced to the cheapest. Somebody sending a tier the server has
+    # never heard of has a client that disagrees with it about what exists, and silently
+    # downgrading them hides the disagreement behind a bill they did not expect — the same
+    # reasoning `choose_guest_options` applies to a guest's choice.
+    try:
+        chosen_host_tier = _Tier(host_tier) if host_tier else None
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{host_tier!r} is not a tier. The four are "
+                f"{', '.join(tier.value for tier in _Tier)}."
+            ),
+        ) from None
     # The free-trial-hour gate that used to live here is retired (FR51 replaces FR19):
     # billing is prepaid now, off the welcome credit signup grants, not a stored payment
     # method checked against a post-paid hour. No balance gate has taken its place yet —
@@ -224,6 +246,7 @@ async def create_salon(
         source_content=content,
         source_summary=summary,
         participant_cap=cap,
+        host_tier=chosen_host_tier.value if chosen_host_tier else None,
     )
     db.add(salon)
     db.commit()

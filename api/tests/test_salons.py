@@ -58,6 +58,48 @@ def test_create_salon_no_source_persists_empty_content(
     assert salon.source_filename is None
 
 
+# ─── The host's own tier choice ───────────────────────────────────────────────
+#
+# `host_tier` has billed the host since Story 8.4 (see the heartbeat's `Tier(salon.host_tier)
+# if salon.host_tier else Tier.BASE`), but nothing before this wrote it — every host was
+# silently billed at Base regardless of what they thought they had chosen.
+
+
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_create_salon_records_the_chosen_host_tier(mock_name, mock_token, mock_room, client, db, user):
+    _, token = user
+    response = client.post(
+        "/salons",
+        data={"host_tier": "Mode B"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert db.query(Salon).first().host_tier == "Mode B"
+
+
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_create_salon_with_no_tier_chosen_leaves_it_unset(mock_name, mock_token, mock_room, client, db, user):
+    """Unset, not 'Base' written out — the heartbeat already treats the two the same way,
+    and writing the string here would just be a second place that fact has to hold."""
+    _, token = user
+    client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
+    assert db.query(Salon).first().host_tier is None
+
+
+def test_create_salon_rejects_an_unknown_tier(client, user):
+    _, token = user
+    response = client.post(
+        "/salons",
+        data={"host_tier": "Deluxe"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+
+
 # ─── Agent dispatch ──────────────────────────────────────────────────────────
 
 @patch("src.routers.salons.livekit_service.dispatch_agent", new_callable=AsyncMock)
