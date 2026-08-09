@@ -76,12 +76,7 @@
 - [x] Story 8.2: Crédit Offert de 5 USD à Vie
 - [x] Story 8.3: Configuration des Trois Options par l'Hôte à la Création
 - [x] Story 8.4: Configuration des Trois Options par le Participant à la Jonction
-  > As a participant invité
-  > I want configurer mes propres options en rejoignant
-  > So that je ne subisse pas les choix de quelqu'un d'autre.
-  > AC: Given un invité clique un lien de jonction, When l'écran de jonction s'affiche, Then il y configure les mêmes trois options que l'hôte — palier, vidéo muette, montant de recharge — indépendamment des choix de celui-ci, And Given trois participants dans un même Salon, When chacun a configuré ses options, Then les trois jeux de choix coexistent sans interaction : un palier différent, une vidéo active ou non, un montant de recharge propre à chacun, And Given l'invité n'a jamais utilisé Vocaliz, When il choisit un mode, Then son crédit de bienvenue de 5 USD s'applique avant toute demande de paiement, And Given l'hôte a activé « l'hôte paie tout », When l'invité rejoint, Then il est placé en Mode B sans annonces et aucun choix de mode ne lui est demandé — FR42 prime sur FR35, et toujours vers le haut
-  > Spec: specs/planning-artifacts/epics.md#story-8-4
-- [ ] Story 8.5: Salon Mixte et Persistance du Mode
+- [x] Story 8.5: Salon Mixte et Persistance du Mode
   > As a participant
   > I want conserver mon mode tout le Salon
   > So that mon expérience reste stable et prévisible.

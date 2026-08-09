@@ -131,6 +131,12 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+`Salon.change_mode` (Story 8.5 / FR36) swaps one seat's adapter and nothing else — same
+room, same cursor, same `introduced` set, same held queue — then closes the outgoing one. The
+cursor is the point: a swap that reset it would replay the whole conversation. Mixed tiers
+need no support code at all, since the conductor only talks to the port; a test greps
+`conductor.py` for `isinstance` and adapter class names to keep it that way.
+
 ### API — per-participant options (Story 8.4 / FR35, FR42)
 
 `api/src/participation.py` + `salon_participant_options` (migration 049). `join_options`

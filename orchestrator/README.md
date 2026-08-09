@@ -263,6 +263,25 @@ Two details are less obvious than the threshold:
 Failing to speak the announcement never costs the summary it introduces, the same rule
 introductions follow.
 
+## Mixed modes, and changing one mid-Salon
+
+`Salon.change_mode`. Three participants on three different tiers are not a case the conductor
+handles — they are the case it cannot tell apart. It only ever talks to the `Interprete`
+port, so a dearer adapter is the same code path holding a different object, and a test reads
+`conductor.py` looking for `isinstance` or an adapter class name to keep it that way. No tier
+can acquire a special case by accident.
+
+A mode persists because nothing changes it. The only thing that does is the participant, and
+when they do, everything around the adapter stays exactly where it was: the same room, so
+nobody is put through a reconnection; the same reading position, so nothing is replayed; the
+same record of who they have been introduced to, since that belongs to the listener rather
+than to the adapter.
+
+The reading position is the one worth being careful about. A swap that reset it would replay
+the whole conversation from the beginning — a considerably worse outcome than the wrong voice
+for a minute. The outgoing adapter is closed, because it holds a provider session and leaving
+it open keeps paying for a room nobody is listening to.
+
 ## The order the interpreter speaks in
 
 `src/salon/meta_speech.py`. The problem is reproducibility rather than fairness. Several

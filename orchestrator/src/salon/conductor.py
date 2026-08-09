@@ -260,6 +260,29 @@ class Salon:
         await seat.interpreter.aclose()
         await self._rooms.close(seat.room)
 
+    async def change_mode(self, participant_id: str, interpreter: Interprete) -> None:
+        """Swap one participant's adapter, leaving everything around it exactly as it was.
+
+        Everything: the room, so nobody is put through a reconnection; the reading position,
+        so nothing is replayed; who they have been introduced to, since that belongs to the
+        listener rather than to the adapter; and whatever is held mid-run for them. Only the
+        object that speaks changes.
+
+        The reading position is the one worth being careful about. A swap that reset it would
+        replay the entire conversation from the beginning, which is a considerably worse
+        outcome than the wrong voice for a minute.
+
+        The old adapter is closed. It holds a session to a provider, and leaving it open
+        keeps paying for a room nobody is listening to.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return
+
+        outgoing = seat.interpreter
+        seat.interpreter = interpreter
+        await outgoing.aclose()
+
     async def aclose(self) -> None:
         """End the Salon. Every room closes; the journal stays where it is (NFR8)."""
         for participant_id in list(self._seats):
