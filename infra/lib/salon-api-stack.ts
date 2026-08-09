@@ -177,6 +177,14 @@ export class SalonApiStack extends cdk.Stack {
       // CloudWatch instead — useful when the recipient address is not a verified SES
       // identity, which the SES sandbox still requires.
       DEV_MODE: 'false',
+      // Where the orchestrator that holds a Salon's text can be reached. Empty until the
+      // ECS service exists, and empty is inert: no request is made and the Salon's
+      // orchestrator_url stays null. Declared here rather than left out so turning it on is
+      // one value in this file, not a new deployment shape.
+      //
+      // Not a load balancer address distributing each request afresh: a Salon is stateful,
+      // and every agent of one Salon must reach the instance that holds it.
+      ORCHESTRATOR_BASE_URL: process.env.ORCHESTRATOR_BASE_URL ?? '',
     };
 
     const apiFn = new lambda.DockerImageFunction(this, 'ApiFn', {

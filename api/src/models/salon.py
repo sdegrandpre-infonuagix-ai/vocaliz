@@ -36,6 +36,17 @@ class Salon(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     livekit_room_name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+
+    # Which orchestrator holds this Salon's text — the journal, every reader's position, who
+    # has been introduced to whom. One instance at a time, and written down rather than
+    # derived: any other instance answering for this Salon would serve a second, emptier
+    # version of the same conversation, which is precisely what a round-robin balancer would
+    # produce. All the agents of one Salon must reach the same address.
+    #
+    # Null while no orchestrator is deployed, and null again if the instance holding this
+    # Salon is drained and nothing takes it over. The journal survives that; the affinity
+    # does not, which is why it is a preference rather than a condition of survival.
+    orchestrator_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_type: Mapped[str] = mapped_column(String(20), nullable=False)      # 'url' | 'document' | 'none'
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)

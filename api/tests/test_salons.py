@@ -3,6 +3,7 @@ import io
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from src.models.salon import Salon
 from src.models.user import User
 from src.services.jwt_service import issue_token
 
@@ -437,3 +438,51 @@ def test_the_guest_page_revalidates_the_same_way(client):
     assert first.headers.get("etag")
     again = client.get("/join/whatever", headers={"If-None-Match": first.headers["etag"]})
     assert again.status_code == 304
+
+
+# ─── Handing the Salon to an orchestrator ──────────────────────────────────
+#
+# The room and the conversation are two halves of one act, so the orchestrator is told at
+# creation. What matters most below is the failure case: this must not be on the critical
+# path of starting a conversation.
+
+
+@patch("src.routers.salons.orchestrator_client.host_salon", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_creating_a_salon_hands_it_to_an_orchestrator(
+    mock_name, mock_token, mock_room, mock_host, client, user, db
+):
+    """The room name goes with it, and the host's identity. Neither is used to reach the
+    Salon later — room names are derived — but they are what joins a log line about this
+    Salon to a log line about that room."""
+    mock_host.return_value = "http://orchestrator:8080"
+    _, token = user
+
+    response = client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 201
+    assert mock_host.await_args.kwargs["room_name"] == "salon-test"
+    salon = db.query(Salon).filter_by(livekit_room_name="salon-test").one()
+    assert salon.orchestrator_url == "http://orchestrator:8080"
+
+
+@patch("src.routers.salons.orchestrator_client.host_salon", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.create_room", new_callable=AsyncMock)
+@patch("src.routers.salons.livekit_service.generate_participant_token", return_value="tok")
+@patch("src.routers.salons.livekit_service.new_room_name", return_value="salon-test")
+def test_a_salon_opens_even_when_no_orchestrator_takes_it(
+    mock_name, mock_token, mock_room, mock_host, client, user, db
+):
+    """The one that matters, and the ordinary case today: no orchestrator is deployed. A
+    Salon that opens without translation is worse than one that works and vastly better than
+    a host who cannot begin — and null is the honest record of which happened."""
+    mock_host.return_value = None
+    _, token = user
+
+    response = client.post("/salons", data={}, headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 201
+    salon = db.query(Salon).filter_by(livekit_room_name="salon-test").one()
+    assert salon.orchestrator_url is None

@@ -49,6 +49,7 @@ from src.services import (
     invitation_service,
     jwt_service,
     livekit_service,
+    orchestrator_client,
     salon_event_service,
     salon_lifecycle,
     shared_source_service,
@@ -214,6 +215,20 @@ async def create_salon(
     db.add(salon)
     db.commit()
     db.refresh(salon)
+
+    # 4b. Hand the conversation to an orchestrator, and remember which one took it.
+    #
+    # After the row exists, not before: the request names the Salon, so there has to be a
+    # Salon to name. Committed separately for the same reason it is never fatal — a Salon
+    # whose orchestrator could not be reached opens without translation, which is far better
+    # than a host who cannot start a conversation because a second service was restarting.
+    # Null here is the honest record of that, and of the ordinary case today, where no
+    # orchestrator is deployed at all.
+    salon.orchestrator_url = await orchestrator_client.host_salon(
+        salon_id=salon.id, room_name=room_name, host_id=current_user.id
+    )
+    if salon.orchestrator_url:
+        db.commit()
 
     # Accounting only — nothing reads this back during the conversation.
     if content:

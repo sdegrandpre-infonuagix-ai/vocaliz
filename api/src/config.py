@@ -175,6 +175,19 @@ class Settings(BaseSettings):
     # rules entirely, so the code below is inert rather than failing on every invitation.
     sip_trunk_id: str = ""
 
+    # Where the orchestrator that holds a Salon's text can be reached.
+    #
+    # One address rather than a list, because there is one instance: a Salon is stateful —
+    # the journal, every reader's position — and the agents of one Salon must all reach the
+    # instance that holds it. When there is a fleet this becomes the address of whatever
+    # hands out instances, never a balancer distributing each request afresh.
+    #
+    # Empty until the ECS service is deployed, and empty is inert: no request is made and
+    # `salons.orchestrator_url` stays null. A default address resolving to nothing would turn
+    # every salon creation into a wait for a connection refused, which is a worse way of
+    # saying "not built yet" than doing nothing at all.
+    orchestrator_base_url: str = ""
+
     # Whether the clients offer to invite by text message.
     #
     # A flag rather than markup commented out, because the thing it waits on is an AWS
