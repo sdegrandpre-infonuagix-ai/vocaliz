@@ -111,6 +111,12 @@ method that could record a frame. `Salon.enable_video`/`disable_video`/`start_dr
 `shed_video` govern it; off by default, suspended while driving with the wish remembered,
 and unavailable to a `by_telephone` participant, whose presence the others are told about.
 
+`src/salon/captions.py` (Story 6.14): `caption_languages()` is wider than
+`captions_offered_in()` — text reaches languages no voice pronounces. `Salon.set_captions`
+takes `None` (never chosen), `""` (`AS_SPOKEN`) or a language, plus `caption_scale`.
+Captions go out over the reader's own room via `rooms.publish`, never to the interpreter,
+and reuse the journal's translation cache.
+
 Credentials (`LIVEKIT_*`, `DATABASE_URL`) have no defaults: a missing one fails at startup
 with the name in the message. In AWS they come from Secrets Manager via
 `ORCHESTRATOR_SECRET_ARN`, the same shape the API uses with `APP_SECRET_ARN`.

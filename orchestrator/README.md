@@ -361,6 +361,36 @@ thing and invites a judgement they have not earned.
 The layer is optional: a Salon built without a `VideoPath` loses the pictures and nothing
 else.
 
+## Captions
+
+`src/salon/captions.py`. Not a lesser copy of the voice — they reach further. Text renders
+into languages no realtime model can pronounce, so somebody can follow a Salon in a language
+they could never be spoken to in. `caption_languages()` is deliberately a superset of
+`captions_offered_in()`, which stays the intersection of the adapters from Story 6.7: being
+able to *read* Welsh is not being able to be *spoken to* in it, and a participant reading a
+language no adapter speaks has their voice fall back while their captions do not.
+
+Three states, and the middle one is easy to lose:
+
+| `caption_language` | Meaning |
+|---|---|
+| `None` | Never chosen. Off because nobody has been asked. |
+| `""` (`AS_SPOKEN`) | Chosen: show the original, translate nothing. |
+| a language | Chosen: render every turn into it. |
+
+Each reader chooses independently, and the size (`caption_scale`) follows the account rather
+than the device — somebody who needs larger text needs it on their telephone too.
+
+Translation is the one the voice already pays for: `SalonLog.render` against a cache keyed
+on (turn, language), so a turn read by three people in German costs one translation, and
+every caption is one hop from the original rather than a translation of a translation. A
+turn already in the reading language is shown as spoken, and leaves no translation row.
+
+Captions travel the data channel of the reader's **own room** and nowhere else — the same
+isolation that makes echo impossible. They are never handed to the voice: a caption is
+something to read, and sending it to the interpreter would say everything twice. Pause
+markers are stripped, because there is nothing to read in a silence.
+
 ## Configuration
 
 Everything comes from the environment; see `.env.example` for the full list and

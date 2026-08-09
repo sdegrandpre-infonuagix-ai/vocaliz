@@ -16,6 +16,12 @@ from src.salon.notices import (
     microphone_restored,
     on_the_telephone,
 )
+from src.salon.captions import (
+    AS_SPOKEN,
+    DEFAULT_CAPTION_SCALE,
+    caption_languages,
+    captions_offered_in,
+)
 from src.salon.video import (
     MAX_VIDEO_BITRATE_KBPS,
     VIDEO_FPS,
@@ -37,6 +43,8 @@ from src.salon.rooms import (
 __all__ = [
     "DEFAULT_HISTORY_FOR_ARRIVALS",
     "HistoryAccess",
+    "AS_SPOKEN",
+    "DEFAULT_CAPTION_SCALE",
     "InMemoryRoomProvisioner",
     "InMemoryVideoPath",
     "MAX_VIDEO_BITRATE_KBPS",
@@ -56,6 +64,8 @@ __all__ = [
     "microphone_cut",
     "microphone_restored",
     "on_the_telephone",
+    "caption_languages",
+    "captions_offered_in",
     "room_name",
     "video_track_name",
 ]

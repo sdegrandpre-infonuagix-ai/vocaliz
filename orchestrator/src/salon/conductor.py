@@ -27,6 +27,7 @@ from src.salon.notices import (
     microphone_restored,
     on_the_telephone,
 )
+from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
 from src.salon.rooms import Room, RoomProvisioner
 from src.salon.video import VideoPath, VideoTrack
 
@@ -60,6 +61,10 @@ class Seat:
     video: VideoTrack | None = None
     wants_video: bool = False
     driving: bool = False
+    # Story 6.14. `None` is "never chosen"; `""` is "as spoken, translate nothing", which is
+    # a choice in its own right and the difference matters.
+    caption_language: str | None = None
+    caption_scale: float = DEFAULT_CAPTION_SCALE
     # True between two pieces of one intervention (Story 6.5). Nothing third-party is
     # spoken while it is.
     mid_run: bool = False
@@ -397,6 +402,8 @@ class Salon:
 
                 seat.mid_run = entry.mid_run
 
+                await self._send_caption(seat, entry)
+
             await self.log.advance(participant_id, entry.sequence)
 
             if not seat.mid_run:
@@ -523,6 +530,52 @@ class Salon:
                     language=language,
                 ),
             )
+
+    # ── Captions (Story 6.14) ─────────────────────────────────────────────────
+
+    def caption_language(self, participant_id: str) -> str | None:
+        seat = self._seats.get(participant_id)
+        return seat.caption_language if seat else None
+
+    def caption_scale(self, participant_id: str) -> float:
+        seat = self._seats.get(participant_id)
+        return seat.caption_scale if seat else DEFAULT_CAPTION_SCALE
+
+    def reads_captions(self, participant_id: str) -> bool:
+        return reads_captions(self.caption_language(participant_id))
+
+    async def set_captions(
+        self,
+        participant_id: str,
+        *,
+        language: str | None,
+        scale: float = DEFAULT_CAPTION_SCALE,
+    ) -> None:
+        """Choose what to read, and how large.
+
+        `None` turns them off — back to never having chosen. `""` is the other kind of off:
+        show me the original. Both are settings of the account rather than of the device.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return
+
+        seat.caption_language = language
+        seat.caption_scale = scale
+
+    async def _send_caption(self, seat: Seat, entry: JournalEntry) -> None:
+        """Put one turn into this reader's own room, as text.
+
+        The data channel of their room and nowhere else — the same isolation that makes echo
+        impossible. It is never handed to the voice: a caption is something to read, and
+        sending it to the interpreter would say everything twice.
+        """
+        if not reads_captions(seat.caption_language):
+            return
+
+        text = await self.log.render(entry, seat.caption_language or "")
+        # A pause marker says how to *say* something. There is nothing to read in a silence.
+        await self._rooms.publish(seat.room, without_markers(text).encode())
 
     # ── Video (Story 6.13) ────────────────────────────────────────────────────
 
