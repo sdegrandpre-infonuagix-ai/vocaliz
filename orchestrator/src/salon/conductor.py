@@ -37,6 +37,7 @@ from src.salon.advertising import Regie
 from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
 from src.salon.rooms import Room, RoomProvisioner
 from src.salon.meta_speech import MetaSpeechQueue, Urgency
+from src.salon.script import Script, Voice
 from src.salon.speaking import SpeakingBoard
 from src.salon.video import VideoPath, VideoTrack
 
@@ -62,6 +63,11 @@ class Seat:
     participant: Participant
     room: Room
     interpreter: Interprete
+    # Set only while a script is being written for this seat, and `voice` below is what
+    # makes that swap invisible to every rule in this file. See `src/salon/script.py`:
+    # serving a script and speaking one are the same code path, and this field is the
+    # entire difference between them.
+    script: Script | None = None
     # Set by the host (Story 6.8). Nothing this participant says reaches the journal while
     # it holds; everything the others say still reaches them.
     muted: bool = False
@@ -113,6 +119,19 @@ class Seat:
     # own identifier can never appear here — which is what keeps two of somebody's messages
     # either side of their own from looking like a change of speaker.
     last_heard: str = ""
+
+    @property
+    def voice(self) -> Voice:
+        """What to say things through: the script being written, or the interpreter itself.
+
+        Every rule in this file speaks through here and none of them knows which it got.
+        That is what stops the served path and the in-process path drifting — there is only
+        one set of decisions about what to say, and two things to say it to.
+
+        `aclose` and `ingest` are the two verbs that deliberately stay on `interpreter`:
+        neither is speaking, and both belong to whoever actually holds the audio.
+        """
+        return self.script if self.script is not None else self.interpreter
 
 
 class Salon:
@@ -451,7 +470,7 @@ class Salon:
         warning a room that is keeping up would tell it something untrue about itself.
         """
         try:
-            await seat.interpreter.insert_annonce(
+            await seat.voice.insert_annonce(
                 Annonce(
                     text=vocaliz_is_busy(told_in=seat.participant.language),
                     language=seat.participant.language,
@@ -607,7 +626,7 @@ class Salon:
         try:
             # Markers are dropped with the rest (Story 6.11): one does not summarise
             # silences, and a summary that reproduced them would spend its time on them.
-            await seat.interpreter.condense(
+            await seat.voice.condense(
                 [_as_tour(entry, spoken_only=True) for entry in from_others]
             )
         except InterpreteError:
@@ -637,7 +656,7 @@ class Salon:
         speakers = {entry.participant_id for entry in covered}
         text = condensed_while_listening(len(speakers), told_in=seat.participant.language)
         try:
-            await seat.interpreter.insert_annonce(
+            await seat.voice.insert_annonce(
                 Annonce(text=text, language=seat.participant.language)
             )
         except InterpreteError:
@@ -667,7 +686,7 @@ class Salon:
                 await self._introduce(seat, entry.participant_id)
 
                 try:
-                    await seat.interpreter.render(_as_tour(entry))
+                    await seat.voice.render(_as_tour(entry))
                 except InterpreteError:
                     # Their own adapter has told them out loud (NFR3). The position stays
                     # where it is, so what they missed is still theirs to catch up on, and
@@ -695,6 +714,35 @@ class Salon:
 
             if not seat.mid_run:
                 seat.monologue_seconds = 0.0
+
+    async def script_for(self, participant_id: str) -> Script:
+        """What this participant is owed, written down instead of said.
+
+        The served half of the text-only boundary: the agent asks, this answers, and the
+        agent says it with the interpreter that sits beside the audio. Every decision about
+        *what* to say is taken here by exactly the code `deliver` runs — the seat's voice is
+        swapped for a recorder and nothing else changes.
+
+        The reading position advances as the script is written, not when the agent confirms
+        it spoke. That looks like a lost message waiting to happen and is not one: in this
+        topology a room holds one human and their agent, so an agent that dies takes the room
+        with it and there is nobody left to have missed anything. Delivering twice, which the
+        alternative risks, is the failure a listener can actually notice — they cannot tell a
+        repeat from somebody saying the same thing again.
+        """
+        seat = self._seats.get(participant_id)
+        if seat is None:
+            return Script(language="")
+
+        script = Script(language=seat.participant.language)
+        seat.script = script
+        try:
+            await self.deliver(participant_id)
+        finally:
+            # Restored whatever happened. A seat left holding a script would go on writing
+            # into a list nobody is reading, which is silence for that participant.
+            seat.script = None
+        return script
 
     async def deliver_all(self) -> None:
         """Let every interpreter catch up, each at its own pace and none blocking another."""
@@ -838,7 +886,7 @@ class Salon:
             return
 
         try:
-            await seat.interpreter.insert_annonce(diffusion.annonce)
+            await seat.voice.insert_annonce(diffusion.annonce)
         except InterpreteError:
             # Never spoken, so never confirmed and never billed. That is the whole purpose
             # of `ad_broadcasts.delivered_at` being separate from the reservation.
@@ -870,7 +918,7 @@ class Salon:
         """
         for annonce in seat.held.drain():
             try:
-                await seat.interpreter.insert_annonce(annonce)
+                await seat.voice.insert_annonce(annonce)
             except InterpreteError:
                 # Their adapter has told them out loud already (NFR3). Putting it back would
                 # replay it on every later delivery, and an announcement is not worth that.

@@ -927,3 +927,27 @@ Elle explique aussi pourquoi le port `Interprete` était une bonne idée dès le
 `src/interprete/` — le port, `InterpreteS2S`, `InterpreteBase`, `InterpreteFake` et la liste des langues — descend dans `agent/`. Les tests de contrat suivent. L'orchestrateur garde `journal/`, `salon/` moins le rendu, `settings/`, `load/` et `cohorts`.
 
 `adapters/livekit_rooms.py` reste discutable et reste où il est : provisionner une room est un appel de plan de contrôle, pas de l'audio. Si cette ligne devait bouger un jour, ce serait vers l'API, qui crée déjà les rooms à la création d'un Salon.
+
+### Comment l'inversion a été faite : un script est une voix qui enregistre
+
+L'inversion pousser→servir aurait pu coûter une réécriture du conducteur. Elle n'en a coûté aucune, et la raison mérite d'être écrite parce qu'elle est réutilisable.
+
+`Salon.deliver()` ne parlait pas à un interprète : il parlait à **trois verbes** — `render`, `insert_annonce`, `condense`. Ces trois verbes sont un port en eux-mêmes, plus étroit que `Interprete`, dont ils excluent précisément le seul verbe qui touche à l'audio : `ingest`. C'est `Voice`, dans `src/salon/script.py`.
+
+`Script` est une `Voice` qui écrit au lieu de dire. Le siège tient l'une ou l'autre :
+
+```python
+@property
+def voice(self) -> Voice:
+    return self.script if self.script is not None else self.interpreter
+```
+
+Toute règle du conducteur passe par `seat.voice` et **aucune ne sait laquelle elle a obtenue**. Les créneaux publicitaires, les présentations, le seuil de condensation, le plafond de monologue, les annonces retenues : le même code produit la livraison en mémoire et le script servi. Ils ne peuvent pas diverger, parce qu'il n'y en a qu'un.
+
+Ce que cela permet d'affirmer par un test, et qui est l'assertion sur laquelle tout le reste repose : **un script joué dit exactement ce que la livraison aurait dit** — mêmes lignes, même ordre, mêmes langues, présentations comprises. Deux Salons pilotés à l'identique, l'un qui livre, l'autre qui sert ; les deux interprètes finissent indiscernables.
+
+Un second garde-fou interdit à `conductor.py` d'appeler `seat.interpreter.render` — une règle qui contournerait `seat.voice` fonctionnerait parfaitement en mémoire et ne dirait **rien du tout** sur le fil. Silence pour ce participant, suite de tests toujours verte : exactement la panne qu'un garde-fou existe pour attraper.
+
+**Le curseur avance à la remise du script, pas à la confirmation de l'agent.** Cela ressemble à un message perdu en puissance et n'en est pas un : dans cette topologie une room tient un humain et son agent, donc un agent qui meurt emporte la room, et il ne reste personne pour avoir manqué quoi que ce soit. Livrer deux fois, ce que l'autre choix risque, est en revanche une panne qu'un auditeur remarque — il ne distingue pas une répétition de quelqu'un qui redit la même chose.
+
+Il reste donc **deux appels HTTP et non trois** : demander son script, rapporter ce que l'humain a dit.
