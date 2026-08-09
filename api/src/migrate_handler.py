@@ -199,6 +199,32 @@ def _backfill_stripe_namespace(apply: bool) -> dict:
         db.close()
 
 
+def _table_census() -> dict:
+    """Row counts per table. Read-only."""
+    from src.database import SessionLocal
+    from src.services import table_census
+
+    db = SessionLocal()
+    try:
+        return table_census.census(db)
+    finally:
+        db.close()
+
+
+def _truncate_tables(confirm: str, include_reference: bool) -> dict:
+    """Empty the data tables. Irreversible short of a point-in-time restore."""
+    from src.database import SessionLocal
+    from src.services import table_census
+
+    db = SessionLocal()
+    try:
+        return table_census.truncate(
+            db, confirm=confirm, include_reference=include_reference
+        )
+    finally:
+        db.close()
+
+
 def handler(event, context):
     """Run `alembic upgrade head`, or a named maintenance action.
 
@@ -246,6 +272,15 @@ def handler(event, context):
     if action == "invoice_advertisers":
         result = _invoice_advertisers()
         _report(f"invoice_advertisers: {result}")
+        return result
+    if action == "table_census":
+        return _table_census()
+    if action == "truncate_tables":
+        # Irreversible. The confirmation sentence is checked in the service, not here.
+        result = _truncate_tables(
+            event.get("confirm", ""), bool(event.get("includeReference"))
+        )
+        _report(f"truncate_tables: {result.get('status')} {result.get('truncated')}")
         return result
     if action == "backfill_stripe_namespace":
         # Writes to live billing records only when asked in full. The default reports.

@@ -9,7 +9,7 @@
     "scheme": "vocaliz",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "ai.infonuagix.salon",
+      "bundleIdentifier": "ai.infonuagix.vocaliz",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Vocaliz needs microphone access for voice conversations.",
         "NSCameraUsageDescription": "Vocaliz may use the camera for future features.",
@@ -17,7 +17,7 @@
       }
     },
     "android": {
-      "package": "ai.infonuagix.salon",
+      "package": "ai.infonuagix.vocaliz",
       "permissions": [
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
