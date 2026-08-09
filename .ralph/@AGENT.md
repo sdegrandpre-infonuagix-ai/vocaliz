@@ -137,6 +137,23 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### API — the paid-balance journal (Story 8.12 / FR68, NFR7)
+
+`api/src/paid_journal.py`, the mirror of the credit journal and also a fold with no table —
+same guard. The distinction between them is the point: a gifted credit is a **charge**, a paid
+balance is a **debt**, and summing them makes both unreadable.
+
+Four figures, not three: collected, consumed and refunded describe the period; `outstanding`
+describes what is still owed at its close. A refund is kept apart from consumption because
+money going back out is not money earned.
+
+A paid balance never expires. `dormant_balances` isolates what is owed to people not seen for
+`DORMANCY_YEARS`, measuring last activity across the **whole** stream rather than the paid
+pool alone — spending gifted credit is activity too, and a narrower clock would write to
+somebody who used Vocaliz yesterday. `reminder_due` renews each anniversary while the balance
+stays positive, never fires on an empty one, and every reminder is journalled as
+`DORMANT_REMINDED` in the one stream. `REMINDER_COPY_TO` copies the operator.
+
 ### API — the gifted-credit journal (Story 8.11 / FR67, NFR7)
 
 `api/src/credit_journal.py`. A **fold over the ledger**, with no table of its own — a test

@@ -45,6 +45,10 @@ class EventType(Enum):
     # lapse. In the same stream because "was he warned?" is a question a dispute asks,
     # and a second log of it would be the two-log mistake again.
     EXPIRY_WARNED = "expiry_warned"
+    # The holder of a dormant balance was written to. In the same stream because "was he
+    # told his money was still here?" is a question somebody will eventually ask, and a
+    # second log of it would be the two-log mistake again.
+    DORMANT_REMINDED = "dormant_reminded"
     # A compensating event. Never a rewrite: it points at what it corrects and both survive.
     CORRECTED = "corrected"
 
