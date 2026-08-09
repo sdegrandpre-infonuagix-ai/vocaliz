@@ -51,11 +51,6 @@
 - [x] Story 6.3: Orchestrateur de Salon, Journal et Curseurs
 - [x] Story 6.4: Une Room LiveKit par Participant
 - [x] Story 6.5: Découpage des Interventions à 500 Caractères
-  > As a participant
-  > I want que mes longues interventions soient découpées proprement
-  > So that les autres puissent s'intercaler sans que je monopolise la conversation.
-  > AC: Given une intervention dépassant `taille_max_message`, When l'interprète la transmet, Then elle est découpée en messages consécutifs de 500 caractères maximum chacun, And Given un découpage est nécessaire, When le point de coupe est calculé, Then il tombe sur une frontière de phrase, jamais au milieu d'un mot, And Given une intervention découpée est en cours de transmission, When un contenu tiers (message d'un autre participant ou annonce) est prêt, Then il n'est pas inséré entre les morceaux
-  > Spec: specs/planning-artifacts/epics.md#story-6-5
 - [ ] Story 6.6: Restitution Premier Arrivé Premier Servi
   > > ✅ **DÉJÀ LIVRÉ PAR SALON — ne pas reconstruire.** `utterances.sequence` est un entier monotone assigné à l'insertion, unique par Salon (`uq_utterances_salon_sequence`).
   > C'est **exactement** l'ordre d'arrivée que FR44 demande.

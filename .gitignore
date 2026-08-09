@@ -10,3 +10,6 @@ bmalph/state/
 # Byte-compiled files are build output, never source.
 __pycache__/
 *.pyc
+
+# Transient analysis scratch files, written and discarded during a run.
+.response_analyzer.*
