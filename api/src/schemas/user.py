@@ -90,3 +90,16 @@ class AddPaymentMethodBody(BaseModel):
 class PaymentMethodResponse(BaseModel):
     stripeCustomerId: str
     paymentMethodAdded: bool
+
+
+class IdentifierChangeBody(BaseModel):
+    """One identifier on the move (Story 10.6 / FR64). Exactly one of the two."""
+
+    newEmail: str | None = None
+    newPhone: str | None = None
+
+
+class IdentifierConfirmBody(BaseModel):
+    """The code that proves the person holds the new identifier."""
+
+    code: str

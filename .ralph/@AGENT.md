@@ -137,6 +137,40 @@ cursor is the point: a swap that reset it would replay the whole conversation. M
 need no support code at all, since the conductor only talks to the port; a test greps
 `conductor.py` for `isinstance` and adapter class names to keep it that way.
 
+### Changing an identifier without losing the account (Story 10.6 / FR64)
+
+`api/src/identifier_change.py` + `pending_identifier_changes` (migration 054) +
+`POST /me/identifier` and `/me/identifier/confirm`.
+
+An identifier is the key to somebody's balance, so changing one is changing a lock while a
+person stands behind it. The **anchor** is what makes it safe: exactly one moves at a time, the
+other stays as the thing still tying the account to whoever held it yesterday. Both at once is
+refused — not for want of a way to write two columns, but because afterwards nothing can say
+the person holding the account is the person who held it. An account with one identifier must
+add its second first, precisely so there is something to anchor to.
+
+`anchor` and `replaces` are written when the change is **planned**, never resolved when it is
+applied: between the two the account may itself have moved, which is the whole point of the
+feature.
+
+The **burned registry is deliberately not consulted**. It records that a welcome credit was
+once paid for an identifier — a fact about a gift, not about who may use it. Reading it as a
+blocklist would leave somebody unable to reuse an address they burned themselves. On success
+the new identifier *is* burned, so the account cannot be handed a second credit through it.
+
+The old key is **withdrawn** from `participant_identifiers`: leaving it would let somebody who
+recovered the old address walk back into an account that has moved on.
+
+`apply_change` takes the code and verifies it **itself** rather than trusting a caller that
+verified separately — two steps with the gate in the first is one refactor away from a change
+that applies without one. Codes are single-use and short-lived.
+
+**Nothing financial happens.** The gifted balance keeps its amount, the paid balance is
+untouched, and a test asserts the ledger gains **no row at all**: a change of address is not a
+financial event, and a stream whose every row moved something should not gain one that moved
+nothing. `otp.send_change_code` is separate from `send_otp` for the same kind of reason —
+that one creates an account as a side effect, which would collide with the change.
+
 ### Before a telephone rings (Story 10.5, partial / FR5, FR56)
 
 `api/src/telephone_invitation.py` — the decisions that precede a call. **The dialling itself

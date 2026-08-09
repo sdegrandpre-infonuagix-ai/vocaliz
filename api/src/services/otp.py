@@ -137,3 +137,14 @@ def _send_email(email: str, code: str) -> None:
             status_code=503,
             detail="Could not send the email. Please try again.",
         ) from exc
+
+
+def send_change_code(address: str, code: str) -> None:
+    """Email a code for an identifier change (Story 10.6 / FR64).
+
+    Separate from `send_otp` because it must **not** create an account. That one signs
+    somebody up as a side effect of asking for a code, which is right at the door and wrong
+    here: the address being proved does not belong to anybody yet, and minting an account for
+    it would make the change collide with the account it just created.
+    """
+    _send_email(address, code)

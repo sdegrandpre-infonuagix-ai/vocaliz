@@ -1,13 +1,21 @@
 """User profile router — /me/profile, /me/language, /me/payment-method."""
+import logging
+from datetime import datetime, timezone
+
 import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DbSession
+
+from src import identifier_change
+from src.models.pending_identifier_change import PendingIdentifierChange
 
 from src.config import settings
 from src.database import get_db
 from src.dependencies.auth import get_current_user
 from src.models.user import User
 from src.schemas.user import (
+    IdentifierChangeBody,
+    IdentifierConfirmBody,
     LanguagePreferencesBody,
     AddPaymentMethodBody,
     PaymentMethodResponse,
@@ -18,6 +26,9 @@ from src.schemas.user import (
     UserProfileResponse,
 )
 from src.services import partner_service, stripe_service
+from src.services import otp as otp_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/me", tags=["users"])
 
@@ -143,6 +154,88 @@ def update_language_preferences(
         current_user.caption_language = body.captionLanguage
     if body.captionScale is not None:
         current_user.caption_scale = body.captionScale
+    db.commit()
+    db.refresh(current_user)
+    return _profile(current_user)
+
+
+@router.post("/identifier", status_code=202)
+def request_identifier_change(
+    body: IdentifierChangeBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Ask to move one identifier, keeping the other as the anchor (Story 10.6 / FR64).
+
+    202 rather than 200: nothing has changed yet. A code goes to the new address or number and
+    the change waits for it — applying on request would let anybody holding a session move
+    somebody's key to something they control.
+
+    The code is not in the response, for the same reason it never is: it travels to the
+    identifier being proved, which is the whole of what proving means.
+    """
+    try:
+        planned = identifier_change.plan_change(
+            db,
+            current_user,
+            new_email=body.newEmail,
+            new_phone=body.newPhone,
+            now=datetime.now(tz=timezone.utc),
+        )
+    except identifier_change.ChangeRefused as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if "@" in planned.new_identifier:
+        try:
+            otp_service.send_change_code(planned.new_identifier, planned.code)
+        except Exception:  # noqa: BLE001
+            # The change is already set aside and a code can be asked for again. Losing the
+            # delivery must not lose the request the user just made.
+            logger.warning("Could not send the identifier change code", exc_info=True)
+
+    db.commit()
+    return {
+        "anchor": planned.anchor,
+        "newIdentifier": planned.new_identifier,
+        "message": "A code is on its way to the new identifier.",
+    }
+
+
+@router.post("/identifier/confirm", response_model=UserProfileResponse)
+def confirm_identifier_change(
+    body: IdentifierConfirmBody,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Give the code and let the change take effect.
+
+    The most recent unused request is the one being confirmed. Somebody who asked twice meant
+    the second one — the first is abandoned rather than ambiguous.
+    """
+    row = (
+        db.query(PendingIdentifierChange)
+        .filter(
+            PendingIdentifierChange.user_id == current_user.id,
+            PendingIdentifierChange.used_at.is_(None),
+        )
+        .order_by(PendingIdentifierChange.requested_at.desc())
+        .first()
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=404, detail="There is no identifier change waiting to be confirmed."
+        )
+
+    try:
+        identifier_change.apply_change(
+            db,
+            identifier_change.PlannedChange(row=row),
+            code=body.code,
+            now=datetime.now(tz=timezone.utc),
+        )
+    except identifier_change.ChangeRefused as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     db.commit()
     db.refresh(current_user)
     return _profile(current_user)
