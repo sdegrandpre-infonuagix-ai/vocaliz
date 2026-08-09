@@ -263,6 +263,75 @@ Two details are less obvious than the threshold:
 Failing to speak the announcement never costs the summary it introduces, the same rule
 introductions follow.
 
+## Simulated participants, and what a run is judged by
+
+`src/load/`. The purpose is a decision: raising the participant ceiling from 3 to 50 is
+either a measurement or a bet, and the only way to make it a measurement is to run 50
+participants without paying a provider for any of them.
+
+`SimulatedSpeaker` is what `InterpreteFake` was not. The fake is *reactive* — you queue what
+its human says. A scenario needs something that decides on its own when to speak and what to
+say, at a cadence, a length and a language somebody chose. It is deterministic on purpose:
+same seed, same words, same verdict, because a load result that changes between runs is
+measuring the generator. It is seeded on the participant as well as the run, so fifty
+speakers do not all say the same sentence and leave the translation cache doing the work.
+
+`scenario.run` plays a whole scenario against a **real** Salon — the real journal, the real
+cursors, the real condensation and saturation rules. Only the humans and the interpreters are
+simulated; replacing the conductor would measure the harness. Scenario time is not wall-clock
+time, so an hour-long run finishes in milliseconds and can live in the test suite.
+
+Two things in the harness are less obvious than they look:
+
+- **Interpreters have a budget.** `render_speed` says how fast one renders as a multiple of
+  real time. Without it every interpreter drains its backlog instantly, nobody can fall
+  behind, and the harness can only ever confirm that everything is fine.
+- **Summarising is not free.** An interpreter with no time renders nothing at all,
+  condensations included. Treating condensation as free lets every room rescue itself on
+  every step — and since the settings guarantee condensation fires before saturation, no
+  scenario could then ever reach a block.
+
+`SalonMetrics` holds what a run is judged by: the lag of each cursor kept at its *peak*
+rather than its last value — a lag sampled after a delivery reads as zero exactly when
+somebody was furthest behind — the worst lag in the Salon, latency at p50 and p95, the share
+of content summarised, and blocks both counted and timed. A block still open when the run
+ends is charged up to the end, because "blocked and never released" is the one result nobody
+should be able to report as zero blocked time.
+
+The **meta-speech ratio** is how much of what somebody hears was said by nobody in the room:
+the tax the architecture charges for existing. Condensed content is left out of both sides —
+it is neither the journal spoken faithfully nor the system talking about itself — while the
+sentence that *announces* a condensation counts, because that is precisely the interruption
+the ratio exists to make visible. It is published per tier, since the cheapest tier
+interrupts most and one averaged number would hide exactly that trade. A tier that never ran
+reports `None` rather than zero: a missing row reads as "no interruptions" when it means
+"never ran", and those are opposite conclusions.
+
+`Report.of` gives the verdict against the four criteria for raising the ceiling, and **fails
+closed on every one**. A run that did not measure something has not met it: no cost figures
+supplied is not the cost criterion met, and zero blocks in ten minutes is not an hour without
+one. Scaling the requirement to the run length would turn a short run into a free pass.
+
+## Cohorts, and what they are allowed to be compared to
+
+`src/cohorts.py`. Two numbers that are easy to publish in a way that misleads.
+
+The conversion rate — what share of a cohort recharged before their 30-day credit expired —
+only means anything once that cohort's window has closed. A cohort three days old has had
+three days and will look catastrophic beside one that had a month. So a partial cohort is
+marked partial and `compare` **raises** rather than warning: a caveat printed next to a
+number is read by nobody, and the number is what gets quoted.
+
+The delay to first payment is published as a distribution — median, p25, p75, p90 — and never
+as a mean, because one person who came back on day 29 drags an average past usefulness.
+Somebody who never recharged is counted against the rate and left out of the delay: they have
+no delay, and counting them as a large one invents a number while counting them as zero
+invents a better one.
+
+A declined card is a bank's decision and not a person's, so the delay runs to the first
+*success* and failures are counted separately. Folding them together would read a payment
+problem as a lack of interest.
+
 ## The monologue ceiling
 
 `Salon._may_interrupt`. Story 6.5 established that nothing third-party is spoken inside

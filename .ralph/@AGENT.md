@@ -131,6 +131,21 @@ was made during the drive, which `set_captions` records by dropping what was put
 black screen, the wake lock, the whole-surface exit and the low hang-up target are the
 client's, in `mobile/src/components/DrivingMode.tsx`.
 
+`src/load/` (Story 7.5 / FR58, NFR4) is the load harness. `SimulatedSpeaker` generates its
+own turns at a chosen cadence, length and language, deterministically and with no provider
+call — `InterpreteFake` is reactive and could not do this. `scenario.run` plays a whole
+scenario against a *real* Salon in scenario time (an hour finishes in milliseconds), with
+`render_speed` giving interpreters a rendering budget so somebody can actually fall behind.
+`SalonMetrics` keeps peak lag, p50/p95 latency, the condensed share, blocks counted *and*
+timed, and the meta-speech ratio per tier. `Report.of` judges the four ceiling-raise criteria
+and fails closed on each: an unmeasured criterion is not a met one.
+
+`src/cohorts.py` (Story 7.5) holds the conversion rate and the delay-to-first-payment
+distribution. A cohort inside its 30-day window is marked partial and `compare` raises rather
+than warning; the delay is median/p25/p75/p90 and never a mean; non-payers count against the
+rate and are excluded from the delay; the delay runs to the first *success* with failures
+counted separately.
+
 The monologue ceiling (Story 7.4 / FR56) is `Salon._may_interrupt` plus
 `Seat.monologue_seconds`: Story 6.5's rule that nothing third-party is said inside somebody's
 intervention is withdrawn past `monologue_ceiling_seconds`, because held with no limit it is

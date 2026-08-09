@@ -323,6 +323,10 @@ class Salon:
     # ── Saturation (Story 7.3 / FR55) ─────────────────────────────────────────
 
     @property
+    def condensation_threshold_seconds(self) -> float:
+        return self._condensation_threshold
+
+    @property
     def saturation_threshold_seconds(self) -> float:
         return self._saturation_threshold
 

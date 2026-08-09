@@ -67,12 +67,7 @@
 - [x] Story 7.2: Condensation par l'Interprète en Retard
 - [x] Story 7.3: Signal de Saturation et Blocage d'Entrée
 - [x] Story 7.4: Plafond de Monologue
-  > As a participant
-  > I want que personne ne monopolise indéfiniment
-  > So that la conversation reste partagée.
-  > AC: Given un participant parle en continu depuis moins de `plafond_monologue` (300 s), When du contenu tiers est prêt, Then aucune insertion n'a lieu à l'intérieur de son intervention, And Given un participant parle en continu depuis plus de `plafond_monologue`, When du contenu tiers est prêt, Then l'insertion est autorisée à l'intérieur de son intervention découpée, And Given `plafond_monologue` et `seuil_saturation` partagent la même valeur initiale, When on modifie l'un des deux, Then ils restent persistés et modifiables indépendamment l'un de l'autre
-  > Spec: specs/planning-artifacts/epics.md#story-7-4
-- [ ] Story 7.5: Interprète Simulé et Infrastructure de Test de Charge
+- [x] Story 7.5: Interprète Simulé et Infrastructure de Test de Charge
   > As a développeur
   > I want simuler jusqu'à 50 participants sans coût fournisseur
   > So that la décision de lever le plafond repose sur des mesures et non sur un pari.

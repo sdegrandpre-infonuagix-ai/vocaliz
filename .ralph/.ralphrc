@@ -31,7 +31,15 @@ PROJECT_TYPE="${PROJECT_TYPE:-unknown}"
 MAX_CALLS_PER_HOUR=100
 
 # Timeout for each Claude Code invocation (in minutes)
-CLAUDE_TIMEOUT_MINUTES=15
+#
+# Raised from 15 after the load-testing story was killed mid-generation: it builds a whole
+# subsystem plus three test files, and 15 minutes was not enough. The invocation had made no
+# error — its output file was zero bytes because it was cut off, not because it was stuck.
+#
+# The cost of a value that is too high is a genuinely hung call holding the loop for longer;
+# the cost of one too low is losing an entire story's work at the last minute, which is worse
+# and had already happened twice.
+CLAUDE_TIMEOUT_MINUTES=30
 
 # Output format: json (structured) or text (legacy)
 CLAUDE_OUTPUT_FORMAT="json"
