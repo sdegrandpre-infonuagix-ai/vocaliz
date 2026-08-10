@@ -14,10 +14,11 @@ from typing import Callable
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from adapters.http_notifier import HttpNotifier
 from adapters.livekit_rooms import LiveKitRoomProvisioner
 from src.journal import SalonLog, SqlJournalStore
 from src.journal.sql_store import async_url
-from src.salon import Salon
+from src.salon import NoNotifier, Notifier, Salon
 from src.settings import SalonSettings
 
 
@@ -44,6 +45,8 @@ async def build_salon_factory(
     livekit_api_key: str,
     livekit_api_secret: str,
     settings: SalonSettings | None = None,
+    api_base_url: str = "",
+    orchestrator_callback_secret: str = "",
 ) -> Callable[[str], Salon]:
     """A callable that turns a Salon identifier into a running Salon.
 
@@ -52,15 +55,23 @@ async def build_salon_factory(
     boundary: `src/main.py` does not know that a Salon needs storage at all, and asking it to
     prepare some would be the domain knowing its adapter by another name.
 
-    One store and one provisioner across every Salon this instance hosts. Neither holds a
-    connection between calls — the store opens one per statement and the provisioner one per
-    room — so sharing them costs nothing and saves building them per conversation.
+    One store, one provisioner and one notifier across every Salon this instance hosts.
+    None holds a connection between calls, so sharing them costs nothing and saves building
+    them per conversation.
+
+    `api_base_url` empty means no notifier: every Salon this factory builds is served only by
+    the poll, exactly as before `src/salon/notify.py` existed.
     """
     engine = create_async_engine(async_url(database_url))
     store = SqlJournalStore(engine)
     await store.create_all()
     rooms = LiveKitRoomProvisioner(
         url=livekit_url, api_key=livekit_api_key, api_secret=livekit_api_secret
+    )
+    notifier: Notifier = (
+        HttpNotifier(base_url=api_base_url, secret=orchestrator_callback_secret)
+        if api_base_url
+        else NoNotifier()
     )
 
     async def build(salon_id: str) -> Salon:
@@ -83,6 +94,6 @@ async def build_salon_factory(
         log = await SalonLog.resume(
             salon_id=salon_id, store=store, translate=translation_not_wired
         )
-        return Salon(log=log, rooms=rooms, settings=settings)
+        return Salon(log=log, rooms=rooms, settings=settings, notifier=notifier)
 
     return build

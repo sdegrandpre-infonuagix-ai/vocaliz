@@ -46,6 +46,7 @@ from src.salon.rooms import (
     interpreter_identity,
     room_name,
 )
+from src.salon.notify import FailingNotifier, NoNotifier, Notifier, RecordingNotifier
 
 __all__ = [
     "DEFAULT_HISTORY_FOR_ARRIVALS",
@@ -53,10 +54,14 @@ __all__ = [
     "AS_SPOKEN",
     "DEFAULT_CAPTION_SCALE",
     "Diffusion",
+    "FailingNotifier",
     "InMemoryRoomProvisioner",
     "InMemoryVideoPath",
     "MAX_VIDEO_BITRATE_KBPS",
     "MetaSpeechQueue",
+    "NoNotifier",
+    "Notifier",
+    "RecordingNotifier",
     "Urgency",
     "VIDEO_FPS",
     "VIDEO_HEIGHT",

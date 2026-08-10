@@ -15,6 +15,10 @@ dependencies = [
     # Server SDK, used only by adapters/ — never under src/, where a test fails the
     # build on a provider import. See adapters/livekit_rooms.py.
     "livekit-api>=1.2.0",
+    # The transport HttpNotifier calls the API back over. Used only by adapters/, for the
+    # same reason livekit-api is — see adapters/http_notifier.py. Was dev-only, for the test
+    # suite's TestClient; moved here once production code started importing it too.
+    "httpx>=0.28.0",
 ]
 
 [build-system]
@@ -28,7 +32,8 @@ packages = ["src"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
-    "httpx>=0.28.0",
+    # httpx moved to [project.dependencies] — adapters/http_notifier.py needs it in
+    # production now, not only the test suite's TestClient.
     # Reads the GitHub Actions workflow in test_deployment.py, so that the orchestrator
     # dropping out of the pipeline is a test failure rather than a silent non-deploy.
     "pyyaml>=6.0.0",

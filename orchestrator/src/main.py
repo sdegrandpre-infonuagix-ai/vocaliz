@@ -196,6 +196,8 @@ def create_app(
                 livekit_api_key=resolved.livekit_api_key,
                 livekit_api_secret=resolved.livekit_api_secret,
                 settings=salon_settings,
+                api_base_url=resolved.api_base_url,
+                orchestrator_callback_secret=resolved.orchestrator_callback_secret,
             )
 
         _install_shutdown_handlers(target)

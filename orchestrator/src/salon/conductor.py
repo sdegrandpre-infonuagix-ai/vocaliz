@@ -15,6 +15,7 @@ What crosses between participants is text in the journal. No audio ever does.
 from __future__ import annotations
 
 import json
+import logging
 
 from dataclasses import dataclass, field
 
@@ -37,9 +38,12 @@ from src.salon.advertising import Regie
 from src.salon.captions import DEFAULT_CAPTION_SCALE, reads_captions
 from src.salon.rooms import Room, RoomProvisioner
 from src.salon.meta_speech import MetaSpeechQueue, Urgency
+from src.salon.notify import NoNotifier, Notifier
 from src.salon.script import NothingToSpeakThrough, Script, Voice
 from src.salon.speaking import SpeakingBoard
 from src.salon.video import VideoPath, VideoTrack
+
+logger = logging.getLogger("orchestrator")
 
 
 class NotTheHost(PermissionError):
@@ -169,6 +173,7 @@ class Salon:
         video: VideoPath | None = None,
         regie: Regie | None = None,
         settings: SalonSettings | None = None,
+        notifier: Notifier | None = None,
     ) -> None:
         # Story 7.1. The persisted parameters supply the operational numbers; either can
         # still be passed directly, which is what the tests do and what keeps a Salon
@@ -212,6 +217,10 @@ class Salon:
             if monologue_ceiling_seconds is not None
             else settings.monologue_ceiling_seconds
         )
+        # Optional, like `video` and `regie`: a deployment without one loses only the fast
+        # path, since the poll still finds whatever this could not announce. See
+        # `src/salon/notify.py`.
+        self._notifier = notifier or NoNotifier()
         # Optional: a deployment without it loses the pictures and nothing else.
         self._video = video
         # Story 9.3. Optional in the same way: a deployment without an exchange hears no
@@ -552,7 +561,35 @@ class Salon:
         for other in self._ordered_seats():
             await self._review_saturation(other)
 
+        if recorded:
+            await self._wake_the_others(participant_id)
+
         return recorded
+
+    async def _wake_the_others(self, speaker_id: str) -> None:
+        """Tell every other served seat's agent that something is ready for it.
+
+        Only served seats: an in-process seat — the load simulator, a test — has no agent
+        polling anything to wake, and speaks through `deliver` directly. Only the others:
+        nobody is woken for their own words, which is also the one thing `_render` never
+        says back to them.
+
+        Best-effort throughout, and deliberately outside the transaction that recorded the
+        words: whatever this cannot announce, the poll still finds. A Salon must not lose a
+        message, or the seat that spoke it, over a notifier that could not be reached.
+        """
+        for other in self._ordered_seats():
+            if other.participant.id == speaker_id or not other.served:
+                continue
+            try:
+                await self._notifier.notify(self.salon_id, other.participant.id)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "could not wake %s in salon %s; the next poll still will",
+                    other.participant.id,
+                    self.salon_id,
+                    exc_info=True,
+                )
 
     async def collect(self) -> tuple[JournalEntry, ...]:
         """Take what each interpreter has heard from its human into the journal."""

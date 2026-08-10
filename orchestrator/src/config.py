@@ -98,6 +98,14 @@ class Settings(BaseSettings):
     livekit_api_secret: str
     database_url: str
 
+    # ── Waking a served participant's agent (optional — see src/salon/notify.py) ──
+    # Empty means no notifier is wired: a Salon degrades to exactly what it was before this
+    # existed, served only by the poll. Not in REQUIRED_SECRET_FIELDS on purpose — a
+    # deployment that never sets these loses only the fast path, never a Salon's ability to
+    # start.
+    api_base_url: str = ""
+    orchestrator_callback_secret: str = ""
+
 
 def fetch_secret(secret_arn: str, region: str) -> Mapping[str, object]:
     """Read a JSON secret from AWS Secrets Manager.
