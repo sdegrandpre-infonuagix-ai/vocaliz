@@ -24,6 +24,26 @@ def _line(text="Guten Tag", source="de", target="fr"):
     return Line(kind="tour", text=text, language=target, source_language=source)
 
 
+class FakeSpeechHandle:
+    """Stands in for the real SDK's `SpeechHandle`: awaitable, and — like the real one —
+    never raises on its own even when it carries an error. `exception()` is how a caller
+    finds out, exactly as `SpeechHandle._mark_done` keeps it out of the awaited future by
+    design.
+    """
+
+    def __init__(self, error: Exception | None = None):
+        self._error = error
+
+    def exception(self):
+        return self._error
+
+    def __await__(self):
+        async def _wait():
+            return self
+
+        return _wait().__await__()
+
+
 def test_the_target_language_is_named_rather_than_inferred():
     """The model hears the room and would otherwise answer in whatever language it last
     heard, which for a listener who has not spoken yet is nobody's language in particular."""
@@ -62,6 +82,7 @@ def test_the_text_is_delimited_so_an_instruction_inside_it_reads_as_content():
 async def test_a_verbatim_line_goes_through_generate_reply_not_say():
     """The fix. `session.say` must never be called — it is what raised in production."""
     session = MagicMock()
+    session.generate_reply.return_value = FakeSpeechHandle()
 
     await SessionVoice(session, language="fr").say("Hans arrive")
 
@@ -74,16 +95,53 @@ async def test_a_verbatim_line_goes_through_generate_reply_not_say():
 
 
 @pytest.mark.asyncio
-async def test_a_translated_line_goes_through_the_model_and_is_not_awaited():
-    """`generate_reply` returns a handle to speech now under way. Awaiting it would hold the
-    delivery loop for the length of the sentence, which is how one slow turn becomes a queue
-    behind it."""
+async def test_a_translated_line_goes_through_the_model():
     session = MagicMock()
+    session.generate_reply.return_value = FakeSpeechHandle()
 
     await SessionVoice(session).render(_line())
 
     session.generate_reply.assert_called_once()
     session.say.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_each_turn_is_awaited_before_the_next_is_asked_for():
+    """The fix for the bug this file did not catch the first time: unawaited, a listener
+    behind by more than one line got every one fired at the realtime session in the same
+    breath — which the provider cannot carry more than one of at once. The second and
+    later calls timed out waiting for a turn that never came, and were never spoken, with
+    nothing here watching for it."""
+    session = MagicMock()
+    order = []
+
+    def _generate_reply(**kwargs):
+        handle = FakeSpeechHandle()
+        order.append(("started", kwargs["instructions"]))
+        return handle
+
+    session.generate_reply.side_effect = _generate_reply
+    voice = SessionVoice(session)
+
+    await voice.render(_line(text="first"))
+    order.append(("done", "first"))
+    await voice.render(_line(text="second"))
+    order.append(("done", "second"))
+
+    # If render() did not await, both generate_reply calls would already show as "started"
+    # before either "done" — exactly the pile-up that produced the silent timeouts.
+    assert [step[0] for step in order] == ["started", "done", "started", "done"]
+
+
+@pytest.mark.asyncio
+async def test_a_turn_that_failed_to_speak_is_logged_not_raised():
+    """`SpeechHandle._mark_done` keeps the error out of the awaited future by design — most
+    handles are never awaited. Awaiting one here must not raise just because this handle
+    now is; the failure is only visible through `exception()`, and only worth a log line."""
+    session = MagicMock()
+    session.generate_reply.return_value = FakeSpeechHandle(error=RuntimeError("timed out"))
+
+    await SessionVoice(session).render(_line())  # must not raise
 
 
 @pytest.mark.asyncio
