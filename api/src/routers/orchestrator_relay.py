@@ -39,9 +39,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session as DbSession
 
+from src.config import settings
 from src.database import get_db
+from src.models.invitation import Invitation
 from src.models.salon import Salon
-from src.services import relay_token
+from src.services import livekit_service, relay_token
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,23 @@ def _salon(db: DbSession, salon_id: str) -> Salon:
             status_code=503, detail="No orchestrator is holding this salon."
         )
     return salon
+
+
+def _room_for_participant(db: DbSession, salon: Salon, participant_id: str) -> str | None:
+    """Which of this Salon's rooms holds one participant, for the wake to reach.
+
+    The host is not in `invitations` — their room is the Salon's own. Everybody else is a
+    guest, addressed by whichever identity `identity_for` gave them, and there is no index
+    for that: a Salon's own invitations are few, and this runs once per wake, not once per
+    turn of speech.
+    """
+    if participant_id == str(salon.host_user_id):
+        return salon.livekit_room_name
+    invitations = db.query(Invitation).filter(Invitation.salon_id == salon.id).all()
+    for invitation in invitations:
+        if livekit_service.identity_for(invitation) == participant_id:
+            return invitation.livekit_room_name
+    return None
 
 
 async def _forward(
@@ -199,3 +218,49 @@ async def leave(
     return await _forward(
         _salon(db, salon_id), "DELETE", f"/participants/{participant_id}"
     )
+
+
+@router.post("/wake", status_code=200)
+async def wake(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    db: DbSession = Depends(get_db),
+):
+    """The orchestrator, saying a served participant is owed something.
+
+    The other direction from every route above: those forward an agent's call into the
+    orchestrator; this is the orchestrator calling in. Authorised by a secret both sides
+    were given rather than by `relay_token` — the caller is not a participant scoped to one
+    Salon, it is the one orchestrator instance that holds this Salon, and there is exactly
+    one secret to prove that with.
+
+    Carries no content and advances no reading position — `GET .../script` remains the only
+    place a line is handed over. This exists only to shrink the gap between "something was
+    said" and "another room hears it" from a polling interval down to about as long as this
+    call and one LiveKit room-data send take. A Salon with no orchestrator configured to
+    call this, or a call that fails for any reason, loses nothing but that shortcut: the
+    poll was always going to find the same thing.
+    """
+    if not settings.orchestrator_callback_secret:
+        raise HTTPException(status_code=503, detail="No callback secret is configured.")
+    if credentials.credentials != settings.orchestrator_callback_secret:
+        raise HTTPException(status_code=401, detail="Invalid callback secret.")
+
+    body = await request.json()
+    salon_id = body.get("salonId", "")
+    participant_id = body.get("participantId", "")
+
+    try:
+        key = UUID(salon_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="No such salon.") from None
+    salon = db.query(Salon).filter(Salon.id == key).first()
+    if salon is None:
+        raise HTTPException(status_code=404, detail="No such salon.")
+
+    room_name = _room_for_participant(db, salon, participant_id)
+    if room_name is None:
+        raise HTTPException(status_code=404, detail="No such participant in this salon.")
+
+    await livekit_service.notify_room(room_name, {"action": "journal_wake"})
+    return {"woke": True}

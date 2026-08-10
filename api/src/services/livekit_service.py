@@ -327,7 +327,10 @@ def generate_participant_token(
 
 
 def new_room_name() -> str:
-    return f"salon-{uuid.uuid4().hex[:12]}"
+    # "room-", not "salon-": since the per-participant topology (Story 11.1), this names one
+    # human's own room, shared with nobody else — a Salon is now the several rooms and the
+    # journal between them, never one room by itself.
+    return f"room-{uuid.uuid4().hex[:12]}"
 
 
 async def agent_is_present(room_name: str) -> bool:

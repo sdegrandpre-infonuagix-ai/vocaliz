@@ -188,6 +188,12 @@ class Settings(BaseSettings):
     # saying "not built yet" than doing nothing at all.
     orchestrator_base_url: str = ""
 
+    # What proves a call to POST /orchestrator/wake really came from the orchestrator
+    # holding this Salon, rather than from anybody who found the path. Empty means the
+    # route refuses every call — see `orchestrator_relay.wake` — which is the safe default:
+    # a wake nobody can send is a missed shortcut, never a Salon anybody can reach into.
+    orchestrator_callback_secret: str = ""
+
     # Whether the clients offer to invite by text message.
     #
     # A flag rather than markup commented out, because the thing it waits on is an AWS
