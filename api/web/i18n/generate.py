@@ -44,7 +44,7 @@ TARGETS = [
     "sw", "ta", "te", "th", "tl", "uk", "ur", "uz",
 ]
 
-PAGES = ["host", "join"]
+PAGES = ["host", "join", "index"]
 
 
 def extract_english(page: str) -> dict:
@@ -90,6 +90,16 @@ def extract_english(page: str) -> dict:
 # one letter gives the tokeniser nothing to chew on. Digits break it again, so none are used.
 PRODUCT_WORDS = [("Salons", "%%P%%"), ("Salon", "%%S%%"), ("Vocaliz", "%%V%%")]
 
+# The landing page's own quote uses "Salon"/"Salons" as the ordinary English word for a
+# historical gathering — a Wikipedia excerpt, not the product — so protecting them there
+# would leave that word sitting untranslated inside an otherwise-translated sentence. Its
+# only product word is the brand itself, which the quote never happens to mention.
+PAGE_PRODUCT_WORDS = {
+    "host": PRODUCT_WORDS,
+    "join": PRODUCT_WORDS,
+    "index": [("Vocaliz", "%%V%%")],
+}
+
 # Distinct letters for placeholders, avoiding B — the one single letter that was still
 # transliterated in the Indic scripts when tested.
 _PLACEHOLDER_LETTERS = "ACDEFGHJKLMNQRTUWXYZ"
@@ -133,7 +143,7 @@ def _intact(rendered: str, english: str, words: list[tuple[str, str]]) -> bool:
     return all(rendered.count(w) == english.count(w) for w, _ in words)
 
 
-def translate_all(strings: dict, language: str, client) -> dict:
+def translate_all(strings: dict, language: str, client, words: list[tuple[str, str]]) -> dict:
     """Every string in one language, one call each."""
     out = {}
     for key, text in strings.items():
@@ -142,18 +152,18 @@ def translate_all(strings: dict, language: str, client) -> dict:
         # sentence is more than some languages tolerate. So a failure retries with the brand
         # left translatable, which keeps the defect that actually matters — the product noun —
         # fixed even where the nicety cannot be.
-        for words in (PRODUCT_WORDS, [w for w in PRODUCT_WORDS if w[0] != "Vocaliz"]):
+        for variant in (words, [w for w in words if w[0] != "Vocaliz"]):
             try:
                 response = client.translate_text(
-                    Text=_protect(text, words),
+                    Text=_protect(text, variant),
                     SourceLanguageCode="en",
                     TargetLanguageCode=language,
                 )
             except Exception as exc:  # noqa: BLE001
                 print(f"    {key}: failed ({exc}), keeping English")
                 break
-            candidate = _restore(response["TranslatedText"], text, words)
-            if _intact(candidate, text, words):
+            candidate = _restore(response["TranslatedText"], text, variant)
+            if _intact(candidate, text, variant):
                 rendered = candidate
                 break
 
@@ -182,7 +192,7 @@ def main(argv: list[str]) -> None:
 
         for language in languages:
             print(f"  {language}")
-            translated = translate_all(english, language, client)
+            translated = translate_all(english, language, client, PAGE_PRODUCT_WORDS[page])
 
             override_path = OVERRIDES / f"{page}.{language}.json"
             if override_path.exists():

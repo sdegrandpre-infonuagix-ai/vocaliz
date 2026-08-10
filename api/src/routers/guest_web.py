@@ -122,7 +122,7 @@ def participant_report_page(request: Request):
 # files. Allowlists rather than a constructed path: `../../secret` in a language name would
 # otherwise serve any file in the container, and a check for ".." is the kind of guard that
 # gets subtly wrong. Nothing outside these two sets can be named at all.
-_I18N_PAGES = frozenset({"host", "join"})
+_I18N_PAGES = frozenset({"host", "join", "index"})
 _I18N_LANGUAGES = frozenset(
     {
         "es", "pt", "de", "it", "ar", "fa", "bn", "zh", "hi", "id", "ja", "ko",

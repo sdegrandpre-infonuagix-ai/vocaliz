@@ -157,22 +157,10 @@ def test_the_call_page_is_served(client):
     assert "text/html" in resp.headers["content-type"]
 
 
-def test_the_caller_is_offered_nothing_a_telephone_lacks(client):
-    """No transcript, no language picker, no controls — for the caller.
-
-    Scoped to the dialer rather than the page. The page also carries the clerk's desk, which
-    has captions by design; asserting on the whole document would forbid the very thing the
-    other half exists to show. A simulation richer than the thing it stands in for tests
-    something else, and the thing being simulated here is a telephone."""
-    body = client.get("/call").text
-    caller = body[body.index('id="dialer"') : body.index("</header>")]
-    for absent in ("cap-log", "cap-lang", "caption", "textarea"):
-        assert absent not in caller, f"the caller is offered {absent}, which a telephone has not"
-
-
-# The page's own microphone timing is asserted in test_landing_page, which owns that page.
-# It rings the desk directly now; this endpoint remains the door for somebody holding a code,
-# which is what a real dialled call will present.
+# /call now serves the same plain landing page as / (see test_index_i18n.py) — the dialer
+# and the clerk's desk it used to carry are gone, so there is nothing page-side left to assert
+# here. This endpoint remains the door for somebody holding a code, which is what a real
+# dialled call will present.
 
 
 # ─── Ringing the desk from the front page ─────────────────────────────────────

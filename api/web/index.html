@@ -12,6 +12,12 @@
     background: #F8F3E8;
     color: #2C2C2C;
   }
+  .lang-bar { display: flex; justify-content: flex-end; padding: 14px 20px 0; }
+  .lang-bar select {
+    font-family: inherit; font-size: .86rem; color: #2C2C2C;
+    background: #fff; border: 1px solid #d9cfbe; border-radius: 10px; padding: 7px 10px;
+    max-width: 60vw;
+  }
   main {
     flex: 1;
     display: flex;
@@ -84,10 +90,15 @@
   footer a { color: inherit; }
 </style>
 
+<div class="lang-bar">
+  <label for="lang-select" style="display:none">Language</label>
+  <select id="lang-select" aria-label="Language"></select>
+</div>
+
 <main>
   <div class="logo-circle">
     <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
-         stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Sofa">
+         stroke-linecap="round" stroke-linejoin="round" role="img" data-i18n-aria="sofaAria" aria-label="Sofa">
       <rect x="5" y="6" width="14" height="7" rx="2" />
       <rect x="2" y="10" width="3" height="6" rx="1.3" />
       <rect x="19" y="10" width="3" height="6" rx="1.3" />
@@ -97,9 +108,9 @@
     </svg>
   </div>
   <div class="wordmark">Vocaliz.net</div>
-  <p class="tagline">Vocalize your thoughts and brainstorm ideas in 20 languages with up to two friends, each assisted by a vocal AI interpret, in a virtual <a href="https://vocaliz.net/host">Salon</a>.</p>
+  <p class="tagline"><span data-i18n="taglineBefore">Vocalize your thoughts and brainstorm ideas in 20 languages with up to two friends, each assisted by a vocal AI interpret, in a virtual </span><a href="https://vocaliz.net/host">Salon</a><span data-i18n="taglineAfter">.</span></p>
   <blockquote class="quote">
-    &ldquo;A salon is a gathering of people held by a host. These gatherings often
+    <span data-i18n="quote">&ldquo;A salon is a gathering of people held by a host. These gatherings often
     consciously followed Horace's definition of the aims of poetry, &ldquo;either to please
     or to educate&rdquo; (Latin: aut delectare aut prodesse). Salons in the tradition of the
     French literary and philosophical movements of the 17th and 18th centuries are still
@@ -107,9 +118,153 @@
     in France throughout the 17th and 18th centuries. [&hellip;] Salons were an important
     place for the exchange of ideas. The word salon first appeared in France in 1664 (from
     the Italian salone, the large reception hall of Italian mansions; salone is actually the
-    augmentative form of sala, room).&rdquo;
-    <cite>Source: <a href="https://en.wikipedia.org/wiki/Salon_(gathering)" target="_blank" rel="noopener">Wikipedia, Salon (gathering)</a></cite>
+    augmentative form of sala, room).&rdquo;</span>
+    <cite><span data-i18n="quoteSourceLabel">Source:</span> <a href="https://en.wikipedia.org/wiki/Salon_(gathering)" target="_blank" rel="noopener">Wikipedia, Salon (gathering)</a></cite>
   </blockquote>
-  <p class="contact">For more info contact <a href="mailto:s.degrandpre@vocaliz.net">s.degrandpre@vocaliz.net</a></p>
+  <p class="contact"><span data-i18n="contactLabel">For more info contact</span> <a href="mailto:s.degrandpre@vocaliz.net">s.degrandpre@vocaliz.net</a></p>
 </main>
-<footer>Powered by <a href="https://infonuagix.ai" target="_blank" rel="noopener">Infonuagix.ai</a></footer>
+<footer><span data-i18n="footerLabel">Powered by</span> <a href="https://infonuagix.ai" target="_blank" rel="noopener">Infonuagix.ai</a></footer>
+
+<script>
+  // ── The page's own text, in English and French ──────────────────────────────
+  // The two languages the product is built in — written by hand so they render with no
+  // network involved. The other fourteen are machine-translated from the English by
+  // api/web/i18n/generate.py and fetched on demand, exactly as host.html and join.html
+  // already do it; this page reuses that pipeline rather than inventing a second one.
+  var I18N = {
+    en: {
+      sofaAria: "Sofa",
+      taglineBefore: "Vocalize your thoughts and brainstorm ideas in 20 languages with up to two friends, each assisted by a vocal AI interpret, in a virtual ",
+      taglineAfter: ".",
+      quote: "“A salon is a gathering of people held by a host. These gatherings often consciously followed Horace's definition of the aims of poetry, “either to please or to educate” (Latin: aut delectare aut prodesse). Salons in the tradition of the French literary and philosophical movements of the 17th and 18th centuries are still being conducted. The salon first appeared in Italy in the 16th century, then flourished in France throughout the 17th and 18th centuries. […] Salons were an important place for the exchange of ideas. The word salon first appeared in France in 1664 (from the Italian salone, the large reception hall of Italian mansions; salone is actually the augmentative form of sala, room).”",
+      quoteSourceLabel: "Source:",
+      contactLabel: "For more info contact",
+      footerLabel: "Powered by"
+    },
+    fr: {
+      sofaAria: "Canapé",
+      taglineBefore: "Exprimez vos pensées et échangez des idées en 20 langues avec jusqu'à deux amis, chacun assisté par un interprète IA vocal, dans un ",
+      taglineAfter: ".",
+      quote: "«Un salon est une réunion de personnes organisée par un hôte. Ces réunions suivaient souvent, consciemment, la définition qu'Horace donnait aux buts de la poésie, «soit plaire, soit instruire» (latin : aut delectare aut prodesse). Des salons dans la tradition des mouvements littéraires et philosophiques français des XVIIe et XVIIIe siècles se tiennent encore aujourd'hui. Le salon est apparu pour la première fois en Italie au XVIe siècle, puis a prospéré en France tout au long des XVIIe et XVIIIe siècles. […] Les salons furent un lieu important d'échange d'idées. Le mot salon est apparu pour la première fois en France en 1664 (de l'italien salone, la grande salle de réception des demeures italiennes ; salone est en fait l'augmentatif de sala, pièce).»",
+      quoteSourceLabel: "Source :",
+      contactLabel: "Pour plus d'informations, contactez",
+      footerLabel: "Propulsé par"
+    }
+  };
+
+  // Kept in step with api/web/i18n/generate.py's TARGETS-for-"index" and
+  // src/routers/guest_web.py's _I18N_PAGES/_I18N_LANGUAGES — every language this page can
+  // switch to must have a dictionary generated and an allowlist entry on both ends, or a
+  // choice here reaches a 404 instead of a translation.
+  var SUPPORTED_LANGS = [
+    "en", "fr", "ar", "bn", "zh", "de", "hi", "id", "it", "ja", "ko", "pt", "ru", "es", "tr", "vi"
+  ];
+
+  function isSupported(code) { return SUPPORTED_LANGS.indexOf(code) !== -1; }
+
+  var LANG_KEY = 'vocaliz.landing.lang';
+
+  function storedLang() {
+    try {
+      var v = localStorage.getItem(LANG_KEY);
+      return isSupported(v) ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function browserLang() {
+    var list = (navigator.languages && navigator.languages.length)
+      ? navigator.languages
+      : [navigator.language || ''];
+    for (var i = 0; i < list.length; i++) {
+      var base = String(list[i]).split('-')[0].toLowerCase();
+      if (isSupported(base)) return base;
+    }
+    return null;
+  }
+
+  var lang = storedLang() || browserLang() || 'en';
+
+  function T(key) {
+    // Indexing straight through a dictionary that has not arrived yet would throw, and the
+    // first render runs during boot — an exception there takes the rest of the page with
+    // it. English is always present, inline, so falling back to it costs one render in the
+    // wrong language rather than a blank page.
+    return (I18N[lang] || {})[key] || I18N.en[key] || key;
+  }
+
+  async function loadDictionary(code) {
+    if (I18N[code]) return true;
+    try {
+      var resp = await fetch('/i18n/index/' + code);
+      if (!resp.ok) return false;
+      I18N[code] = await resp.json();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function setLang(next) {
+    if (!isSupported(next)) return;
+    if (!(await loadDictionary(next))) {
+      var sel = document.getElementById('lang-select');
+      if (sel) sel.value = lang;
+      return;
+    }
+    lang = next;
+    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode */ }
+    applyLang();
+  }
+
+  function applyLang() {
+    document.documentElement.lang = lang;
+
+    var nodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = T(nodes[i].getAttribute('data-i18n'));
+    }
+    var labels = document.querySelectorAll('[data-i18n-aria]');
+    for (var a = 0; a < labels.length; a++) {
+      labels[a].setAttribute('aria-label', T(labels[a].getAttribute('data-i18n-aria')));
+    }
+  }
+
+  applyLang();
+
+  // ── The combo box ─────────────────────────────────────────────────────────
+  // Built from /voice-languages rather than written here, same as this page has always
+  // done it: a copy kept by hand would eventually offer a language the API does not.
+  // Every option is a voice tag (regional variants included, e.g. three Arabics) because
+  // that endpoint knows nothing else; picking one translates the page in that language's
+  // base tongue — ar-EG and ar-SA both read as Arabic, which is the same distinction the
+  // voice itself draws finer than the page's own text ever needs to.
+  (function loadLanguageOptions() {
+    var select = document.getElementById('lang-select');
+
+    function addOption(value, label) {
+      var option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      select.appendChild(option);
+    }
+
+    fetch('/voice-languages').then(function (resp) { return resp.json(); }).then(function (body) {
+      (body.languages || []).forEach(function (entry) {
+        // "Follow the speaker" is a voice setting with nothing to translate the page into.
+        if (entry.tag === 'auto') return;
+        addOption(entry.tag, entry.label);
+      });
+      var base = lang;
+      var match = Array.prototype.find.call(select.options, function (o) {
+        return o.value === base || o.value.split('-')[0] === base;
+      });
+      if (match) select.value = match.value;
+    }).catch(function (e) {
+      console.warn('Vocaliz: could not load the language list', e);
+    });
+
+    select.addEventListener('change', function () {
+      setLang(select.value.split('-')[0]);
+    });
+  })();
+</script>
