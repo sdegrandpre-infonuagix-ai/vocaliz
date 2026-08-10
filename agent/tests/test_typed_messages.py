@@ -78,9 +78,19 @@ def test_a_journal_wake_sets_the_event():
     assert "journal_wake.set()" in handler
 
 
-def test_the_wake_event_is_passed_into_follow():
+def test_the_wake_event_is_not_wired_into_follow():
+    """Pulled deliberately: delivery failing for both host and guest lined up with
+    generate_reply timing out on both rooms once this shortcut started firing follow()
+    more often than the realtime session could keep up with. `_on_data` still sets the
+    event — harmless, since nothing reads it — so this is a one-line change to restore
+    once the real interaction with concurrent generate_reply calls is understood."""
     source = inspect.getsource(salon.entrypoint)
-    assert "wake=journal_wake" in source
+    call = source[source.index("following_task = asyncio.create_task(\n            follow(") :]
+    call = call[: call.index(")\n        )")]
+    active_lines = [
+        line for line in call.splitlines() if line.strip() and not line.strip().startswith("#")
+    ]
+    assert not any("wake=" in line for line in active_lines)
 
 
 def test_the_wake_event_is_created_unconditionally():

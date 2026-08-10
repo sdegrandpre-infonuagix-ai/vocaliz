@@ -1982,7 +1982,15 @@ async def entrypoint(ctx: agents.JobContext):
                 link,
                 SessionVoice(agent_session, language=listener_language),
                 stop=stop_following,
-                wake=journal_wake,
+                # wake=journal_wake deliberately left out. Reports of delivery failing for
+                # both host and guest lined up with generate_reply timing out on both
+                # rooms right after this shortcut landed — plausibly the fast path firing
+                # follow() more often than the realtime session can keep up with,
+                # overlapping generate_reply calls it was never meant to make concurrently.
+                # Pulled rather than debugged live: the plain 250ms poll was the tested,
+                # stable behaviour, and `_on_data` still sets `journal_wake` harmlessly —
+                # nothing reads it now, so re-wiring this is a one-line change once the
+                # real interaction is understood.
             )
         )
         logger.info("Following the journal for %s in salon %s", participant_id, salon_id)
