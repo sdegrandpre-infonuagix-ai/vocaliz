@@ -36,6 +36,7 @@
   "generateButton": "Generar el enlace",
   "guestContactHint": "Una de las dos es suficiente. Entregue ambas y ambos recibirán la invitación.",
   "guestEmailLabel": "Dirección de correo electrónico del contacto",
+  "guestEmailNotYours": "Usa el correo electrónico o el número de tu huésped, no el número con el que iniciaste sesión.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Número de móvil",
   "guestPhonePh": "+1 514 555 0123",

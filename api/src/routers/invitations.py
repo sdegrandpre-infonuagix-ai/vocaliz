@@ -80,6 +80,27 @@ def create_invitation(
     db: DbSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # A guest addressed at the host's own email or phone resolves, on the guest's side, to
+    # the host's own account UUID (`livekit_service.identity_for`) — the identity the
+    # host's own room already registered with the orchestrator. Joining under it is not a
+    # second participant; `Salon.join()` treats it as that same seat reconnecting and hands
+    # back the host's own room, so the "guest" never gets a seat, a script, or a journal
+    # entry of their own — and nothing downstream can tell the two apart once that has
+    # happened. Checked here rather than in `invite_guest` itself: `call_the_desk` calls
+    # that function with the desk as both host and guest on purpose, to mail the desk a
+    # notification rather than to seat a second participant, and must not trip this.
+    guest_email = (body.guestEmail or "").strip().lower()
+    guest_phone = (body.guestPhone or "").strip()
+    host_email = (current_user.email or "").strip().lower()
+    host_phone = (current_user.phone_number or "").strip()
+    if (guest_email and host_email and guest_email == host_email) or (
+        guest_phone and host_phone and guest_phone == host_phone
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="That is your own email or phone number. Invite your guest's, not yours.",
+        )
+
     try:
         result = invitation_service.invite_guest(
             salon_id=salon_id,

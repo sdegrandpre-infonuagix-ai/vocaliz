@@ -36,6 +36,7 @@
   "generateButton": "Iġġenera r-rabta",
   "guestContactHint": "Wieħed mit-tnejn huwa biżżejjed. Agħti t-tnejn u l-istedina toħroġ mit-tnejn.",
   "guestEmailLabel": "L-indirizz elettroniku tal-kuntatt",
+  "guestEmailNotYours": "Uża l-email jew in-numru tal-klijent tiegħek stess - mhux dak li ffirmajt miegħu.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Numru tal-mowbajl",
   "guestPhonePh": "+1 514 555 0123",

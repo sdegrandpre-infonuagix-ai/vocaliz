@@ -36,6 +36,7 @@
   "generateButton": "ലിങ്ക് സൃഷ്ടിക്കുക",
   "guestContactHint": "രണ്ടിലൊന്ന് മതി. രണ്ടും കൊടുക്കുക, ക്ഷണം ഇരുവർക്കും പുറത്തേക്ക് പോകുന്നു.",
   "guestEmailLabel": "കോൺടാക്റ്റിന്റെ ഇമെയിൽ വിലാസം",
+  "guestEmailNotYours": "നിങ്ങളുടെ അതിഥിയുടെ സ്വന്തം ഇമെയിലോ നമ്പറോ ഉപയോഗിക്കുക - നിങ്ങൾ സൈൻ ഇൻ ചെയ്ത ഒന്നല്ല.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "മൊബൈൽ നമ്പർ",
   "guestPhonePh": "+1 514 555 0123",

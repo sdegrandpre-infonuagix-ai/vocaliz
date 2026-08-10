@@ -36,6 +36,7 @@
   "generateButton": "Luo linkki",
   "guestContactHint": "Yksi näistä kahdesta riittää. Anna molemmat ja kutsu menee molemmilta.",
   "guestEmailLabel": "Yhteyshenkilön sähköpostiosoite",
+  "guestEmailNotYours": "Käytä vieraasi omaa sähköpostiosoitetta tai numeroa - älä sitä, jolla kirjauduit sisään.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Matkapuhelinnumero",
   "guestPhonePh": "+1 514 555 0123",

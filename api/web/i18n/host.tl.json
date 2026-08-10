@@ -36,6 +36,7 @@
   "generateButton": "Bumuo ng link",
   "guestContactHint": "Ang isa sa dalawa ay sapat na. Ibigay ang pareho at ang paanyaya ay lumalabas ng pareho.",
   "guestEmailLabel": "Email address ng contact",
+  "guestEmailNotYours": "Gamitin ang sariling email o numero ng iyong bisita — hindi ang isa na iyong naka-sign in.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Numero ng mobile",
   "guestPhonePh": "+1 514 555 0123",

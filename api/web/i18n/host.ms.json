@@ -36,6 +36,7 @@
   "generateButton": "Menjana pautan",
   "guestContactHint": "Salah satu daripada kedua-duanya sudah cukup. Berikan kedua-duanya dan jemputan keluar oleh kedua-duanya.",
   "guestEmailLabel": "Alamat e-mel kenalan",
+  "guestEmailNotYours": "Gunakan e-mel atau nombor tetamu anda sendiri - bukan nombor yang anda log masuk.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Nombor mudah alih",
   "guestPhonePh": "+1 514 555 0123",

@@ -664,6 +664,9 @@
         The link is emailed to your guest, and opens in any browser without installing
         the app. It only works once.
       </div>
+      <div class="field-hint" data-i18n="guestEmailNotYours">
+        Use your guest's own email or number — not the one you signed in with.
+      </div>
       <label for="guest-email" data-i18n="guestEmailLabel">Contact's email address</label>
       <input type="email" id="guest-email" placeholder="friend@example.com" data-i18n-ph="guestEmailPh">
       <!-- Hidden by default and revealed by /config: text messaging waits on an AWS
@@ -742,6 +745,7 @@
         inviteTitle: 'Invite',
         inviteSub: 'The link is emailed to your guest, and opens in any browser without '
                  + 'installing the app. It only works once.',
+        guestEmailNotYours: "Use your guest's own email or number — not the one you signed in with.",
         guestEmailLabel: "Contact's email address",
         guestEmailPh: 'friend@example.com',
         generateButton: 'Generate the link',
@@ -882,6 +886,7 @@
         inviteSub: "Le lien est envoyé par courriel à l'invité, et s'ouvre dans n'importe "
                  + "quel navigateur sans installer l'application. Il ne fonctionne qu'une "
                  + 'seule fois.',
+        guestEmailNotYours: "Utilisez le courriel ou le numéro de votre invité — pas celui avec lequel vous êtes connecté.",
         guestEmailLabel: 'Adresse courriel du contact',
         guestEmailPh: 'ami@exemple.com',
         generateButton: 'Générer le lien',

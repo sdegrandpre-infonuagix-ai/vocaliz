@@ -36,6 +36,7 @@
   "generateButton": "Genereer de link",
   "guestContactHint": "Eén van de twee is genoeg. Geef beide en de uitnodiging wordt door beiden verstuurd.",
   "guestEmailLabel": "E-mailadres van de contactpersoon",
+  "guestEmailNotYours": "Gebruik het eigen e-mailadres of nummer van je gast, niet het e-mailadres waarmee je bent ingelogd.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobiel nummer",
   "guestPhonePh": "+1 514 555 0123",

@@ -36,6 +36,7 @@
   "generateButton": "Genereer die skakel",
   "guestContactHint": "Een van die twee is genoeg. Gee albei en die uitnodiging gaan deur albei uit.",
   "guestEmailLabel": "Kontak se e-posadres",
+  "guestEmailNotYours": "Gebruik jou gas se eie e-pos of nommer — nie die een waarmee jy aangemeld het nie.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobiele nommer",
   "guestPhonePh": "+1 514 555 0123",

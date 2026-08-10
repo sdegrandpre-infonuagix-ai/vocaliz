@@ -36,6 +36,7 @@
   "generateButton": "दुवा तयार करा",
   "guestContactHint": "दोन्यापैकी एक पुरेसे आहे. दोन्ही दोन्ही द्या आणि आमंत्रण दोघांनी",
   "guestEmailLabel": "संपर्काचा ईमेल पत्ता",
+  "guestEmailNotYours": "आपल्या अतिथीचा स्वतःचा ईमेल किंवा नंबर वापरा - ज्यासह आपण साइन इन केलेला नाही.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "मोबाइल संख्या",
   "guestPhonePh": "+1 514 555 0123",

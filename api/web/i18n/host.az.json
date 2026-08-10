@@ -36,6 +36,7 @@
   "generateButton": "Bağlantı yaradın",
   "guestContactHint": "İkisindən biri kifayətdir. Hər ikisini verin və dəvət hər ikisi tərəfindən çıxır.",
   "guestEmailLabel": "Kontaktın e-poçt ünvanı",
+  "guestEmailNotYours": "Qonağınızın öz e-poçtundan və ya nömrəsindən istifadə edin - daxil olduğunuz nömrədən deyil.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobil nömrə",
   "guestPhonePh": "+1 514 555 0123",

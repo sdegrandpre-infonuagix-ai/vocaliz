@@ -36,6 +36,7 @@
   "generateButton": "Генерирайте връзката",
   "guestContactHint": "Едно от двете е достатъчно. Дайте и двете и поканата излиза и от двамата.",
   "guestEmailLabel": "Имейл адрес на контакта",
+  "guestEmailNotYours": "Използвайте собствения имейл или номер на госта си, а не този, с който сте влезли.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Мобилен номер",
   "guestPhonePh": "+1 514 555 0123",

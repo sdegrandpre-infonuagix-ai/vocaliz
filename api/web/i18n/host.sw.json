@@ -36,6 +36,7 @@
   "generateButton": "Tengeneza kiungo",
   "guestContactHint": "Moja ya hizo mbili ni ya kutosha. Toa zote mbili na mwaliko unatoka na wote wawili.",
   "guestEmailLabel": "Anwani ya barua pepe ya wasiliano",
+  "guestEmailNotYours": "Tumia barua pepe au nambari ya mgeni wako mwenyewe - sio ile uliyoingia nayo.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Nambari ya simu",
   "guestPhonePh": "+1 514 555 0123",

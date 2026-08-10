@@ -36,6 +36,7 @@
   "generateButton": "Generer lenken",
   "guestContactHint": "En av de to er nok. Gi begge deler, og invitasjonen går ut av begge.",
   "guestEmailLabel": "Kontaktens e-postadresse",
+  "guestEmailNotYours": "Bruk gjestens egen e-post eller nummer - ikke den du logget på med.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobilnummer",
   "guestPhonePh": "+1 514 555 0123",

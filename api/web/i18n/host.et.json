@@ -36,6 +36,7 @@
   "generateButton": "Loo link",
   "guestContactHint": "Piisab ühest kahest. Andke mõlemad ja kutse läheb mõlemalt välja.",
   "guestEmailLabel": "Kontakti e-posti aadress",
+  "guestEmailNotYours": "Kasutage oma külalise e-posti aadressi või numbrit - mitte seda, millega sisse logisite.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobiiltelefoninumber",
   "guestPhonePh": "+1 514 555 0123",

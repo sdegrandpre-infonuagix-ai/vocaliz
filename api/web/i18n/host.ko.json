@@ -36,6 +36,7 @@
   "generateButton": "링크 생성",
   "guestContactHint": "둘 중 하나면 충분합니다.둘 다 주면 두 사람이 초대장을 보냅니다.",
   "guestEmailLabel": "연락처 이메일 주소",
+  "guestEmailNotYours": "로그인할 때 사용한 이메일이나 번호가 아닌 게스트의 이메일이나 번호를 사용하세요.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "휴대폰 번호",
   "guestPhonePh": "+1 514 555 0123",

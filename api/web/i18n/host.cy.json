@@ -36,6 +36,7 @@
   "generateButton": "Cynhyrchu'r ddolen",
   "guestContactHint": "Mae un o'r ddau yn ddigon. Rhowch y ddau ac mae'r gwahoddiad yn mynd allan gan y ddau.",
   "guestEmailLabel": "Cyfeiriad e-bost Cyswllt",
+  "guestEmailNotYours": "Defnyddiwch e-bost neu rif eich gwestai ei hun — nid yr un y gwnaethoch chi fewngofnodi ag ef.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Rhif symudol",
   "guestPhonePh": "+1 514 555 0123",

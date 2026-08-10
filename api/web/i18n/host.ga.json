@@ -36,6 +36,7 @@
   "generateButton": "Ginigh an nasc",
   "guestContactHint": "Is leor ceann den dá cheann. Tabhair an dá cheann agus téann an cuireadh amach ag an mbeirt.",
   "guestEmailLabel": "Seoladh ríomhphoist teagmhála",
+  "guestEmailNotYours": "Úsáid ríomhphost nó uimhir d'aoi féin - ní an ceann a shínigh tú isteach leis.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Uimhir phóca",
   "guestPhonePh": "+1 514 555 0123",

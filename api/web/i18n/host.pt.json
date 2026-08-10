@@ -36,6 +36,7 @@
   "generateButton": "Gere o link",
   "guestContactHint": "Um dos dois é suficiente. Dê os dois e o convite será enviado por ambos.",
   "guestEmailLabel": "Endereço de e-mail do contato",
+  "guestEmailNotYours": "Use o e-mail ou o número do seu hóspede, não aquele com o qual você fez login.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Número de celular",
   "guestPhonePh": "+1 514 555 0123",

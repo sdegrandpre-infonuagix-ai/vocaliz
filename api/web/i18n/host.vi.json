@@ -36,6 +36,7 @@
   "generateButton": "Tạo liên kết",
   "guestContactHint": "Một trong hai là đủ. Đưa cả hai và lời mời sẽ được đưa ra bởi cả hai.",
   "guestEmailLabel": "Địa chỉ email của người liên hệ",
+  "guestEmailNotYours": "Sử dụng email hoặc số của chính khách của bạn - không phải email bạn đã đăng nhập.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Số điện thoại di động",
   "guestPhonePh": "+1 514 555 0123",

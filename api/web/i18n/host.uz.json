@@ -36,6 +36,7 @@
   "generateButton": "Havolani yarating",
   "guestContactHint": "Ikkalasidan biri etarli. Ikkalasini ham bering va taklifnoma ikkalasiga ham chiqadi.",
   "guestEmailLabel": "Kontaktning elektron pochta manzili",
+  "guestEmailNotYours": "Mehmoningizning elektron pochtangizdan yoki raqamidan foydalaning - siz tizimga kirganingiz emas.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobil raqam",
   "guestPhonePh": "+1 514 555 0123",

@@ -36,6 +36,7 @@
   "generateButton": "Створіть посилання",
   "guestContactHint": "Досить одного з двох. Дайте обидва, і запрошення вийде обома.",
   "guestEmailLabel": "Адреса електронної пошти контакту",
+  "guestEmailNotYours": "Використовуйте власну електронну пошту або номер свого гостя, а не той, за допомогою якого ви ввійшли.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Мобільний номер",
   "guestPhonePh": "+1 514 555 0123",

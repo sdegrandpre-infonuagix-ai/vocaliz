@@ -36,6 +36,7 @@
   "generateButton": "Ստեղծեք հղումը",
   "guestContactHint": "Երկուսից մեկը բավական է: Տվեք երկուսն էլ, և հրավերը երկուսն էլ դուրս է գալիս:",
   "guestEmailLabel": "Կոնտակտի էլփոստի հասցեն",
+  "guestEmailNotYours": "Օգտագործեք ձեր հյուրի սեփական էլփոստը կամ համարը, այլ ոչ թե այն, որով դուք մուտք եք գործել:",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Բջջային հեռախոսահամար",
   "guestPhonePh": "+1 514 555 0123",

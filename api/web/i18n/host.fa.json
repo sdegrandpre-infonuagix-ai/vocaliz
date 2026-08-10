@@ -36,6 +36,7 @@
   "generateButton": "لینک را ایجاد کنید",
   "guestContactHint": "یکی از این دو کافی است. هر دو را بدهید و دعوت نامه توسط هر دو صادر می شود.",
   "guestEmailLabel": "آدرس ایمیل مخاطب",
+  "guestEmailNotYours": "از ایمیل یا شماره مهمان خود استفاده کنید نه از ایمیل یا شماره ای که با آن وارد شده اید.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "شماره موبایل",
   "guestPhonePh": "+1 ۵۱۴ ۵۵۵ ۰۱۲۳",

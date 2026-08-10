@@ -36,6 +36,7 @@
   "generateButton": "生成链接",
   "guestContactHint": "两者中的一个就足够了。两者都发出，邀请就会由双方发出。",
   "guestEmailLabel": "联系人的电子邮件地址",
+  "guestEmailNotYours": "使用房客自己的电子邮件或号码，而不是您登录时使用的电子邮件或号码。",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "手机号码",
   "guestPhonePh": "+1 514 555 0123",

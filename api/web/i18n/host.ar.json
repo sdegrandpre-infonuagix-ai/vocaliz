@@ -36,6 +36,7 @@
   "generateButton": "قم بإنشاء الرابط",
   "guestContactHint": "واحد من الاثنين يكفي. أعط كلاهما وستخرج الدعوة من كليهما.",
   "guestEmailLabel": "عنوان البريد الإلكتروني لجهة الاتصال",
+  "guestEmailNotYours": "استخدم البريد الإلكتروني أو الرقم الخاص بالضيف - وليس الشخص الذي سجلت الدخول به.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "رقم الهاتف المحمول",
   "guestPhonePh": "+1 514 555 0123",

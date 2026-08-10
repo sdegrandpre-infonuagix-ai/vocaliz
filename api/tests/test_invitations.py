@@ -86,6 +86,59 @@ def test_invite_wrong_salon_returns_404(client, db, host):
     assert resp.status_code == 404
 
 
+# ─── A host cannot invite themselves ─────────────────────────────────────────
+#
+# An invitation addressed to the host's own email or phone resolves, on the guest's side,
+# to the host's own account UUID (`livekit_service.identity_for`) — the identity the host's
+# own room already registered with the orchestrator. `Salon.join()` treats a second join
+# under it as that same seat reconnecting, not a new participant: no seat, no script, no
+# journal entry ever reaches the "guest", who is really just the host's own room a second
+# time. Reported live as "the guest can't send to the salon" and "the guest can't hear the
+# agent" — both true, since there was never a second room to deliver either into.
+
+def test_inviting_the_hosts_own_email_is_refused(client, host, active_salon):
+    host_user, token = host
+    resp = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": host_user.email},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "own" in resp.json()["detail"].lower()
+
+
+def test_inviting_the_hosts_own_email_case_insensitively_is_refused(client, host, active_salon):
+    host_user, token = host
+    resp = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": host_user.email.upper()},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+
+
+def test_inviting_the_hosts_own_phone_is_refused(client, host, active_salon):
+    host_user, token = host
+    resp = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestPhone": host_user.phone_number},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_a_genuinely_different_guest_is_still_accepted(mock_send, client, host, active_salon):
+    """The check must not become so broad it refuses an ordinary invitation."""
+    _, token = host
+    resp = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "someoneelse@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+
+
 # ─── SMS contact (unregistered phone) ────────────────────────────────────────
 
 @patch("src.services.invitation_service._send_invitation_email")

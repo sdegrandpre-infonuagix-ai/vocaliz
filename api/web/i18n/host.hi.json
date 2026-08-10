@@ -36,6 +36,7 @@
   "generateButton": "लिंक जनरेट करें",
   "guestContactHint": "दोनों में से एक पर्याप्त है। दोनों दें और आमंत्रण दोनों के पास जाता है।",
   "guestEmailLabel": "संपर्क का ईमेल पता",
+  "guestEmailNotYours": "अपने मेहमान के ईमेल या नंबर का उपयोग करें — वह नहीं जिसके साथ आपने साइन इन किया था।",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "मोबाइल नंबर",
   "guestPhonePh": "+1 514 555 0123",

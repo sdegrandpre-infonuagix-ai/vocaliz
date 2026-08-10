@@ -36,6 +36,7 @@
   "generateButton": "Холбоосыг үүсгээрэй",
   "guestContactHint": "Хоёрынх нь нэг нь хангалттай. Хоёулаа өгөөрэй, урилга хоёулаа гардаг.",
   "guestEmailLabel": "Холбоо барих имэйл хаяг",
+  "guestEmailNotYours": "Өөрийн зочны өөрийн имэйл эсвэл дугаарыг ашиглаарай - таны нэвтэрсэн нэг биш.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Гар утасны дугаар",
   "guestPhonePh": "+1 514 555 0123",

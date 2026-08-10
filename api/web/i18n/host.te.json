@@ -36,6 +36,7 @@
   "generateButton": "లింక్ను రూపొందించండి",
   "guestContactHint": "రెండింటిలో ఒకటి సరిపోతుంది. రెండూ ఇవ్వండి మరియు ఆహ్వానం ఇద్దరి చేత బయటకు వెళుతుంది.",
   "guestEmailLabel": "సంప్రదింపు యొక్క ఇమెయిల్ చిరునామా",
+  "guestEmailNotYours": "మీ అతిథి యొక్క స్వంత ఇమెయిల్ లేదా సంఖ్యను ఉపయోగించండి - మీరు సైన్ ఇన్ చేసినది కాదు.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "మొబైల్ సంఖ్య",
   "guestPhonePh": "+1 514 555 0123",

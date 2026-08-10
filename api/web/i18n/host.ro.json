@@ -36,6 +36,7 @@
   "generateButton": "Generați linkul",
   "guestContactHint": "Unul dintre cei doi este suficient. Dă-le pe amândouă și invitația va ieși de amândoi.",
   "guestEmailLabel": "Adresa de e-mail a persoanei de contact",
+  "guestEmailNotYours": "Utilizați propriul e-mail sau numărul oaspetelui dvs. - nu cel cu care v-ați conectat.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Număr mobil",
   "guestPhonePh": "+1 514 555 0123",

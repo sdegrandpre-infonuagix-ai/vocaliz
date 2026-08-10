@@ -36,6 +36,7 @@
   "generateButton": "შექმენით ბმული",
   "guestContactHint": "ორიდან ერთი საკმარისია. მიეცით ორივე და მოწვევა ორივე მხრიდან გამოდის.",
   "guestEmailLabel": "კონტაქტის ელფოსტის მისამართი",
+  "guestEmailNotYours": "გამოიყენეთ თქვენი სტუმრის საკუთარი ელ. ფოსტა ან ნომერი - არა ის, რომელთანაც შედით შესვლა.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "მობილური ნომერი",
   "guestPhonePh": "+1 514 555 0123",

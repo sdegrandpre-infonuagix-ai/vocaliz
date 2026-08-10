@@ -36,6 +36,7 @@
   "generateButton": "Hasilkan tautan",
   "guestContactHint": "Salah satu dari keduanya sudah cukup. Berikan keduanya dan undangan keluar oleh keduanya.",
   "guestEmailLabel": "Alamat email kontak",
+  "guestEmailNotYours": "Gunakan email atau nomor tamu Anda sendiri — bukan nomor yang Anda gunakan untuk masuk.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Nomor ponsel",
   "guestPhonePh": "+1 514 555 0123",

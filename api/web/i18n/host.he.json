@@ -36,6 +36,7 @@
   "generateButton": "צור את הקישור",
   "guestContactHint": "אחד מהשניים מספיק. תן את שניהם וההזמנה יוצאת על ידי שניהם.",
   "guestEmailLabel": "כתובת הדוא\"ל של איש הקשר",
+  "guestEmailNotYours": "השתמש באימייל או במספר האימייל של האורח שלך - לא זה שאיתו התחברת.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "מספר נייד",
   "guestPhonePh": "+1 514 555 0123",

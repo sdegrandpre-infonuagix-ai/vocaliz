@@ -36,6 +36,7 @@
   "generateButton": "Generar l'enllaç",
   "guestContactHint": "Un dels dos és suficient. Doneu tots dos i la invitació surt per tots dos.",
   "guestEmailLabel": "Adreça de correu electrònic del contacte",
+  "guestEmailNotYours": "Utilitzeu el correu electrònic o el número propi del vostre convidat, no el amb el que heu iniciat la sessió.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Número de mòbil",
   "guestPhonePh": "+1 514 555 0123",

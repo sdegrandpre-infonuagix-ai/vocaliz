@@ -36,6 +36,7 @@
   "generateButton": "አገናኙን ይፍጠሩ",
   "guestContactHint": "ከሁለቱ አንዱ በቂ ነው። ሁለቱንም ስጥ እና ግብይቱ በሁለቱም ይወጣል።",
   "guestEmailLabel": "የእውቂያ የኢሜይል አ",
+  "guestEmailNotYours": "የእንግዳዎን የራስዎን ኢሜል ወይም ቁጥር ይጠቀሙ - ከእርስዎ ጋር የተመዘገቡትን አይደለም።",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "ሞባይል ቁጥር",
   "guestPhonePh": "+1 514 555 0123",

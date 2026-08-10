@@ -36,6 +36,7 @@
   "generateButton": "Hozza létre a linket",
   "guestContactHint": "A kettő közül az egyik elég. Add meg mindkettőt, és a meghívást mindkettő kiadja.",
   "guestEmailLabel": "Kapcsolattartó e-mail címe",
+  "guestEmailNotYours": "Használja vendége saját e-mail címét vagy számát - nem azt, amellyel bejelentkezett.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobilszám",
   "guestPhonePh": "+1 514 555 0123",

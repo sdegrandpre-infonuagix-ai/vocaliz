@@ -36,6 +36,7 @@
   "generateButton": "สร้างลิงก์",
   "guestContactHint": "หนึ่งในสองก็เพียงพอแล้วให้ทั้งสองและคำเชิญจะออกมาทั้งสอง",
   "guestEmailLabel": "ที่อยู่อีเมลของผู้ติดต่อ",
+  "guestEmailNotYours": "ใช้อีเมลหรือหมายเลขของแขกของคุณเอง ไม่ใช่หมายเลขที่คุณลงชื่อเข้าใช้",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "หมายเลขโทรศัพท์มือถือ",
   "guestPhonePh": "+1 514 555 0123",

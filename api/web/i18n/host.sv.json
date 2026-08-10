@@ -36,6 +36,7 @@
   "generateButton": "Generera länken",
   "guestContactHint": "En av de två räcker. Ge båda och inbjudan går ut av båda.",
   "guestEmailLabel": "Kontaktens e-postadress",
+  "guestEmailNotYours": "Använd din gästs egen e-postadress eller nummer - inte den du loggade in med.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobilnummer",
   "guestPhonePh": "+1 514 555 0123",

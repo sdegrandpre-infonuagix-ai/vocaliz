@@ -36,6 +36,7 @@
   "generateButton": "Generišite vezu",
   "guestContactHint": "Jedan od dva je dovoljan. Dajte oboje i poziv izlazi oboje.",
   "guestEmailLabel": "Adresa e-pošte kontakta",
+  "guestEmailNotYours": "Koristite sopstvenu e-poštu ili broj gosta - a ne onaj sa kojim ste se prijavili.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Broj mobilnog telefona",
   "guestPhonePh": "+1 514 555 0123",

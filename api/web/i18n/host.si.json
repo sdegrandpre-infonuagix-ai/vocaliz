@@ -36,6 +36,7 @@
   "generateButton": "සබැඳිය ජනනය කරන්න",
   "guestContactHint": "ඒ දෙකෙන්ම එකක් හොඳයි. දෙකම දෙන්නම දෙන්නම ආරාධනාව එලියට යනවා.",
   "guestEmailLabel": "සම්බන්ධතාගේ විද්යුත් තැපැල් ලිපිනය",
+  "guestEmailNotYours": "ඔබේ අමුත්තෙගේම විද්යුත් තැපෑල හෝ අංකය භාවිතා කරන්න - ඔබ සමඟ අත්සන් කළ එකක් නොවේ.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "ජංගම දුරකථන අංකය",
   "guestPhonePh": "+1 514 555 0123",

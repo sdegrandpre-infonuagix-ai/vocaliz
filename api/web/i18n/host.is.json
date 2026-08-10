@@ -36,6 +36,7 @@
   "generateButton": "Búðu til hlekkinn",
   "guestContactHint": "Eitt af þessu tvennu er nóg. Gefðu bæði og boðið gengur út hjá báðum.",
   "guestEmailLabel": "Netfang tengiliðs",
+  "guestEmailNotYours": "Notaðu eigin tölvupóst eða númer gestsins þíns — ekki það sem þú skráðir þig inn með.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Farsímanúmer",
   "guestPhonePh": "+1 514 555 0123",

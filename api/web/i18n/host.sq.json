@@ -36,6 +36,7 @@
   "generateButton": "Gjeneroni lidhjen",
   "guestContactHint": "Një nga të dy është e mjaftueshme. Jepni të dyja dhe ftesën shkon nga të dy.",
   "guestEmailLabel": "Adresa e emailit të kontaktit",
+  "guestEmailNotYours": "Përdorni emailin ose numrin e mysafirit tuaj — jo atë me të cilin keni hyrë.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Numri celular",
   "guestPhonePh": "+1 514 555 0123",

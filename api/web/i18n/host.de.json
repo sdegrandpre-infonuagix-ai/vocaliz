@@ -36,6 +36,7 @@
   "generateButton": "Generieren Sie den Link",
   "guestContactHint": "Eins von beiden ist genug. Gebt beide und die Einladung geht von beiden raus.",
   "guestEmailLabel": "E-Mail-Adresse des Kontakts",
+  "guestEmailNotYours": "Verwende die eigene E-Mail-Adresse oder Nummer deines Gastes — nicht die, mit der du dich angemeldet hast.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Handynummer",
   "guestPhonePh": "+1 514 555 0123",

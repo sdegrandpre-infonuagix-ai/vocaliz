@@ -36,6 +36,7 @@
   "generateButton": "Sukurkite nuorodą",
   "guestContactHint": "Pakanka vieno iš dviejų. Atiduokite abu ir kvietimą išeina abu.",
   "guestEmailLabel": "Kontakto el. pašto adresas",
+  "guestEmailNotYours": "Naudokite savo svečio el. paštą ar numerį, o ne tą, su kuriuo prisijungėte.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobiliojo telefono numeris",
   "guestPhonePh": "+1 514 555 0123",

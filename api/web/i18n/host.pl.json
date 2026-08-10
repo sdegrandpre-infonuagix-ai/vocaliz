@@ -36,6 +36,7 @@
   "generateButton": "Wygeneruj link",
   "guestContactHint": "Wystarczy jedno z dwóch. Daj oba, a zaproszenie wychodzi przez oboje.",
   "guestEmailLabel": "Adres e-mail kontaktu",
+  "guestEmailNotYours": "Użyj własnego adresu e-mail lub numeru gościa - nie tego, za pomocą którego się zalogowałeś.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Numer telefonu komórkowego",
   "guestPhonePh": "+1 514 555 0123",

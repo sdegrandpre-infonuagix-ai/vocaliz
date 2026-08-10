@@ -36,6 +36,7 @@
   "generateButton": "Vygenerujte odkaz",
   "guestContactHint": "Jeden z těch dvou stačí. Dejte oba a pozvánka vyjde oběma.",
   "guestEmailLabel": "E-mailová adresa kontaktu",
+  "guestEmailNotYours": "Použijte vlastní e-mail nebo číslo hosta - ne ten, pomocí kterého jste se přihlásili.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Číslo mobilního telefonu",
   "guestPhonePh": "+1 514 555 0123",

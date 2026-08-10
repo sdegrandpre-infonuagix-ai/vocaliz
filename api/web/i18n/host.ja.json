@@ -36,6 +36,7 @@
   "generateButton": "リンクを生成",
   "guestContactHint": "2つのうちの1つで十分です。両方渡せば両方から招待状が出ます。",
   "guestEmailLabel": "連絡先のメールアドレス",
+  "guestEmailNotYours": "ログインに使用したメールアドレスや電話番号ではなく、ゲスト自身のメールアドレスまたは電話番号を使用してください。",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "携帯電話番号",
   "guestPhonePh": "+1 514 555 0123",

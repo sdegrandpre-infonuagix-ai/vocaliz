@@ -36,6 +36,7 @@
   "generateButton": "Ustvari povezavo",
   "guestContactHint": "Ena od obeh je dovolj. Daj oboje in povabilo izide obema.",
   "guestEmailLabel": "E-poštni naslov kontakta",
+  "guestEmailNotYours": "Uporabite svoj e-poštni naslov ali številko gosta — ne tisto, s katero ste se prijavili.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobilna številka",
   "guestPhonePh": "+1 514 555 0123",

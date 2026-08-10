@@ -36,6 +36,7 @@
   "generateButton": "لینک جوړ کړئ",
   "guestContactHint": "د دوو څخه یو کافی دی. دواړه ورکړئ او بلنه د دواړو لخوا بیرته ځي.",
   "guestEmailLabel": "د اړیکو بریښنالیک پته",
+  "guestEmailNotYours": "د خپل میلمن خپل بریښنالیک یا شمیره وکاروئ - هغه څوک نه چې تاسو سره لاسلیک کړی",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "ګرځنده شمیره",
   "guestPhonePh": "+1 ۵۱۴ ۵۵۵ ۰۱۲۳",

@@ -36,6 +36,7 @@
   "generateButton": "লিঙ্কটি তৈরি করুন",
   "guestContactHint": "দুটির মধ্যে একটি যথেষ্ট। উভয়ই দিন এবং আমন্ত্রণ উভয়ের দ্বারা বেরিয়ে যায়।",
   "guestEmailLabel": "যোগাযোগের ইমেল ঠিকানা",
+  "guestEmailNotYours": "আপনার অতিথির নিজস্ব ইমেল বা নম্বর ব্যবহার করুন - আপনি যেটির সাথে সাইন ইন করেছেন তা নয়।",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "মোবাইল নম্বর",
   "guestPhonePh": "+1 514 555 0123",

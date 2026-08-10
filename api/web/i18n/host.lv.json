@@ -36,6 +36,7 @@
   "generateButton": "Ģenerējiet saiti",
   "guestContactHint": "Pietiek ar vienu no diviem. Dodiet abus, un ielūgums iziet abiem.",
   "guestEmailLabel": "Kontaktpersonas e-pasta adrese",
+  "guestEmailNotYours": "Izmantojiet sava viesa e-pastu vai numuru, nevis to, ar kuru pierakstījāties.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Mobilā tālruņa numurs",
   "guestPhonePh": "+1 514 555 0123",

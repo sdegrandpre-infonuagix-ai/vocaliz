@@ -36,6 +36,7 @@
   "generateButton": "Bağlantıyı oluştur",
   "guestContactHint": "İkisinden biri yeterli. İkisini de ver ve davetiye her ikisinden de çıkar.",
   "guestEmailLabel": "Kişinin e-posta adresi",
+  "guestEmailNotYours": "Misafirinizin kendi e-posta adresini veya numarasını kullanın - oturum açtığınız numarayı değil.",
   "guestEmailPh": "friend@example.com",
   "guestPhoneLabel": "Cep telefonu numarası",
   "guestPhonePh": "+1 514 555 0123",

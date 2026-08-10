@@ -39,6 +39,12 @@ def invite_guest(
     reported in the response, never raised: the invitation is committed first and the
     link works over any channel, so a failed send still leaves the host something to
     share by hand.
+
+    Nothing here refuses a contact that matches `host_user`'s own — `call_the_desk`
+    calls this with the desk as both host and guest, on purpose, to mail the desk a
+    notification rather than to seat a second participant. A host inviting a real guest
+    into their own Salon is a narrower case than this function knows about; see
+    `routers.invitations.create_invitation` for that check.
     """
     import uuid as _uuid
 
