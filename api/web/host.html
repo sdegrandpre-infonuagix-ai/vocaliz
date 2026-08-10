@@ -1450,6 +1450,12 @@
         // Cleared per salon, not per page load: without this the second salon of a sitting
         // could never be closed, because the guard would still be holding the first one's.
         salonOver = false;
+        // Same reasoning, for the captions: a fresh Salon has said nothing yet, and without
+        // this a host who ends one conversation and starts another in the same tab would
+        // see the previous Salon's words still sitting in a panel that is supposed to be
+        // this one's.
+        captionLog = [];
+        renderCaptions();
         clearStatus('create-status');
         roomInfo = { room: data.livekitRoomName, source: data.sourceType };
         renderRoomSub();
