@@ -122,12 +122,12 @@ const fr: Translations = {
     resend: 'Renvoyer le code',
   },
   salon: {
-    title: 'Nouvelle salon',
+    title: 'Nouveau salon',
     subtitle: "Partagez une URL d'article pour démarrer une discussion guidée par l'agent.",
     urlLabel: "URL de l'article",
     urlInputLabel: "URL de l'article source",
     urlInputHint: "Entrez l'adresse web de l'article à discuter",
-    startButton: 'Démarrer la salon',
+    startButton: 'Démarrer le salon',
     or: 'ou',
     uploadButton: '📄  Téléverser un document',
     uploadButtonLabel: 'Téléverser un document',
@@ -136,10 +136,10 @@ const fr: Translations = {
     uploadComingSoonMsg:
       'Le téléversement de documents sera disponible dans la prochaine mise à jour.',
     noSourceButton: 'Démarrer sans source',
-    noSourceButtonLabel: 'Démarrer une salon sans document ni URL',
+    noSourceButtonLabel: 'Démarrer un salon sans document ni URL',
     noSourceButtonHint:
       "L'agent vous demandera de quoi vous souhaitez discuter",
-    errorGeneric: 'Impossible de créer la salon.',
+    errorGeneric: 'Impossible de créer le salon.',
   },
   room: {
     title: 'Vous animez le Salon',
@@ -149,7 +149,7 @@ const fr: Translations = {
     sourceSection: 'Ajouter une source',
     sourceInputLabel: "URL de l'article à ajouter",
     sourceInputHint: "L'agent en tiendra compte sans interrompre la conversation",
-    sourceButton: 'Ajouter à la salon',
+    sourceButton: 'Ajouter au salon',
     sourceAdded: "Source ajoutée. L'agent en a été prévenu.",
     inviteSection: 'Inviter',
     inviteInputLabel: "Adresse courriel de l'invité",
@@ -159,7 +159,7 @@ const fr: Translations = {
     inviteInApp:
       'Courriel envoyé. Ce contact est inscrit dans Vocaliz : il reçoit aussi une notification.',
     inviteEmailFailed: "Le courriel n'a pas pu partir — partagez le lien ci-dessous vous-même.",
-    leaveButton: 'Quitter la salon',
+    leaveButton: 'Quitter le salon',
     errorConnect: 'Impossible de rejoindre le salon.',
     errorGeneric: 'Une erreur est survenue.',
     captionsTitle: 'Sous-titres en direct',
