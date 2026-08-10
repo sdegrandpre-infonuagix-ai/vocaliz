@@ -164,6 +164,85 @@ async def test_an_agent_with_no_orchestrator_does_not_spin():
 
 
 @pytest.mark.asyncio
+async def test_a_wake_already_set_does_not_stop_the_ordinary_ask():
+    """However the race between the interval and the wake resolves, the loop still asks
+    again on its own — this is a fast path, never a second way to skip asking."""
+    voice = FakeVoice()
+    link = FakeLink(scripts=[[], [_tour()]])
+    stop = asyncio.Event()
+    wake = asyncio.Event()
+    wake.set()  # already owed something before the loop ever waits
+
+    async def sleep(_seconds):
+        if link.asks >= 2:
+            stop.set()
+
+    await follow(link, voice, stop=stop, sleep=sleep, wake=wake)
+
+    assert link.asks == 2
+
+
+# ── The wake itself ────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_an_already_set_wake_returns_without_waiting_out_the_interval():
+    from src.following import _wait
+
+    wake = asyncio.Event()
+    wake.set()
+
+    # A generous interval and a plain asyncio.sleep behind it: if the wake did not win the
+    # race, this test would be the one left waiting five seconds for nothing.
+    await asyncio.wait_for(_wait(5.0, asyncio.sleep, wake), timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_the_wake_is_cleared_once_it_has_done_its_job():
+    """Left set, it would short-circuit every later wait for no reason — a fast path is not
+    a standing instruction to never wait again."""
+    from src.following import _wait
+
+    wake = asyncio.Event()
+    wake.set()
+
+    await _wait(5.0, asyncio.sleep, wake)
+
+    assert not wake.is_set()
+
+
+@pytest.mark.asyncio
+async def test_no_wake_argument_is_a_plain_sleep():
+    """Every caller from before this existed passes none, and must see no change at all."""
+    from src.following import _wait
+
+    calls = []
+
+    async def sleep(seconds):
+        calls.append(seconds)
+
+    await _wait(2.5, sleep, None)
+
+    assert calls == [2.5]
+
+
+@pytest.mark.asyncio
+async def test_a_wake_that_never_comes_still_falls_through_to_the_interval():
+    from src.following import _wait
+
+    wake = asyncio.Event()
+    calls = []
+
+    async def sleep(seconds):
+        calls.append(seconds)
+
+    await _wait(0.01, sleep, wake)
+
+    assert calls == [0.01]
+    assert not wake.is_set()
+
+
+@pytest.mark.asyncio
 async def test_the_loop_slows_down_rather_than_dying_when_something_goes_wrong():
     """This task holds a live room. An agent retrying at full speed against a service that is
     restarting is how one outage becomes two."""

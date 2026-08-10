@@ -1537,6 +1537,12 @@ async def entrypoint(ctx: agents.JobContext):
             salon_agent.leave("the API announced the salon had ended")
         elif isinstance(msg, dict) and msg.get("action") == "source_added":
             asyncio.create_task(_reload_sources())
+        elif isinstance(msg, dict) and msg.get("action") == "journal_wake":
+            # The fast path. Carries nothing to say — `follow`'s own poll is still the only
+            # place a line is actually handed over — this only wakes it early. Safe to set
+            # before `_follow_the_journal` has even created the loop that reads it: an
+            # `asyncio.Event` remembers being set regardless of who is waiting on it yet.
+            journal_wake.set()
         elif isinstance(msg, dict) and msg.get("action") == "text_message":
             # Somebody typed instead of speaking — in a noisy room, with a name nobody can
             # pronounce, or simply preferring to write.
@@ -1856,6 +1862,11 @@ async def entrypoint(ctx: agents.JobContext):
     # over this by name — it is defined above where this is still None, and reads whatever this
     # holds by the time a typed message actually arrives, which is always after start-up.
     journal_link: OrchestratorLink | None = None
+    # The fast path alongside the poll (see src/salon/notify.py on the orchestrator's side).
+    # Set from this room's own data channel — the same one `agent_mute` and `source_added`
+    # already arrive on — the moment the orchestrator says somebody else spoke. Harmless if
+    # nothing ever sets it: `follow` still asks on its own schedule regardless.
+    journal_wake = asyncio.Event()
 
     async def _await_listener() -> "rtc.RemoteParticipant | None":
         """Wait for the one human this job was dispatched for — however long that takes.
@@ -1967,7 +1978,12 @@ async def entrypoint(ctx: agents.JobContext):
 
         nonlocal following_task
         following_task = asyncio.create_task(
-            follow(link, SessionVoice(agent_session, language=listener_language), stop=stop_following)
+            follow(
+                link,
+                SessionVoice(agent_session, language=listener_language),
+                stop=stop_following,
+                wake=journal_wake,
+            )
         )
         logger.info("Following the journal for %s in salon %s", participant_id, salon_id)
 

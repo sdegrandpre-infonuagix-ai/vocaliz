@@ -89,6 +89,37 @@ async def deliver_script(link: OrchestratorLink, voice: Voice) -> int:
     return said
 
 
+async def _wait(
+    interval: float,
+    sleep: Callable[[float], Awaitable[None]],
+    wake: asyncio.Event | None,
+) -> None:
+    """The ordinary wait between two asks — cut short the moment `wake` says not to bother.
+
+    `wake` is optional and its absence changes nothing: this is exactly `await
+    sleep(interval)` for every caller that does not pass one, which is every test of this
+    loop that predates it. Passed one, this races the interval against the event and takes
+    whichever settles first — a fast path racing a poll it can only ever precede, never
+    replace: the event carries nothing, so whoever set it still has to be asked what for.
+    """
+    if wake is None:
+        await sleep(interval)
+        return
+
+    sleeping = asyncio.ensure_future(sleep(interval))
+    waking = asyncio.ensure_future(wake.wait())
+    try:
+        await asyncio.wait({sleeping, waking}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in (sleeping, waking):
+            if not task.done():
+                task.cancel()
+    # Cleared either way. If `sleeping` won, this is a no-op — `wake` was never set. If
+    # `waking` won, the next loop is the ask this event was for; leaving it set would fire
+    # the short circuit again on every later interval for no reason.
+    wake.clear()
+
+
 async def follow(
     link: OrchestratorLink,
     voice: Voice,
@@ -96,12 +127,19 @@ async def follow(
     stop: asyncio.Event,
     interval: float = DEFAULT_INTERVAL_SECONDS,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    wake: asyncio.Event | None = None,
 ) -> None:
     """Keep saying what this human is owed until told to stop.
 
     Checked before sleeping and again after, so a stop asked for while the loop is waiting is
     honoured at the next turn rather than a full interval later — which matters at teardown,
     where the room is going away underneath it.
+
+    `wake` is the fast path alongside the poll (see `src/salon/notify.py` on the
+    orchestrator's side): set from the room's data channel the moment the orchestrator says
+    somebody else spoke, so this asks now instead of at the end of whatever is left of the
+    ordinary interval. Left out, or never set, this behaves exactly as it always has —
+    nothing here depends on it arriving.
     """
     if not link.configured:
         # Nothing to follow. An agent given no orchestrator runs the conversation it can,
@@ -121,4 +159,4 @@ async def follow(
 
         if stop.is_set():
             return
-        await sleep(interval)
+        await _wait(interval, sleep, wake)

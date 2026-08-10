@@ -64,6 +64,32 @@ def test_the_report_happens_before_any_branch_decides_how_to_answer():
     assert handler.index("journal_link.report(text)") < handler.index("speaks_aloud = ")
 
 
+# ─── The fast path alongside the poll ─────────────────────────────────────────
+#
+# See src/salon/notify.py on the orchestrator's side. This arrives on the same room data
+# channel as agent_mute and source_added — no new connection, no new infrastructure — and
+# carries nothing to say: it only wakes `follow`'s own poll early.
+
+
+def test_a_journal_wake_sets_the_event():
+    source = inspect.getsource(salon.entrypoint)
+    handler = source[source.index('msg.get("action") == "journal_wake"') :]
+    handler = handler[: handler.index('elif isinstance(msg')]
+    assert "journal_wake.set()" in handler
+
+
+def test_the_wake_event_is_passed_into_follow():
+    source = inspect.getsource(salon.entrypoint)
+    assert "wake=journal_wake" in source
+
+
+def test_the_wake_event_is_created_unconditionally():
+    """Harmless if nothing ever sets it, and it has to exist before `_follow_the_journal`
+    runs — `_on_data` is registered first and closes over it by name."""
+    source = inspect.getsource(salon.entrypoint)
+    assert "journal_wake = asyncio.Event()" in source
+
+
 # ─── Who may lend the agent its voice ─────────────────────────────────────────
 
 def test_only_the_host_is_relayed_in_their_own_words():
