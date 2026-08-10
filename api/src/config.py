@@ -128,9 +128,12 @@ class Settings(BaseSettings):
     # stay open with an agent talking into it. Silence is the honest signal for that, where
     # age was a proxy that also caught healthy conversations.
     #
-    # Four missed heartbeats at thirty seconds. Long enough to survive a reconnection,
-    # short enough that an abandoned room is not billed for minutes of nothing.
-    abandoned_salon_seconds: int = 120
+    # Ten missed heartbeats at thirty seconds — long enough for a host to actually wait for
+    # a friend to arrive, not just survive a reconnection. Raised from 120s: two minutes
+    # closed a Salon out from under a host who had opened it and was simply waiting for a
+    # guest to click the link, which reads as the product failing before the conversation
+    # even started. Still short enough that an abandoned room is not billed for long.
+    abandoned_salon_seconds: int = 300
 
     # How long a call to the front desk rings before it is given up on.
     #
