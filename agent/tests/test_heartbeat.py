@@ -2,7 +2,9 @@
 import asyncio
 import os
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import agent as salon  # noqa: E402
@@ -186,56 +188,81 @@ def test_send_heartbeat_swallows_non_200_response():
 
 # ─── Winding the conversation down before the cap ────────────────────────────
 
-def _agent_with_salon():
+@pytest.fixture
+def agent_with_session():
     """A SalonAgent whose AgentSession is observable.
 
-    `salon` is a read-only property on the real Agent base class; the test stub makes it
-    a plain attribute, which is what lets us watch generate_reply here.
+    `session` is a read-only property on the real Agent base class — `RuntimeError` if the
+    agent is not running — so it cannot be set like a plain attribute. This is exactly the
+    shape of the bug this file once missed entirely: a test double named `salon` stood in
+    for a property that has never existed under that name, so `self.salon.generate_reply(...)`
+    in production raised `AttributeError` on every real call while every test here passed.
+    Patched at the class level instead, for the fixture's lifetime only.
     """
-    from unittest.mock import MagicMock
-
     a = salon.SalonAgent()
-    a.salon = MagicMock()
     a._salon_id = "sess-1"
-    return a
+    mock_session = MagicMock()
+    # create=True: the test stub for livekit.agents.Agent (see conftest.py) is a bare
+    # object with no `session` at all, real property or otherwise — patch.object refuses
+    # to patch an attribute that does not already exist unless told this is deliberate.
+    with patch.object(
+        salon.SalonAgent,
+        "session",
+        new_callable=PropertyMock,
+        return_value=mock_session,
+        create=True,
+    ):
+        yield a
 
 
-def test_no_announcement_while_time_remains():
-    a = _agent_with_salon()
+def test_no_announcement_while_time_remains(agent_with_session):
+    a = agent_with_session
     a._maybe_announce_ending(salon.ENDING_WARNING_SECONDS + 30)
-    a.salon.generate_reply.assert_not_called()
+    a.session.generate_reply.assert_not_called()
     assert a._ending_announced is False
 
 
-def test_announces_when_the_cap_is_near():
-    a = _agent_with_salon()
+def test_announces_when_the_cap_is_near(agent_with_session):
+    a = agent_with_session
     a._maybe_announce_ending(salon.ENDING_WARNING_SECONDS - 5)
-    a.salon.generate_reply.assert_called_once()
+    a.session.generate_reply.assert_called_once()
     # Phrased as instructions so the model answers in the language being spoken, and told
     # not to blame a timer — the participants did not ask about our billing.
-    instructions = a.salon.generate_reply.call_args.kwargs["instructions"]
+    instructions = a.session.generate_reply.call_args.kwargs["instructions"]
     assert "language of the conversation" in instructions
     assert "quotas" in instructions
 
 
-def test_announces_only_once():
-    a = _agent_with_salon()
+def test_announces_only_once(agent_with_session):
+    a = agent_with_session
     a._maybe_announce_ending(30)
     a._maybe_announce_ending(10)
     a._maybe_announce_ending(0)
-    assert a.salon.generate_reply.call_count == 1
+    assert a.session.generate_reply.call_count == 1
 
 
-def test_missing_remaining_is_ignored():
+def test_missing_remaining_is_ignored(agent_with_session):
     """An older API, or a failed parse, must not trigger a spurious goodbye."""
-    a = _agent_with_salon()
+    a = agent_with_session
     a._maybe_announce_ending(None)
-    a.salon.generate_reply.assert_not_called()
+    a.session.generate_reply.assert_not_called()
 
 
-def test_a_failing_announcement_does_not_propagate():
+def test_a_failing_announcement_does_not_propagate(agent_with_session):
     """A working conversation must not be broken by a failed courtesy."""
-    a = _agent_with_salon()
-    a.salon.generate_reply.side_effect = RuntimeError("realtime unavailable")
+    a = agent_with_session
+    a.session.generate_reply.side_effect = RuntimeError("realtime unavailable")
     a._maybe_announce_ending(10)   # must not raise
     assert a._ending_announced is True
+
+
+def test_the_real_session_property_is_used_not_a_fictional_one():
+    """The exact regression this file missed: production called `self.salon`, which is
+    not an attribute the real Agent base class has ever defined. Read out of the source
+    rather than exercised, because exercising it *is* the five tests above — this is the
+    one that would have caught the typo they didn't."""
+    import inspect
+
+    source = inspect.getsource(salon.SalonAgent._maybe_announce_ending)
+    assert "self.session.generate_reply" in source
+    assert "self.salon" not in source

@@ -1102,7 +1102,7 @@ class SalonAgent(Agent):
 
         self._ending_announced = True
         try:
-            self.salon.generate_reply(
+            self.session.generate_reply(
                 instructions=(
                     "The conversation must end in about a minute. Bring it to a natural "
                     "close: say briefly that little time is left, offer a short parting "
