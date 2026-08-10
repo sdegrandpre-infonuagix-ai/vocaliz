@@ -328,6 +328,41 @@ def _check_balance(user_id: str) -> dict:
         db.close()
 
 
+def _list_balances(limit: int) -> dict:
+    """Read-only: every account's credit balance, most recent first.
+
+    `_check_balance` answers for one account by id; this answers the same question for all
+    of them in one call, which `_list_users` alone cannot — it never touches the ledger.
+    """
+    from src.credit import balance
+    from src.database import SessionLocal
+    from src.models.user import User
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(User)
+            .order_by(User.created_at.desc())
+            .limit(max(1, min(limit, 500)))
+            .all()
+        )
+        accounts = []
+        for u in rows:
+            bal = balance(db, u.id)
+            accounts.append(
+                {
+                    "id": str(u.id),
+                    "email": u.email,
+                    "giftedCents": bal.gifted_cents,
+                    "paidCents": bal.paid_cents,
+                    "totalCents": bal.total_cents,
+                }
+            )
+        return {"status": "ok", "count": len(accounts), "accounts": accounts}
+    finally:
+        db.close()
+
+
 def _topup_all_accounts(amount_cents: int) -> dict:
     """Credit every account's paid balance by the same amount, once.
 
@@ -444,6 +479,7 @@ def handler(event, context):
     schedules this — it is a one-off, run by hand, and safe to repeat.
     event = {"action": "list_users", "limit": 50} the most recent accounts, read-only.
     event = {"action": "check_balance", "userId": "..."} one account's credit, read-only.
+    event = {"action": "list_balances", "limit": 50} every account's credit, read-only.
     event = {"action": "topup_all_accounts", "amountCents": 2000} credits every account's
     paid balance by the same amount, once — an operator's decision, not a scheduled grant.
     Any other event runs migrations.
@@ -487,6 +523,8 @@ def handler(event, context):
         return _list_users(int(event.get("limit", 50)))
     if action == "check_balance":
         return _check_balance(event["userId"])
+    if action == "list_balances":
+        return _list_balances(int(event.get("limit", 50)))
     if action == "topup_all_accounts":
         result = _topup_all_accounts(int(event.get("amountCents", 2000)))
         _report(f"topup_all_accounts: {result}")
