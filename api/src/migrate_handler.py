@@ -328,6 +328,40 @@ def _check_balance(user_id: str) -> dict:
         db.close()
 
 
+def _topup_all_accounts(amount_cents: int) -> dict:
+    """Credit every account's paid balance by the same amount, once.
+
+    Paid rather than gifted: paid credit does not expire and stacks with whatever is
+    already there, which is what a top-up means — gifted credit is the one-time welcome
+    grant and carries its own thirty-day clock (FR67), which this must not touch.
+
+    Written to the ledger as one `RECHARGED` event per account, by the operator rather
+    than the system — this is a human's decision, not an automated grant, and the actor on
+    the event says so for whoever reads it later.
+    """
+    from src.database import SessionLocal
+    from src.ledger import Actor, EventType, Pool, append
+    from src.models.user import User
+
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        for user in users:
+            append(
+                db,
+                type=EventType.RECHARGED,
+                subject_id=user.id,
+                amount_cents=amount_cents,
+                pool=Pool.PAID,
+                actor=Actor.OPERATOR,
+                detail="Manual top-up",
+            )
+        db.commit()
+        return {"status": "ok", "accounts": len(users), "amountCents": amount_cents}
+    finally:
+        db.close()
+
+
 def _list_users(limit: int) -> dict:
     """Read-only: the accounts that exist, most recent first.
 
@@ -409,6 +443,9 @@ def handler(event, context):
     objects would move into the vocaliz_ namespace; add "apply": true to write it. Nothing
     schedules this — it is a one-off, run by hand, and safe to repeat.
     event = {"action": "list_users", "limit": 50} the most recent accounts, read-only.
+    event = {"action": "check_balance", "userId": "..."} one account's credit, read-only.
+    event = {"action": "topup_all_accounts", "amountCents": 2000} credits every account's
+    paid balance by the same amount, once — an operator's decision, not a scheduled grant.
     Any other event runs migrations.
     """
     action = (event or {}).get("action")
@@ -450,6 +487,10 @@ def handler(event, context):
         return _list_users(int(event.get("limit", 50)))
     if action == "check_balance":
         return _check_balance(event["userId"])
+    if action == "topup_all_accounts":
+        result = _topup_all_accounts(int(event.get("amountCents", 2000)))
+        _report(f"topup_all_accounts: {result}")
+        return result
     if action == "table_census":
         return _table_census()
     if action == "truncate_tables":
