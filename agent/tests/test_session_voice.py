@@ -145,6 +145,34 @@ async def test_a_turn_that_failed_to_speak_is_logged_not_raised():
 
 
 @pytest.mark.asyncio
+async def test_a_failed_attempt_is_retried_once():
+    """The reading position has already moved by the time this code sees the line — see the
+    orchestrator's side of that contract — so a delivery that never lands is gone for good,
+    not caught on the next poll. One retry is the difference between a fluke and silence."""
+    session = MagicMock()
+    session.generate_reply.side_effect = [
+        FakeSpeechHandle(error=RuntimeError("timed out")),
+        FakeSpeechHandle(),
+    ]
+
+    await SessionVoice(session).render(_line())  # must not raise, and must not give up early
+
+    assert session.generate_reply.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_a_line_that_fails_twice_running_is_given_up_on():
+    """Bounded deliberately: a session that fails the same line twice running is not a
+    fluke this loop should keep spending its own timeout budget on."""
+    session = MagicMock()
+    session.generate_reply.return_value = FakeSpeechHandle(error=RuntimeError("timed out"))
+
+    await SessionVoice(session).render(_line())  # must not raise even after giving up
+
+    assert session.generate_reply.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_nothing_is_said_for_an_empty_line():
     """A model asked to say nothing does not stay silent — it fills the gap."""
     session = MagicMock()

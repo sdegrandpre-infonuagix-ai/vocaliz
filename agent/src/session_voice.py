@@ -32,6 +32,14 @@ from src.orchestrator_link import Line
 
 logger = logging.getLogger("agent.voice")
 
+# One retry, not none and not several. The reading position has already moved by the time
+# this code sees the line — see the module docstring on the orchestrator's side of that
+# contract — so a delivery that never lands is gone for good, not caught on the next poll.
+# A second try costs one more provider timeout in the rare case the first attempt was itself
+# a fluke; a loop that kept trying would hold a genuinely broken session hostage to a line it
+# is never going to say.
+MAX_ATTEMPTS = 2
+
 
 def instructions_for(line: Line) -> str:
     """What to tell the model, for one line owed to one listener.
@@ -92,37 +100,44 @@ class SessionVoice:
         """
         if not text.strip():
             return
-        await self._await_spoken(
-            self._session.generate_reply(
-                instructions=_verbatim_instructions(text, self._language or "the same language")
-            )
+        await self._speak(
+            _verbatim_instructions(text, self._language or "the same language")
         )
 
     async def render(self, line: Line) -> None:
         """Through the model, which translates and speaks in one movement."""
         if not line.text.strip():
             return
-        await self._await_spoken(
-            self._session.generate_reply(instructions=instructions_for(line))
-        )
+        await self._speak(instructions_for(line))
 
-    async def _await_spoken(self, handle) -> None:
-        """Wait for one turn to finish before the delivery loop asks for the next.
+    async def _speak(self, instructions: str) -> None:
+        """Ask the session to say this, and wait for the turn to finish before returning.
 
-        Used to return without waiting — a handle to speech now under way, with the delivery
-        loop free to move on. That was the wrong trade: a listener behind by more than one
-        line got every one of them fired at the realtime session in the same breath, and the
-        provider can only carry one generation at a time. The second and later calls sat
-        waiting for a turn that never came, timed out, and were never spoken — silently, since
-        nothing here was watching for it. Awaiting costs the batch the length of each
-        sentence; that is what a person hearing it catch up would cost too, and it is
-        recoverable in a way a message that quietly never arrives is not.
+        Waiting was not the original design — `generate_reply` returned a handle to speech
+        now under way, and the delivery loop moved straight on. That was the wrong trade: a
+        listener behind by more than one line got every one fired at the realtime session in
+        the same breath, and the provider can only carry one generation at a time. The
+        second and later calls sat waiting for a turn that never came and timed out.
 
-        Never raises on its own — see `SpeechHandle._mark_done`, which keeps a failure out of
-        the awaited future by design. Logged here instead, so a line that timed out leaves a
-        trace rather than looking indistinguishable from one that was said.
+        Retried once, because the reading position has already moved by the time this code
+        sees the line — see the orchestrator's side of that contract — so a delivery that
+        never lands is gone for good, not caught on the next poll. Bounded to one retry
+        deliberately: a session that fails a line twice running is not a fluke this loop
+        should keep spending its own timeout budget on.
+
+        Never raises. `SpeechHandle._mark_done` keeps a failure out of the awaited future by
+        design — most handles are never awaited — so a failed attempt is only visible through
+        `exception()`, which is what decides whether this retries or gives up.
         """
-        await handle
-        error = handle.exception() if hasattr(handle, "exception") else None
-        if error is not None:
-            logger.warning("a turn did not finish speaking: %s", error)
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            handle = self._session.generate_reply(instructions=instructions)
+            await handle
+            error = handle.exception() if hasattr(handle, "exception") else None
+            if error is None:
+                return
+            logger.warning(
+                "a turn did not finish speaking (attempt %d/%d): %s",
+                attempt,
+                MAX_ATTEMPTS,
+                error,
+            )
