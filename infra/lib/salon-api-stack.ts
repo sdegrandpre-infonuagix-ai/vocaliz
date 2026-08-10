@@ -176,14 +176,6 @@ export class SalonApiStack extends cdk.Stack {
           STRIPE_SECRET_KEY: '',
           SALON_WEB_BASE_URL: '',
           SALON_INSTALL_URL: '',
-          // Proves a call to POST /orchestrator/wake really came from the orchestrator
-          // holding this Salon (see api/src/routers/orchestrator_relay.py and
-          // orchestrator/adapters/http_notifier.py). Left empty like every other
-          // credential here — generated once by hand after the first deploy, the same as
-          // LIVEKIT_API_SECRET below it. Both sides read it from this one secret, not two
-          // copies: the API already reads APP_SECRET_ARN and the orchestrator already
-          // reads the same ARN under ORCHESTRATOR_SECRET_ARN.
-          ORCHESTRATOR_CALLBACK_SECRET: '',
         }),
         generateStringKey: 'JWT_SECRET',
         passwordLength: 48,
