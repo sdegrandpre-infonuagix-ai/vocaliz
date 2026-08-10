@@ -328,6 +328,49 @@ def _check_balance(user_id: str) -> dict:
         db.close()
 
 
+def _list_accounts_with_roles(limit: int) -> dict:
+    """Read-only: every account, and every role (host/guest) it has ever played.
+
+    A `User` row is not itself a host or a guest — that is a property of one participation,
+    not of the account (`salon_events.user_type`) — so this joins the two rather than
+    guessing from the account alone. An account that has only ever hosted shows "host"; one
+    invited into someone else's salon and gone on to host their own shows both.
+    """
+    from src.database import SessionLocal
+    from src.models.salon_event import SalonEvent
+    from src.models.user import User
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(User)
+            .order_by(User.created_at.desc())
+            .limit(max(1, min(limit, 500)))
+            .all()
+        )
+        # Matched by identity, not by email: a host's identity is their account UUID, and
+        # so is a registered guest's (`livekit_service.identity_for`) — this is the same
+        # matching `salon_closure_report` uses, for the same reason.
+        roles_by_identity: dict[str, set[str]] = {}
+        for identity, user_type in db.query(
+            SalonEvent.participant_identity, SalonEvent.user_type
+        ).distinct():
+            roles_by_identity.setdefault(identity, set()).add(user_type)
+
+        accounts = [
+            {
+                "id": str(u.id),
+                "email": u.email,
+                "createdAt": u.created_at.isoformat(),
+                "roles": sorted(roles_by_identity.get(str(u.id), set())) or ["none yet"],
+            }
+            for u in rows
+        ]
+        return {"status": "ok", "count": len(accounts), "accounts": accounts}
+    finally:
+        db.close()
+
+
 def _list_balances(limit: int) -> dict:
     """Read-only: every account's credit balance, most recent first.
 
@@ -480,6 +523,8 @@ def handler(event, context):
     event = {"action": "list_users", "limit": 50} the most recent accounts, read-only.
     event = {"action": "check_balance", "userId": "..."} one account's credit, read-only.
     event = {"action": "list_balances", "limit": 50} every account's credit, read-only.
+    event = {"action": "list_accounts_with_roles", "limit": 50} every account and every
+    role (host/guest) it has played, read-only.
     event = {"action": "topup_all_accounts", "amountCents": 2000} credits every account's
     paid balance by the same amount, once — an operator's decision, not a scheduled grant.
     Any other event runs migrations.
@@ -525,6 +570,8 @@ def handler(event, context):
         return _check_balance(event["userId"])
     if action == "list_balances":
         return _list_balances(int(event.get("limit", 50)))
+    if action == "list_accounts_with_roles":
+        return _list_accounts_with_roles(int(event.get("limit", 50)))
     if action == "topup_all_accounts":
         result = _topup_all_accounts(int(event.get("amountCents", 2000)))
         _report(f"topup_all_accounts: {result}")

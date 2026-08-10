@@ -17,6 +17,7 @@ from src.models.user import User
 from src.services import (
     invitation_service,
     livekit_service,
+    salon_closure_report,
     salon_code_service,
     salon_event_service,
     stripe_service,
@@ -103,6 +104,11 @@ def finalize_salon(
         logger.info("Released %d telephone code(s) for salon %s", released, salon.id)
 
     invitation_service.send_followup_email_to_guests(str(salon.id), db)
+
+    # After `record_salon_exit` above, deliberately: that call is what writes this salon's
+    # `salon_events` rows for good, and the report reads from exactly that table.
+    salon_closure_report.send(db, salon)
+
     return billing_summary
 
 

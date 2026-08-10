@@ -101,6 +101,39 @@ def db():
 
 
 @pytest.fixture(autouse=True)
+def _no_email_or_sms_side_calls():
+    """Stop every code path that mails or texts through AWS from making a real, billed call.
+
+    Discovered by way of `salon_closure_report`: ending a salon now mails a closure report
+    on every path that reaches `finalize_salon`, and that function is exercised by tests
+    that have nothing to do with email and no reason to know it happens — unlike
+    `test_auth.py`'s OTP tests, which patch `otp._send_email` themselves because sending is
+    exactly what they are testing. A test in the second category stays untouched: it patches
+    a function above this point, and that patch wins for its duration regardless of what
+    this fixture does to the client underneath it.
+    boto3.client is patched rather than each call site (`participant_report`,
+    `salon_closure_report`, `invitation_service`, `otp`, `xai_health`, `sms_service`) so a
+    future one is covered without anyone having to remember to add another patch here.
+    Limited to the three services that actually send something to somebody — `translate`
+    has its own fixture below, and anything else (`secretsmanager`, at import time) is left
+    alone.
+    """
+    from unittest.mock import MagicMock, patch
+
+    import boto3 as _boto3
+
+    real_client = _boto3.client
+
+    def _fake_client(service_name, *args, **kwargs):
+        if service_name in ("ses", "sesv2", "sns"):
+            return MagicMock()
+        return real_client(service_name, *args, **kwargs)
+
+    with patch("boto3.client", side_effect=_fake_client):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _no_translate_side_calls():
     """Stop the corpus search from reaching Amazon Translate in tests.
 
