@@ -469,20 +469,8 @@
       <div class="card-title" data-i18n="createTitle">New salon</div>
       <div class="card-sub" data-i18n="createSub">
         A source is optional: without one, the agent will ask you what to talk about.
-        Any salon you had left open is closed automatically.
-      </div>
-      <label for="src-url" data-i18n="srcUrlLabel">Article URL (optional)</label>
-      <input type="text" id="src-url" placeholder="https://…">
-      <div class="share-row">
-        <input type="checkbox" id="src-share">
-        <label for="src-share" data-i18n="shareLabel">Let other hosts find this page
-          in their own conversations</label>
-      </div>
-      <label for="src-file" data-i18n="srcFileLabel">Or a document (PDF, text)</label>
-      <input type="file" id="src-file" accept=".pdf,.txt,text/plain,application/pdf">
-      <div class="private-note" data-i18n="privateNote">
-        Documents you upload are never shared between Salons — only a public web
-        address can be, because anyone could already read it by following the link.
+        Any salon you had left open is closed automatically. Add a URL or a document once
+        the salon has started, from the room itself.
       </div>
 
       <!-- The host's own tier choice, asked once, at creation — same four tiers, same
@@ -729,9 +717,8 @@
         verifyButton: 'Verify',
         createTitle: 'New salon',
         createSub: 'A source is optional: without one, the agent will ask you what to talk '
-                 + 'about. Any salon you had left open is closed automatically.',
-        srcUrlLabel: 'Article URL (optional)',
-        srcFileLabel: 'Or a document (PDF, text)',
+                 + 'about. Any salon you had left open is closed automatically. Add a URL '
+                 + 'or a document once the salon has started, from the room itself.',
         startButton: 'Start the salon',
         roomTitle: 'You are hosting the Salon',
         micButton: '🎤  Enable microphone',
@@ -826,11 +813,7 @@
         channelFailed: 'not sent',
         soundOffButton: '\ud83d\udd07  Sound is off \u2014 turn it on',
         soundOnButton: '\ud83d\udd0a  Sound is on \u2014 turn it off',
-        shareLabel: 'Let other hosts find this page in their own conversations',
         shareLabel2: 'Let other hosts find this page in their own conversations',
-        privateNote: 'Documents you upload are never shared between Salons — only a public '
-                   + 'web address can be, because anyone could already read it by following '
-                   + 'the link.',
         privateNote2: 'Documents you upload are never shared between Salons — only a public '
                     + 'web address can be, because anyone could already read it by following '
                     + 'the link.',
@@ -869,9 +852,8 @@
         createTitle: 'Nouvelle salon',
         createSub: "Une source est facultative : sans elle, l'agent vous demandera de quoi "
                  + 'discuter. Toute salon que vous aviez laissée ouverte est fermée '
-                 + 'automatiquement.',
-        srcUrlLabel: "URL d'article (facultatif)",
-        srcFileLabel: 'Ou un document (PDF, texte)',
+                 + "automatiquement. Ajoutez une URL ou un document une fois la salon "
+                 + 'démarrée, depuis la salle elle-même.',
         startButton: 'Démarrer la salon',
         roomTitle: 'Vous animez le Salon',
         micButton: '🎤  Activer le micro',
@@ -967,13 +949,8 @@
         channelFailed: 'non envoyé',
         soundOffButton: '\ud83d\udd07  Le son est coup\u00e9 \u2014 activez-le',
         soundOnButton: '\ud83d\udd0a  Le son est actif \u2014 coupez-le',
-        shareLabel: 'Permettre aux autres hôtes de trouver cette page dans leurs '
-                  + 'propres conversations',
         shareLabel2: 'Permettre aux autres hôtes de trouver cette page dans leurs '
                    + 'propres conversations',
-        privateNote: 'Les documents que vous téléversez ne sont jamais partagés entre '
-                   + "Salons — seule une adresse web publique peut l'être, puisque "
-                   + 'quiconque pourrait déjà la lire en suivant le lien.',
         privateNote2: 'Les documents que vous téléversez ne sont jamais partagés entre '
                     + "Salons — seule une adresse web publique peut l'être, puisque "
                     + 'quiconque pourrait déjà la lire en suivant le lien.',
@@ -1429,22 +1406,9 @@
       // First, before any await that would spend the gesture. See warmUpMicrophone.
       await warmUpMicrophone();
 
-      var url = document.getElementById('src-url').value.trim();
-      var file = document.getElementById('src-file').files[0];
+      // No source at creation any more — a host adds one from the room itself, in
+      // #c-source, once the salon exists to add it to.
       var form = new FormData();
-      if (url) form.append('source_url', url);
-      if (file) form.append('file', file);
-      // Sent only alongside a URL. A ticked box with a document selected must not travel as
-      // consent to publish the document — the API and the table both refuse it, and sending it
-      // anyway would make the refusal the only thing standing in the way.
-      //
-      // The element is looked up defensively, and that is not paranoia: this line used to sit
-      // outside the try below, so a browser serving a cached page from before the checkbox
-      // existed threw here and the salon simply never started, with no message at all.
-      var share = document.getElementById('src-share');
-      if (url && share && share.checked) {
-        form.append('share_with_platform', 'true');
-      }
       var pickedTier = document.querySelector('#host-tier-options input[name="host-tier"]:checked');
       form.append('host_tier', pickedTier ? pickedTier.value : 'Base');
       var pickedVoice = document.getElementById('host-voice');
