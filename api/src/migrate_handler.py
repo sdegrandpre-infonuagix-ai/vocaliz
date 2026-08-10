@@ -296,6 +296,38 @@ def _probe_orchestrator() -> dict:
     return asyncio.run(run())
 
 
+def _check_balance(user_id: str) -> dict:
+    """Read-only: one account's credit balance and metered time, by id.
+
+    Written to answer, without guessing, whether a salon closing quickly is the balance
+    cap (FR55) doing exactly what it is for, or something else.
+    """
+    from src.credit import balance
+    from src.database import SessionLocal
+    from src.models.user import User
+
+    db = SessionLocal()
+    try:
+        import uuid as _uuid
+
+        user = db.query(User).filter(User.id == _uuid.UUID(user_id)).first()
+        if user is None:
+            return {"status": "not_found", "userId": user_id}
+        bal = balance(db, user.id)
+        return {
+            "status": "ok",
+            "userId": user_id,
+            "email": user.email,
+            "giftedCents": bal.gifted_cents,
+            "paidCents": bal.paid_cents,
+            "totalCents": bal.total_cents,
+            "trialSecondsUsed": user.trial_seconds_used,
+            "billedSeconds": user.billed_seconds,
+        }
+    finally:
+        db.close()
+
+
 def _list_users(limit: int) -> dict:
     """Read-only: the accounts that exist, most recent first.
 
@@ -416,6 +448,8 @@ def handler(event, context):
         return result
     if action == "list_users":
         return _list_users(int(event.get("limit", 50)))
+    if action == "check_balance":
+        return _check_balance(event["userId"])
     if action == "table_census":
         return _table_census()
     if action == "truncate_tables":
