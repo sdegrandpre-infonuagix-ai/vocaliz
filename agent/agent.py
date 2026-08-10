@@ -328,7 +328,14 @@ _WEB_SEARCH_INSTRUCTIONS = (
     "training — or when the discussion would clearly benefit from a fact you are not certain "
     "of. Say briefly that you are checking before you use it, so the pause is not silence. "
     "Do not search for things you already know with confidence, and never narrate the search "
-    "itself beyond that one short sentence."
+    "itself beyond that one short sentence.\n\n"
+    "X SEARCH: You also have a separate tool for searching posts on X (formerly Twitter). Use "
+    "it, instead of the general web search, when a participant specifically asks what is "
+    "being said on X, wants a particular account's posts, or is asking about something whose "
+    "value is in the real-time reaction — public sentiment, a live event, a post going "
+    "around — rather than a settled fact a news article would cover just as well. Same rule "
+    "as web search: say briefly that you are checking before you use it, and never narrate "
+    "the search itself beyond that."
 )
 
 
@@ -534,7 +541,7 @@ class SalonAgent(Agent):
         # the tool list travels with the session, not with a particular model version, so
         # moving from 1.0 to 2.0 (see the model comment where the session is built) needs no
         # change here.
-        super().__init__(instructions=instructions, tools=[xai.WebSearch()])
+        super().__init__(instructions=instructions, tools=[xai.WebSearch(), xai.XSearch()])
         self._salon_id = salon_id
         self._api_url = api_url
         self._host_token = host_token
@@ -548,6 +555,44 @@ class SalonAgent(Agent):
         # the agent marked the salon over and stayed sitting in it.
         self._leave: Callable[[str], None] | None = None
         self._left: bool = False
+        # Set once the journal link is confirmed — same lifecycle as `_journal_linked` above,
+        # and for the same reason: this room holds one human, and forwarding to "the Salon"
+        # means nothing until the background join in `entrypoint` has actually reached it.
+        self._journal_link: OrchestratorLink | None = None
+        # What this interpreter last said to its own human — never what the human said to it.
+        # Overwritten on every turn, so "forward your last message" always means the most
+        # recent one, not some earlier line still sitting in the transcript.
+        self._last_spoken_text: str = ""
+
+    def set_journal_link(self, link: OrchestratorLink | None) -> None:
+        """Supplied by the entrypoint once `_follow_the_journal` confirms this room, the same
+        pattern as `set_departure` — the link does not exist yet when this agent is built."""
+        self._journal_link = link
+
+    def note_spoken(self, text: str) -> None:
+        """Remember the last thing this interpreter said, so it can be forwarded on request."""
+        if text.strip():
+            self._last_spoken_text = text
+
+    @function_tool
+    async def forward_last_message_to_salon(self) -> str:
+        """Share your own last spoken message with the whole Salon, not just this listener.
+
+        Call this when the participant asks you to forward, repeat, or share your last
+        message with the Salon — "your last message" means the last thing you yourself said
+        to them, never something they said to you.
+
+        Returns "forwarded" once every other participant's own interpreter has it to relay in
+        their own language, "nothing_to_forward" if you have not said anything yet this Salon,
+        or "not_available" if this room cannot reach the Salon at all. Tell the participant
+        plainly which one happened — do not claim it went through if it did not.
+        """
+        if not self._last_spoken_text:
+            return "nothing_to_forward"
+        if not (self._follow_journal and self._journal_link is not None):
+            return "not_available"
+        count = await self._journal_link.report(self._last_spoken_text)
+        return "forwarded" if count > 0 else "not_available"
 
     @function_tool
     async def set_intervention_frequency(
@@ -1835,10 +1880,13 @@ async def entrypoint(ctx: agents.JobContext):
             item = getattr(event, "item", None)
             if item is None or getattr(item, "role", None) != "assistant":
                 return
-            captions.publish_soon(
-                text=getattr(item, "text_content", None) or "",
-                identity="agent",
-            )
+            text = getattr(item, "text_content", None) or ""
+            captions.publish_soon(text=text, identity="agent")
+            # Every assistant turn passes through here regardless of what triggered it — a
+            # natural reply, a journal-delivered translation, a typed line spoken aloud — so
+            # this is the one place that can answer "what did you just say" for
+            # `forward_last_message_to_salon` without duplicating that tracking per path.
+            salon_agent.note_spoken(text)
 
     # ── The journal ───────────────────────────────────────────────────────────
     #
@@ -1949,6 +1997,7 @@ async def entrypoint(ctx: agents.JobContext):
             salon_agent._journal_linked = True
             nonlocal journal_link
             journal_link = link
+            salon_agent.set_journal_link(link)
 
             # The one thing this agent says on its own initiative, said once. A model told to
             # stay silent unless instructed is still the first voice this person hears in
