@@ -55,5 +55,5 @@
   "retryButton": "Provo përsëri",
   "soundOffButton": "🔇 Tingulli është i fikur - ndizeni",
   "soundOnButton": "🔊 Tingulli është i ndezur - fikeni",
-  "whatIsVocaliz": "Vocaliz është një platformë për krijimin e Salons. Në një Salon, njerëzit dhe një agjent zanor i AI diskutojnë së bashku një faqe interneti ose një dokument."
+  "whatIsVocaliz": "Vocaliz është një platformë për krijimin e Salons. Një Salon përbëhet nga deri në 3 dhoma audio, secila dhomë me një njeri dhe një agjent zanor AI. Komunikimi midis dhomave është përmes titrave të drejtpërdrejta që secili njeri mund t'i kërkojë agjentit të tij zanor të ndajë në Salon."
 }

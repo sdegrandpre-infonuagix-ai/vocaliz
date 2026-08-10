@@ -80,5 +80,5 @@
   "srcUrlLabel": "URL ng artikulo (opsyonal)",
   "startButton": "Simulan ang sesyon",
   "verifyButton": "Patunayan",
-  "whatIsVocaliz": "Ang Vocaliz ay isang platform para sa paglikha ng Salons. Sa isang Salon, tinatalakay ng mga tao at isang AI voice agent ang isang web page o isang dokumento nang magkasama."
+  "whatIsVocaliz": "Ang Vocaliz ay isang platform para sa paglikha ng Salons. Ang Salon ay binubuo ng hanggang sa 3 audio room, bawat silid na may isang tao at isang AI voice agent. Ang komunikasyon sa pagitan ng mga silid ay sa pamamagitan ng mga live na caption na maaaring hilingin ng bawat tao sa kanilang voice agent na ibahagi sa Salon."
 }

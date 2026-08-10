@@ -97,7 +97,7 @@ export interface Translations {
 
 const fr: Translations = {
   whatIsVocaliz:
-    "Vocaliz est une plateforme permettant de créer des Salons. Dans un Salon, des gens et un agent vocal IA discutent ensemble d'un site web ou d'un document.",
+    "Vocaliz est une plateforme permettant de créer des Salons. Un Salon est composé de jusqu'à 3 salles audio, chacune avec un humain et un agent vocal IA. La communication entre les salles se fait par sous-titres en direct, que chaque humain peut demander à son agent vocal de partager dans le Salon.",
   email: {
     subtitle: 'Entrez votre nom et votre adresse courriel pour commencer.',
     inputLabel: 'Adresse courriel',
@@ -195,7 +195,7 @@ const fr: Translations = {
 
 const en: Translations = {
   whatIsVocaliz:
-    'Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together.',
+    'Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon.',
   email: {
     subtitle: 'Enter your name and email address to get started.',
     inputLabel: 'Email address',

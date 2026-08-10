@@ -80,5 +80,5 @@
   "srcUrlLabel": "Artikel URL (valgfrit)",
   "startButton": "Start sessionen",
   "verifyButton": "Bekræft",
-  "whatIsVocaliz": "Vocaliz er en platform til oprettelse af Salons. I et Salon diskuterer personer og en AI-stemmeagent en webside eller et dokument sammen."
+  "whatIsVocaliz": "Vocaliz er en platform til oprettelse af Salons. Et Salon består af op til 3 lydrum, hvert værelse med et menneske og en AI-stemmeagent. Kommunikation mellem værelserne foregår gennem levende billedtekster, som hvert menneske kan bede deres stemmeagent om at dele i Salon."
 }

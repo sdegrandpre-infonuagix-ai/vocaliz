@@ -75,14 +75,33 @@
     color: #6b6257;
   }
   .quote cite a { color: inherit; }
+  .cta-button {
+    display: inline-block;
+    margin-top: 32px;
+    padding: 14px 28px;
+    background: #C9A84C;
+    color: #2C2C2C;
+    font-size: 1.02rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 12px;
+  }
   .contact {
     max-width: 32ch;
     font-size: .95rem;
     line-height: 1.5;
     color: #6b6257;
-    margin-top: 40px;
+    margin-top: 28px;
   }
   .contact a { color: inherit; }
+  .phone-note {
+    max-width: 32ch;
+    font-size: .88rem;
+    line-height: 1.5;
+    color: #6b6257;
+    margin-top: 10px;
+  }
+  .phone-note a { color: inherit; }
   footer {
     text-align: center;
     font-size: .8rem;
@@ -123,7 +142,9 @@
     augmentative form of sala, room).&rdquo;</span>
     <cite><span data-i18n="quoteSourceLabel">Source:</span> <a href="https://en.wikipedia.org/wiki/Salon_(gathering)" target="_blank" rel="noopener">Wikipedia, Salon (gathering)</a></cite>
   </blockquote>
+  <a class="cta-button" href="https://vocaliz.net/host" data-i18n="ctaButton">Host your first salon for free</a>
   <p class="contact"><span data-i18n="contactLabel">For more info contact</span> <a href="mailto:s.degrandpre@vocaliz.net">s.degrandpre@vocaliz.net</a></p>
+  <p class="phone-note"><span data-i18n="phoneNoteBefore">If you speak English or French, you can call me at </span><a href="tel:+15149420259">1-514-942-0259</a><span data-i18n="phoneNoteAfter">; otherwise, host a salon and invite me with my email! ;)</span></p>
 </main>
 <footer><span data-i18n="footerLabel">Powered by</span> <a href="https://infonuagix.ai" target="_blank" rel="noopener">Infonuagix.ai</a></footer>
 
@@ -140,7 +161,10 @@
       taglineAfter: ".",
       quote: "“A salon is a gathering of people held by a host. These gatherings often consciously followed Horace's definition of the aims of poetry, “either to please or to educate” (Latin: aut delectare aut prodesse). Salons in the tradition of the French literary and philosophical movements of the 17th and 18th centuries are still being conducted. The salon first appeared in Italy in the 16th century, then flourished in France throughout the 17th and 18th centuries. […] Salons were an important place for the exchange of ideas. The word salon first appeared in France in 1664 (from the Italian salone, the large reception hall of Italian mansions; salone is actually the augmentative form of sala, room).”",
       quoteSourceLabel: "Source:",
+      ctaButton: "Host your first salon for free",
       contactLabel: "For more info contact",
+      phoneNoteBefore: "If you speak English or French, you can call me at ",
+      phoneNoteAfter: "; otherwise, host a salon and invite me with my email! ;)",
       footerLabel: "Powered by"
     },
     fr: {
@@ -149,7 +173,10 @@
       taglineAfter: ".",
       quote: "«Un salon est une réunion de personnes organisée par un hôte. Ces réunions suivaient souvent, consciemment, la définition qu'Horace donnait aux buts de la poésie, «soit plaire, soit instruire» (latin : aut delectare aut prodesse). Des salons dans la tradition des mouvements littéraires et philosophiques français des XVIIe et XVIIIe siècles se tiennent encore aujourd'hui. Le salon est apparu pour la première fois en Italie au XVIe siècle, puis a prospéré en France tout au long des XVIIe et XVIIIe siècles. […] Les salons furent un lieu important d'échange d'idées. Le mot salon est apparu pour la première fois en France en 1664 (de l'italien salone, la grande salle de réception des demeures italiennes ; salone est en fait l'augmentatif de sala, pièce).»",
       quoteSourceLabel: "Source :",
+      ctaButton: "Hébergez votre premier salon gratuitement",
       contactLabel: "Pour plus d'informations, contactez",
+      phoneNoteBefore: "Si vous parlez anglais ou français, vous pouvez m'appeler au ",
+      phoneNoteAfter: " ; sinon, hébergez un salon et invitez-moi avec mon courriel ! ;)",
       footerLabel: "Propulsé par"
     }
   };
@@ -159,7 +186,8 @@
   // switch to must have a dictionary generated and an allowlist entry on both ends, or a
   // choice here reaches a 404 instead of a translation.
   var SUPPORTED_LANGS = [
-    "en", "fr", "ar", "bn", "zh", "de", "hi", "id", "it", "ja", "ko", "pt", "ru", "es", "tr", "vi"
+    "en", "fr", "ar", "bn", "zh", "de", "hi", "id", "it", "ja", "ko", "pt", "ru", "es", "tr", "vi",
+    "fa"
   ];
 
   function isSupported(code) { return SUPPORTED_LANGS.indexOf(code) !== -1; }

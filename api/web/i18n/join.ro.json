@@ -55,5 +55,5 @@
   "retryButton": "Încearcă din nou",
   "soundOffButton": "🔇 Sunetul este oprit — porniți-l",
   "soundOnButton": "🔊 Sunetul este pornit — opriți-l",
-  "whatIsVocaliz": "Vocaliz este o platformă pentru crearea Salons. Într-un Salon, persoanele și un agent vocal AI discută împreună o pagină web sau un document."
+  "whatIsVocaliz": "Vocaliz este o platformă pentru crearea Salons. Un Salon este format din până la 3 camere audio, fiecare cameră cu un agent vocal uman și un AI. Comunicarea dintre camere se face prin subtitrări live pe care fiecare om le poate cere agentului său vocal să le partajeze în Salon."
 }

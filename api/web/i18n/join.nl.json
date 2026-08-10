@@ -55,5 +55,5 @@
   "retryButton": "Probeer het opnieuw",
   "soundOffButton": "🔇 Geluid is uitgeschakeld — zet hem aan",
   "soundOnButton": "🔊 Geluid is ingeschakeld — zet het uit",
-  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together."
+  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

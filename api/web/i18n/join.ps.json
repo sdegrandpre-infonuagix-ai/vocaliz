@@ -55,5 +55,5 @@
   "retryButton": "بیا هڅه وکړئ",
   "soundOffButton": "🔇 غږ بند دی - دا فعال کړئ",
   "soundOnButton": "🔊 غږ فعال دی - دا بند کړئ",
-  "whatIsVocaliz": "ووکالیز د Salons د جوړولو لپاره یو پلیټ فارم دی. په یو Salon کې، خلک او د AI غږ ایجنټ د یوې ویب پاڼې یا یو سند په ګډه بحث کوي."
+  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

@@ -80,5 +80,5 @@
   "srcUrlLabel": "Artikel-URL (optional)",
   "startButton": "Starte die Sitzung",
   "verifyButton": "Verifizieren",
-  "whatIsVocaliz": "Vocaliz ist eine Plattform zum Erstellen von Salons. In einem Salon diskutieren Personen und ein KI-Sprachagent gemeinsam über eine Webseite oder ein Dokument."
+  "whatIsVocaliz": "Vocaliz ist eine Plattform zum Erstellen von Salons. Ein Salon besteht aus bis zu 3 Audioräumen, in jedem Raum befinden sich ein menschlicher und ein KI-Sprachagent. Die Kommunikation zwischen den Räumen erfolgt über Live-Untertitel, die jeder Mensch seinen Sprecher bitten kann, sie im Salon zu teilen."
 }

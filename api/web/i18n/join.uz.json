@@ -55,5 +55,5 @@
   "retryButton": "Qayta urinib ko'ring",
   "soundOffButton": "🔇 Ovoz o'chirildi - uni yoqing",
   "soundOnButton": "🔊 Ovoz yoqilgan - uni o'chiring",
-  "whatIsVocaliz": "Vocaliz - bu Salons ni yaratish uchun platforma hisoblanadi. Salon da odamlar va AI ovozli agenti veb-sahifani yoki hujjatni birgalikda muhokama qilishadi."
+  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

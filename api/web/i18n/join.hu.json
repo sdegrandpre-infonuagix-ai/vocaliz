@@ -55,5 +55,5 @@
   "retryButton": "Próbáld újra",
   "soundOffButton": "🔇 A hang ki van kapcsolva - kapcsolja be",
   "soundOnButton": "🔊 A hang be van kapcsolva - kapcsolja ki",
-  "whatIsVocaliz": "A Vocaliz egy platform a Salons létrehozására. A Salon alkalmazásban az emberek és egy AI hangügynök közösen tárgyalnak egy weboldalt vagy egy dokumentumot."
+  "whatIsVocaliz": "A Vocaliz egy platform a Salons létrehozására. A Salon legfeljebb 3 hanghelyiségből áll, mindegyik szobában egy ember és egy AI hangügynök található. A szobák közötti kommunikáció élő feliratokon keresztül történik, amelyeket minden ember megkérheti hangügynökét, hogy ossza meg a Salon -ban."
 }

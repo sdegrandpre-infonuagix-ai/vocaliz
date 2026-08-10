@@ -55,5 +55,5 @@
   "retryButton": "Mēģiniet vēlreiz",
   "soundOffButton": "🔇 Skaņa ir izslēgta - ieslēdziet to",
   "soundOnButton": "🔊 Skaņa ir ieslēgta - izslēdziet to",
-  "whatIsVocaliz": "Vocaliz ir platforma Salons izveidošanai. Programmā Salon cilvēki un AI balss aģents kopā apspriež tīmekļa lapu vai dokumentu."
+  "whatIsVocaliz": "Vocaliz ir platforma Salons izveidošanai. Salon sastāv no līdz 3 audio telpām, katrā telpā ir cilvēks un AI balss aģents. Saziņa starp telpām notiek, izmantojot tiešus parakstus, kurus katrs cilvēks var lūgt savam balss aģentam dalīties Salon."
 }

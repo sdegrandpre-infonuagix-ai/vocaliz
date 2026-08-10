@@ -80,5 +80,5 @@
   "srcUrlLabel": "Հոդվածի URL (ըստ ցանկության)",
   "startButton": "Սկսեք նիստը",
   "verifyButton": "Ստուգել",
-  "whatIsVocaliz": "Vocaliz -ը հարթակ է Salons ստեղծելու համար։ Salon -ում մարդիկ և AI ձայնային գործակալը միասին քննարկում են վեբ էջը կամ փաստաթուղթը։"
+  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

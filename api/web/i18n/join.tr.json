@@ -55,5 +55,5 @@
   "retryButton": "Tekrar dene",
   "soundOffButton": "🔇 Ses kapalı — açın",
   "soundOnButton": "🔊 Ses açık — kapatın",
-  "whatIsVocaliz": "Vocaliz, Salons oluşturmak için bir platformdur. Salon sürümünde, kişiler ve yapay zeka ses temsilcisi bir web sayfasını veya belgeyi birlikte tartışır."
+  "whatIsVocaliz": "Vocaliz, Salons oluşturmak için bir platformdur. Salon, her odada bir insan ve bir yapay zeka ses aracısı bulunan en fazla 3 ses odasından oluşur. Odalar arasındaki iletişim, her insanın ses temsilcisinden Salon 'de paylaşmasını isteyebileceği canlı altyazılar aracılığıyla gerçekleşir."
 }

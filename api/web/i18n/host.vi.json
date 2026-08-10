@@ -80,5 +80,5 @@
   "srcUrlLabel": "URL bài viết (tùy chọn)",
   "startButton": "Bắt đầu phiên",
   "verifyButton": "Xác minh",
-  "whatIsVocaliz": "Vocaliz là một nền tảng để tạo Salons. Trong Salon, mọi người và nhân viên thoại AI thảo luận về một trang web hoặc một tài liệu cùng nhau."
+  "whatIsVocaliz": "Vocaliz là một nền tảng để tạo Salons. Salon được tạo thành từ tối đa 3 phòng âm thanh, mỗi phòng có một người và một nhân viên giọng nói AI. Giao tiếp giữa các phòng là thông qua phụ đề trực tiếp mà mỗi người có thể yêu cầu đại lý giọng nói của họ chia sẻ trong Salon."
 }

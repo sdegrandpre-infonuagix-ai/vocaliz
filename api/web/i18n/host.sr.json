@@ -80,5 +80,5 @@
   "srcUrlLabel": "URL članka (opciono)",
   "startButton": "Započnite sesiju",
   "verifyButton": "Potvrdite",
-  "whatIsVocaliz": "Vocaliz je platforma za kreiranje Salons. U Salon ljudi i glasovni agent veštačke inteligencije zajedno razgovaraju o veb stranici ili dokumentu."
+  "whatIsVocaliz": "Vocaliz je platforma za kreiranje Salons. Salon se sastoji od do 3 audio sobe, svaka soba sa ljudskim i AI glasovnim agentom. Komunikacija između soba je putem titlova uživo koje svaki čovek može tražiti od svog glasovnog agenta da podeli u Salon."
 }

@@ -80,5 +80,5 @@
   "srcUrlLabel": "文章网址（可选）",
   "startButton": "启动会话",
   "verifyButton": "验证",
-  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together."
+  "whatIsVocaliz": "Vocaliz 是创建 Salons 的平台。Salon 由多达 3 个音频室组成，每个房间都有一个人工和一个 AI 语音代理。房间之间的通信是通过实时字幕进行的，每个人都可以要求他们的语音代理在 Salon 中共享。"
 }

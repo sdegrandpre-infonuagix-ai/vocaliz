@@ -55,5 +55,5 @@
   "retryButton": "Spróbuj ponownie",
   "soundOffButton": "🔇 Dźwięk jest wyłączony - włącz go",
   "soundOnButton": "🔊 Dźwięk jest włączony - wyłącz go",
-  "whatIsVocaliz": "Vocaliz jest platformą do tworzenia Salons. W Salon osoby i agent głosowy AI omawiają wspólnie stronę internetową lub dokument."
+  "whatIsVocaliz": "Vocaliz jest platformą do tworzenia Salons. Salon składa się z maksymalnie 3 pomieszczeń audio, w każdym pokoju z człowiekiem i agentem głosowym AI. Komunikacja między pokojami odbywa się za pomocą napisów na żywo, które każdy człowiek może poprosić swojego agenta głosowego o udostępnienie w Salon."
 }

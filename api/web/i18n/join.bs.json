@@ -55,5 +55,5 @@
   "retryButton": "Pokušajte ponovo",
   "soundOffButton": "🔇 Zvuk je isključen - uključite ga",
   "soundOnButton": "🔊 Zvuk je uključen - isključite ga",
-  "whatIsVocaliz": "Vocaliz je platforma za kreiranje Salons. U Salon ljudi i glasovni agent umjetne inteligencije zajedno razgovaraju o web stranici ili dokumentu."
+  "whatIsVocaliz": "Vocaliz je platforma za kreiranje Salons. Salon sastoji se od do 3 audio sobe, svaka soba sa ljudskim i AI glasovnim agentom. Komunikacija između soba odvija se putem natpisa uživo koje svaki čovjek može tražiti od svog glasovnog agenta da podijeli u Salon."
 }

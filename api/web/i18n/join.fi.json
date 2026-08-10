@@ -55,5 +55,5 @@
   "retryButton": "Yritä uudelleen",
   "soundOffButton": "🔇 Ääni on pois päältä — kytke se päälle",
   "soundOnButton": "🔊 Ääni on päällä — sammuta se",
-  "whatIsVocaliz": "Vocaliz on alusta Salons: n luomiseen. Salon: ssä ihmiset ja tekoälyn ääniagentti keskustelevat verkkosivulta tai asiakirjasta yhdessä."
+  "whatIsVocaliz": "Vocaliz on alusta Salons: n luomiseen. Salon koostuu enintään kolmesta äänihuoneesta, joissa jokaisessa huoneessa on ihminen ja tekoälyn ääniagentti. Huoneiden välinen viestintä tapahtuu live-kuvatekstien kautta, jotka jokainen ihminen voi pyytää ääniagenttiaan jakamaan Salon: ssä."
 }

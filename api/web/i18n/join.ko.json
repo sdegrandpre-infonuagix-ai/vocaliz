@@ -55,5 +55,5 @@
   "retryButton": "다시 시도하세요",
   "soundOffButton": "🔇 사운드가 꺼졌습니다. 전원을 켜세요.",
   "soundOnButton": "🔊 사운드가 켜져 있습니다. 끄세요",
-  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. In a Salon, people and an AI voice agent discuss a web page or a document together."
+  "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

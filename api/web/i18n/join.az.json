@@ -55,5 +55,5 @@
   "retryButton": "Yenidən cəhd edin",
   "soundOffButton": "🔇 Səs söndürüldü - onu açın",
   "soundOnButton": "🔊 Səs açıqdır - söndürün",
-  "whatIsVocaliz": "Vocaliz Salons yaratmaq üçün platformadır. Salon -də insanlar və AI səs agenti bir veb səhifəni və ya sənədi birlikdə müzakirə edirlər."
+  "whatIsVocaliz": "Vocaliz Salons yaratmaq üçün platformadır. Salon 3-ə qədər audio otağından ibarətdir, hər otaqda insan və AI səs agenti var. Otaqlar arasındakı ünsiyyət, hər bir insanın səs agentindən Salon -də paylaşmasını xahiş edə biləcəyi canlı başlıqlar vasitəsilə baş verir."
 }
