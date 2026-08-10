@@ -134,17 +134,6 @@ async def test_each_turn_is_awaited_before_the_next_is_asked_for():
 
 
 @pytest.mark.asyncio
-async def test_a_turn_that_failed_to_speak_is_logged_not_raised():
-    """`SpeechHandle._mark_done` keeps the error out of the awaited future by design — most
-    handles are never awaited. Awaiting one here must not raise just because this handle
-    now is; the failure is only visible through `exception()`, and only worth a log line."""
-    session = MagicMock()
-    session.generate_reply.return_value = FakeSpeechHandle(error=RuntimeError("timed out"))
-
-    await SessionVoice(session).render(_line())  # must not raise
-
-
-@pytest.mark.asyncio
 async def test_a_failed_attempt_is_retried_once():
     """The reading position has already moved by the time this code sees the line — see the
     orchestrator's side of that contract — so a delivery that never lands is gone for good,
@@ -163,11 +152,14 @@ async def test_a_failed_attempt_is_retried_once():
 @pytest.mark.asyncio
 async def test_a_line_that_fails_twice_running_is_given_up_on():
     """Bounded deliberately: a session that fails the same line twice running is not a
-    fluke this loop should keep spending its own timeout budget on."""
+    fluke this loop should keep spending its own timeout budget on. Raising here — rather
+    than swallowing the error — is what lets `deliver_script` stop the batch and `follow`
+    back off, instead of asking the same broken session for the next line at full speed."""
     session = MagicMock()
     session.generate_reply.return_value = FakeSpeechHandle(error=RuntimeError("timed out"))
 
-    await SessionVoice(session).render(_line())  # must not raise even after giving up
+    with pytest.raises(RuntimeError, match="timed out"):
+        await SessionVoice(session).render(_line())
 
     assert session.generate_reply.call_count == 2
 

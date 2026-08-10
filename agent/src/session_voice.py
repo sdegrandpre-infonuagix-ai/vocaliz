@@ -125,10 +125,18 @@ class SessionVoice:
         deliberately: a session that fails a line twice running is not a fluke this loop
         should keep spending its own timeout budget on.
 
-        Never raises. `SpeechHandle._mark_done` keeps a failure out of the awaited future by
-        design — most handles are never awaited — so a failed attempt is only visible through
-        `exception()`, which is what decides whether this retries or gives up.
+        `SpeechHandle._mark_done` keeps a failure out of the awaited future by design — most
+        handles are never awaited — so a failed attempt is only visible through `exception()`,
+        which is what decides whether this retries or gives up.
+
+        Raises once every attempt has failed. `deliver_script` already has a place for that —
+        it stops the batch and lets the next poll bring what is left — and `follow`'s own loop
+        backs off before asking again. Swallowing the error here instead would hide it from
+        both: the delivery loop would call this again for the very next line as if nothing had
+        happened, at full speed, for as long as the underlying session stayed broken — which,
+        for a connection that has gone silently dead, is the rest of the room's life.
         """
+        error: Exception | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             handle = self._session.generate_reply(instructions=instructions)
             await handle
@@ -141,3 +149,4 @@ class SessionVoice:
                 MAX_ATTEMPTS,
                 error,
             )
+        raise error
