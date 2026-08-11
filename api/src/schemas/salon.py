@@ -222,12 +222,21 @@ class UtteranceBody(BaseModel):
     speaks, and deliberately not an email: a caption carries a display label, and a
     guest's address must never reach the other participants.
 
+    speakerName is the LiveKit participant's own display name — set at join time from a
+    chosen name or the platform's own anonymised fallback (`display_name_of`,
+    `guest_display_name`), so the agent already holds it and this is a pass-through, not a
+    lookup. Optional and, when given, replaces `display_label`'s own guess at a label for
+    this one turn — including for "agent", which is how a line spoken on somebody's behalf
+    (a typed message shared to the whole Salon) is captioned as "Salon" rather than
+    "Vocaliz": the agent is still the one speaking, but not for itself.
+
     targetLanguages asks for the turn rendered into each of them in the same round trip.
     The agent knows what every viewer is reading, from their participant attributes, and
     asking here saves a second call before the caption can be published.
     """
     speakerIdentity: str
     speakerRole: str
+    speakerName: str | None = None
     text: str
     language: str | None = None
     targetLanguages: list[str] = []

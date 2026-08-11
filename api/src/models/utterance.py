@@ -50,6 +50,15 @@ class Utterance(Base):
     speaker_identity: Mapped[str] = mapped_column(String(128), nullable=False)
     speaker_role: Mapped[str] = mapped_column(String(5), nullable=False)
 
+    # The display label this turn was actually captioned under, as the agent gave it —
+    # LiveKit's own participant name for a human, or "Salon" for a line spoken on somebody's
+    # behalf rather than for itself. Null for a turn recorded before this column existed, or
+    # one nobody supplied a name for; `display_label` falls back to its own guess exactly as
+    # it always has. Stored rather than recomputed on every read, so a late-joining viewer
+    # sees the same name a live listener did, not whatever the anonymised fallback resolves
+    # to today.
+    speaker_name: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
     # As transcribed, in the language it was spoken. Never overwritten by a translation:
     # every translation is a derived row, and this is the only record of what was said.
     text: Mapped[str] = mapped_column(Text, nullable=False)

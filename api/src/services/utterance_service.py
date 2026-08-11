@@ -15,14 +15,21 @@ logger = logging.getLogger(__name__)
 AGENT_IDENTITY = "agent"
 
 
-def display_label(identity: str, role: str) -> str:
+def display_label(identity: str, role: str, name: str | None = None) -> str:
     """What a viewer sees next to a caption.
 
-    A guest is shown as "Guest 3F2A", never as their address: the host typed that address
-    to invite them, and the other participants have no business reading it. The label is
-    derived from the invitation id, which is what the rest of the product already shows,
-    so the name on a caption matches the name in the room.
+    `name` — LiveKit's own display name for whoever spoke, or "Salon" for a line spoken on
+    somebody's behalf — wins whenever it is given, over every guess below it, including for
+    "agent": the facilitator commenting in its own voice is still "Vocaliz", but a typed
+    message it is only relaying is captioned as what it is, "Salon", not as the model's own
+    remark. Absent — a turn recorded before this existed, or nobody supplied one — falls
+    back to the guess this always made: a guest is shown as "Guest 3F2A", never as their
+    address, since the host typed that address to invite them and the other participants
+    have no business reading it.
     """
+    given = (name or "").strip()
+    if given:
+        return given[:60]
     if role == "agent":
         return "Vocaliz"
     if identity.startswith("guest-"):
@@ -37,6 +44,7 @@ def record(
     speaker_identity: str,
     speaker_role: str,
     text: str,
+    speaker_name: str | None = None,
     language: str | None = None,
     spoken_at: datetime | None = None,
 ) -> Utterance | None:
@@ -63,6 +71,7 @@ def record(
                 salon_id=salon_id,
                 speaker_identity=speaker_identity,
                 speaker_role=speaker_role,
+                speaker_name=(speaker_name or "").strip()[:60] or None,
                 text=text,
                 language=language,
                 sequence=(highest or 0) + 1,
@@ -112,7 +121,7 @@ def transcript(
         result.append(
             {
                 "sequence": row.sequence,
-                "speaker": display_label(row.speaker_identity, row.speaker_role),
+                "speaker": display_label(row.speaker_identity, row.speaker_role, row.speaker_name),
                 "role": row.speaker_role,
                 "text": rendered,
                 # The spoken words travel alongside the translation so a viewer can check

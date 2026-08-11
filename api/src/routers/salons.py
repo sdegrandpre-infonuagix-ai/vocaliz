@@ -1141,6 +1141,7 @@ def record_utterance(
         salon_id=salon.id,
         speaker_identity=body.speakerIdentity,
         speaker_role=body.speakerRole,
+        speaker_name=body.speakerName,
         text=body.text,
         language=body.language,
     )
@@ -1160,7 +1161,7 @@ def record_utterance(
     return UtteranceResponse(
         sequence=utterance.sequence,
         speaker=utterance_service.display_label(
-            utterance.speaker_identity, utterance.speaker_role
+            utterance.speaker_identity, utterance.speaker_role, utterance.speaker_name
         ),
         role=utterance.speaker_role,
         text=utterance.text,

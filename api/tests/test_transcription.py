@@ -131,6 +131,43 @@ def test_the_agent_is_labelled_vocaliz(client, host, salon):
     assert body["speaker"] == "Vocaliz"
 
 
+def test_a_given_name_wins_over_the_anonymised_guess(client, host, salon):
+    """LiveKit's own display name for a guest who gave one — passed through by the agent,
+    which already holds it from the room, not looked up here."""
+    _, token = host
+    body = _post(client, token, salon, speakerName="Marie").json()
+    assert body["speaker"] == "Marie"
+
+
+def test_a_shared_line_is_labelled_salon_not_vocaliz(client, host, salon):
+    """A typed message read aloud on the sender's behalf is the agent's voice but not the
+    agent's own words — "Salon" says so, where the bare role would say "Vocaliz"."""
+    _, token = host
+    body = _post(
+        client, token, salon,
+        speakerIdentity="agent", speakerRole="agent", speakerName="Salon", text="Bonjour à tous.",
+    ).json()
+    assert body["speaker"] == "Salon"
+
+
+def test_a_blank_name_falls_back_to_the_anonymised_guess(client, host, salon):
+    """An empty string is not a name — the agent sends one for every guest whether or not
+    they gave one, so this is what keeps an unnamed guest anonymised rather than blank."""
+    _, token = host
+    body = _post(client, token, salon, speakerName="   ").json()
+    assert body["speaker"] == "Guest 3F2A"
+
+
+def test_a_given_name_survives_into_the_replayed_transcript(client, host, salon):
+    """The name a late joiner sees must be the one a live listener saw — not whatever the
+    anonymised guess resolves to by the time they ask."""
+    _, token = host
+    _post(client, token, salon, speakerName="Marie")
+
+    body = client.get(f"/salons/{salon.id}/utterances", headers=_auth(token)).json()
+    assert body["utterances"][0]["speaker"] == "Marie"
+
+
 # ─── Translating ──────────────────────────────────────────────────────────────
 
 def test_translation_is_returned_for_each_requested_language(client, host, salon):
