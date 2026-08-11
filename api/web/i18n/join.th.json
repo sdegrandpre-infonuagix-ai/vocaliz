@@ -17,6 +17,7 @@
   "agentPause": "หยุดตัวแทนชั่วคราว",
   "agentResume": "เปิดใช้งานตัวแทน",
   "badge": "ไม่มีการติดตั้ง",
+  "balanceLine": "ของขวัญ ${gift} · ชำระแล้ว ${paid}",
   "billboardLabel": "กำลังพูดคุย",
   "capAsSpoken": "ตามที่พูด",
   "capBigger": "คำบรรยายขนาดใหญ่",

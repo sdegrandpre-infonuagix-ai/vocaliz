@@ -14,6 +14,7 @@
   "anonHint": "他の招待状と同じように、一度だけ機能します。誰にもメールは送信されません。コピーして自分で共有してください。",
   "anonReady": "リンク準備完了。コピーしてゲストに渡してください。",
   "badge": "ホストコンソール",
+  "balanceLine": "ギフト ${gift} · 支払い済み ${paid}",
   "billboardLabel": "議論中",
   "capAsSpoken": "話したように",
   "capBigger": "字幕の拡大",

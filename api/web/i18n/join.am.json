@@ -17,6 +17,7 @@
   "agentPause": "ወኪሉን ያቆሙ",
   "agentResume": "ወኪሉን ያግብሩ",
   "badge": "ምንም መጫን የለም",
+  "balanceLine": "ስጦታ ${gift} · የተከፈለ $%{paid}",
   "billboardLabel": "እየተወያዩ",
   "capAsSpoken": "እንደተናገረ",
   "capBigger": "ትልቅ ጽሑፎች",

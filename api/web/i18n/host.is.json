@@ -14,6 +14,7 @@
   "anonHint": "Virkar einu sinni, eins og öll boð. Enginn er sendur tölvupóstur - afritaðu það og deildu því sjálfur.",
   "anonReady": "Hlekkur tilbúinn. Afritaðu það og gefðu gestinum þínum.",
   "badge": "Gestgjafatölva",
+  "balanceLine": "Gjöf ${gift} · Greitt ${paid}",
   "billboardLabel": "Verið að ræða",
   "capAsSpoken": "Eins og talað er",
   "capBigger": "Stærri myndatextar",

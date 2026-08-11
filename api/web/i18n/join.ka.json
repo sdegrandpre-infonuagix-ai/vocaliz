@@ -17,6 +17,7 @@
   "agentPause": "აგენტის შეჩერება",
   "agentResume": "აგენტის გააქტიურება",
   "badge": "არ არის ინსტალაცია",
+  "balanceLine": "საჩუქარი ${gift} · გადახდილი $%{paid}",
   "billboardLabel": "განიხილება",
   "capAsSpoken": "როგორც საუბრობენ",
   "capBigger": "უფრო დიდი წარწერები",

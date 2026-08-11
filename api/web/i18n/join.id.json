@@ -17,6 +17,7 @@
   "agentPause": "Jeda agen",
   "agentResume": "Aktifkan agen",
   "badge": "Tidak ada instalasi",
+  "balanceLine": "Hadiah ${gift} · Berbayar ${paid}",
   "billboardLabel": "Sedang dibahas",
   "capAsSpoken": "Seperti yang diucapkan",
   "capBigger": "Keterangan yang lebih besar",

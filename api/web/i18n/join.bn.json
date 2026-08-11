@@ -17,6 +17,7 @@
   "agentPause": "এজেন্টকে বিরতি দিন",
   "agentResume": "এজেন্ট সক্রিয় করুন",
   "badge": "কোনও ইনস্টল নেই",
+  "balanceLine": "উপহার ${gift} · প্রদত্ত ${paid}",
   "billboardLabel": "আলোচনা করা হচ্ছে",
   "capAsSpoken": "যেমন বলা হয়েছে",
   "capBigger": "বড় ক্যাপশন",

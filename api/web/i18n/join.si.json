@@ -17,6 +17,7 @@
   "agentPause": "නියෝජිතයාට විරාම කරන්න",
   "agentResume": "නියෝජිතයා සක්රිය කරන්න",
   "badge": "ස්ථාපනය නොමැත",
+  "balanceLine": "තෑග්ග ${gift} · ගෙවූ ${paid}",
   "billboardLabel": "සාකච්ඡා කෙරෙමින් පවතී",
   "capAsSpoken": "කථා කරන පරිදි",
   "capBigger": "විශාල ශීර්ෂ පා",

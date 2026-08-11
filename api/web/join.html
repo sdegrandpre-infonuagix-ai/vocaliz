@@ -135,7 +135,14 @@
        them and both sit toward the right — where the agent says the button is. */
 
     /* Language switch — pushed to the far end of the header bar. */
-    .lang { margin-left: auto; display: flex; gap: 4px; }
+    .lang { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+    .balance-widget {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #F8F3E8;
+      white-space: nowrap;
+    }
 
     .lang select {
       background: rgba(248, 243, 232, .12);
@@ -526,6 +533,10 @@
           data-i18n="openConsole" style="display:none">Host console</button>
 
   <div class="lang">
+    <!-- Gift and paid balance, refreshed on the same clock as the metering tick (FR63) so
+         a top-up or a spend is never more than a few seconds stale here. Hidden until a
+         guest actually has an account to ask about — an anonymous join has none yet. -->
+    <div id="balance-widget" class="balance-widget" style="display:none"></div>
     <!-- Sixteen languages, so a select rather than a row of buttons. English and
          French are inline in this file and switch instantly; the other fourteen are
          fetched from /i18n on first use. -->
@@ -939,7 +950,8 @@
       starMeaning: '* Live voice conversation is also available in ',
       cookieMsg: "This site keeps a few preferences (your language, your reading size) in your browser's storage rather than on a server. Nothing here is sold or shared.",
       cookieAccept: 'Accept all cookies',
-      cookieDecline: 'No cookies'
+      cookieDecline: 'No cookies',
+      balanceLine: 'Gift ${gift} · Paid ${paid}'
     },
     fr: {
       pageTitle: 'Vocaliz — Rejoindre la conversation',
@@ -2096,8 +2108,40 @@
         if (box) box.style.display = '';
         renderAgentControls();
         readAgentState();
+        startBalancePolling();
       }
     }).catch(function() { /* best effort */ });
+  }
+
+  // ── Balance: gift and paid, once this guest has an account to ask about ──────
+  // spendToken() above is what gives them one — every guest gets an account the moment
+  // their microphone actually works, whether or not they ever open the account-creation
+  // card. Same 5s cadence as the metering tick (FR63), so this is never more than one tick
+  // behind what a top-up or a spend actually did.
+  var balanceInterval = null;
+
+  function renderBalance(data) {
+    var el = document.getElementById('balance-widget');
+    if (!el) return;
+    if (!data) { el.style.display = 'none'; return; }
+    el.textContent = T('balanceLine', {
+      gift: (data.giftedCents / 100).toFixed(2),
+      paid: (data.paidCents / 100).toFixed(2)
+    });
+    el.style.display = '';
+  }
+
+  async function loadBalance() {
+    if (!guestToken) { renderBalance(null); return; }
+    try {
+      renderBalance(await guestApi('/me/balance'));
+    } catch (e) { renderBalance(null); }
+  }
+
+  function startBalancePolling() {
+    if (balanceInterval) return;
+    loadBalance();
+    balanceInterval = setInterval(loadBalance, 5000);
   }
 
   // A random token this browser keeps, so a device that comes back is recognisable as the same

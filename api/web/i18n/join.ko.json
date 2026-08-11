@@ -17,6 +17,7 @@
   "agentPause": "상담원 일시 중지",
   "agentResume": "에이전트 활성화",
   "badge": "설치 안 함",
+  "balanceLine": "Gift ${gift} · Paid ${paid}",
   "billboardLabel": "논의 중",
   "capAsSpoken": "말한 대로",
   "capBigger": "더 큰 캡션",

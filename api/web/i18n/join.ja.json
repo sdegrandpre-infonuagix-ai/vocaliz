@@ -17,6 +17,7 @@
   "agentPause": "エージェントを一時停止する",
   "agentResume": "エージェントをアクティベートする",
   "badge": "インストールなし",
+  "balanceLine": "ギフト ${gift} · 支払い済み ${paid}",
   "billboardLabel": "議論中",
   "capAsSpoken": "話したように",
   "capBigger": "字幕の拡大",

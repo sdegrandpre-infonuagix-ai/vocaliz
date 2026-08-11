@@ -17,6 +17,7 @@
   "agentPause": "Pausa agenten",
   "agentResume": "Aktivera agenten",
   "badge": "Ingen installation",
+  "balanceLine": "Present ${gift} · Betald ${paid}",
   "billboardLabel": "Diskuteras",
   "capAsSpoken": "Som talat",
   "capBigger": "Större bildtexter",

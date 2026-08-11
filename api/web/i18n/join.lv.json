@@ -17,6 +17,7 @@
   "agentPause": "Pārtrauciet aģentu",
   "agentResume": "Aktivizējiet aģentu",
   "badge": "Nav instalēšanas",
+  "balanceLine": "Dāvana ${gift} · Samaksāts ${paid}",
   "billboardLabel": "Tiek apspriests",
   "capAsSpoken": "Kā runāts",
   "capBigger": "Lielāki paraksti",

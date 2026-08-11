@@ -17,6 +17,7 @@
   "agentPause": "Den Agenten anhalten",
   "agentResume": "Aktiviere den Agenten",
   "badge": "Keine Installation",
+  "balanceLine": "Geschenk ${gift} · Bezahlt ${paid}",
   "billboardLabel": "Wird besprochen",
   "capAsSpoken": "Wie gesprochen",
   "capBigger": "Größere Bildunterschriften",

@@ -14,6 +14,7 @@
   "anonHint": "Egyszer működik, mint minden meghívó. Senkinek nem küldnek e-mailt - másolja ki és ossza meg saját maga.",
   "anonReady": "Link kész. Másolja át és adja át a vendégnek.",
   "badge": "Házigazda konzol",
+  "balanceLine": "Ajándék ${gift} · Fizetett ${paid}",
   "billboardLabel": "Megvitatják",
   "capAsSpoken": "Ahogy beszélt",
   "capBigger": "Nagyobb feliratok",

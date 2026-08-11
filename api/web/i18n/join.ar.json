@@ -17,6 +17,7 @@
   "agentPause": "أوقف الوكيل",
   "agentResume": "قم بتنشيط الوكيل",
   "badge": "بدون تثبيت",
+  "balanceLine": "هدية ${gift} · دفعت ${paid}",
   "billboardLabel": "قيد المناقشة",
   "capAsSpoken": "كما تم التحدث بها",
   "capBigger": "تسميات توضيحية أكبر",

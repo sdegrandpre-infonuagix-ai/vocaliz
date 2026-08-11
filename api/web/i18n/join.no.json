@@ -17,6 +17,7 @@
   "agentPause": "Sett agenten på pause",
   "agentResume": "Aktiver agenten",
   "badge": "Ingen installasjon",
+  "balanceLine": "Gave ${gift} · Betalt ${paid}",
   "billboardLabel": "Blir diskutert",
   "capAsSpoken": "Som sagt",
   "capBigger": "Større bildetekster",

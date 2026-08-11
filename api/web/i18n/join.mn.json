@@ -17,6 +17,7 @@
   "agentPause": "Агентыг түр зогсооно",
   "agentResume": "Агентыг идэвхжүүлнэ",
   "badge": "Суулгахгүй",
+  "balanceLine": "Бэлэг ${gift} · Төлбөртэй ${paid}",
   "billboardLabel": "Хэлэлцэж байна",
   "capAsSpoken": "Ярьсан шиг",
   "capBigger": "Том гарчиг",

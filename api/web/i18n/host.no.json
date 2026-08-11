@@ -14,6 +14,7 @@
   "anonHint": "Fungerer en gang, som enhver invitasjon. Ingen blir sendt på e-post - kopier den og del den selv.",
   "anonReady": "Link klar. Kopier den og gi den til gjesten din.",
   "badge": "Vertskonsoll",
+  "balanceLine": "Gave ${gift} · Betalt ${paid}",
   "billboardLabel": "Blir diskutert",
   "capAsSpoken": "Som sagt",
   "capBigger": "Større bildetekster",

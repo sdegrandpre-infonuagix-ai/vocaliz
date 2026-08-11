@@ -17,6 +17,7 @@
   "agentPause": "Призупинити роботу агента",
   "agentResume": "Активувати агента",
   "badge": "Немає встановлення",
+  "balanceLine": "Подарунок ${gift} · Оплачений ${paid}",
   "billboardLabel": "Обговорюється",
   "capAsSpoken": "Як було сказано",
   "capBigger": "Більші підписи",

@@ -17,6 +17,7 @@
   "agentPause": "暂停代理",
   "agentResume": "激活代理",
   "badge": "不安装",
+  "balanceLine": "Gift ${gift} · Paid ${paid}",
   "billboardLabel": "正在讨论中",
   "capAsSpoken": "如所说",
   "capBigger": "更大的字幕",

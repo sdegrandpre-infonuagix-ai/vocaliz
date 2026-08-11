@@ -17,6 +17,7 @@
   "agentPause": "Keskeytä agentti",
   "agentResume": "Aktivoi agentti",
   "badge": "Ei asennusta",
+  "balanceLine": "Lahja ${gift} · Maksettu ${paid}",
   "billboardLabel": "Keskustellaan",
   "capAsSpoken": "Kuten puhuttiin",
   "capBigger": "Suuremmat kuvatekstit",

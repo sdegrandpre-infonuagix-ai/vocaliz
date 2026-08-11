@@ -14,6 +14,7 @@
   "anonHint": "Toimii kerran, kuten mikä tahansa kutsu. Kenellekään ei lähetetä sähköpostia - kopioi se ja jaa se itse.",
   "anonReady": "Linkki valmis. Kopioi se ja anna se vieraallesi.",
   "badge": "Isäntäkonsoli",
+  "balanceLine": "Lahja ${gift} · Maksettu ${paid}",
   "billboardLabel": "Keskustellaan",
   "capAsSpoken": "Kuten puhuttiin",
   "capBigger": "Suuremmat kuvatekstit",

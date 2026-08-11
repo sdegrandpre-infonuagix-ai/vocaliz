@@ -17,6 +17,7 @@
   "agentPause": "Zaustavite agenta",
   "agentResume": "Aktivirajte agenta",
   "badge": "Brez namestitve",
+  "balanceLine": "Darilo ${gift} · Plačano ${paid}",
   "billboardLabel": "Razpravlja se",
   "capAsSpoken": "Kot je govorjeno",
   "capBigger": "Večji napisi",

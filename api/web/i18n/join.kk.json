@@ -17,6 +17,7 @@
   "agentPause": "Агентті кідірту",
   "agentResume": "Агентті іске қосыңыз",
   "badge": "Орнату жоқ",
+  "balanceLine": "Сыйлық ${gift} · Төленген $%{paid}",
   "billboardLabel": "Талқылануда",
   "capAsSpoken": "Айтылғандай",
   "capBigger": "Үлкен тақырыптар",

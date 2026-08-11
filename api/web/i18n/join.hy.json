@@ -17,6 +17,7 @@
   "agentPause": "Դադար տվեք գործակալին",
   "agentResume": "Ակտիվացրեք գործակալը",
   "badge": "Տեղադրել չկա",
+  "balanceLine": "Նվեր ${gift} · Վճարված ${paid}",
   "billboardLabel": "Քննարկվում է",
   "capAsSpoken": "Ինչպես խոսվում է",
   "capBigger": "Ավելի մեծ վերնագրեր",

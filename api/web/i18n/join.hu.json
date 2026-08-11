@@ -17,6 +17,7 @@
   "agentPause": "Az ügynök szünetelése",
   "agentResume": "Aktiválja az ügynököt",
   "badge": "Nincs telepítés",
+  "balanceLine": "Ajándék ${gift} · Fizetett ${paid}",
   "billboardLabel": "Megvitatják",
   "capAsSpoken": "Ahogy beszélt",
   "capBigger": "Nagyobb feliratok",

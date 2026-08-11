@@ -14,6 +14,7 @@
   "anonHint": "一次即可使用，就像任何邀请一样。没有人收到电子邮件——复制并自己分享。",
   "anonReady": "链接准备好了。将其复制并交给您的客人。",
   "badge": "主机控制台",
+  "balanceLine": "Gift ${gift} · Paid ${paid}",
   "billboardLabel": "正在讨论中",
   "capAsSpoken": "如所说",
   "capBigger": "更大的字幕",

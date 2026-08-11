@@ -49,7 +49,14 @@
     }
 
     /* Language switch — pushed to the far end of the header bar. */
-    .lang { margin-left: auto; display: flex; gap: 4px; }
+    .lang { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+    .balance-widget {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #F8F3E8;
+      white-space: nowrap;
+    }
 
     .lang select {
       background: rgba(248, 243, 232, .12);
@@ -382,6 +389,10 @@
     <h1>VOCALIZ</h1>
     <span class="badge-host" data-i18n="badge">Host console</span>
     <div class="lang">
+      <!-- Gift and paid balance, refreshed on the same clock as the metering tick (FR63)
+           so a top-up or a spend is never more than a few seconds stale here. Hidden until
+           the first answer arrives, and hidden again for anyone signed out. -->
+      <div id="balance-widget" class="balance-widget" style="display:none"></div>
       <!-- Sixteen languages, so a select rather than a row of buttons. English and
            French are inline in this file and switch instantly; the other fourteen are
            fetched from /i18n on first use. -->
@@ -930,7 +941,8 @@
         starMeaning: '* Live voice conversation is also available in ',
         cookieMsg: "This site keeps a few preferences (your language, your reading size) in your browser's storage rather than on a server. Nothing here is sold or shared.",
         cookieAccept: 'Accept all cookies',
-        cookieDecline: 'No cookies'
+        cookieDecline: 'No cookies',
+        balanceLine: 'Gift ${gift} · Paid ${paid}'
       },
       fr: {
         pageTitle: 'Vocaliz — Console hôte',
@@ -1073,7 +1085,8 @@
         starMeaning: '* La conversation vocale en direct est aussi offerte en ',
         cookieMsg: "Ce site conserve quelques préférences (votre langue, la taille de lecture) dans le stockage de votre navigateur plutôt que sur un serveur. Rien ici n'est vendu ni partagé.",
         cookieAccept: 'Accepter tous les témoins',
-        cookieDecline: 'Aucun témoin'
+        cookieDecline: 'Aucun témoin',
+        balanceLine: 'Don {gift} $ · Payé {paid} $'
       }
     };
 
@@ -1466,9 +1479,41 @@
     // The Salon is not rejoined automatically. Entering it needs a microphone, and asking for
     // one on page load spends a permission nobody granted by arriving. The button provides
     // the gesture, which is also what iOS Safari requires.
+    // ── Balance: gift and paid, wherever the host is in the flow ──────────────
+    // Polled continuously from sign-in onward, not only inside a room — the host chooses a
+    // tier before a salon even exists, and what they can afford is exactly the question
+    // that choice answers. Same 5s cadence as the metering tick (FR63), so this is never
+    // more than one tick behind what a top-up or a spend actually did.
+    var balanceInterval = null;
+
+    function renderBalance(data) {
+      var el = document.getElementById('balance-widget');
+      if (!el) return;
+      if (!data) { el.style.display = 'none'; return; }
+      el.textContent = T('balanceLine', {
+        gift: (data.giftedCents / 100).toFixed(2),
+        paid: (data.paidCents / 100).toFixed(2)
+      });
+      el.style.display = '';
+    }
+
+    async function loadBalance() {
+      if (!token) { renderBalance(null); return; }
+      try {
+        renderBalance(await api('/me/balance'));
+      } catch (e) { renderBalance(null); }
+    }
+
+    function startBalancePolling() {
+      if (balanceInterval) return;
+      loadBalance();
+      balanceInterval = setInterval(loadBalance, 5000);
+    }
+
     async function signedIn() {
       show('c-login', false);
       adoptSavedLanguages();
+      startBalancePolling();
 
       var open = null;
       try {

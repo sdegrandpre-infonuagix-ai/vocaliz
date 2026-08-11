@@ -17,6 +17,7 @@
   "agentPause": "Pauzirajte agenta",
   "agentResume": "Aktivirajte agenta",
   "badge": "Nema instalacije",
+  "balanceLine": "Poklon ${gift} · Plaćeno ${paid}",
   "billboardLabel": "O čemu se raspravlja",
   "capAsSpoken": "Kao što se govori",
   "capBigger": "Veći natpisi",

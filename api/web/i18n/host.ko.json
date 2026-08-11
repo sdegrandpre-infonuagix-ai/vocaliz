@@ -14,6 +14,7 @@
   "anonHint": "다른 초대장처럼 한 번만 작동합니다.아무도 이메일을 받지 않습니다. 복사해서 직접 공유하세요.",
   "anonReady": "링크 준비 완료.복사해서 게스트에게 선물하세요.",
   "badge": "호스트 콘솔",
+  "balanceLine": "Gift ${gift} · Paid ${paid}",
   "billboardLabel": "논의 중",
   "capAsSpoken": "말한 대로",
   "capBigger": "더 큰 캡션",

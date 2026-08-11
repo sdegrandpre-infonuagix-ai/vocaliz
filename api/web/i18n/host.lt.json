@@ -14,6 +14,7 @@
   "anonHint": "Veikia vieną kartą, kaip ir bet kuris kvietimas. Niekam nėra siunčiamas el. Paštas - nukopijuokite jį ir pasidalykite patys.",
   "anonReady": "Nuoroda paruošta. Nukopijuokite jį ir duokite svečiui.",
   "badge": "Pagrindinio kompiuterio konsolė",
+  "balanceLine": "Dovana ${gift} · Mokėta ${paid}",
   "billboardLabel": "Aptariama",
   "capAsSpoken": "Kaip kalbėta",
   "capBigger": "Didesnės antraštės",

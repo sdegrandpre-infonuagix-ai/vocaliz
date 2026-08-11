@@ -14,6 +14,7 @@
   "anonHint": "Töötab üks kord, nagu iga kutse. Kellelegi ei saadeta e-posti - kopeerige see ja jagage seda ise.",
   "anonReady": "Link valmis. Kopeerige see ja andke see oma külalisele.",
   "badge": "Hostikonsool",
+  "balanceLine": "Kingitus ${gift} · Tasuline ${paid}",
   "billboardLabel": "Arutatakse",
   "capAsSpoken": "Nagu räägitud",
   "capBigger": "Suuremad pealdised",

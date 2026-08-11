@@ -14,6 +14,7 @@
   "anonHint": "Fungerar en gång, som alla inbjudningar. Ingen skickas via e-post - kopiera den och dela den själv.",
   "anonReady": "Länk redo. Kopiera det och ge det till din gäst.",
   "badge": "Värdkonsol",
+  "balanceLine": "Present ${gift} · Betald ${paid}",
   "billboardLabel": "Diskuteras",
   "capAsSpoken": "Som talat",
   "capBigger": "Större bildtexter",

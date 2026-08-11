@@ -14,6 +14,7 @@
   "anonHint": "Herhangi bir davetiye gibi bir kez çalışır. Kimseye e-posta gönderilmez - kopyalayın ve kendiniz paylaşın.",
   "anonReady": "Bağlantı hazır. Kopyalayın ve misafirinize verin.",
   "badge": "Ana bilgisayar konsolu",
+  "balanceLine": "Hediye ${gift} · Ücretli ${paid}",
   "billboardLabel": "Tartışılıyor",
   "capAsSpoken": "Konuşulduğu gibi",
   "capBigger": "Daha büyük altyazılar",

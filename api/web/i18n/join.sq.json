@@ -17,6 +17,7 @@
   "agentPause": "Ndaloni agjentin",
   "agentResume": "Aktivizoni agjentin",
   "badge": "Asnjë instalim",
+  "balanceLine": "Dhuratë ${gift} · Paguar ${paid}",
   "billboardLabel": "Duke u diskutuar",
   "capAsSpoken": "Siç është folur",
   "capBigger": "Titra më të mëdha",

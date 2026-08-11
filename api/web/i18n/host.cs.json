@@ -14,6 +14,7 @@
   "anonHint": "Funguje jednou, jako každá pozvánka. Nikdo není zaslán e-mailem - zkopírujte jej a sdílejte jej sami.",
   "anonReady": "Odkaz připraven. Zkopírujte ji a dejte ji svému hostovi.",
   "badge": "Hostitelská konzole",
+  "balanceLine": "Dárek ${gift} · Zaplaceno ${paid}",
   "billboardLabel": "Probíhá diskuse",
   "capAsSpoken": "Jak bylo řečeno",
   "capBigger": "Větší titulky",

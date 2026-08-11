@@ -17,6 +17,7 @@
   "agentPause": "Паузирајте го агентот",
   "agentResume": "Активирајте го агентот",
   "badge": "Нема инсталација",
+  "balanceLine": "Подарок ${gift} · Платен $%{paid}",
   "billboardLabel": "Се дискутира",
   "capAsSpoken": "Како што се зборува",
   "capBigger": "Поголеми наслови",

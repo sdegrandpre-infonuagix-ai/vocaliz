@@ -14,6 +14,7 @@
   "anonHint": "Funciona una vez, como cualquier invitación. No se envía ningún correo electrónico: cópialo y compártelo tú mismo.",
   "anonReady": "Enlace listo. Cópialo y entrégaselo a tu huésped.",
   "badge": "Consola host",
+  "balanceLine": "Gift ${gift} · Paid ${paid}",
   "billboardLabel": "Se está discutiendo",
   "capAsSpoken": "Tal como se habla",
   "capBigger": "Subtítulos más grandes",

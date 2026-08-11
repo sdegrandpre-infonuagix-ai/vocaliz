@@ -17,6 +17,7 @@
   "agentPause": "Παύση του πράκτορα",
   "agentResume": "Ενεργοποίηση του πράκτορα",
   "badge": "Καμία εγκατάσταση",
+  "balanceLine": "Δώρο ${gift} · Πληρωμένο ${paid}",
   "billboardLabel": "Συζητείται",
   "capAsSpoken": "Όπως λέγεται",
   "capBigger": "Μεγαλύτερες λεζάντες",

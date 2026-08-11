@@ -17,6 +17,7 @@
   "agentPause": "Пауза на агента",
   "agentResume": "Активирайте агента",
   "badge": "Без инсталиране",
+  "balanceLine": "Подарък ${gift} · Платен ${paid}",
   "billboardLabel": "Обсъжда се",
   "capAsSpoken": "Както се говори",
   "capBigger": "По-големи надписи",

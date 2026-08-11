@@ -17,6 +17,7 @@
   "agentPause": "एजेंट को रोकें",
   "agentResume": "एजेंट को सक्रिय करें",
   "badge": "कोई इंस्टॉल नहीं",
+  "balanceLine": "उपहार ${gift} · ${paid} का भुगतान किया",
   "billboardLabel": "चर्चा की जा रही है",
   "capAsSpoken": "जैसा कि बोला गया है",
   "capBigger": "बड़े कैप्शन",

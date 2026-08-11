@@ -17,6 +17,7 @@
   "agentPause": "Oedi'r asiant",
   "agentResume": "Actifadu'r asiant",
   "badge": "Dim gosod",
+  "balanceLine": "Rhodd ${gift} · Talwyd ${paid}",
   "billboardLabel": "Yn cael ei drafod",
   "capAsSpoken": "Fel y siaradwyd",
   "capBigger": "Capsiynau mwy",

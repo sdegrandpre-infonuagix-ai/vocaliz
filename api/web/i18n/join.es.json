@@ -17,6 +17,7 @@
   "agentPause": "Pausar al agente",
   "agentResume": "Activar el agente",
   "badge": "Sin instalación",
+  "balanceLine": "Gift ${gift} · Paid ${paid}",
   "billboardLabel": "Se está discutiendo",
   "capAsSpoken": "Tal como se habla",
   "capBigger": "Subtítulos más grandes",

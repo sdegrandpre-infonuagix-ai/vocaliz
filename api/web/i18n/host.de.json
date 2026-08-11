@@ -14,6 +14,7 @@
   "anonHint": "Funktioniert einmal, wie jede Einladung. Niemand wird per E-Mail benachrichtigt — kopiere es und teile es selbst.",
   "anonReady": "Link bereit. Kopiere es und gib es deinem Gast.",
   "badge": "Host-Konsole",
+  "balanceLine": "Geschenk ${gift} · Bezahlt ${paid}",
   "billboardLabel": "Wird besprochen",
   "capAsSpoken": "Wie gesprochen",
   "capBigger": "Größere Bildunterschriften",

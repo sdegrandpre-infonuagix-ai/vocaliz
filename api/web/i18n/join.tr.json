@@ -17,6 +17,7 @@
   "agentPause": "Temsilciyi duraklat",
   "agentResume": "Aracıyı etkinleştir",
   "badge": "Yükleme yok",
+  "balanceLine": "Hediye ${gift} · Ücretli ${paid}",
   "billboardLabel": "Tartışılıyor",
   "capAsSpoken": "Konuşulduğu gibi",
   "capBigger": "Daha büyük altyazılar",

@@ -17,6 +17,7 @@
   "agentPause": "Sos ar an ngníomhaire",
   "agentResume": "Gníomhaigh an gníomhai",
   "badge": "Gan aon suiteáil",
+  "balanceLine": "Bronntanas ${gift} · Íoctha ${paid}",
   "billboardLabel": "Ag plé",
   "capAsSpoken": "Mar a labhraítear",
   "capBigger": "Fotheidil níos mó",

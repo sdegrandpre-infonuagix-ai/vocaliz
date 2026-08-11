@@ -17,6 +17,7 @@
   "agentPause": "Peatage agent",
   "agentResume": "Aktiveerige agent",
   "badge": "Paigaldamine puudub",
+  "balanceLine": "Kingitus ${gift} · Tasuline ${paid}",
   "billboardLabel": "Arutatakse",
   "capAsSpoken": "Nagu räägitud",
   "capBigger": "Suuremad pealdised",

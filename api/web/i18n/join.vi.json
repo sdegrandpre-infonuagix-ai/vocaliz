@@ -17,6 +17,7 @@
   "agentPause": "Tạm dừng đại lý",
   "agentResume": "Kích hoạt đại lý",
   "badge": "Không cài đặt",
+  "balanceLine": "Quà tặng ${gift} · Paid ${paid}",
   "billboardLabel": "Đang được thảo luận",
   "capAsSpoken": "Như đã nói",
   "capBigger": "Chú thích lớn hơn",
