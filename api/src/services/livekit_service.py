@@ -354,6 +354,29 @@ async def agent_is_present(room_name: str) -> bool:
     return any(p.kind == _AGENT_KIND for p in listed.participants)
 
 
+async def human_is_present(room_name: str) -> bool:
+    """Whether the human this room belongs to is currently connected.
+
+    Under the per-participant topology a room holds exactly one human alongside their own
+    agent, so "is anyone who isn't the agent here" is the whole question — no identity to
+    match against, since nobody else is ever a participant of this specific room.
+
+    Read from LiveKit rather than a column for the same reason as `agent_is_present`: a
+    dropped connection is true the moment it happens, not when something here is told.
+    """
+    try:
+        async with lk_api.LiveKitAPI(
+            _http_url(), settings.livekit_api_key, settings.livekit_api_secret
+        ) as client:
+            listed = await client.room.list_participants(
+                lk_api.ListParticipantsRequest(room=room_name)
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not list participants of %s: %s", room_name, exc)
+        return False
+    return any(p.kind != _AGENT_KIND for p in listed.participants)
+
+
 async def remove_agent(room_name: str) -> bool:
     """Take the voice agent out of the room and stop it coming back on its own.
 

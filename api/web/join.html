@@ -232,6 +232,12 @@
       50% { opacity: 0.35; }
     }
 
+    /* Who else is in the salon, same dot language as .mic-dot — green means connected. */
+    .presence-list { display: flex; flex-direction: column; gap: 4px; align-items: center; margin: 10px 0; }
+    .presence-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #555; }
+    .presence-dot { width: 9px; height: 9px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+    .presence-dot.live { background: #27ae60; }
+
     /* A browser holding a stored refusal rejects instantly and shows no prompt, so the
        message after a second tap can be identical to the one already on screen. The flash
        is what tells the participant the tap registered at all. */
@@ -619,6 +625,7 @@
       <div id="mic-dot" class="mic-dot"></div>
       <span id="mic-label">Turning the microphone on…</span>
     </div>
+    <div class="presence-list" id="presence-list"></div>
 
     <div class="cap-head" style="margin-top:18px">
       <div class="card-title" data-i18n="capTitle">Live captions</div>
@@ -1471,6 +1478,7 @@
   // ── App ─────────────────────────────────────────────────────────────────────
   var room = null;
   var creds = null;
+  var presenceInterval = null;
   // The account confirming this join hands back — see spendToken(). What lets this guest
   // reach the two controls below the same way the host reaches them: pausing the agent and
   // adding a source. Null until then, and on the rare failure to register the guest as an
@@ -1486,6 +1494,45 @@
     var body = await resp.json().catch(function() { return {}; });
     if (!resp.ok) throw new Error(body.detail || T('errHttp', { code: resp.status }));
     return body;
+  }
+
+  // ── Presence: who else is here ──────────────────────────────────────────────
+  // Polled rather than pushed, mirroring the host console: LiveKit's own room events only
+  // see this browser's own room, and a salon is several rooms under the per-participant
+  // topology — only the API can answer across all of them.
+  function renderPresence(participants) {
+    var box = document.getElementById('presence-list');
+    if (!box) return;
+    box.innerHTML = '';
+    (participants || []).forEach(function (p) {
+      var row = document.createElement('div');
+      row.className = 'presence-row';
+      var dot = document.createElement('span');
+      dot.className = 'presence-dot' + (p.connected ? ' live' : '');
+      var label = document.createElement('span');
+      label.textContent = p.name;
+      row.appendChild(dot);
+      row.appendChild(label);
+      box.appendChild(row);
+    });
+  }
+
+  async function loadPresence() {
+    if (!creds) return;
+    try {
+      var data = await guestApi('/salons/' + creds.salonId + '/presence');
+      renderPresence(data.participants);
+    } catch (e) { /* the mic state already shows if the room itself is unreachable */ }
+  }
+
+  function startPresencePolling() {
+    loadPresence();
+    presenceInterval = setInterval(loadPresence, 5000);
+  }
+
+  function stopPresencePolling() {
+    if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
+    renderPresence([]);
   }
 
   // Extract join token from URL: /join/{token}
@@ -1762,6 +1809,7 @@
 
       room.on(LivekitClient.RoomEvent.Disconnected, function() {
         room = null;
+        stopPresencePolling();
         // Reset here rather than in leaveNow() so every way out is covered — the Leave
         // button, a dropped network, a deleted room. Otherwise the state stays frozen on
         // "Microphone actif" with the dot still pulsing, asserting something untrue about
@@ -1807,6 +1855,7 @@
       document.getElementById('btn-sound').style.display = '';
       renderSound();
       initCaptions();
+      startPresencePolling();
       // Sent once connected: the agent reads it from the participant attributes to know
       // which languages to translate into.
       publishCaptionLang();

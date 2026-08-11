@@ -293,6 +293,31 @@ class AgentMuteBody(BaseModel):
     muted: bool
 
 
+class ParticipantPresence(BaseModel):
+    """One human's connection state, as read from their own room.
+
+    `name` is the same label captions and the invitation flow already use for this person —
+    never derived here, so a guest who never gave a name reads the same anonymised way in
+    both places.
+    """
+
+    name: str
+    role: str
+    connected: bool
+
+
+class PresenceResponse(BaseModel):
+    """Who is currently in the salon, across every participant's own room.
+
+    One entry per human invited to speak — the host, plus every guest who has accepted,
+    whether or not they are connected right now. A guest who left is still worth showing,
+    marked as gone rather than removed from the list, so the host is not left guessing
+    whether an invitation was ever accepted at all.
+    """
+
+    participants: list[ParticipantPresence]
+
+
 
 class VoiceHealthBody(BaseModel):
     """What an agent reports about its realtime voice connection.

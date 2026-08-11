@@ -180,6 +180,13 @@
     .mic-dot.live { background: #2f9e44; }
     .hidden { display: none; }
 
+    /* Who's in the salon, alongside the microphone state it already sits next to. Same dot
+       language as .mic-dot on purpose — green means connected everywhere on this page. */
+    .presence-list { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+    .presence-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #6b6257; }
+    .presence-dot { width: 10px; height: 10px; border-radius: 50%; background: #a99e91; flex-shrink: 0; }
+    .presence-dot.live { background: #2f9e44; }
+
     /* A browser holding a stored refusal rejects instantly and shows no prompt, so the
        message after a second click can be identical to the one already on screen. The
        flash is what tells the host the click registered at all. */
@@ -548,6 +555,10 @@
       <div class="card-title" data-i18n="roomTitle">You are hosting the Salon</div>
       <div class="card-sub" id="room-sub"></div>
       <div class="mic-row"><span id="mic-dot" class="mic-dot"></span><span id="mic-label">Microphone off</span></div>
+      <!-- Who else is here right now — polled rather than pushed, same as the agent's own
+           present/muted state below it. Empty until the first poll answers, so a slow first
+           request shows nothing rather than a wrong guess. -->
+      <div class="presence-list" id="presence-list"></div>
       <!-- Always visible in the room: it reports the current state, it is not an error
            button that appears when something went wrong. -->
       <button class="btn btn-primary" id="btn-sound" onclick="toggleSound()"
@@ -1258,8 +1269,49 @@
     var token = sessionStorage.getItem('vocaliz.hostJwt');
     var salonId = null;
     var room = null;
+    var presenceInterval = null;
 
     function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
+
+    // ── Presence: who else is here ──────────────────────────────────────────────
+    // Polled rather than pushed. LiveKit's own room events would answer instantly, but they
+    // are scoped to this browser's own room — the whole point of asking the API is that a
+    // salon under the per-participant topology is several rooms, not one, and only the API
+    // can see across all of them.
+    function renderPresence(participants) {
+      var box = document.getElementById('presence-list');
+      if (!box) return;
+      box.innerHTML = '';
+      (participants || []).forEach(function (p) {
+        var row = document.createElement('div');
+        row.className = 'presence-row';
+        var dot = document.createElement('span');
+        dot.className = 'presence-dot' + (p.connected ? ' live' : '');
+        var label = document.createElement('span');
+        label.textContent = p.name;
+        row.appendChild(dot);
+        row.appendChild(label);
+        box.appendChild(row);
+      });
+    }
+
+    async function loadPresence() {
+      if (!salonId) return;
+      try {
+        var data = await api('/salons/' + salonId + '/presence');
+        renderPresence(data.participants);
+      } catch (e) { /* the mic/agent state already show if the room itself is unreachable */ }
+    }
+
+    function startPresencePolling() {
+      loadPresence();
+      presenceInterval = setInterval(loadPresence, 5000);
+    }
+
+    function stopPresencePolling() {
+      if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
+      renderPresence([]);
+    }
 
     // Every call funnels through here so an API error is always surfaced, never silent.
     async function api(path, options) {
@@ -2317,6 +2369,7 @@
       show('c-source', true);
       show('c-invite', true);
       initCaptions();
+      startPresencePolling();
       // Sent once connected: the agent reads it from the participant attributes to know
       // which languages to translate into.
       publishCaptionLang();
@@ -2355,6 +2408,7 @@
 
 
     async function leaveRoom() {
+      stopPresencePolling();
       if (room) {
         // Released explicitly instead of leaving it to disconnect(): the browser's own
         // recording indicator is what tells the host they are off the air, and leaving it

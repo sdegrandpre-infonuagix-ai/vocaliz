@@ -1,4 +1,5 @@
 """Salons router — create and manage discussion salons."""
+import asyncio
 import logging
 from typing import Optional
 
@@ -26,6 +27,8 @@ from src.schemas.salon import (
     ParticipantLanguageBody,
     HeartbeatResponse,
     JoinSalonResponse,
+    ParticipantPresence,
+    PresenceResponse,
     SalonDetailResponse,
     SalonHistoryItem,
     SalonHistoryResponse,
@@ -1423,6 +1426,63 @@ def _host_salon(salon_id: str, db: DbSession, current_user: User) -> Salon:
     if salon is None:
         raise HTTPException(status_code=404, detail="Salon not found or access denied.")
     return salon
+
+
+@router.get("/{salon_id}/presence", response_model=PresenceResponse)
+async def get_presence(
+    salon_id: str,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Who is currently connected to this salon.
+
+    Under the per-participant topology there is no one room to list — the host and every
+    accepted guest each have their own, so this is an aggregate over all of them rather than
+    a single room's participant list.
+
+    The host, or a guest who has accepted an invitation to this salon, may read this.
+    """
+    salon = _salon_for_host_or_accepted_guest(salon_id, db, current_user)
+
+    host = db.query(User).filter(User.id == salon.host_user_id).first()
+    accepted_guests = (
+        db.query(Invitation)
+        .filter(Invitation.salon_id == salon.id, Invitation.status == "accepted")
+        .all()
+    )
+
+    # (room, name, role) for everyone who has ever accepted a seat — a guest with no room
+    # yet has never actually connected, so their presence is known without asking LiveKit.
+    entries = [
+        (salon.livekit_room_name, livekit_service.display_name_of(host) if host else "Host", "host")
+    ]
+    pending_guests = []
+    for invitation in accepted_guests:
+        # Matches the name LiveKit itself shows this guest under — set once, at token
+        # generation time, as their given name or else this same anonymised fallback — never
+        # `display_name_of`'s own id-derived one, which a registered-but-nameless guest would
+        # otherwise be shown under here and nowhere else.
+        guest_user = (
+            db.query(User).filter(User.id == invitation.guest_user_id).first()
+            if invitation.guest_user_id
+            else None
+        )
+        given_name = (getattr(guest_user, "display_name", None) or "").strip()
+        name = given_name or livekit_service.guest_display_name(invitation.id)
+        if invitation.livekit_room_name is None:
+            pending_guests.append(ParticipantPresence(name=name, role="guest", connected=False))
+        else:
+            entries.append((invitation.livekit_room_name, name, "guest"))
+
+    connected = await asyncio.gather(
+        *(livekit_service.human_is_present(room) for room, _, _ in entries)
+    )
+    participants = [
+        ParticipantPresence(name=name, role=role, connected=is_connected)
+        for (_, name, role), is_connected in zip(entries, connected)
+    ]
+    participants.extend(pending_guests)
+    return PresenceResponse(participants=participants)
 
 
 @router.get("/{salon_id}/agent", response_model=AgentStateResponse)
