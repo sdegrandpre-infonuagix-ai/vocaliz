@@ -30,13 +30,30 @@ def test_both_paths_serve_the_same_page():
 
 
 # ─── The language Vocaliz will speak ─────────────────────────────────────────
+#
+# The picker itself moved to the same seventy-language static list host.html and join.html
+# already use, for the interface text — a caller choosing "Deutsch" here is picking what the
+# page reads in, not what the voice model must speak. /voice-languages is still fetched, but
+# now for the footer note listing what the voice agent can actually converse in: a page
+# holding its own copy of that list would claim an accent the model does not speak.
 
-def test_the_menu_is_built_from_the_api(client):
-    """A page holding its own copy would offer something the API rejects, and the caller
-    would press call and be refused for a reason nothing on screen could explain."""
+def test_the_language_picker_is_the_same_seventy_as_host_and_join(client):
+    from src.routers.guest_web import _I18N_LANGUAGES
+
+    body = client.get("/").text
+    start = body.index('id="lang-select"')
+    select = body[start : body.index("</select>", start)]
+    values = [v for v in _I18N_LANGUAGES if f'value="{v}"' in select]
+    assert len(values) == len(_I18N_LANGUAGES), "every interface language must be offered"
+    assert 'value="en"' in select and 'value="fr"' in select
+
+
+def test_the_voice_language_footer_note_is_built_from_the_api(client):
+    """A page holding its own copy would claim an accent the voice model does not actually
+    speak."""
     body = client.get("/").text
     assert "/voice-languages" in body
-    assert "<option" not in body, "the choices are fetched, not written into the page"
+    assert "voice-langs-list" in body
 
 
 def test_the_endpoint_serves_the_frozen_list(client):

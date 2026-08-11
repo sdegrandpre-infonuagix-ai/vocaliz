@@ -198,6 +198,10 @@
       color: #8b8175;
       padding: 18px 12px 24px;
     }
+    .voice-langs {
+      max-width: 48ch;
+      margin: 8px auto 0;
+    }
 
     /* The share choice sits with the URL field, not between the two inputs: its position
        is part of the explanation for why only a URL can be shared. */
@@ -347,23 +351,23 @@
            French are inline in this file and switch instantly; the other fourteen are
            fetched from /i18n on first use. -->
       <select id="lang-select" onchange="setLang(this.value)" aria-label="Language">
-        <option value="en">English</option>
-        <option value="fr">Français</option>
-        <option value="es">Español</option>
-        <option value="pt">Português</option>
-        <option value="de">Deutsch</option>
-        <option value="it">Italiano</option>
-        <option value="ar">العربية</option>
-        <option value="fa">فارسی</option>
-        <option value="bn">বাংলা</option>
-        <option value="zh">中文</option>
-        <option value="hi">हिन्दी</option>
-        <option value="id">Indonesia</option>
-        <option value="ja">日本語</option>
-        <option value="ko">한국어</option>
-        <option value="ru">Русский</option>
-        <option value="tr">Türkçe</option>
-        <option value="vi">Tiếng Việt</option>
+        <option value="en">* English</option>
+        <option value="fr">* Français</option>
+        <option value="es">* Español</option>
+        <option value="pt">* Português</option>
+        <option value="de">* Deutsch</option>
+        <option value="it">* Italiano</option>
+        <option value="ar">* العربية</option>
+        <option value="fa">* فارسی</option>
+        <option value="bn">* বাংলা</option>
+        <option value="zh">* 中文</option>
+        <option value="hi">* हिन्दी</option>
+        <option value="id">* Indonesia</option>
+        <option value="ja">* 日本語</option>
+        <option value="ko">* 한국어</option>
+        <option value="ru">* Русский</option>
+        <option value="tr">* Türkçe</option>
+        <option value="vi">* Tiếng Việt</option>
         <option value="af">Afrikaans</option>
         <option value="am">አማርኛ</option>
         <option value="az">azərbaycan</option>
@@ -667,10 +671,10 @@
           One of the two is enough. Give both and the invitation goes out by both.
         </div>
       </div>
-      <button class="btn btn-gold" onclick="invite()" data-i18n="generateButton">Generate the link</button>
+      <button class="btn btn-gold" onclick="invite(1)" data-i18n="generateButton">Generate the link</button>
       <!-- For a guest the host has no way to write to. Same one-time link, addressed to
            nobody: nothing is sent, and the host passes it on however they like. -->
-      <button class="btn btn-outline" onclick="inviteAnonymously()" data-i18n="anonButton">
+      <button class="btn btn-outline" onclick="inviteAnonymously(1)" data-i18n="anonButton">
         Link without an email address
       </button>
       <div class="field-hint" data-i18n="anonHint">
@@ -681,10 +685,44 @@
       <!-- The telephone door, beside the link. A guest who calls rather than clicks has no
            link to read from, and the host is the only person who can tell them the number. -->
       <div id="invite-pin" class="say-hint hidden"></div>
-      <button class="btn btn-outline hidden" id="btn-copy" onclick="copyLink()" data-i18n="copyButton">
+      <button class="btn btn-outline hidden" id="btn-copy" onclick="copyLink(1)" data-i18n="copyButton">
         Copy the link
       </button>
-      <button class="btn btn-primary hidden" id="btn-send" onclick="sendInviteEmail()" data-i18n="sendButton">
+      <button class="btn btn-primary hidden" id="btn-send" onclick="sendInviteEmail(1)" data-i18n="sendButton">
+        Send by email
+      </button>
+
+      <!-- A second guest, same rules: their contact must be neither the host's own nor the
+           first guest's — the API is the actual enforcement (invitation_service's live-
+           duplicate check), this is only the reminder. -->
+      <div class="card-title" style="margin-top:1.5rem" data-i18n="invite2Title">Second guest</div>
+      <div class="field-hint" data-i18n="guestEmailNotYoursOrFirst">
+        Use a different email or number than yours and your first guest's.
+      </div>
+      <label for="guest-email-2" data-i18n="guestEmailLabel">Contact's email address</label>
+      <input type="email" id="guest-email-2" placeholder="friend@example.com" data-i18n-ph="guestEmailPh">
+      <div id="phone-field-2" class="hidden">
+        <label for="guest-phone-2" data-i18n="guestPhoneLabel">Mobile number</label>
+        <input type="tel" id="guest-phone-2" placeholder="+1 514 555 0123" data-i18n-ph="guestPhonePh"
+               inputmode="tel" autocomplete="tel">
+        <div class="field-hint" data-i18n="guestContactHint">
+          One of the two is enough. Give both and the invitation goes out by both.
+        </div>
+      </div>
+      <button class="btn btn-gold" onclick="invite(2)" data-i18n="generateButton">Generate the link</button>
+      <button class="btn btn-outline" onclick="inviteAnonymously(2)" data-i18n="anonButton">
+        Link without an email address
+      </button>
+      <div class="field-hint" data-i18n="anonHint">
+        Works once, like any invitation. Nobody is emailed — copy it and share it yourself.
+      </div>
+      <div id="invite-status-2" class="status"></div>
+      <div id="invite-link-2" class="link-box hidden"></div>
+      <div id="invite-pin-2" class="say-hint hidden"></div>
+      <button class="btn btn-outline hidden" id="btn-copy-2" onclick="copyLink(2)" data-i18n="copyButton">
+        Copy the link
+      </button>
+      <button class="btn btn-primary hidden" id="btn-send-2" onclick="sendInviteEmail(2)" data-i18n="sendButton">
         Send by email
       </button>
     </div>
@@ -692,6 +730,7 @@
 
 <footer class="powered">
   Powered by <a href="https://infonuagix.ai" target="_blank" rel="noopener noreferrer">Infonuagix.ai</a>
+  <p class="voice-langs"><span data-i18n="starMeaning">* Live voice conversation is also available in </span><span id="voice-langs-list"></span></p>
 </footer>
 
 
@@ -733,6 +772,8 @@
         inviteSub: 'The link is emailed to your guest, and opens in any browser without '
                  + 'installing the app. It only works once.',
         guestEmailNotYours: "Use your guest's own email or number — not the one you signed in with.",
+        invite2Title: 'Second guest',
+        guestEmailNotYoursOrFirst: "Use a different email or number than yours and your first guest's.",
         guestEmailLabel: "Contact's email address",
         guestEmailPh: 'friend@example.com',
         generateButton: 'Generate the link',
@@ -834,7 +875,8 @@
         tierBWhat: 'A natural voice, no advertising',
         tierC: 'Mode C',
         tierCWhat: 'The most attentive interpreter, no advertising',
-        voiceLabel: "Interpreter's voice"
+        voiceLabel: "Interpreter's voice",
+        starMeaning: '* Live voice conversation is also available in '
       },
       fr: {
         pageTitle: 'Vocaliz — Console hôte',
@@ -869,6 +911,8 @@
                  + "quel navigateur sans installer l'application. Il ne fonctionne qu'une "
                  + 'seule fois.',
         guestEmailNotYours: "Utilisez le courriel ou le numéro de votre invité — pas celui avec lequel vous êtes connecté.",
+        invite2Title: 'Deuxième invité',
+        guestEmailNotYoursOrFirst: "Utilisez un courriel ou un numéro différent du vôtre et de celui de votre premier invité.",
         guestEmailLabel: 'Adresse courriel du contact',
         guestEmailPh: 'ami@exemple.com',
         generateButton: 'Générer le lien',
@@ -971,7 +1015,8 @@
         tierBWhat: 'Une voix naturelle, sans publicité',
         tierC: 'Mode C',
         tierCWhat: "L'interprète le plus attentif, sans publicité",
-        voiceLabel: "Voix de l'interprète"
+        voiceLabel: "Voix de l'interprète",
+        starMeaning: '* La conversation vocale en direct est aussi offerte en '
       }
     };
 
@@ -1682,6 +1727,7 @@
         if (!resp.ok) return;
         var cfg = await resp.json();
         show('phone-field', !!cfg.smsEnabled);
+        show('phone-field-2', !!cfg.smsEnabled);
       } catch (e) { /* stays hidden */ }
     }
 
@@ -2364,26 +2410,37 @@
     // The link is shown unconditionally and emailing is a separate step: delivery can
     // fail (an address outside the verified SES domain, for one) and the host still needs
     // the link, which works over any channel.
-    var lastInvitation = null;
+    //
+    // Two independent slots, one per guest. Slot 1 keeps the original element ids so
+    // nothing else on the page has to change; slot 2 is the same markup with a "-2" suffix.
+    // Tracked separately because sending the first guest's invitation email must not be
+    // able to act on whatever the second slot last generated, or vice versa.
+    var lastInvitation = { 1: null, 2: null };
 
-    async function copyLink() {
-      if (!lastInvitation) return;
+    function slotSuffix(slot) { return slot === 2 ? '-2' : ''; }
+
+    async function copyLink(slot) {
+      var invitation = lastInvitation[slot];
+      if (!invitation) return;
+      var suffix = slotSuffix(slot);
       try {
-        await navigator.clipboard.writeText(lastInvitation.joinLink);
-        setStatus('invite-status', 'linkCopied', true);
+        await navigator.clipboard.writeText(invitation.joinLink);
+        setStatus('invite-status' + suffix, 'linkCopied', true);
       } catch (e) {
-        setStatus('invite-status', 'copyRefused', false);
+        setStatus('invite-status' + suffix, 'copyRefused', false);
       }
     }
 
-    async function sendInviteEmail() {
-      if (!lastInvitation) return;
+    async function sendInviteEmail(slot) {
+      var invitation = lastInvitation[slot];
+      if (!invitation) return;
+      var suffix = slotSuffix(slot);
       try {
-        await api('/salons/' + salonId + '/invitations/' + lastInvitation.invitationId + '/email',
+        await api('/salons/' + salonId + '/invitations/' + invitation.invitationId + '/email',
                   { method: 'POST' });
-        setStatus('invite-status', 'emailSentTo', true, { email: lastInvitation.guestEmail });
+        setStatus('invite-status' + suffix, 'emailSentTo', true, { email: invitation.guestEmail });
       } catch (e) {
-        setStatus('invite-status', 'sendFailed', false, { error: e.message });
+        setStatus('invite-status' + suffix, 'sendFailed', false, { error: e.message });
       }
     }
 
@@ -2395,8 +2452,8 @@
     // The six digits, beside the link. A guest who calls rather than clicks has no link to
     // read from, and the host is the only person who can tell them the number — it was mailed
     // to the guest and shown to nobody, which helped only the guest who already had the email.
-    function showPin(pin) {
-      var row = document.getElementById('invite-pin');
+    function showPin(pin, slot) {
+      var row = document.getElementById('invite-pin' + slotSuffix(slot));
       if (!row) return;
       if (!pin) {
         // The pool could not issue one. Hidden rather than shown empty: an absent code costs
@@ -2409,37 +2466,40 @@
     }
 
     // stranger. Nothing is sent, so no "send by email" button appears with it.
-    async function inviteAnonymously() {
+    async function inviteAnonymously(slot) {
+      var suffix = slotSuffix(slot);
       try {
         var data = await api('/salons/' + salonId + '/invitations/anonymous', {
           method: 'POST'
         });
-        lastInvitation = data;
-        var box = document.getElementById('invite-link');
+        lastInvitation[slot] = data;
+        var box = document.getElementById('invite-link' + suffix);
         box.textContent = data.joinLink;
         box.classList.remove('hidden');
-        showPin(data.phonePin);
-        show('btn-copy', true);
+        showPin(data.phonePin, slot);
+        show('btn-copy' + suffix, true);
         // Deliberately hidden: there is no address to send it to, and offering the button
         // would promise a channel that does not exist for this invitation.
-        show('btn-send', false);
-        setStatus('invite-status', 'anonReady', true);
+        show('btn-send' + suffix, false);
+        setStatus('invite-status' + suffix, 'anonReady', true);
       } catch (e) {
-        setStatusRaw('invite-status', e.message, false);
+        setStatusRaw('invite-status' + suffix, e.message, false);
       }
     }
 
-    async function invite() {
-      var email = document.getElementById('guest-email').value.trim().toLowerCase();
+    async function invite(slot) {
+      var suffix = slotSuffix(slot);
+      var email = document.getElementById('guest-email' + suffix).value.trim().toLowerCase();
       // Read only when offered. A value left in a hidden field — from a browser autofill,
       // or from the flag being turned off between two invitations — must not travel as a
       // channel the host did not choose.
-      var phoneShown = !document.getElementById('phone-field').classList.contains('hidden');
-      var phone = phoneShown ? document.getElementById('guest-phone').value.trim() : '';
+      var phoneField = document.getElementById('phone-field' + suffix);
+      var phoneShown = phoneField && !phoneField.classList.contains('hidden');
+      var phone = phoneShown ? document.getElementById('guest-phone' + suffix).value.trim() : '';
       // Checked here so the host reads a sentence rather than a validation error from the
       // API. The server refuses the same case regardless — this is courtesy, not security.
       if (!email && !phone) {
-        setStatus('invite-status', 'inviteNoContact', false);
+        setStatus('invite-status' + suffix, 'inviteNoContact', false);
         return;
       }
       try {
@@ -2453,15 +2513,15 @@
           ))
         });
         // A link is always returned now, whatever the invitation type.
-        lastInvitation = data;
-        var box = document.getElementById('invite-link');
+        lastInvitation[slot] = data;
+        var box = document.getElementById('invite-link' + suffix);
         box.textContent = data.joinLink;
         box.classList.remove('hidden');
-        showPin(data.phonePin);
-        show('btn-copy', true);
+        showPin(data.phonePin, slot);
+        show('btn-copy' + suffix, true);
         // Shown for every type: the email now goes out to members too, so resending is
         // always something the host can legitimately ask for.
-        show('btn-send', true);
+        show('btn-send' + suffix, true);
 
         // Four whole sentences rather than assembled fragments — word order differs
         // between languages, so concatenating clauses does not survive translation.
@@ -2469,10 +2529,10 @@
         // Reported per channel. A host who gave both must not read "sent" when only one
         // of the two actually left.
         if (data.guestPhone && !data.guestEmail) {
-          setStatus('invite-status', data.smsSent ? 'inviteSmsOk' : 'inviteSmsFail',
+          setStatus('invite-status' + suffix, data.smsSent ? 'inviteSmsOk' : 'inviteSmsFail',
                     data.smsSent, { phone: data.guestPhone });
         } else if (data.guestPhone) {
-          setStatus('invite-status', 'inviteBoth', data.emailSent || data.smsSent, {
+          setStatus('invite-status' + suffix, 'inviteBoth', data.emailSent || data.smsSent, {
             email: data.guestEmail,
             emailState: T(data.emailSent ? 'channelSent' : 'channelFailed'),
             smsState: T(data.smsSent ? 'channelSent' : 'channelFailed')
@@ -2481,10 +2541,10 @@
           var key = data.emailSent
             ? (friend ? 'inviteOkFriend' : 'inviteOk')
             : (friend ? 'inviteFailFriend' : 'inviteFail');
-          setStatus('invite-status', key, data.emailSent, { email: data.guestEmail });
+          setStatus('invite-status' + suffix, key, data.emailSent, { email: data.guestEmail });
         }
       } catch (e) {
-        setStatusRaw('invite-status', e.message, false);
+        setStatusRaw('invite-status' + suffix, e.message, false);
       }
     }
 
@@ -2522,6 +2582,25 @@
     }
     loadConfig();
     if (token) signedIn();
+
+    // ── The voice languages, in the footer ────────────────────────────────────
+    // Fetched rather than written here: a copy kept by hand would eventually claim a
+    // language the voice model does not actually speak. The starred options in the
+    // language picker above are the same seventeen base tongues this list reduces to;
+    // this is what the star means, spelled out once rather than left for the reader to
+    // guess.
+    (function loadVoiceLanguagesFooter() {
+      var el = document.getElementById('voice-langs-list');
+      if (!el) return;
+      fetch('/voice-languages').then(function (resp) { return resp.json(); }).then(function (body) {
+        var labels = (body.languages || [])
+          .filter(function (entry) { return entry.tag !== 'auto'; })
+          .map(function (entry) { return entry.label; });
+        el.textContent = labels.join(', ') + '.';
+      }).catch(function (e) {
+        console.warn('Vocaliz: could not load the voice language list', e);
+      });
+    })();
   </script>
 </body>
 </html>

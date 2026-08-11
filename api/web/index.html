@@ -109,11 +109,88 @@
     padding: 16px;
   }
   footer a { color: inherit; }
+  .voice-langs {
+    max-width: 48ch;
+    margin: 8px auto 0;
+    font-size: .72rem;
+    color: #8b8175;
+  }
 </style>
 
 <div class="lang-bar">
   <label for="lang-select" style="display:none">Language</label>
-  <select id="lang-select" aria-label="Language"></select>
+  <select id="lang-select" onchange="setLang(this.value)" aria-label="Language">
+    <option value="en">* English</option>
+    <option value="fr">* Français</option>
+    <option value="es">* Español</option>
+    <option value="pt">* Português</option>
+    <option value="de">* Deutsch</option>
+    <option value="it">* Italiano</option>
+    <option value="ar">* العربية</option>
+    <option value="fa">* فارسی</option>
+    <option value="bn">* বাংলা</option>
+    <option value="zh">* 中文</option>
+    <option value="hi">* हिन्दी</option>
+    <option value="id">* Indonesia</option>
+    <option value="ja">* 日本語</option>
+    <option value="ko">* 한국어</option>
+    <option value="ru">* Русский</option>
+    <option value="tr">* Türkçe</option>
+    <option value="vi">* Tiếng Việt</option>
+    <option value="af">Afrikaans</option>
+    <option value="am">አማርኛ</option>
+    <option value="az">azərbaycan</option>
+    <option value="bg">български</option>
+    <option value="bs">bosanski</option>
+    <option value="ca">català</option>
+    <option value="cs">čeština</option>
+    <option value="cy">Cymraeg</option>
+    <option value="da">dansk</option>
+    <option value="el">Ελληνικά</option>
+    <option value="et">eesti</option>
+    <option value="fi">suomi</option>
+    <option value="ga">Gaeilge</option>
+    <option value="gu">ગુજરાતી</option>
+    <option value="ha">Hausa</option>
+    <option value="he">עברית</option>
+    <option value="hr">hrvatski</option>
+    <option value="ht">Kreyòl ayisyen</option>
+    <option value="hu">magyar</option>
+    <option value="hy">հայերեն</option>
+    <option value="is">íslenska</option>
+    <option value="ka">ქართული</option>
+    <option value="kk">қазақ тілі</option>
+    <option value="kn">ಕನ್ನಡ</option>
+    <option value="lt">lietuvių</option>
+    <option value="lv">latviešu</option>
+    <option value="mk">македонски</option>
+    <option value="ml">മലയാളം</option>
+    <option value="mn">монгол</option>
+    <option value="mr">मराठी</option>
+    <option value="ms">Melayu</option>
+    <option value="mt">Malti</option>
+    <option value="nl">Nederlands</option>
+    <option value="no">norsk</option>
+    <option value="pa">ਪੰਜਾਬੀ</option>
+    <option value="pl">polski</option>
+    <option value="ps">پښتو</option>
+    <option value="ro">română</option>
+    <option value="si">සිංහල</option>
+    <option value="sk">slovenčina</option>
+    <option value="sl">slovenščina</option>
+    <option value="so">Soomaali</option>
+    <option value="sq">shqip</option>
+    <option value="sr">српски</option>
+    <option value="sv">svenska</option>
+    <option value="sw">Kiswahili</option>
+    <option value="ta">தமிழ்</option>
+    <option value="te">తెలుగు</option>
+    <option value="th">ไทย</option>
+    <option value="tl">Filipino</option>
+    <option value="uk">українська</option>
+    <option value="ur">اردو</option>
+    <option value="uz">o‘zbek</option>
+  </select>
 </div>
 
 <main>
@@ -146,7 +223,10 @@
   <p class="contact"><span data-i18n="contactLabel">For more info contact</span> <a href="mailto:s.degrandpre@vocaliz.net">s.degrandpre@vocaliz.net</a></p>
   <p class="phone-note"><span data-i18n="phoneNoteBefore">If you speak English or French, you can call me at </span><a href="tel:+15149420259">1-514-942-0259</a><span data-i18n="phoneNoteAfter">; otherwise, host a salon and invite me with my email! ;)</span></p>
 </main>
-<footer><span data-i18n="footerLabel">Powered by</span> <a href="https://infonuagix.ai" target="_blank" rel="noopener">Infonuagix.ai</a></footer>
+<footer>
+  <div><span data-i18n="footerLabel">Powered by</span> <a href="https://infonuagix.ai" target="_blank" rel="noopener">Infonuagix.ai</a></div>
+  <p class="voice-langs"><span data-i18n="starMeaning">* Live voice conversation is also available in </span><span id="voice-langs-list"></span></p>
+</footer>
 
 <script>
   // ── The page's own text, in English and French ──────────────────────────────
@@ -165,7 +245,8 @@
       contactLabel: "For more info contact",
       phoneNoteBefore: "If you speak English or French, you can call me at ",
       phoneNoteAfter: "; otherwise, host a salon and invite me with my email! ;)",
-      footerLabel: "Powered by"
+      footerLabel: "Powered by",
+      starMeaning: "* Live voice conversation is also available in "
     },
     fr: {
       sofaAria: "Canapé",
@@ -177,17 +258,22 @@
       contactLabel: "Pour plus d'informations, contactez",
       phoneNoteBefore: "Si vous parlez anglais ou français, vous pouvez m'appeler au ",
       phoneNoteAfter: " ; sinon, hébergez un salon et invitez-moi avec mon courriel ! ;)",
-      footerLabel: "Propulsé par"
+      footerLabel: "Propulsé par",
+      starMeaning: "* La conversation vocale en direct est aussi offerte en "
     }
   };
 
   // Kept in step with api/web/i18n/generate.py's TARGETS-for-"index" and
   // src/routers/guest_web.py's _I18N_PAGES/_I18N_LANGUAGES — every language this page can
   // switch to must have a dictionary generated and an allowlist entry on both ends, or a
-  // choice here reaches a 404 instead of a translation.
+  // choice here reaches a 404 instead of a translation. Same seventy as host.html and
+  // join.html: the three pages offer the same list rather than each drawing its own.
   var SUPPORTED_LANGS = [
-    "en", "fr", "ar", "bn", "zh", "de", "hi", "id", "it", "ja", "ko", "pt", "ru", "es", "tr", "vi",
-    "fa"
+    "en", "fr", "es", "pt", "de", "it", "ar", "fa", "bn", "zh", "hi", "id", "ja", "ko", "ru",
+    "tr", "vi", "af", "am", "az", "bg", "bs", "ca", "cs", "cy", "da", "el", "et", "fi", "ga",
+    "gu", "ha", "he", "hr", "ht", "hu", "hy", "is", "ka", "kk", "kn", "lt", "lv", "mk", "ml",
+    "mn", "mr", "ms", "mt", "nl", "no", "pa", "pl", "ps", "ro", "si", "sk", "sl", "so", "sq",
+    "sr", "sv", "sw", "ta", "te", "th", "tl", "uk", "ur", "uz"
   ];
 
   function isSupported(code) { return SUPPORTED_LANGS.indexOf(code) !== -1; }
@@ -257,44 +343,28 @@
     for (var a = 0; a < labels.length; a++) {
       labels[a].setAttribute('aria-label', T(labels[a].getAttribute('data-i18n-aria')));
     }
+
+    var langSelect = document.getElementById('lang-select');
+    if (langSelect) langSelect.value = lang;
   }
 
   applyLang();
 
-  // ── The combo box ─────────────────────────────────────────────────────────
-  // Built from /voice-languages rather than written here, same as this page has always
-  // done it: a copy kept by hand would eventually offer a language the API does not.
-  // Every option is a voice tag (regional variants included, e.g. three Arabics) because
-  // that endpoint knows nothing else; picking one translates the page in that language's
-  // base tongue — ar-EG and ar-SA both read as Arabic, which is the same distinction the
-  // voice itself draws finer than the page's own text ever needs to.
-  (function loadLanguageOptions() {
-    var select = document.getElementById('lang-select');
-
-    function addOption(value, label) {
-      var option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      select.appendChild(option);
-    }
-
+  // ── The voice languages, in the footer ────────────────────────────────────
+  // Fetched rather than written here, same reason as ever: a copy kept by hand would
+  // eventually claim a language the voice model does not actually speak. The starred
+  // options above are the same seventeen base tongues this list reduces to; this is
+  // what the star means, spelled out once rather than left for the reader to guess.
+  (function loadVoiceLanguagesFooter() {
+    var el = document.getElementById('voice-langs-list');
+    if (!el) return;
     fetch('/voice-languages').then(function (resp) { return resp.json(); }).then(function (body) {
-      (body.languages || []).forEach(function (entry) {
-        // "Follow the speaker" is a voice setting with nothing to translate the page into.
-        if (entry.tag === 'auto') return;
-        addOption(entry.tag, entry.label);
-      });
-      var base = lang;
-      var match = Array.prototype.find.call(select.options, function (o) {
-        return o.value === base || o.value.split('-')[0] === base;
-      });
-      if (match) select.value = match.value;
+      var labels = (body.languages || [])
+        .filter(function (entry) { return entry.tag !== 'auto'; })
+        .map(function (entry) { return entry.label; });
+      el.textContent = labels.join(', ') + '.';
     }).catch(function (e) {
-      console.warn('Vocaliz: could not load the language list', e);
-    });
-
-    select.addEventListener('change', function () {
-      setLang(select.value.split('-')[0]);
+      console.warn('Vocaliz: could not load the voice language list', e);
     });
   })();
 </script>
