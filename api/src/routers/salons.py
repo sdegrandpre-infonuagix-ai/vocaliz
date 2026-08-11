@@ -873,8 +873,9 @@ async def salon_heartbeat(
             # Deleting the room is what actually stops the agent; finalizing only settles
             # the accounting. Same order as close_previous_host_salons, for the same reason.
             room_name = salon.livekit_room_name
-            salon_lifecycle.finalize_salon(salon, db)
+            _, guest_rooms = salon_lifecycle.finalize_salon(salon, db)
             await livekit_service.delete_room(room_name)
+            await salon_lifecycle.close_guest_rooms(guest_rooms)
             ended_now = True
             logger.info("Salon %s closed: balance exhausted", salon.id)
 
@@ -1092,14 +1093,17 @@ async def end_salon(
     # metering clamp and the billing path cannot drift between the two.
     # The closing answer, when the agent managed to get one. The cap path above passes
     # nothing: a salon cut off by its own limit was never asked the question.
-    charge = salon_lifecycle.finalize_salon(
+    charge, guest_rooms = salon_lifecycle.finalize_salon(
         salon, db, enjoyed=body.enjoyed if body else None
     )
     billing_summary = BillingChargeSummary(**charge) if charge else None
 
-    # Deleting the room disconnects everyone and stops the agent; without it the worker
-    # keeps talking in a salon the host believes is over.
+    # Deleting the room stops the host's own agent; without it the worker keeps talking in
+    # a salon the host believes is over. Guests are untouched here — each has their own room
+    # under the per-participant topology, and keeps it unless the host was paying for
+    # everyone (FR42), in which case `finalize_salon` already named their rooms above.
     await livekit_service.delete_room(salon.livekit_room_name)
+    await salon_lifecycle.close_guest_rooms(guest_rooms)
 
     return EndSalonResponse(
         salonId=str(salon.id),

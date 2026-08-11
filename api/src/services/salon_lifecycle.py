@@ -51,12 +51,17 @@ def accrue_remaining_host_time(salon: Salon, db: DbSession) -> int:
 
 def finalize_salon(
     salon: Salon, db: DbSession, *, enjoyed: bool | None = None
-) -> dict | None:
+) -> tuple[dict | None, list[str]]:
     """Mark a salon ended, meter it, bill it, and notify its guests.
 
-    Returns the billing summary when a charge was made. Billing and notification errors
-    are swallowed: neither may block a salon from closing, and an unbilled span is
-    retried on the host's next salon.
+    Returns the billing summary when a charge was made, and every accepted guest's own
+    room name to tear down alongside the host's — but only when `host_pays_all` (FR42):
+    that flag is what makes the host's departure the end of everyone's metered time, not
+    only their own, so it is the one case where a guest's own room must not outlive the
+    host's. Otherwise each guest pays for themselves and keeps talking; the caller gets an
+    empty list and leaves their rooms alone. Billing and notification errors are swallowed:
+    neither may block a salon from closing, and an unbilled span is retried on the host's
+    next salon.
 
     `enjoyed` carries the closing satisfaction answer when the agent obtained one. It is
     recorded against every participation in the salon, since the question is asked of the
@@ -109,7 +114,34 @@ def finalize_salon(
     # `salon_events` rows for good, and the report reads from exactly that table.
     salon_closure_report.send(db, salon)
 
-    return billing_summary
+    guest_rooms: list[str] = []
+    if salon.host_pays_all:
+        guest_rooms = [
+            room
+            for (room,) in db.query(Invitation.livekit_room_name)
+            .filter(
+                Invitation.salon_id == salon.id,
+                Invitation.status == "accepted",
+                Invitation.livekit_room_name.isnot(None),
+            )
+            .all()
+        ]
+
+    return billing_summary, guest_rooms
+
+
+async def close_guest_rooms(guest_rooms: list[str]) -> None:
+    """Tear down every accepted guest's own room, best-effort, one at a time.
+
+    Only ever called with a non-empty list when `host_pays_all` — see `finalize_salon`.
+    One guest's room failing to delete must not leave the rest of them talking in a Salon
+    the host has already been told is over.
+    """
+    for room_name in guest_rooms:
+        try:
+            await livekit_service.delete_room(room_name)
+        except Exception:  # noqa: BLE001
+            logger.warning("Could not close guest room %s", room_name, exc_info=True)
 
 
 async def close_previous_host_salons(host: User, db: DbSession) -> int:
@@ -133,9 +165,10 @@ async def close_previous_host_salons(host: User, db: DbSession) -> int:
 
     for salon in stale:
         room_name = salon.livekit_room_name
-        finalize_salon(salon, db)
+        _, guest_rooms = finalize_salon(salon, db)
         # After finalizing: the accounting is settled even if room deletion fails.
         await livekit_service.delete_room(room_name)
+        await close_guest_rooms(guest_rooms)
         logger.info("Closed stale salon %s (room %s)", salon.id, room_name)
 
     return len(stale)
@@ -225,10 +258,11 @@ async def close_expired_salons(db: DbSession) -> list[str]:
     for salon in expired:
         room_name = salon.livekit_room_name
         try:
-            finalize_salon(salon, db)
+            _, guest_rooms = finalize_salon(salon, db)
             # After finalizing, as everywhere else: the accounting is settled even if
             # deleting the room fails, and a room LiveKit already collected is not an error.
             await livekit_service.delete_room(room_name)
+            await close_guest_rooms(guest_rooms)
             closed.append(str(salon.id))
             logger.info("Closed expired salon %s (room %s)", salon.id, room_name)
         except Exception:  # noqa: BLE001

@@ -156,7 +156,7 @@ def test_one_stubborn_salon_does_not_stop_the_others(db, host):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("accounting failed")
-        return None
+        return None, []
 
     with patch.object(salon_lifecycle, "finalize_salon", side_effect=_explode_once), \
          patch.object(salon_lifecycle.livekit_service, "delete_room", new_callable=AsyncMock):
