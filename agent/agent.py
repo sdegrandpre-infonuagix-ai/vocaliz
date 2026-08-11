@@ -2124,6 +2124,13 @@ async def entrypoint(ctx: agents.JobContext):
             journal_link = link
             salon_agent.set_journal_link(link)
 
+            # A participant object existing in the room is not the same as their audio
+            # actually being subscribed and playing — WebRTC negotiation on their end is
+            # still catching up to the HTTP response that already handed them a token, and
+            # without this gap a guest reported arriving mid-sentence: the greeting was
+            # already under way before their playback pipeline was ready to render it.
+            await asyncio.sleep(1)
+
             # The one thing this agent says on its own initiative, said once. A model told to
             # stay silent unless instructed is still the first voice this person hears in
             # their room, and saying nothing at all about that would read as a broken
