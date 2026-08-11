@@ -63,6 +63,19 @@ class Line:
         return bool(self.source_language) and self.source_language == self.language
 
 
+@dataclass(frozen=True)
+class ReportedUtterance:
+    """One message a `report()` call became, echoed back by the orchestrator.
+
+    Exists so a human's own speech can be captioned without being spoken back to them — see
+    `report`'s own docstring for why this is a different door than `script()`.
+    """
+
+    text: str
+    language: str
+    sequence: int | None = None
+
+
 def _line_from_json(payload: dict[str, Any], listener_language: str) -> Line | None:
     """One wire object into one `Line`, or `None` for a kind this agent does not know.
 
@@ -167,16 +180,22 @@ class OrchestratorLink:
 
     async def report(
         self, text: str, *, language: str | None = None, duration_seconds: float | None = None
-    ) -> int:
-        """What this human just said, for the journal. Returns how many messages it became.
+    ) -> list[ReportedUtterance]:
+        """What this human just said, for the journal. Returns what it became.
 
-        A long intervention is cut into several so that nobody waits for the end of it, and
-        nothing is recorded at all from somebody whose microphone the host has cut or whose
-        room has fallen too far behind — which is why zero is an ordinary answer and not a
-        failure.
+        A long intervention is cut into several messages so that nobody waits for the end of
+        it, and nothing is recorded at all from somebody whose microphone the host has cut or
+        whose room has fallen too far behind — which is why an empty list is an ordinary
+        answer and not a failure. `len(...)` on the result is the count a caller only wants
+        that for.
+
+        Not the same door as `script()`: nobody is served their own words there — `Salon.
+        _render` never tells a listener what they themselves said, and that rule is about
+        speech. A caption of your own words is not speech, and this round trip through
+        `/utterances` is the only place that answer can come from.
         """
         if not self.configured or not text.strip():
-            return 0
+            return []
         payload = await self._post(
             self._url("/utterances"),
             {
@@ -185,7 +204,14 @@ class OrchestratorLink:
                 "durationSeconds": duration_seconds,
             },
         )
-        return int((payload or {}).get("recorded", 0))
+        return [
+            ReportedUtterance(
+                text=entry.get("text", ""),
+                language=entry.get("language", "") or self._language,
+                sequence=entry.get("sequence"),
+            )
+            for entry in (payload or {}).get("entries") or []
+        ]
 
     async def script(self) -> list[Line]:
         """What this human is owed, in their language, in order.

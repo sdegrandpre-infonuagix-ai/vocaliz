@@ -207,6 +207,18 @@ def test_nobody_is_served_their_own_words(client):
     assert [line for line in lines if line["kind"] == "tour"] == []
 
 
+def test_reporting_an_utterance_echoes_it_back_for_a_caption(client):
+    """Not served through `/script` — that rule is about speech (see the test above) — but a
+    caption of your own words is not speech, and this round trip is the only place that
+    answer can come from."""
+    _host(client)
+    _join(client, "marie", "fr")
+
+    body = _say(client, "marie", "Bonjour", "fr").json()
+
+    assert body["entries"] == [{"sequence": 1, "text": "Bonjour", "language": "fr"}]
+
+
 def test_a_script_is_handed_over_once(client):
     """The reading position moves when the script is handed over. Hearing a sentence twice
     is worse than hearing it late — a listener cannot tell a repeat from somebody saying the

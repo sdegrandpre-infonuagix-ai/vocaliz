@@ -2070,6 +2070,26 @@ async def entrypoint(ctx: agents.JobContext):
             )
             return
 
+        async def _report_and_caption_own_speech(text: str, language: str | None) -> None:
+            """Report to the journal, then caption what it became — from the orchestrator's
+            own echo of it, not from listening to this room's STT a second time.
+
+            Never spoken back (`Salon._render` already refuses that), but a caption is text,
+            not speech, and reported-but-never-confirmed is indistinguishable from not
+            reported at all to a human watching their own words. This is the one path that
+            actually confirms it.
+            """
+            reported = await link.report(text, language=language)
+            if captions is None:
+                return
+            for utterance in reported:
+                captions.publish_soon(
+                    text=utterance.text,
+                    identity=participant_id,
+                    language=utterance.language,
+                    speaker_name=_participant_name(ctx.room, participant_id),
+                )
+
         @agent_session.on("user_input_transcribed")
         def _report_to_the_journal(event) -> None:
             # Finals only. An interim transcript is a half-sentence that was never true, and
@@ -2078,7 +2098,9 @@ async def entrypoint(ctx: agents.JobContext):
             if not getattr(event, "is_final", False):
                 return
             asyncio.create_task(
-                link.report(event.transcript, language=getattr(event, "language", None))
+                _report_and_caption_own_speech(
+                    event.transcript, getattr(event, "language", None)
+                )
             )
 
         def _mark_journal_speaking() -> None:

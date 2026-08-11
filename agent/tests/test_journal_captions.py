@@ -1,9 +1,13 @@
 """A journal-delivered line is captioned from the line itself, attributed to whoever
 actually said it — not from watching the model's own voice, which only ever knows "agent".
 
-`_publish_journal_caption` and `_on_agent_speech` are closures registered deep inside
-`entrypoint`, so this is read out of the source the same way test_join_greeting_delay.py
-already does for a sibling handler.
+Also covers the other direction: a human's own speech reaches their own local captions by
+reporting it to the orchestrator and captioning what the response echoes back, never from
+listening to this room's own STT a second time.
+
+`_publish_journal_caption`, `_on_agent_speech` and `_report_and_caption_own_speech` are
+closures registered deep inside `entrypoint`, so this is read out of the source the same way
+test_join_greeting_delay.py already does for a sibling handler.
 """
 import inspect
 import os
@@ -64,3 +68,40 @@ def test_the_journal_voice_and_follow_call_are_both_wired_to_the_new_hooks():
     block = source[start : source.index("stop=stop_following", start)]
     assert "on_before_speak=_mark_journal_speaking" in block
     assert "on_delivered=_publish_journal_caption" in block
+
+
+# ─── A human's own speech, captioned via the orchestrator's own echo ───────────
+
+
+def _report_and_caption_source() -> str:
+    source = _entrypoint_source()
+    start = source.index("async def _report_and_caption_own_speech")
+    return source[start : source.index("\n\n        @agent_session.on", start)]
+
+
+def test_own_speech_is_reported_before_it_is_captioned():
+    """The caption comes from the orchestrator's own response, not from a second read of
+    this room's STT — so the report has to happen, and be awaited, before anything is
+    captioned."""
+    block = _report_and_caption_source()
+    assert "reported = await link.report(" in block
+    assert block.index("reported = await link.report(") < block.index("captions.publish_soon(")
+
+
+def test_own_speech_is_captioned_as_this_participant_not_the_agent():
+    block = _report_and_caption_source()
+    assert "identity=participant_id" in block
+
+
+def test_a_missing_caption_publisher_does_not_crash_the_report_handler():
+    block = _report_and_caption_source()
+    assert "if captions is None:" in block
+
+
+def test_the_journal_handler_awaits_the_report_before_captioning():
+    """`_report_to_the_journal` used to fire-and-forget `link.report(...)` with nothing
+    reading the answer — captioning it requires actually waiting for what it became."""
+    source = _entrypoint_source()
+    start = source.index('def _report_to_the_journal')
+    block = source[start : source.index("\n\n", start)]
+    assert "_report_and_caption_own_speech(" in block

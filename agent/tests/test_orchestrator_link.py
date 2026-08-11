@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.orchestrator_link import Line, OrchestratorLink, _line_from_json
+from src.orchestrator_link import Line, OrchestratorLink, ReportedUtterance, _line_from_json
 
 BASE = "http://orchestrator.vocaliz.internal:8080"
 
@@ -46,11 +46,18 @@ def _answers(status=200, payload=None):
 
 @pytest.mark.asyncio
 async def test_what_the_human_said_reaches_the_journal():
-    session = _answers(payload={"recorded": 1, "sequences": [7]})
+    session = _answers(
+        payload={
+            "recorded": 1,
+            "sequences": [7],
+            "entries": [{"sequence": 7, "text": "Bonjour à tous", "language": "fr"}],
+        }
+    )
 
     with patch("aiohttp.ClientSession", return_value=session):
-        assert await _link().report("Bonjour à tous") == 1
+        reported = await _link().report("Bonjour à tous")
 
+    assert reported == [ReportedUtterance(text="Bonjour à tous", language="fr", sequence=7)]
     method, url = session.request.call_args.args
     assert method == "POST"
     assert url == f"{BASE}/salons/salon-1/participants/marie/utterances"
@@ -59,22 +66,35 @@ async def test_what_the_human_said_reaches_the_journal():
 
 @pytest.mark.asyncio
 async def test_a_long_intervention_is_reported_as_the_several_messages_it_became():
-    """Cut so that nobody waits for the end of it, which is why the count is the useful
-    answer rather than an acknowledgement."""
-    session = _answers(payload={"recorded": 3, "sequences": [7, 8, 9]})
+    """Cut so that nobody waits for the end of it, which is why each piece is echoed back in
+    order rather than one acknowledgement for the whole."""
+    session = _answers(
+        payload={
+            "recorded": 3,
+            "sequences": [7, 8, 9],
+            "entries": [
+                {"sequence": 7, "text": "one", "language": "fr"},
+                {"sequence": 8, "text": "two", "language": "fr"},
+                {"sequence": 9, "text": "three", "language": "fr"},
+            ],
+        }
+    )
 
     with patch("aiohttp.ClientSession", return_value=session):
-        assert await _link().report("..." * 400) == 3
+        reported = await _link().report("..." * 400)
+
+    assert len(reported) == 3
+    assert [u.text for u in reported] == ["one", "two", "three"]
 
 
 @pytest.mark.asyncio
 async def test_nothing_recorded_is_an_ordinary_answer():
     """A cut microphone, or a room that has fallen too far behind. Not a failure — the
     orchestrator decided, and this agent goes on holding a room with a human in it."""
-    session = _answers(payload={"recorded": 0, "sequences": []})
+    session = _answers(payload={"recorded": 0, "sequences": [], "entries": []})
 
     with patch("aiohttp.ClientSession", return_value=session):
-        assert await _link().report("Bonjour") == 0
+        assert await _link().report("Bonjour") == []
 
 
 @pytest.mark.asyncio
@@ -82,7 +102,7 @@ async def test_silence_is_never_reported():
     """Whitespace is what arrives when somebody clears their throat. A journal entry for it
     would burn a sequence number and make every other agent say nothing, out loud."""
     with patch("aiohttp.ClientSession") as session:
-        assert await _link().report("   ") == 0
+        assert await _link().report("   ") == []
 
     session.assert_not_called()
 
@@ -203,7 +223,7 @@ async def test_an_unreachable_orchestrator_stops_translation_and_not_the_salon()
 
     with patch("aiohttp.ClientSession", return_value=session):
         assert await _link().script() == []
-        assert await _link().report("Bonjour") == 0
+        assert await _link().report("Bonjour") == []
 
 
 @pytest.mark.asyncio
@@ -223,7 +243,7 @@ async def test_no_address_means_no_request_at_all():
     with patch("aiohttp.ClientSession") as session:
         assert link.configured is False
         assert await link.script() == []
-        assert await link.report("Bonjour") == 0
+        assert await link.report("Bonjour") == []
         await link.leave()
 
     session.assert_not_called()

@@ -31,6 +31,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.interprete import Participant
+from src.journal import without_markers
 from src.lifecycle import DrainingError
 from src.salon import HistoryAccess, Salon
 from src.tiers import Tier
@@ -204,6 +205,12 @@ def build_router() -> APIRouter:
         `recorded` is how many messages it became: a long intervention is cut into several
         so that a listener is not made to wait for the end of it, and nothing is recorded at
         all from somebody whose microphone the host has cut or whose room has saturated.
+
+        `entries` echoes back the text and language of each one recorded, in order. Nobody is
+        served their own words through `/script` (see `test_nobody_is_served_their_own_words`)
+        — that rule is about speech, not about knowing your own words reached the journal at
+        all, which is what a caption of them is for. This is the only place that answer can
+        come from: the round trip that already exists to report them.
         """
         salon = _salon(request, salon_id)
         entries = await salon.ingest(
@@ -217,6 +224,16 @@ def build_router() -> APIRouter:
             "participantId": participant_id,
             "recorded": len(entries),
             "sequences": [entry.sequence for entry in entries],
+            "entries": [
+                {
+                    "sequence": entry.sequence,
+                    # A pause marker says how to *say* something (Story 6.11); there is
+                    # nothing to read in a silence, and this is read, never spoken.
+                    "text": without_markers(entry.text),
+                    "language": entry.language,
+                }
+                for entry in entries
+            ],
         }
 
     @router.delete("/{salon_id}/participants/{participant_id}")
