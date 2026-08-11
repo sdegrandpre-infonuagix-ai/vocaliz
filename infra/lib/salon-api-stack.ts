@@ -346,7 +346,11 @@ export class SalonApiStack extends cdk.Stack {
     for (const fn of [apiFn, migrateFn]) {
       fn.addToRolePolicy(
         new iam.PolicyStatement({
-          actions: ['ses:SendEmail'],
+          // SendRawEmail alongside SendEmail: the salon closure report attaches a transcript,
+          // which only a raw (MIME) message can carry. Granted for both from the start would
+          // have caught this; it was not, and the report failed silently — it catches its own
+          // errors — until an AccessDenied for SendRawEmail turned up in the logs.
+          actions: ['ses:SendEmail', 'ses:SendRawEmail'],
           resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
         }),
       );
