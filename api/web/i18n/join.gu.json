@@ -88,13 +88,13 @@
   "sourceTitle": "સ્રોત ઉમેરો",
   "starMeaning": "* લાઇવ વૉઇસ વાતચીત પણ ઉપલબ્ધ છે ",
   "tierA": "મોડ એ",
-  "tierAWhat": "ઓછી જાહેરાત સાથે કુદરતી અવાજ",
+  "tierAWhat": "કુદરતી અવાજ, ઓછી જાહેરાત સાથે ($7.50/કલાક)",
   "tierB": "મોડ બી",
-  "tierBWhat": "કુદરતી અવાજ, કોઈ જાહેરાત નથી",
+  "tierBWhat": "કુદરતી અવાજ, કોઈ જાહેરાત નથી ($15.00/h)",
   "tierBase": "બેઝ",
-  "tierBaseWhat": "જાહેરાત સાથે કૃત્રિમ અવાજ",
+  "tierBaseWhat": "જાહેરાત સાથે કૃત્રિમ અવાજ ($3.00/h)",
   "tierC": "મોડ સી",
-  "tierCWhat": "સૌથી સચેત દુભાષિયો, કોઈ જાહેરાત નથી",
+  "tierCWhat": "સૌથી સચેત દુભાષિયો, કોઈ જાહેરાત નથી ($22.50/કલાક)",
   "tierHeading": "તમે આ વાતચીત કેવી રીતે સાંભળવા માંગો છો?",
   "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

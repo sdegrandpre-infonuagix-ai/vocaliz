@@ -88,13 +88,13 @@
   "sourceTitle": "Tilføj en kilde",
   "starMeaning": "* Live stemmesamtale er også tilgængelig i ",
   "tierA": "Tilstand A",
-  "tierAWhat": "En naturlig stemme med mindre reklame",
+  "tierAWhat": "En naturlig stemme med mindre reklame ($7,50/h)",
   "tierB": "Tilstand B",
-  "tierBWhat": "En naturlig stemme, ingen reklame",
+  "tierBWhat": "En naturlig stemme, ingen reklame ($15,00/h)",
   "tierBase": "Basen",
-  "tierBaseWhat": "En syntetisk stemme med reklame",
+  "tierBaseWhat": "En syntetisk stemme med reklame ($3,00/h)",
   "tierC": "Tilstand C",
-  "tierCWhat": "Den mest opmærksomme tolk, ingen reklame",
+  "tierCWhat": "Den mest opmærksomme tolk, ingen reklame ($22,50/h)",
   "tierHeading": "Hvordan vil du gerne høre denne samtale?",
   "whatIsVocaliz": "Vocaliz er en platform til oprettelse af Salons. Et Salon består af op til 3 lydrum, hvert værelse med et menneske og en AI-stemmeagent. Kommunikation mellem værelserne foregår gennem levende billedtekster, som hvert menneske kan bede deres stemmeagent om at dele i Salon."
 }

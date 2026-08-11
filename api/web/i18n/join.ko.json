@@ -88,13 +88,13 @@
   "sourceTitle": "소스 추가",
   "starMeaning": "* 라이브 음성 대화도 에서 사용할 수 있습니다. ",
   "tierA": "모드 A",
-  "tierAWhat": "광고가 적은 자연스러운 목소리",
+  "tierAWhat": "광고가 적은 자연스러운 목소리 (시간당 7.50달러)",
   "tierB": "모드 B",
-  "tierBWhat": "자연스러운 목소리, 광고 없음",
+  "tierBWhat": "자연스러운 목소리, 광고 없음 (시간당 15.00달러)",
   "tierBase": "베이스",
-  "tierBaseWhat": "광고가 포함된 합성 음성",
+  "tierBaseWhat": "광고가 포함된 합성 음성 (시간당 3.00달러)",
   "tierC": "모드 C",
-  "tierCWhat": "가장 친절한 통역사, 광고 없음",
+  "tierCWhat": "가장 친절한 통역사, 광고 없음 (시간당 22.50달러)",
   "tierHeading": "이 대화를 어떻게 듣고 싶으세요?",
   "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

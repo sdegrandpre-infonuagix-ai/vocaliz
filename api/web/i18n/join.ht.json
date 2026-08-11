@@ -88,13 +88,13 @@
   "sourceTitle": "Ajoute yon sous",
   "starMeaning": "* Konvèsasyon vwa ap viv disponib tou nan ",
   "tierA": "Mòd A",
-  "tierAWhat": "Yon vwa natirèl, ak mwens piblisite",
+  "tierAWhat": "Yon vwa natirèl, ak mwens piblisite ($7.50/h)",
   "tierB": "Mòd B",
-  "tierBWhat": "Yon vwa natirèl, pa gen okenn piblisite",
+  "tierBWhat": "Yon vwa natirèl, pa gen okenn piblisite ($15.00/h)",
   "tierBase": "Baz",
-  "tierBaseWhat": "Yon vwa sentetik, ak piblisite",
+  "tierBaseWhat": "Yon vwa sentetik, ak piblisite ($3.00/h)",
   "tierC": "Mòd C",
-  "tierCWhat": "Entèprèt ki pi atantif, pa gen okenn piblisite",
+  "tierCWhat": "Entèprèt ki pi atantif, pa gen okenn piblisite ($22.50/h)",
   "tierHeading": "Ki jan ou ta renmen tande konvèsasyon sa a?",
   "whatIsVocaliz": "Vocaliz se yon platfòm pou kreye Salons. Yon Salon se te fè leve nan jiska 3 chanm odyo, chak chanm ak yon imen ak yon ajan vwa AI. Kominikasyon ant chanm yo se atravè captions ap viv ke chak moun ka mande ajan vwa yo pataje nan Salon la."
 }

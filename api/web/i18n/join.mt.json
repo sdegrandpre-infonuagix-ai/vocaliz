@@ -88,13 +88,13 @@
   "sourceTitle": "Żid sors",
   "starMeaning": "* Il-konverżazzjoni bil-vuċi diretta hija disponibbli wkoll fi ",
   "tierA": "Modalità A",
-  "tierAWhat": "Vuċi naturali, b'inqas reklamar",
+  "tierAWhat": "Vuċi naturali, b'inqas reklamar ($7.50/siegħa)",
   "tierB": "Modalità B",
-  "tierBWhat": "Vuċi naturali, l-ebda reklamar",
+  "tierBWhat": "Vuċi naturali, l-ebda reklamar ($15.00/h)",
   "tierBase": "Bażi",
-  "tierBaseWhat": "Vuċi sintetika, b'reklamar",
+  "tierBaseWhat": "Vuċi sintetika, b'reklamar ($3.00/h)",
   "tierC": "Modalità C",
-  "tierCWhat": "L-iktar interpretu attent, l-ebda reklamar",
+  "tierCWhat": "L-iktar interpretu attent, l-ebda reklamar ($22.50/siegħa)",
   "tierHeading": "Kif tixtieq tisma' din il-konverżazzjoni?",
   "whatIsVocaliz": "Vocaliz hija pjattaforma għall-ħolqien ta' Salons. A Salon huwa magħmul minn sa kmamar awdjo 3, kull kamra b'aġent tal-vuċi uman u AI. Il-komunikazzjoni bejn il-kmamar hija permezz ta 'captions ħajjin li kull bniedem jista' jitlob lill-aġent tal-vuċi tiegħu biex jaqsam fil-Salon."
 }

@@ -88,13 +88,13 @@
   "sourceTitle": "Dodaj izvor",
   "starMeaning": "* Glasovni razgovor uživo dostupan je i ",
   "tierA": "Način A",
-  "tierAWhat": "Prirodni glas, s manje oglašavanja",
+  "tierAWhat": "Prirodni glas, s manje oglašavanja (7,50 USD/h)",
   "tierB": "Način B",
-  "tierBWhat": "Prirodni glas, bez oglašavanja",
+  "tierBWhat": "Prirodni glas, bez oglašavanja (15,00 $/h)",
   "tierBase": "Baza",
-  "tierBaseWhat": "Sintetički glas, s oglašavanjem",
+  "tierBaseWhat": "Sintetički glas, s oglašavanjem (3,00 USD/h)",
   "tierC": "Način C",
-  "tierCWhat": "Najpažljiviji tumač, bez oglašavanja",
+  "tierCWhat": "Najpažljiviji tumač, bez oglašavanja (22,50 USD/h)",
   "tierHeading": "Kako biste željeli čuti ovaj razgovor?",
   "whatIsVocaliz": "Vocaliz je platforma za kreiranje Salons. Salon sastoji se od do 3 audio sobe, svaka soba sa ljudskim i AI glasovnim agentom. Komunikacija između soba odvija se putem natpisa uživo koje svaki čovjek može tražiti od svog glasovnog agenta da podijeli u Salon."
 }

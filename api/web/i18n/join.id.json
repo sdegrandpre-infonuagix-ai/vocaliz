@@ -88,13 +88,13 @@
   "sourceTitle": "Tambahkan sumber",
   "starMeaning": "* Percakapan suara langsung juga tersedia di ",
   "tierA": "Modus A",
-  "tierAWhat": "Suara alami, dengan lebih sedikit iklan",
+  "tierAWhat": "Suara alami, dengan lebih sedikit iklan ($7,50/jam)",
   "tierB": "Modus B",
-  "tierBWhat": "Suara alami, tidak ada iklan",
+  "tierBWhat": "Suara alami, tanpa iklan ($15,00/jam)",
   "tierBase": "Basis",
-  "tierBaseWhat": "Suara sintetis, dengan iklan",
+  "tierBaseWhat": "Suara sintetis, dengan iklan ($3,00/jam)",
   "tierC": "Modus C",
-  "tierCWhat": "Penerjemah yang paling penuh perhatian, tidak ada iklan",
+  "tierCWhat": "Penerjemah yang paling penuh perhatian, tidak ada iklan ($22,50/jam)",
   "tierHeading": "Bagaimana Anda ingin mendengar percakapan ini?",
   "whatIsVocaliz": "Vocaliz adalah platform untuk membuat Salons. Salon terdiri dari hingga 3 ruang audio, setiap kamar dengan agen suara manusia dan AI. Komunikasi antar kamar adalah melalui teks langsung yang setiap manusia dapat meminta agen suara mereka untuk berbagi di Salon."
 }

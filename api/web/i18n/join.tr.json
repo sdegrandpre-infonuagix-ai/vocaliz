@@ -88,13 +88,13 @@
   "sourceTitle": "Kaynak ekle",
   "starMeaning": "* Canlı sesli konuşma şurada da mevcuttur ",
   "tierA": "Mod A",
-  "tierAWhat": "Daha az reklam ile doğal bir ses",
+  "tierAWhat": "Daha az reklamla doğal bir ses (7,50 $/saat)",
   "tierB": "Mod B",
-  "tierBWhat": "Doğal bir ses, reklam yok",
+  "tierBWhat": "Doğal bir ses, reklam yok (15,00 $/saat)",
   "tierBase": "Taban",
-  "tierBaseWhat": "Reklam içeren sentetik bir ses",
+  "tierBaseWhat": "Reklamlı sentetik bir ses (3,00 $/saat)",
   "tierC": "Mod C",
-  "tierCWhat": "En özenli tercüman, reklam yok",
+  "tierCWhat": "En özenli tercüman, reklam yok (22.50 $/saat)",
   "tierHeading": "Bu konuşmayı nasıl duymak istersiniz?",
   "whatIsVocaliz": "Vocaliz, Salons oluşturmak için bir platformdur. Salon, her odada bir insan ve bir yapay zeka ses aracısı bulunan en fazla 3 ses odasından oluşur. Odalar arasındaki iletişim, her insanın ses temsilcisinden Salon 'de paylaşmasını isteyebileceği canlı altyazılar aracılığıyla gerçekleşir."
 }

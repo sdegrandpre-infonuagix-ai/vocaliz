@@ -88,13 +88,13 @@
   "sourceTitle": "Eine Quelle hinzufügen",
   "starMeaning": "* Live-Sprachkonversation ist auch verfügbar in ",
   "tierA": "Modus A",
-  "tierAWhat": "Eine natürliche Stimme mit weniger Werbung",
+  "tierAWhat": "Eine natürliche Stimme mit weniger Werbung (7,50 USD/h)",
   "tierB": "Modus B",
-  "tierBWhat": "Eine natürliche Stimme, keine Werbung",
+  "tierBWhat": "Eine natürliche Stimme, keine Werbung (15,00 USD/h)",
   "tierBase": "Basis",
-  "tierBaseWhat": "Eine synthetische Stimme mit Werbung",
+  "tierBaseWhat": "Eine synthetische Stimme mit Werbung (3,00 USD/h)",
   "tierC": "Modus C",
-  "tierCWhat": "Der aufmerksamste Dolmetscher, keine Werbung",
+  "tierCWhat": "Der aufmerksamste Dolmetscher, keine Werbung (22,50 USD/h)",
   "tierHeading": "Wie würden Sie dieses Gespräch gerne hören?",
   "whatIsVocaliz": "Vocaliz ist eine Plattform zum Erstellen von Salons. Ein Salon besteht aus bis zu 3 Audioräumen, in jedem Raum befinden sich ein menschlicher und ein KI-Sprachagent. Die Kommunikation zwischen den Räumen erfolgt über Live-Untertitel, die jeder Mensch seinen Sprecher bitten kann, sie im Salon zu teilen."
 }

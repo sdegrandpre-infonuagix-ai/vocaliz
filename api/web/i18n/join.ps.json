@@ -88,13 +88,13 @@
   "sourceTitle": "سرچینه اضافه کړئ",
   "starMeaning": "* ژوندي غږ خبرې هم په کې شتون لري ",
   "tierA": "حالت A",
-  "tierAWhat": "یو طبیعي غږ، د لږ اعلانونو سره",
+  "tierAWhat": "یو طبیعي غږ، د لږ اعلانونو سره ($7.50/ساعت)",
   "tierB": "حالت ب",
-  "tierBWhat": "یو طبیعي غږ، هیڅ اعلان نشته",
+  "tierBWhat": "یو طبیعي غږ، هیڅ اعلان نشته ($15.00/h)",
   "tierBase": "بنسټ",
-  "tierBaseWhat": "یو مصنوعی غږ، د اعلانونو سره",
+  "tierBaseWhat": "یو مصنوعی غږ، د اعلانونو سره ($3.00/h)",
   "tierC": "حالت C",
-  "tierCWhat": "ترټولو پام وړ ترجمان، هیڅ اعلان نشته",
+  "tierCWhat": "ترټولو پام وړ ترجمان، هیڅ اعلان نشته ($22.50/ساعت)",
   "tierHeading": "تاسو څنګه غواړئ دا خبرې اوریدئ؟",
   "whatIsVocaliz": "Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon."
 }

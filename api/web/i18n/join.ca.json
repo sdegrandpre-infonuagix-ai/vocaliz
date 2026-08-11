@@ -88,13 +88,13 @@
   "sourceTitle": "Afegir una font",
   "starMeaning": "* La conversa de veu en directe també està disponible a ",
   "tierA": "Mode A",
-  "tierAWhat": "Una veu natural, amb menys publicitat",
+  "tierAWhat": "Una veu natural, amb menys publicitat (7,50 $/h)",
   "tierB": "Mode B",
-  "tierBWhat": "Una veu natural, sense publicitat",
+  "tierBWhat": "Una veu natural, sense publicitat (15,00 $/h)",
   "tierBase": "Base",
-  "tierBaseWhat": "Una veu sintètica, amb publicitat",
+  "tierBaseWhat": "Una veu sintètica, amb publicitat (3,00 $/h)",
   "tierC": "Mode C",
-  "tierCWhat": "L'intèrpret més atent, sense publicitat",
+  "tierCWhat": "L'intèrpret més atent, sense publicitat (22,50 $/h)",
   "tierHeading": "Com t'agradaria escoltar aquesta conversa?",
   "whatIsVocaliz": "Vocaliz és una plataforma per crear Salons. Un Salon està format per fins a 3 sales d'àudio, cada sala amb un agent de veu humà i un AI. La comunicació entre les habitacions és a través de subtítols en directe que cada humà pot demanar al seu agent de veu que comparteixi en el Salon."
 }

@@ -88,13 +88,13 @@
   "sourceTitle": "Pridėti šaltinį",
   "starMeaning": "* Tiesioginis balso pokalbis taip pat prieinamas ",
   "tierA": "Režimas A",
-  "tierAWhat": "Natūralus balsas, su mažiau reklamos",
+  "tierAWhat": "Natūralus balsas su mažiau reklamos (7,50 USD/val.)",
   "tierB": "B režimas",
-  "tierBWhat": "Natūralus balsas, be reklamos",
+  "tierBWhat": "Natūralus balsas, be reklamos (15,00 USD/val.)",
   "tierBase": "Bazė",
-  "tierBaseWhat": "Sintetinis balsas su reklama",
+  "tierBaseWhat": "Sintetinis balsas su reklama (3,00 USD/val.)",
   "tierC": "Režimas C",
-  "tierCWhat": "Labiausiai dėmesingas vertėjas, be reklamos",
+  "tierCWhat": "Atidžiausias vertėjas, be reklamos (22,50 USD/val.)",
   "tierHeading": "Kaip norėtumėte išgirsti šį pokalbį?",
   "whatIsVocaliz": "Vocaliz yra platforma, skirta sukurti Salons. A Salon sudaro iki 3 garso kambarių, kiekviename kambaryje yra žmogaus ir AI balso agentas. Bendravimas tarp kambarių vyksta per tiesiogines antraštes, kurias kiekvienas žmogus gali paprašyti savo balso agento pasidalinti Salon."
 }

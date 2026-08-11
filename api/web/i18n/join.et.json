@@ -88,13 +88,13 @@
   "sourceTitle": "Lisage allikas",
   "starMeaning": "* Live häälvestlus on saadaval ka ",
   "tierA": "Režiim A",
-  "tierAWhat": "Loomulik hääl, vähem reklaami",
+  "tierAWhat": "Loomulik hääl, vähem reklaami (7,50 dollarit/h)",
   "tierB": "Režiim B",
-  "tierBWhat": "Loomulik hääl, reklaam puudub",
+  "tierBWhat": "Loomulik hääl, reklaam puudub ($15,00 /h)",
   "tierBase": "Alus",
-  "tierBaseWhat": "Sünteetiline hääl koos reklaamiga",
+  "tierBaseWhat": "Sünteetiline hääl koos reklaamiga (3,00 dollarit/h)",
   "tierC": "Režiim C",
-  "tierCWhat": "Kõige tähelepanelikum tõlk, reklaam puudub",
+  "tierCWhat": "Kõige tähelepanelikum tõlk, reklaam puudub (22,50 dollarit/h)",
   "tierHeading": "Kuidas soovite seda vestlust kuulda?",
   "whatIsVocaliz": "Vocaliz on platvorm Salons loomiseks. Salon koosneb kuni kolmest heliruumist, igas toas on inimene ja tehisintellekti hääleagent. Ruumide vaheline suhtlus toimub reaalajas pealdiste kaudu, mida iga inimene saab paluda oma hääleagendil jagada Salon."
 }

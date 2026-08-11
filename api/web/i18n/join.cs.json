@@ -88,13 +88,13 @@
   "sourceTitle": "Přidat zdroj",
   "starMeaning": "* Živá hlasová konverzace je k dispozici také v ",
   "tierA": "Režim A",
-  "tierAWhat": "Přirozený hlas s menší reklamou",
+  "tierAWhat": "Přirozený hlas s menší reklamou (7,50 $/h)",
   "tierB": "Režim B",
-  "tierBWhat": "Přirozený hlas, žádná reklama",
+  "tierBWhat": "Přirozený hlas, žádná reklama (15,00 $/h)",
   "tierBase": "Základna",
-  "tierBaseWhat": "Syntetický hlas s reklamou",
+  "tierBaseWhat": "Syntetický hlas s reklamou (3,00 $/h)",
   "tierC": "Režim C",
-  "tierCWhat": "Nejpozornější tlumočník, žádná reklama",
+  "tierCWhat": "Nejpozornější tlumočník, žádná reklama (22,50 $/h)",
   "tierHeading": "Jak byste chtěli slyšet tento rozhovor?",
   "whatIsVocaliz": "Vocaliz je platforma pro vytváření Salons. Salon se skládá až ze 3 zvukových místností, v každé místnosti je lidský a hlasový agent AI. Komunikace mezi místnostmi probíhá prostřednictvím živých titulků, které může každý člověk požádat svého hlasového agenta o sdílení v Salon."
 }

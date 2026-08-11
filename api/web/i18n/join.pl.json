@@ -88,13 +88,13 @@
   "sourceTitle": "Dodaj źródło",
   "starMeaning": "* Rozmowa głosowa na żywo jest również dostępna w ",
   "tierA": "Tryb A",
-  "tierAWhat": "Naturalny głos, z mniejszą ilością reklam",
+  "tierAWhat": "Naturalny głos, z mniejszą ilością reklam (7,50 USD/godz)",
   "tierB": "Tryb B",
-  "tierBWhat": "Naturalny głos, bez reklam",
+  "tierBWhat": "Naturalny głos, bez reklamy (15,00 $/h)",
   "tierBase": "Baza",
-  "tierBaseWhat": "Syntetyczny głos z reklamą",
+  "tierBaseWhat": "Syntetyczny głos z reklamą (3,00 $/h)",
   "tierC": "Tryb C",
-  "tierCWhat": "Najbardziej uważny tłumacz, bez reklam",
+  "tierCWhat": "Najbardziej uważny tłumacz, bez reklam (22,50 USD/godz)",
   "tierHeading": "Jak chciałbyś usłyszeć tę rozmowę?",
   "whatIsVocaliz": "Vocaliz jest platformą do tworzenia Salons. Salon składa się z maksymalnie 3 pomieszczeń audio, w każdym pokoju z człowiekiem i agentem głosowym AI. Komunikacja między pokojami odbywa się za pomocą napisów na żywo, które każdy człowiek może poprosić swojego agenta głosowego o udostępnienie w Salon."
 }
