@@ -41,6 +41,14 @@ DEFAULT_INTERVAL_SECONDS = 0.25
 # two.
 BACKOFF_SECONDS = 2.0
 
+# Consecutive delivery batches that each lost a line to the same kind of failure before this
+# loop gives up on its own realtime session rather than keep asking it. Each batch already
+# cost two attempts inside `_speak` — see session_voice.py — so by the time this fires, the
+# session has failed to speak at all on four separate tries. Two rather than one: a batch
+# that fails once is not yet distinguishable from a fluke, and one that fails twice running
+# is the same bar `_speak`'s own retry already uses for the same reason.
+GIVE_UP_AFTER_CONSECUTIVE_FAILURES = 2
+
 
 class Voice(Protocol):
     """What this agent speaks through — its own interpreter, beside its own microphone.
@@ -69,13 +77,17 @@ async def deliver(line: Line, voice: Voice) -> None:
         await voice.render(line)
 
 
-async def deliver_script(link: OrchestratorLink, voice: Voice) -> int:
-    """Ask once, say everything that comes back. Returns how many lines were said.
+async def deliver_script(link: OrchestratorLink, voice: Voice) -> tuple[int, bool]:
+    """Ask once, say everything that comes back. Returns (lines said, whether one failed).
 
     A line that cannot be spoken stops this delivery and no other. The reading position has
     already moved — the orchestrator advanced it when it handed the script over — so what is
     lost is what was left in this batch, and the next ask brings whatever has arrived since.
     Raising instead would take down the loop, and with it every later line as well.
+
+    The second value is what lets `follow` tell a session that is merely having a bad line
+    from one that cannot speak at all — a single batch failing here says nothing on its own,
+    but several in a row is the pattern `GIVE_UP_AFTER_CONSECUTIVE_FAILURES` watches for.
     """
     said = 0
     for line in await link.script():
@@ -84,9 +96,9 @@ async def deliver_script(link: OrchestratorLink, voice: Voice) -> int:
         except Exception:  # noqa: BLE001
             logger.warning("could not say a %s line, dropping the rest of this script",
                            line.kind, exc_info=True)
-            return said
+            return said, True
         said += 1
-    return said
+    return said, False
 
 
 async def _wait(
@@ -128,6 +140,7 @@ async def follow(
     interval: float = DEFAULT_INTERVAL_SECONDS,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     wake: asyncio.Event | None = None,
+    on_unrecoverable: Callable[[], None] | None = None,
 ) -> None:
     """Keep saying what this human is owed until told to stop.
 
@@ -140,6 +153,14 @@ async def follow(
     somebody else spoke, so this asks now instead of at the end of whatever is left of the
     ordinary interval. Left out, or never set, this behaves exactly as it always has —
     nothing here depends on it arriving.
+
+    `on_unrecoverable` is called, once, after `GIVE_UP_AFTER_CONSECUTIVE_FAILURES` batches in
+    a row each lose a line — the pattern a realtime session gives when its connection has
+    died in a way retrying on it cannot fix (see session_voice.py's own retry, which this is
+    the layer above). Left out, this loop keeps polling forever regardless, which was the
+    whole behaviour before a webhook existed on the other end able to do anything about a
+    session in that state. This function returns either way once it has called it: there is
+    nothing left for it to poll for on a session its caller is about to leave.
     """
     if not link.configured:
         # Nothing to follow. An agent given no orchestrator runs the conversation it can,
@@ -147,15 +168,32 @@ async def follow(
         logger.info("no orchestrator configured: this agent will not follow a journal")
         return
 
+    consecutive_failures = 0
     while not stop.is_set():
         try:
-            await deliver_script(link, voice)
+            _, failed = await deliver_script(link, voice)
         except Exception:  # noqa: BLE001
             # The link swallows its own failures, so reaching here means something else did.
             # Logged and slowed rather than raised: this task holds a live room.
             logger.warning("delivery loop stumbled", exc_info=True)
             await sleep(BACKOFF_SECONDS)
             continue
+
+        if failed:
+            consecutive_failures += 1
+            if (
+                on_unrecoverable is not None
+                and consecutive_failures >= GIVE_UP_AFTER_CONSECUTIVE_FAILURES
+            ):
+                logger.error(
+                    "giving up after %d consecutive failed deliveries; the realtime "
+                    "session does not appear able to speak at all",
+                    consecutive_failures,
+                )
+                on_unrecoverable()
+                return
+        else:
+            consecutive_failures = 0
 
         if stop.is_set():
             return

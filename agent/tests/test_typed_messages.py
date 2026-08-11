@@ -163,8 +163,9 @@ def test_the_spoken_line_is_not_also_published_as_a_caption():
 
 def test_a_guest_line_reaches_the_room_in_writing():
     handler = _handler()
-    tail = handler[handler.index("# A guest's typed line") :]
-    assert "publish_soon(text=text, identity=sender)" in tail
+    tail = _code(handler[handler.index("# A guest's typed line") :])
+    assert "captions.publish_soon(" in tail
+    assert "identity=sender" in tail
 
 
 def test_a_failed_say_still_delivers_the_line():

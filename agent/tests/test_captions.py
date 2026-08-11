@@ -139,6 +139,60 @@ async def test_a_caption_carries_the_spoken_text_and_its_translations(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_a_speaker_name_is_passed_through_to_the_api(monkeypatch):
+    """The agent already holds this from the room — LiveKit's own display name, or the
+    literal "Salon" for a line spoken on somebody's behalf — and sends it rather than
+    letting the API's own anonymised guess decide the label."""
+    room = _room(_participant("guest-abc", "fr"))
+    publisher = _publisher(room)
+
+    response = MagicMock()
+    response.status_code = 201
+    response.json.return_value = {
+        "sequence": 1, "speaker": "Marie", "role": "guest", "text": "Bonjour.",
+        "language": "fr", "translations": {}, "spokenAt": None,
+    }
+    client = AsyncMock()
+    client.post.return_value = response
+    monkeypatch.setattr(
+        cap.httpx, "AsyncClient", lambda **_: MagicMock(
+            __aenter__=AsyncMock(return_value=client), __aexit__=AsyncMock(return_value=False)
+        )
+    )
+
+    await publisher.publish(text="Bonjour.", identity="guest-abc", speaker_name="Marie")
+
+    sent = client.post.await_args.kwargs["json"]
+    assert sent["speakerName"] == "Marie"
+
+
+@pytest.mark.asyncio
+async def test_no_speaker_name_is_sent_when_none_is_given(monkeypatch):
+    """Every existing caller — nothing here changed for them — must keep sending exactly
+    what it always has, which display_label reads as "nobody supplied one"."""
+    room = _room(_participant("guest-abc", "fr"))
+    publisher = _publisher(room)
+
+    response = MagicMock()
+    response.status_code = 201
+    response.json.return_value = {
+        "sequence": 1, "speaker": "Guest 3F2A", "role": "guest", "text": "Bonjour.",
+        "language": "fr", "translations": {}, "spokenAt": None,
+    }
+    client = AsyncMock()
+    client.post.return_value = response
+    monkeypatch.setattr(
+        cap.httpx, "AsyncClient", lambda **_: MagicMock(
+            __aenter__=AsyncMock(return_value=client), __aexit__=AsyncMock(return_value=False)
+        )
+    )
+
+    await publisher.publish(text="Bonjour.", identity="guest-abc")
+
+    assert client.post.await_args.kwargs["json"]["speakerName"] is None
+
+
+@pytest.mark.asyncio
 async def test_blank_speech_is_not_published(monkeypatch):
     room = _room(_participant("guest-abc", "fr"))
     await _publisher(room).publish(text="   ", identity="guest-abc")

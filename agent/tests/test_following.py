@@ -101,7 +101,8 @@ async def test_everything_in_a_script_is_said_in_order():
     voice = FakeVoice()
     link = FakeLink(scripts=[[_annonce("Hans arrive"), _tour("Guten Tag")]])
 
-    assert await deliver_script(link, voice) == 2
+    said, failed = await deliver_script(link, voice)
+    assert (said, failed) == (2, False)
     assert voice.spoken == ["Hans arrive"]
     assert voice.rendered[0].text == "Guten Tag"
 
@@ -114,7 +115,8 @@ async def test_a_line_that_cannot_be_said_costs_the_rest_of_that_batch_and_no_mo
     voice = FakeVoice(fail_with=RuntimeError("the model hung up"))
     link = FakeLink(scripts=[[_annonce(), _tour()]])
 
-    assert await deliver_script(link, voice) == 0  # nothing said, nothing raised
+    said, failed = await deliver_script(link, voice)
+    assert (said, failed) == (0, True)  # nothing said, nothing raised, but the failure is named
 
 
 # ── The loop ──────────────────────────────────────────────────────────────────
@@ -150,6 +152,79 @@ async def test_a_stop_asked_for_during_the_wait_is_honoured_at_the_next_turn():
     await follow(link, FakeVoice(), stop=stop, sleep=sleep)
 
     assert link.asks == 1
+
+
+@pytest.mark.asyncio
+async def test_the_loop_gives_up_after_consecutive_failures_and_calls_the_hook():
+    """Two batches in a row that each lose a line to the same voice is the pattern a session
+    that cannot speak at all produces — see session_voice.py's own two-attempt retry, which
+    this is the layer above. The loop must stop polling a session its caller is about to
+    leave, not keep asking it forever."""
+    voice = FakeVoice(fail_with=RuntimeError("generate_reply timed out"))
+    link = FakeLink(scripts=[[_tour()], [_tour()], [_tour()]])
+    stop = asyncio.Event()
+    gave_up = []
+
+    async def sleep(_seconds):
+        pass  # never asked to stop this way — giving up must end the loop on its own
+
+    await follow(
+        link, voice, stop=stop, sleep=sleep, on_unrecoverable=lambda: gave_up.append(True)
+    )
+
+    assert gave_up == [True]
+    # Two failed batches is the threshold; a third ask would mean the loop kept going past it.
+    assert link.asks == 2
+
+
+@pytest.mark.asyncio
+async def test_a_single_failed_batch_does_not_give_up():
+    """One bad batch is not yet distinguishable from a fluke — only consecutive ones are."""
+    voice = FakeVoice()
+    # Fails once, then the voice is swapped for one that succeeds — see below.
+    failing_line = _tour()
+    link = FakeLink(scripts=[[failing_line], [], [_tour()]])
+    stop = asyncio.Event()
+    gave_up = []
+
+    calls = {"n": 0}
+
+    class FlakyOnce:
+        async def say(self, text):
+            pass
+
+        async def render(self, line):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("one bad line")
+
+    async def sleep(_seconds):
+        if link.asks >= 3:
+            stop.set()
+
+    await follow(
+        link, FlakyOnce(), stop=stop, sleep=sleep, on_unrecoverable=lambda: gave_up.append(True)
+    )
+
+    assert gave_up == []
+    assert link.asks == 3
+
+
+@pytest.mark.asyncio
+async def test_without_the_hook_a_dead_session_is_polled_forever_as_before():
+    """Backward compatible: nobody passing `on_unrecoverable` gets the old behaviour exactly,
+    including its cost — this is what every caller did before the hook existed."""
+    voice = FakeVoice(fail_with=RuntimeError("generate_reply timed out"))
+    link = FakeLink(scripts=[[_tour()], [_tour()], [_tour()], [_tour()]])
+    stop = asyncio.Event()
+
+    async def sleep(_seconds):
+        if link.asks >= 4:
+            stop.set()
+
+    await follow(link, voice, stop=stop, sleep=sleep)  # on_unrecoverable omitted
+
+    assert link.asks == 4
 
 
 @pytest.mark.asyncio

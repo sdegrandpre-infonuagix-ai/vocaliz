@@ -353,6 +353,22 @@ _WELCOME_MESSAGE = (
 )
 
 
+def _participant_name(room, identity: str) -> str | None:
+    """LiveKit's own display name for whoever this identity belongs to, if they are in
+    this room at all.
+
+    Set once, at join, from a chosen name or the platform's own anonymised fallback
+    (`display_name_of`, `guest_display_name` — both on the API) — this never looks either
+    up itself, only reads what the room already carries. None for an identity this room
+    holds nobody under, which `display_label` reads as "use your own guess" exactly as it
+    did before this existed.
+    """
+    if identity and room.local_participant.identity == identity:
+        return room.local_participant.name or None
+    participant = room.remote_participants.get(identity)
+    return (participant.name or None) if participant is not None else None
+
+
 def _journal_intro_instructions(language: str) -> str:
     """The one thing this agent says on its own initiative: who it is, said once.
 
@@ -1545,6 +1561,14 @@ async def entrypoint(ctx: agents.JobContext):
     # guards it — no salon id means no captions either.
     captions: CaptionPublisher | None = None
 
+    # Set immediately before a typed, salon-checked message is read aloud on its writer's
+    # behalf, and read (and cleared) by the very next `conversation_item_added` — the
+    # `_on_agent_speech` handler further down, which has no other way to tell that one
+    # assistant turn apart from an ordinary reply. Safe because xAI's realtime session
+    # carries one generation at a time (see session_voice.py): nothing else can complete a
+    # turn in between the two.
+    pending_salon_caption = {"active": False}
+
     def _on_data(packet) -> None:
         if not (salon_id and api_url and host_token):
             return
@@ -1642,7 +1666,9 @@ async def entrypoint(ctx: agents.JobContext):
                 # captioned as speech nobody heard. Delivered in writing instead, attributed to
                 # whoever wrote it: pausing stops the agent taking part, it does not stop the
                 # people in the room reaching each other.
-                captions.publish_soon(text=text, identity=sender)
+                captions.publish_soon(
+                    text=text, identity=sender, speaker_name=_participant_name(ctx.room, sender)
+                )
                 logger.info("Typed line delivered in writing; the agent is paused")
                 return
 
@@ -1652,6 +1678,10 @@ async def entrypoint(ctx: agents.JobContext):
                 # print the same sentence twice, once as the host and once as the agent.
                 opening.stand_down()
                 try:
+                    # Read by `_on_agent_speech`, the very next assistant turn: this one is
+                    # the sender's own words in the agent's voice, not the agent speaking for
+                    # itself, so its caption reads "Salon" rather than "Vocaliz".
+                    pending_salon_caption["active"] = True
                     # Not say(), which is literal text-to-speech and would deliver a French
                     # sentence to somebody who speaks only Japanese. The model repeats it in
                     # the listener's language instead — word for word in substance, since
@@ -1668,13 +1698,21 @@ async def entrypoint(ctx: agents.JobContext):
                         )
                     )
                 except Exception as exc:  # noqa: BLE001
+                    # Never spoken, so no conversation_item_added will come along to consume
+                    # the flag — left set, it would misattribute whatever the agent says next.
+                    pending_salon_caption["active"] = False
                     logger.warning("Could not speak the host's typed line: %s", exc)
-                    captions.publish_soon(text=text, identity=sender)
+                    captions.publish_soon(
+                        text=text, identity=sender,
+                        speaker_name=_participant_name(ctx.room, sender),
+                    )
                 return
 
             # A guest's typed line reaches the room in writing and is put to the agent as
             # something said to it, which is what a guest speaking would have done.
-            captions.publish_soon(text=text, identity=sender)
+            captions.publish_soon(
+                text=text, identity=sender, speaker_name=_participant_name(ctx.room, sender)
+            )
             opening.stand_down()
             try:
                 agent_session.generate_reply(user_input=text)
@@ -1864,12 +1902,14 @@ async def entrypoint(ctx: agents.JobContext):
             # promise, and that is worth knowing.
             if speaks_only_to_agent(ctx.room, captions.attributed_speaker()):
                 return
+            speaker = captions.attributed_speaker()
             captions.publish_soon(
                 text=event.transcript,
                 # speaker_id is populated on the plugin's STT path and never on the
                 # realtime one, so it is not worth reading here.
-                identity=captions.attributed_speaker(),
+                identity=speaker,
                 language=event.language,
+                speaker_name=_participant_name(ctx.room, speaker),
             )
 
         @agent_session.on("conversation_item_added")
@@ -1881,7 +1921,15 @@ async def entrypoint(ctx: agents.JobContext):
             if item is None or getattr(item, "role", None) != "assistant":
                 return
             text = getattr(item, "text_content", None) or ""
-            captions.publish_soon(text=text, identity="agent")
+            # Consumed once, here, for the very next turn after it was set — see where it
+            # is set, in the typed-message handler above, for why that ordering holds.
+            salon_broadcast = pending_salon_caption["active"]
+            pending_salon_caption["active"] = False
+            captions.publish_soon(
+                text=text,
+                identity="agent",
+                speaker_name="Salon" if salon_broadcast else None,
+            )
             # Every assistant turn passes through here regardless of what triggered it — a
             # natural reply, a journal-delivered translation, a typed line spoken aloud — so
             # this is the one place that can answer "what did you just say" for
@@ -2040,6 +2088,16 @@ async def entrypoint(ctx: agents.JobContext):
                 # stable behaviour, and `_on_data` still sets `journal_wake` harmlessly —
                 # nothing reads it now, so re-wiring this is a one-line change once the
                 # real interaction is understood.
+                #
+                # A session that cannot speak at all is worse than no session — it holds a
+                # human's attention while saying nothing — but leaving is only safe now that
+                # the API redispatches a fresh agent on hearing this one go (see
+                # api/src/routers/livekit_webhooks.py). Before that webhook existed, this
+                # would have traded silence for an empty room; now it trades it for a short
+                # gap while a replacement connects.
+                on_unrecoverable=lambda: salon_agent.leave(
+                    "the realtime session could not speak after repeated attempts"
+                ),
             )
         )
         logger.info("Following the journal for %s in salon %s", participant_id, salon_id)

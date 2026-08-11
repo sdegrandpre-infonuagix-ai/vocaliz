@@ -125,9 +125,18 @@ class CaptionPublisher:
         return self._last_speaker or (remote[0] if remote else "unknown")
 
     async def publish(
-        self, *, text: str, identity: str, language: str | None = None
+        self,
+        *,
+        text: str,
+        identity: str,
+        language: str | None = None,
+        speaker_name: str | None = None,
     ) -> None:
         """Store one turn and put it on the wire in every language being watched.
+
+        `speaker_name` is passed straight through to the API's own `display_label` — see
+        that function for what it does with it. Omitted, this caption is labelled exactly
+        as it always was; nothing here looks a name up.
 
         Best-effort from end to end. A caption that fails to store, fails to translate or
         fails to publish must never interrupt the conversation it is describing.
@@ -139,6 +148,7 @@ class CaptionPublisher:
         payload = {
             "speakerIdentity": identity,
             "speakerRole": speaker_role(identity),
+            "speakerName": speaker_name,
             "text": text,
             "language": language,
             "targetLanguages": requested_languages(self._room),
@@ -184,10 +194,21 @@ class CaptionPublisher:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Caption not published: %s", exc)
 
-    def publish_soon(self, *, text: str, identity: str, language: str | None = None) -> None:
+    def publish_soon(
+        self,
+        *,
+        text: str,
+        identity: str,
+        language: str | None = None,
+        speaker_name: str | None = None,
+    ) -> None:
         """Fire and forget, for use from synchronous event handlers.
 
         The SDK dispatches events synchronously; awaiting the API from inside one would
         stall the salon for the duration of a network call.
         """
-        asyncio.create_task(self.publish(text=text, identity=identity, language=language))
+        asyncio.create_task(
+            self.publish(
+                text=text, identity=identity, language=language, speaker_name=speaker_name
+            )
+        )
