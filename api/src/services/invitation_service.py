@@ -34,11 +34,12 @@ def invite_guest(
     stored as an empty string rather than NULL, matching salon_events, so the two tables
     answer "do we have an address" the same way.
 
-    Raises ValueError("contact_required") when both are missing, and
-    ValueError("salon_not_found") when the salon is not this host's. Delivery is
-    reported in the response, never raised: the invitation is committed first and the
-    link works over any channel, so a failed send still leaves the host something to
-    share by hand.
+    Raises ValueError("contact_required") when both are missing,
+    ValueError("salon_not_found") when the salon is not this host's, and
+    ValueError("already_invited") when a different, still-live invitation to this Salon
+    already holds the same contact. Delivery is reported in the response, never raised: the
+    invitation is committed first and the link works over any channel, so a failed send
+    still leaves the host something to share by hand.
 
     Nothing here refuses a contact that matches `host_user`'s own — `call_the_desk`
     calls this with the desk as both host and guest, on purpose, to mail the desk a
@@ -92,6 +93,26 @@ def invite_guest(
             # same address twice is telling us the first one did not arrive, and the
             # silent return was indistinguishable from a successful send.
             return _build_response(recent, salon, sent=_try_send(recent))
+
+    # A second guest addressed at a contact this salon already invited risks the same
+    # collision `routers.invitations.create_invitation` refuses for the host's own address:
+    # if that contact belongs to a registered account, it resolves through
+    # `livekit_service.identity_for` to the same account UUID on both invitations, and the
+    # second guest's join is treated as the first guest's seat reconnecting rather than a
+    # participant of their own. The idempotency check above already let a genuine resend of
+    # the very invitation this would duplicate through; anything reaching here is a
+    # different, still-live invitation to the same contact.
+    live_duplicate = (
+        db.query(Invitation)
+        .filter(
+            Invitation.salon_id == salon_id_uuid,
+            Invitation.status.in_(("pending", "accepted")),
+            same_contact,
+        )
+        .first()
+    )
+    if live_duplicate is not None:
+        raise ValueError("already_invited")
 
     # Determine type: registered Vocaliz user or an email-only contact. Looked up by
     # address only — a phone number is not an account handle here, sign-in having moved

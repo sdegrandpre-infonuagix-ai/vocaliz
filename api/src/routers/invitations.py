@@ -117,6 +117,12 @@ def create_invitation(
                 status_code=400,
                 detail="An email address or a phone number is required.",
             )
+        if str(exc) == "already_invited":
+            raise HTTPException(
+                status_code=400,
+                detail="This salon already has a live invitation for that email or "
+                "phone number. Invite someone else.",
+            )
         raise HTTPException(status_code=400, detail=str(exc))
 
     # Nothing is announced to the room any more. An invitation used to start a countdown after

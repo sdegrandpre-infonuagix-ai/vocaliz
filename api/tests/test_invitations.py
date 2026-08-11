@@ -47,6 +47,17 @@ def active_salon(db, host):
     return sess
 
 
+def _accept(db, invitation_id: str) -> None:
+    """Mark an invitation accepted directly — standing in for the guest actually joining,
+    which is the state that matters for the duplicate-guest check below and is otherwise
+    only reached by exercising the whole join flow this file is not about."""
+    from src.models.invitation import Invitation
+
+    inv = db.query(Invitation).filter(Invitation.id == uuid.UUID(invitation_id)).one()
+    inv.status = "accepted"
+    db.commit()
+
+
 # ─── Auth guard ──────────────────────────────────────────────────────────────
 
 def test_invite_requires_auth(client, active_salon):
@@ -137,6 +148,132 @@ def test_a_genuinely_different_guest_is_still_accepted(mock_send, client, host, 
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201
+
+
+# ─── A second guest cannot be the same as the first ──────────────────────────
+#
+# The same collision as inviting the host, one seat over: a contact already holding a live
+# invitation to this Salon resolves, if it belongs to a registered account, to the same
+# account UUID on both — Salon.join() treats the second as the first's seat reconnecting,
+# not a participant of their own.
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_a_second_invitation_to_the_same_email_is_refused(mock_send, client, db, host, active_salon):
+    """The idempotency check (same contact, <5 minutes, still pending) owns a plain resend —
+    accepting the first invitation first is what makes this a genuinely different, live
+    second invitation rather than that."""
+    _, token = host
+    first = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "first-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first.status_code == 201
+    _accept(db, first.json()["invitationId"])
+
+    second = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "first-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert second.status_code == 400
+    assert "already" in second.json()["detail"].lower()
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_a_second_invitation_to_the_same_phone_is_refused(mock_send, client, db, host, active_salon):
+    _, token = host
+    first = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestPhone": "+15145550001"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first.status_code == 201
+    _accept(db, first.json()["invitationId"])
+
+    second = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestPhone": "+15145550001"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert second.status_code == 400
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_a_genuinely_different_second_guest_is_accepted(mock_send, client, host, active_salon):
+    _, token = host
+    first = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "first-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "second-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert second.status_code == 201
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_resending_the_same_invitation_immediately_is_not_a_duplicate(
+    mock_send, client, host, active_salon
+):
+    """The idempotency check (same contact, <5 minutes) must still win — a host clicking
+    the button twice must get their own invitation back, not a refusal."""
+    _, token = host
+    first = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "first-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first.status_code == 201
+
+    again = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "first-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert again.status_code == 201
+    assert again.json()["invitationId"] == first.json()["invitationId"]
+
+
+@patch("src.services.invitation_service._send_invitation_email")
+def test_a_different_salons_invitation_does_not_block_this_one(
+    mock_send, client, db, host, active_salon
+):
+    """The duplicate check is scoped to this Salon — the same person invited into a
+    different one entirely is not the collision this guards against."""
+    from src.models.salon import Salon
+
+    host_user, token = host
+    other_salon = Salon(
+        host_user_id=host_user.id,
+        livekit_room_name="salon-other-active-room",
+        source_type="url",
+        source_url="https://example.com",
+        source_content="content",
+        status="active",
+    )
+    db.add(other_salon)
+    db.commit()
+    db.refresh(other_salon)
+
+    first = client.post(
+        f"/salons/{active_salon.id}/invitations",
+        json={"guestEmail": "shared-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        f"/salons/{other_salon.id}/invitations",
+        json={"guestEmail": "shared-guest@example.com"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert second.status_code == 201
 
 
 # ─── SMS contact (unregistered phone) ────────────────────────────────────────
