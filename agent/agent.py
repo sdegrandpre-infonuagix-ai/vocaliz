@@ -1378,31 +1378,18 @@ async def entrypoint(ctx: agents.JobContext):
     # behaviour change nobody can attribute afterwards: was it the new model, or was it one
     # of today's twenty edits?
     #
-    # 1.0 for Base and Mode A, and the reason is the price. 2.0 is $0.08/min — $4.80/h —
-    # against a Mode A sold at $5/h. That leaves twenty cents to pay for LiveKit, the
-    # orchestrator, Stripe and the pivot translation, so the tier loses money on every second
-    # it runs. 1.0 is $0.05/min, $3.00/h, and the same tier clears about $1.30/h. The trade is
-    # voice quality on the two ad-supported tiers.
-    #
-    # 2.0 for Mode B and Mode C: both have the margin for it, and both sell being better than
-    # Base and Mode A as the entire reason to cost more. Before this, every tier ran on 1.0 —
-    # "the most attentive interpreter" and Base were the same interpreter with a different
-    # price tag, which is exactly the gap a host testing Mode C against Base could hear.
-    xai_model = (
-        "grok-voice-think-fast-2.0"
-        if host_tier in ("Mode B", "Mode C")
-        else "grok-voice-think-fast-1.0"
-    )
+    # Only reached for Mode A, B and C — Base does not use the realtime model at all, see
+    # below. 1.0 for Mode A: 2.0 is $0.08/min, $4.80/h, against Mode A's own $7.50/h that
+    # still leaves real margin, but Mode A's whole pitch is costing less than B and C for a
+    # plainer interpreter, and 2.0 is the thing B and C are selling instead. 2.0 for Mode B
+    # and Mode C: both have the margin for it, and both sell being better than Mode A as the
+    # entire reason to cost more. Before this, every tier ran on 1.0 — "the most attentive
+    # interpreter" and Mode A were the same interpreter with a different price tag.
+    xai_model = "grok-voice-think-fast-2.0" if host_tier in ("Mode B", "Mode C") else "grok-voice-think-fast-1.0"
 
-    agent_session = AgentSession(
-        # Voice ids are lowercase — "Ara" is not a valid identifier. Chosen by the host at
-        # creation and read from the job detail above; "ara" — what every Salon spoke in
-        # before there was a choice — is what an older Salon or a bad value falls back to,
-        # since a typo here must not fail the job over a voice nobody would notice was wrong.
-        llm=xai.realtime.RealtimeModel(
-            model=xai_model, voice=chosen_voice, api_key=xai_key or None
-        ),
-        vad=silero.VAD.load(),
+    # Shared regardless of which pipeline speaks: a participant pausing to switch language
+    # matters the same way whichever tier they are on.
+    turn_handling = {
         # The multilingual turn detector that used to sit here never actually ran: it
         # needs PyTorch, which is not installed, so every turn was decided by silence
         # alone — the logs showed `source: "vad"` and a null end-of-turn probability for
@@ -1412,14 +1399,46 @@ async def entrypoint(ctx: agents.JobContext):
         # already holds, so there is no local model and no PyTorch to install. It costs a
         # round trip per turn, which is the price of not cutting someone off mid-thought —
         # and it matters here, where participants may pause while switching language.
+        "turn_detection": inference.TurnDetector(),
+        "interruption": {"enabled": True},   # participants can interrupt naturally
+    }
+
+    if host_tier == "Base":
+        # The PRD's third adapter (`orchestrator/src/interprete/base.py`): transcribe,
+        # render, synthesise — three cheap steps instead of one realtime speech-to-speech
+        # model. This used to run Base on the realtime model too, just the "1.0" variant of
+        # it, which was never the STT+TTS tier the product promised — Base and Mode A were
+        # the same pipeline with a cheaper label on one of them.
         #
-        # turn_detection and allow_interruptions moved into turn_handling; passing them at
-        # the top level still works but is deprecated.
-        turn_handling={
-            "turn_detection": inference.TurnDetector(),
-            "interruption": {"enabled": True},   # participants can interrupt naturally
-        },
-    )
+        # "grok-4-1-fast-non-reasoning" is the cheapest text model xAI offers under the same
+        # key already configured — no new vendor, no new secret. The realtime model's own
+        # auto-follow-each-speaker behaviour has no equivalent here, so a participant with no
+        # override is transcribed as English, same fallback `listener_language` already uses
+        # below for the same reason.
+        stt_language = forced_language if forced_language != "auto" else "en"
+        agent_session = AgentSession(
+            stt=xai.STT(language=stt_language, api_key=xai_key or None),
+            llm=xai.responses.LLM(model="grok-4-1-fast-non-reasoning", api_key=xai_key or None),
+            # Same voice id as the realtime tiers, and the same fallback reasoning: a
+            # natural-sounding voice was the point, not a synthetic-sounding one — the
+            # cheaper price is the whole differentiator already, the voice does not need to
+            # sound it as well.
+            tts=xai.TTS(voice=chosen_voice, api_key=xai_key or None),
+            vad=silero.VAD.load(),
+            turn_handling=turn_handling,
+        )
+    else:
+        agent_session = AgentSession(
+            # Voice ids are lowercase — "Ara" is not a valid identifier. Chosen by the host at
+            # creation and read from the job detail above; "ara" — what every Salon spoke in
+            # before there was a choice — is what an older Salon or a bad value falls back to,
+            # since a typo here must not fail the job over a voice nobody would notice was wrong.
+            llm=xai.realtime.RealtimeModel(
+                model=xai_model, voice=chosen_voice, api_key=xai_key or None
+            ),
+            vad=silero.VAD.load(),
+            turn_handling=turn_handling,
+        )
 
     salon_agent = SalonAgent(
         salon_id=salon_id,

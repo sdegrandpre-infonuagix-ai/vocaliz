@@ -102,23 +102,26 @@ def test_the_voice_model_is_named_explicitly():
     assert 'model=xai_model' in source
 
 
-def test_base_and_mode_a_run_on_the_cheaper_model():
-    """$0.08/min against a $5/h Mode A is a loss on every second the model runs; $0.05/min is
-    not. Base has no natural-voice claim to fund the difference at all."""
+def _xai_model_block() -> str:
     source = inspect.getsource(salon.entrypoint)
-    block = source[source.index("xai_model = (") :]
-    block = block[: block.index("agent_session = AgentSession(")]
+    block = source[source.index("xai_model = ") :]
+    return block[: block.index("turn_handling = {")]
+
+
+def test_mode_a_runs_on_the_cheaper_model():
+    """$0.08/min ($4.80/h) leaves real margin against Mode A's $7.50/h, but Mode A's whole
+    pitch is costing less than B and C for a plainer interpreter — 2.0 is the thing B and C
+    are selling instead."""
+    block = _xai_model_block()
     assert '"grok-voice-think-fast-1.0"' in block
     assert 'else' in block
 
 
 def test_mode_b_and_mode_c_run_on_the_better_model():
-    """Both sell being better than Base and Mode A as the entire reason to cost more — before
-    this, every tier ran on the same model, which is exactly the gap a host testing Mode C
-    against Base could hear and report as "not working"."""
-    source = inspect.getsource(salon.entrypoint)
-    block = source[source.index("xai_model = (") :]
-    block = block[: block.index("agent_session = AgentSession(")]
+    """Both sell being better than Mode A as the entire reason to cost more — before this,
+    every tier ran on the same model, which is exactly the gap a host testing Mode C against
+    Mode A could hear and report as "not working"."""
+    block = _xai_model_block()
     assert '"Mode B", "Mode C"' in block
     assert '"grok-voice-think-fast-2.0"' in block
 
@@ -127,3 +130,43 @@ def test_the_tier_comes_from_the_salon_not_a_guess():
     source = inspect.getsource(salon.entrypoint)
     assert 'host_tier = "Base"' in source
     assert 'detail.get("hostTier")' in source
+
+
+# ─── Base gets the STT+TTS adapter, not a cheaper realtime model ──────────────
+
+
+def _base_branch() -> str:
+    source = inspect.getsource(salon.entrypoint)
+    start = source.index('if host_tier == "Base":')
+    end = source.index("else:", start)
+    return source[start:end]
+
+
+def test_base_does_not_use_the_realtime_model_at_all():
+    """The PRD's third adapter — transcribe, render, synthesise — not the realtime model
+    under a cheaper name. Before this, Base and Mode A were the same pipeline with a
+    cheaper label on one of them."""
+    block = _base_branch()
+    assert 'xai.realtime.RealtimeModel' not in block
+    assert 'llm=xai.responses.LLM(' in block
+    assert 'stt=xai.STT(' in block
+    assert 'tts=xai.TTS(' in block
+
+
+def test_base_uses_the_cheapest_text_model():
+    block = _base_branch()
+    assert 'model="grok-4-1-fast-non-reasoning"' in block
+
+
+def test_base_still_sounds_like_the_chosen_voice():
+    """The cheaper price is the differentiator; the voice was not asked to sound it too."""
+    block = _base_branch()
+    assert 'voice=chosen_voice' in block
+
+
+def test_base_transcribes_the_forced_language_or_falls_back_to_english():
+    """The realtime model's auto-follow-each-speaker behaviour has no equivalent for a
+    standalone STT step, so a participant with no override is transcribed as English — same
+    fallback `listener_language` already uses elsewhere for the same reason."""
+    block = _base_branch()
+    assert 'forced_language if forced_language != "auto" else "en"' in block
