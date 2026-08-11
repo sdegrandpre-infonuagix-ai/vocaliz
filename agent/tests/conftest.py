@@ -77,8 +77,15 @@ def _build_livekit_stubs() -> None:
         RemoteParticipant=MagicMock,
     )
 
+    # livekit.api ── server-side room operations (participant attribute updates for the
+    # voice-triggered privacy toggle). Only the request type is constructed by agent.py;
+    # nothing here calls the real service, so a bare MagicMock is enough to stand in for it.
+    api_mod = _register_stub(
+        "livekit.api", UpdateParticipantRequest=MagicMock, LiveKitAPI=MagicMock
+    )
+
     # livekit (parent)
-    livekit_mod = _register_stub("livekit", agents=agents_mod, rtc=rtc_mod)
+    livekit_mod = _register_stub("livekit", agents=agents_mod, rtc=rtc_mod, api=api_mod)
 
     # plugins
     xai_realtime = MagicMock()

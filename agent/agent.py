@@ -7,11 +7,12 @@ import asyncio
 import json
 import logging
 import os
-from typing import Annotated, Callable
+from typing import Annotated, Awaitable, Callable
 
 import httpx
 from dotenv import load_dotenv
 from livekit import agents, rtc
+from livekit import api as lk_api
 from livekit.agents import AgentSession, Agent, StopResponse, function_tool, inference
 # RoomOptions is not re-exported at the livekit.agents top level the way RoomInputOptions
 # was, so it has to be imported from its own module.
@@ -349,7 +350,9 @@ _WELCOME_MESSAGE = (
     "Hello! I'm Vocaliz, the voice that turns any web page or document into a shared "
     "conversation. I'm also an interpreter in 20 languages. Each participant is heard by "
     "the others through their own private AI interpreter. You can send messages to the "
-    "Salon, or chat with me privately."
+    "Salon, or chat with me privately. Everything you say is shared with the Salon by "
+    "default — just say \"keep it private\" any time you want to stop that, and \"back to "
+    "the Salon\" when you want to start sharing again."
 )
 
 
@@ -579,6 +582,11 @@ class SalonAgent(Agent):
         # Overwritten on every turn, so "forward your last message" always means the most
         # recent one, not some earlier line still sitting in the transcript.
         self._last_spoken_text: str = ""
+        # Set by the entrypoint, which is where the job context and this room's api client
+        # live. Lets a spoken request reach the same `private_to_agent` attribute the
+        # browser's own toggle sets — one flag, read the same way regardless of which side
+        # changed it.
+        self._set_private: Callable[[str], Awaitable[None]] | None = None
 
     def set_journal_link(self, link: OrchestratorLink | None) -> None:
         """Supplied by the entrypoint once `_follow_the_journal` confirms this room, the same
@@ -1074,6 +1082,44 @@ class SalonAgent(Agent):
         """Supplied by the entrypoint, which is where the job context lives."""
         self._leave = leave
 
+    def set_privacy_control(self, toggle: Callable[[str], Awaitable[None]]) -> None:
+        """Supplied by the entrypoint, which is where the room's server-side api client and
+        this participant's identity live."""
+        self._set_private = toggle
+
+    @function_tool
+    async def keep_conversation_private(self) -> str:
+        """Call this the moment the participant asks you to keep something private, off the
+        record, just between the two of you, or otherwise not for the rest of the Salon to
+        hear — in whatever words or language they use, not only the exact phrase "keep it
+        private". From that point their words stop reaching the other participants: you
+        still hear and answer them, and their own live captions still show what was said, but
+        nothing is relayed to anyone else until they ask to go back to the Salon.
+
+        Returns "private" once set, or "not_available" if this room has no way to set it —
+        tell the participant plainly if it did not work rather than acting as if it had.
+        """
+        if self._set_private is None:
+            return "not_available"
+        await self._set_private("1")
+        return "private"
+
+    @function_tool
+    async def back_to_the_salon(self) -> str:
+        """Call this when the participant asks to stop being private and return to speaking
+        with the rest of the Salon — "back to the salon", "you can share this now", or
+        anything else asking for the same thing, in whatever words or language they use.
+        Only meaningful after `keep_conversation_private` was called earlier this
+        conversation; calling it otherwise is harmless.
+
+        Returns "resumed" once relaying is back on, or "not_available" if this room has no
+        way to set it.
+        """
+        if self._set_private is None:
+            return "not_available"
+        await self._set_private("0")
+        return "resumed"
+
     def leave(self, reason: str) -> None:
         """Actually go. Marking a salon ended is bookkeeping; this is departure.
 
@@ -1455,6 +1501,37 @@ async def entrypoint(ctx: agents.JobContext):
     # everybody else, and that already happens on every ending path. This is the half that was
     # missing — and the one that has to work even when that deletion silently fails.
     salon_agent.set_departure(ctx.shutdown)
+
+    # How a spoken "keep it private" reaches the same attribute the browser's own toggle
+    # sets. The agent has no client connection of its own human's to call setAttributes()
+    # on, so this goes through the room's server-side api instead — the elevated path
+    # `remove_agent`/`list_participants` already use elsewhere, never available to a
+    # participant's own client SDK. Every attribute is resent, not merged by hand: the
+    # server call replaces what it is given no differently than the browser's own
+    # setAttributes, and dropping caption_lang here would silently stop translating captions
+    # for whoever just asked to go private.
+    async def _set_private_to_agent(value: str) -> None:
+        identity = participant_id or host_identity
+        if not identity:
+            return
+        participant = ctx.room.remote_participants.get(identity)
+        if participant is None:
+            return
+        attributes = dict(participant.attributes or {})
+        attributes["private_to_agent"] = value
+        try:
+            await ctx.api.room.update_participant(
+                lk_api.UpdateParticipantRequest(
+                    room=ctx.room.name, identity=identity, attributes=attributes
+                )
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "Could not update private_to_agent for %s in salon %s",
+                identity, salon_id, exc_info=True,
+            )
+
+    salon_agent.set_privacy_control(_set_private_to_agent)
 
     # Sources added mid-conversation (FR3): the API publishes a data message, since the
     # salon detail above is fetched once and would otherwise never be re-read.
@@ -2068,6 +2145,15 @@ async def entrypoint(ctx: agents.JobContext):
             # the journal has no way to take one back: a sequence number that has been handed
             # out is spent, and every other agent will already have said it out loud.
             if not getattr(event, "is_final", False):
+                return
+            # Somebody speaking only to the agent must not reach the rest of the Salon either
+            # — the same promise `_on_user_transcript` already keeps for the caption in this
+            # room. Reported here until now regardless of the toggle: every other participant's
+            # own interpreter would still relay a translation of words never meant to leave
+            # this room, which is a bigger leak than a caption nobody outside it could read.
+            if captions is not None and speaks_only_to_agent(
+                ctx.room, captions.attributed_speaker()
+            ):
                 return
             asyncio.create_task(
                 link.report(event.transcript, language=getattr(event, "language", None))
