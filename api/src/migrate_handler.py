@@ -440,6 +440,50 @@ def _topup_all_accounts(amount_cents: int) -> dict:
         db.close()
 
 
+def _set_paid_balance(email: str, target_cents: int) -> dict:
+    """Set one account's paid balance to an exact amount, by email.
+
+    There is no balance column to write — `paid_balance` is a fold over the ledger stream,
+    and `append` is the only way anything enters it. So this reads the current total and
+    appends a single event for the difference, the same as a human operator correcting an
+    account by hand would: `RECHARGED` for a top-up, `DEBITED` for a reduction. An operator's
+    decision either way, never the system's, which the actor on the event records.
+    """
+    from src.credit import balance
+    from src.database import SessionLocal
+    from src.ledger import Actor, EventType, Pool, append
+    from src.models.user import User
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            return {"status": "not_found", "email": email}
+        current = balance(db, user.id).paid_cents
+        delta = target_cents - current
+        if delta == 0:
+            return {"status": "unchanged", "email": email, "paidCents": current}
+        append(
+            db,
+            type=EventType.RECHARGED if delta > 0 else EventType.DEBITED,
+            subject_id=user.id,
+            amount_cents=delta,
+            pool=Pool.PAID,
+            actor=Actor.OPERATOR,
+            detail=f"Manual balance set to {target_cents} cents",
+        )
+        db.commit()
+        return {
+            "status": "ok",
+            "email": email,
+            "previousPaidCents": current,
+            "paidCents": target_cents,
+            "deltaCents": delta,
+        }
+    finally:
+        db.close()
+
+
 def _list_users(limit: int) -> dict:
     """Read-only: the accounts that exist, most recent first.
 
@@ -527,6 +571,9 @@ def handler(event, context):
     role (host/guest) it has played, read-only.
     event = {"action": "topup_all_accounts", "amountCents": 2000} credits every account's
     paid balance by the same amount, once — an operator's decision, not a scheduled grant.
+    event = {"action": "set_paid_balance", "email": "...", "targetCents": 10000} sets one
+    account's paid balance to an exact amount, by email — an operator's correction, not a
+    scheduled grant.
     Any other event runs migrations.
     """
     action = (event or {}).get("action")
@@ -575,6 +622,10 @@ def handler(event, context):
     if action == "topup_all_accounts":
         result = _topup_all_accounts(int(event.get("amountCents", 2000)))
         _report(f"topup_all_accounts: {result}")
+        return result
+    if action == "set_paid_balance":
+        result = _set_paid_balance(event["email"], int(event["targetCents"]))
+        _report(f"set_paid_balance: {result}")
         return result
     if action == "table_census":
         return _table_census()
