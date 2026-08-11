@@ -27,6 +27,7 @@ conversation bearable to sit through.
 from __future__ import annotations
 
 import logging
+from typing import Callable
 
 from src.orchestrator_link import Line
 
@@ -85,12 +86,24 @@ class SessionVoice:
     provider is named, and the only thing that would change if the provider did.
     """
 
-    def __init__(self, session, *, language: str = "") -> None:
+    def __init__(
+        self,
+        session,
+        *,
+        language: str = "",
+        on_before_speak: Callable[[], None] | None = None,
+    ) -> None:
         self._session = session
         # Used only to word the verbatim instruction correctly. `deliver` calls `say` with
         # bare text, having already decided the line needs no translation — this is what
         # lets that instruction still name the language it is in.
         self._language = language
+        # Called the moment before the model is asked to speak, and never after. The
+        # `conversation_item_added` event this produces fires synchronously inside the
+        # `generate_reply` call below, so a caller that needs to tell that turn apart from an
+        # ordinary reply — see `deliver_script`'s `on_delivered`, which knows the actual
+        # speaker and this does not — has to have already flagged it by the time we get here.
+        self._on_before_speak = on_before_speak
 
     async def say(self, text: str) -> None:
         """A line already in the listener's language — routed through the model anyway.
@@ -100,6 +113,8 @@ class SessionVoice:
         """
         if not text.strip():
             return
+        if self._on_before_speak is not None:
+            self._on_before_speak()
         await self._speak(
             _verbatim_instructions(text, self._language or "the same language")
         )
@@ -108,6 +123,8 @@ class SessionVoice:
         """Through the model, which translates and speaks in one movement."""
         if not line.text.strip():
             return
+        if self._on_before_speak is not None:
+            self._on_before_speak()
         await self._speak(instructions_for(line))
 
     async def _speak(self, instructions: str) -> None:

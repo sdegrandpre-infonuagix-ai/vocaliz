@@ -119,6 +119,45 @@ async def test_a_line_that_cannot_be_said_costs_the_rest_of_that_batch_and_no_mo
     assert (said, failed) == (0, True)  # nothing said, nothing raised, but the failure is named
 
 
+@pytest.mark.asyncio
+async def test_on_delivered_fires_once_per_line_actually_said():
+    """The hook a caller uses to caption a line from the line itself — see session_voice.py's
+    `on_before_speak` for the other half of that split. Fired only for what was actually
+    said, in the order it was said in."""
+    voice = FakeVoice()
+    link = FakeLink(scripts=[[_annonce("Hans arrive"), _tour("Guten Tag")]])
+    delivered = []
+
+    said, failed = await deliver_script(link, voice, on_delivered=delivered.append)
+
+    assert (said, failed) == (2, False)
+    assert [line.text for line in delivered] == ["Hans arrive", "Guten Tag"]
+
+
+@pytest.mark.asyncio
+async def test_on_delivered_is_not_called_for_a_line_that_failed_to_say():
+    """A line dropped by `deliver_script`'s own failure handling was never actually said, so
+    there is nothing here to caption — captioning it would show text nobody heard."""
+    voice = FakeVoice(fail_with=RuntimeError("the model hung up"))
+    link = FakeLink(scripts=[[_tour()]])
+    delivered = []
+
+    await deliver_script(link, voice, on_delivered=delivered.append)
+
+    assert delivered == []
+
+
+@pytest.mark.asyncio
+async def test_without_on_delivered_nothing_extra_happens():
+    """Every caller from before this existed passes none, and must see no change at all."""
+    voice = FakeVoice()
+    link = FakeLink(scripts=[[_tour()]])
+
+    said, failed = await deliver_script(link, voice)
+
+    assert (said, failed) == (1, False)
+
+
 # ── The loop ──────────────────────────────────────────────────────────────────
 
 
@@ -225,6 +264,22 @@ async def test_without_the_hook_a_dead_session_is_polled_forever_as_before():
     await follow(link, voice, stop=stop, sleep=sleep)  # on_unrecoverable omitted
 
     assert link.asks == 4
+
+
+@pytest.mark.asyncio
+async def test_the_loop_passes_on_delivered_through_to_every_batch():
+    voice = FakeVoice()
+    link = FakeLink(scripts=[[_tour("first")], [_tour("second")]])
+    stop = asyncio.Event()
+    delivered = []
+
+    async def sleep(_seconds):
+        if link.asks >= 2:
+            stop.set()
+
+    await follow(link, voice, stop=stop, sleep=sleep, on_delivered=delivered.append)
+
+    assert [line.text for line in delivered] == ["first", "second"]
 
 
 @pytest.mark.asyncio

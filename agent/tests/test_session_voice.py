@@ -165,6 +165,62 @@ async def test_a_line_that_fails_twice_running_is_given_up_on():
 
 
 @pytest.mark.asyncio
+async def test_on_before_speak_fires_before_generate_reply_for_render():
+    """The `conversation_item_added` event `generate_reply` produces fires synchronously
+    inside the call — a caller that needs to tell this turn apart from an ordinary reply has
+    to have already flagged it by the time that happens, not after."""
+    session = MagicMock()
+    calls = []
+    session.generate_reply.side_effect = lambda **kw: (
+        calls.append("generate_reply"), FakeSpeechHandle()
+    )[1]
+
+    await SessionVoice(
+        session, on_before_speak=lambda: calls.append("on_before_speak")
+    ).render(_line())
+
+    assert calls == ["on_before_speak", "generate_reply"]
+
+
+@pytest.mark.asyncio
+async def test_on_before_speak_fires_before_generate_reply_for_say():
+    session = MagicMock()
+    calls = []
+    session.generate_reply.side_effect = lambda **kw: (
+        calls.append("generate_reply"), FakeSpeechHandle()
+    )[1]
+
+    await SessionVoice(
+        session, on_before_speak=lambda: calls.append("on_before_speak")
+    ).say("Hans arrive")
+
+    assert calls == ["on_before_speak", "generate_reply"]
+
+
+@pytest.mark.asyncio
+async def test_on_before_speak_does_not_fire_for_an_empty_line():
+    """Nothing is said, so there is no turn for a caller to have flagged."""
+    session = MagicMock()
+    fired = []
+
+    await SessionVoice(session, on_before_speak=lambda: fired.append(True)).say("   ")
+    await SessionVoice(session, on_before_speak=lambda: fired.append(True)).render(
+        _line(text="")
+    )
+
+    assert fired == []
+
+
+@pytest.mark.asyncio
+async def test_without_on_before_speak_nothing_extra_happens():
+    """Every caller from before this existed passes none, and must see no change at all."""
+    session = MagicMock()
+    session.generate_reply.return_value = FakeSpeechHandle()
+
+    await SessionVoice(session).render(_line())  # must not raise
+
+
+@pytest.mark.asyncio
 async def test_nothing_is_said_for_an_empty_line():
     """A model asked to say nothing does not stay silent — it fills the gap."""
     session = MagicMock()

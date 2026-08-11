@@ -12,18 +12,17 @@ from typing import Annotated, Awaitable, Callable
 import httpx
 from dotenv import load_dotenv
 from livekit import agents, rtc
-from livekit import api as lk_api
 from livekit.agents import AgentSession, Agent, StopResponse, function_tool, inference
 # RoomOptions is not re-exported at the livekit.agents top level the way RoomInputOptions
 # was, so it has to be imported from its own module.
 from livekit.agents.voice.room_io import RoomOptions
 from livekit.plugins import xai, silero
 
-from src.captions import CaptionPublisher, speaks_only_to_agent
+from src.captions import CaptionPublisher
 from src.following import follow
 from src.mixed_audio_input import MixedParticipantAudioInput
 from src.opening import OpeningGate
-from src.orchestrator_link import OrchestratorLink
+from src.orchestrator_link import Line, OrchestratorLink
 from src.session_voice import SessionVoice
 
 # override=True is deliberate: load_dotenv() otherwise leaves pre-existing OS
@@ -105,20 +104,6 @@ _BASE_INSTRUCTIONS = (
     "to returning participants too, and say it even when there is nothing else to say.\n"
     "The written notice on the page cannot be relied on — a participant may have joined\n"
     "by telephone, or never looked at the screen.\n"
-    "\n\n"
-    "SPEAKING ONLY TO YOU (a participant with the private toggle on):\n"
-    "A participant may set their microphone so that you alone can hear it. Nobody else in\n"
-    "the room receives their audio, and nothing they say is transcribed for the others. When\n"
-    "somebody is speaking to you privately, treat what they say as DIRECTION rather than as\n"
-    "a remark in the conversation.\n"
-    "Usually they are telling you what to convey: 'tell him the room is ready at three'.\n"
-    "Say the substance of it to the others, in each person's own language, as though you\n"
-    "were speaking for the person who told you. Do not read their sentence out word for\n"
-    "word, do not name them as the source unless they ask you to, and never repeat the\n"
-    "instruction itself — 'he would like me to tell you' defeats the point of the toggle.\n"
-    "If what they say is plainly meant for you alone — a question about the source, a\n"
-    "correction, an instruction about how to behave — answer or comply quietly and say\n"
-    "nothing to the room.\n"
     "\n\n"
     "HOW A SALON OPENS — four steps, in this order and no other:\n"
     "1. WELCOME. Greet whoever is here, in their language, in a sentence or two.\n"
@@ -349,10 +334,7 @@ _WEB_SEARCH_INSTRUCTIONS = (
 _WELCOME_MESSAGE = (
     "Hello! I'm Vocaliz, the voice that turns any web page or document into a shared "
     "conversation. I'm also an interpreter in 20 languages. Each participant is heard by "
-    "the others through their own private AI interpreter. You can send messages to the "
-    "Salon, or chat with me privately. Everything you say is shared with the Salon by "
-    "default — just say \"keep it private\" any time you want to stop that, and \"back to "
-    "the Salon\" when you want to start sharing again."
+    "the others through their own private AI interpreter."
 )
 
 
@@ -582,11 +564,6 @@ class SalonAgent(Agent):
         # Overwritten on every turn, so "forward your last message" always means the most
         # recent one, not some earlier line still sitting in the transcript.
         self._last_spoken_text: str = ""
-        # Set by the entrypoint, which is where the job context and this room's api client
-        # live. Lets a spoken request reach the same `private_to_agent` attribute the
-        # browser's own toggle sets — one flag, read the same way regardless of which side
-        # changed it.
-        self._set_private: Callable[[str], Awaitable[None]] | None = None
 
     def set_journal_link(self, link: OrchestratorLink | None) -> None:
         """Supplied by the entrypoint once `_follow_the_journal` confirms this room, the same
@@ -1082,44 +1059,6 @@ class SalonAgent(Agent):
         """Supplied by the entrypoint, which is where the job context lives."""
         self._leave = leave
 
-    def set_privacy_control(self, toggle: Callable[[str], Awaitable[None]]) -> None:
-        """Supplied by the entrypoint, which is where the room's server-side api client and
-        this participant's identity live."""
-        self._set_private = toggle
-
-    @function_tool
-    async def keep_conversation_private(self) -> str:
-        """Call this the moment the participant asks you to keep something private, off the
-        record, just between the two of you, or otherwise not for the rest of the Salon to
-        hear — in whatever words or language they use, not only the exact phrase "keep it
-        private". From that point their words stop reaching the other participants: you
-        still hear and answer them, and their own live captions still show what was said, but
-        nothing is relayed to anyone else until they ask to go back to the Salon.
-
-        Returns "private" once set, or "not_available" if this room has no way to set it —
-        tell the participant plainly if it did not work rather than acting as if it had.
-        """
-        if self._set_private is None:
-            return "not_available"
-        await self._set_private("1")
-        return "private"
-
-    @function_tool
-    async def back_to_the_salon(self) -> str:
-        """Call this when the participant asks to stop being private and return to speaking
-        with the rest of the Salon — "back to the salon", "you can share this now", or
-        anything else asking for the same thing, in whatever words or language they use.
-        Only meaningful after `keep_conversation_private` was called earlier this
-        conversation; calling it otherwise is harmless.
-
-        Returns "resumed" once relaying is back on, or "not_available" if this room has no
-        way to set it.
-        """
-        if self._set_private is None:
-            return "not_available"
-        await self._set_private("0")
-        return "resumed"
-
     def leave(self, reason: str) -> None:
         """Actually go. Marking a salon ended is bookkeeping; this is departure.
 
@@ -1502,37 +1441,6 @@ async def entrypoint(ctx: agents.JobContext):
     # missing — and the one that has to work even when that deletion silently fails.
     salon_agent.set_departure(ctx.shutdown)
 
-    # How a spoken "keep it private" reaches the same attribute the browser's own toggle
-    # sets. The agent has no client connection of its own human's to call setAttributes()
-    # on, so this goes through the room's server-side api instead — the elevated path
-    # `remove_agent`/`list_participants` already use elsewhere, never available to a
-    # participant's own client SDK. Every attribute is resent, not merged by hand: the
-    # server call replaces what it is given no differently than the browser's own
-    # setAttributes, and dropping caption_lang here would silently stop translating captions
-    # for whoever just asked to go private.
-    async def _set_private_to_agent(value: str) -> None:
-        identity = participant_id or host_identity
-        if not identity:
-            return
-        participant = ctx.room.remote_participants.get(identity)
-        if participant is None:
-            return
-        attributes = dict(participant.attributes or {})
-        attributes["private_to_agent"] = value
-        try:
-            await ctx.api.room.update_participant(
-                lk_api.UpdateParticipantRequest(
-                    room=ctx.room.name, identity=identity, attributes=attributes
-                )
-            )
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "Could not update private_to_agent for %s in salon %s",
-                identity, salon_id, exc_info=True,
-            )
-
-    salon_agent.set_privacy_control(_set_private_to_agent)
-
     # Sources added mid-conversation (FR3): the API publishes a data message, since the
     # salon detail above is fetched once and would otherwise never be re-read.
     async def _reload_sources() -> None:
@@ -1645,6 +1553,15 @@ async def entrypoint(ctx: agents.JobContext):
     # carries one generation at a time (see session_voice.py): nothing else can complete a
     # turn in between the two.
     pending_salon_caption = {"active": False}
+
+    # Set immediately before the model is asked to speak a line delivered from the journal,
+    # and read (and cleared) by the very next `conversation_item_added` — same mechanism as
+    # `pending_salon_caption` above, for the same reason: that event is the only signal
+    # `_on_agent_speech` gets, and it cannot otherwise tell a journal rendition from an
+    # ordinary reply. Consumed to SKIP the generic caption entirely rather than relabel it —
+    # `_publish_journal_caption` below already captions this same line, from the line itself,
+    # once delivery actually succeeds, and captioning it twice would show it twice.
+    pending_journal_caption = {"active": False}
 
     def _on_data(packet) -> None:
         if not (salon_id and api_url and host_token):
@@ -1951,43 +1868,14 @@ async def entrypoint(ctx: agents.JobContext):
     ctx.add_shutdown_callback(_close_mixer)
 
     # ── Live captions ─────────────────────────────────────────────────────────
-    # The realtime salon already transcribes what it hears — input transcription is on
-    # by default in the xAI plugin — and until now the agent received that text and threw
-    # it away. Each finalised turn is now stored and published to the room, translated
-    # into whatever language each participant says they are reading.
+    # Incoming only: what this human is told, never what they themselves just said — the
+    # same rule the orchestrator's own `_render` already follows for speech, extended to
+    # text. They know what they said; reading it back to them is not a caption, it is an
+    # echo. So there is no listener on `user_input_transcribed` here — the human's own
+    # speech is transcribed (for the journal, see `_report_to_the_journal` below) and never
+    # captioned in this room.
     if salon_id and api_url and host_token:
         captions = CaptionPublisher(ctx.room, api_url, salon_id, host_token)
-        # Attribution comes from LiveKit, not from the model: every participant is mixed
-        # into one audio stream, so the realtime model cannot say who spoke.
-        captions.track_active_speakers()
-
-        @agent_session.on("user_input_transcribed")
-        def _on_user_transcript(event) -> None:
-            # Finals only. The model revises a transcript as it hears more, and the
-            # interim versions are half-sentences that were never true.
-            if not event.is_final:
-                return
-            # Somebody speaking only to the agent must not be transcribed to the room. The
-            # server already stops anyone else subscribing to their microphone; publishing
-            # their words as a caption would hand back in writing exactly what the toggle
-            # exists to withhold.
-            #
-            # Attribution is the active-speaker heuristic, which is right when one person
-            # talks at a time and can be wrong when two overlap. It is the same attribution
-            # the caption itself is stamped with, so a mistake here mislabels a caption
-            # rather than inventing a new failure — but it is a heuristic guarding a privacy
-            # promise, and that is worth knowing.
-            if speaks_only_to_agent(ctx.room, captions.attributed_speaker()):
-                return
-            speaker = captions.attributed_speaker()
-            captions.publish_soon(
-                text=event.transcript,
-                # speaker_id is populated on the plugin's STT path and never on the
-                # realtime one, so it is not worth reading here.
-                identity=speaker,
-                language=event.language,
-                speaker_name=_participant_name(ctx.room, speaker),
-            )
 
         @agent_session.on("conversation_item_added")
         def _on_agent_speech(event) -> None:
@@ -1998,15 +1886,22 @@ async def entrypoint(ctx: agents.JobContext):
             if item is None or getattr(item, "role", None) != "assistant":
                 return
             text = getattr(item, "text_content", None) or ""
-            # Consumed once, here, for the very next turn after it was set — see where it
-            # is set, in the typed-message handler above, for why that ordering holds.
-            salon_broadcast = pending_salon_caption["active"]
-            pending_salon_caption["active"] = False
-            captions.publish_soon(
-                text=text,
-                identity="agent",
-                speaker_name="Salon" if salon_broadcast else None,
-            )
+            # A journal rendition is captioned separately, from the line itself, once
+            # `_publish_journal_caption` sees delivery actually succeed — that caption knows
+            # who really said it, which this event does not. Tracked below regardless: what
+            # the agent just said is true either way.
+            journal_rendition = pending_journal_caption["active"]
+            pending_journal_caption["active"] = False
+            if not journal_rendition:
+                # Consumed once, here, for the very next turn after it was set — see where it
+                # is set, in the typed-message handler above, for why that ordering holds.
+                salon_broadcast = pending_salon_caption["active"]
+                pending_salon_caption["active"] = False
+                captions.publish_soon(
+                    text=text,
+                    identity="agent",
+                    speaker_name="Salon" if salon_broadcast else None,
+                )
             # Every assistant turn passes through here regardless of what triggered it — a
             # natural reply, a journal-delivered translation, a typed line spoken aloud — so
             # this is the one place that can answer "what did you just say" for
@@ -2153,24 +2048,48 @@ async def entrypoint(ctx: agents.JobContext):
             # out is spent, and every other agent will already have said it out loud.
             if not getattr(event, "is_final", False):
                 return
-            # Somebody speaking only to the agent must not reach the rest of the Salon either
-            # — the same promise `_on_user_transcript` already keeps for the caption in this
-            # room. Reported here until now regardless of the toggle: every other participant's
-            # own interpreter would still relay a translation of words never meant to leave
-            # this room, which is a bigger leak than a caption nobody outside it could read.
-            if captions is not None and speaks_only_to_agent(
-                ctx.room, captions.attributed_speaker()
-            ):
-                return
             asyncio.create_task(
                 link.report(event.transcript, language=getattr(event, "language", None))
+            )
+
+        def _mark_journal_speaking() -> None:
+            pending_journal_caption["active"] = True
+
+        def _publish_journal_caption(line: Line) -> None:
+            """Caption a delivered line from the line itself, not from the model's voice.
+
+            The interpreter's whole job here is to say it; what gets shown as text comes
+            from what the orchestrator already knows about it. A `tour` carries whoever
+            actually said it (in another room this agent has no roster for, hence no name to
+            look up) — everything else, an arrival notice or a summary, is the Salon speaking
+            for itself, so it is captioned as "agent" the same as any other announcement.
+
+            `language` is `line.source_language`, not `line.language`: `line.text` is the
+            original utterance, never a translation of it — the model does that live, on the
+            way to being spoken — so telling the API it is already in `line.language` would
+            have it skip translating into whatever this room's own reader actually chose in
+            the caption-language combo box. Falls back to `line.language` only for a
+            condensation, whose `source_language` is deliberately empty because a summary
+            spoken in several languages has no single one to name.
+            """
+            if captions is None or not line.text.strip():
+                return
+            captions.publish_soon(
+                text=line.text,
+                identity=line.speaker_id if line.kind == "tour" else "agent",
+                language=line.source_language or line.language,
             )
 
         nonlocal following_task
         following_task = asyncio.create_task(
             follow(
                 link,
-                SessionVoice(agent_session, language=listener_language),
+                SessionVoice(
+                    agent_session,
+                    language=listener_language,
+                    on_before_speak=_mark_journal_speaking,
+                ),
+                on_delivered=_publish_journal_caption,
                 stop=stop_following,
                 # wake=journal_wake deliberately left out. Reports of delivery failing for
                 # both host and guest lined up with generate_reply timing out on both

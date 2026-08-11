@@ -625,13 +625,6 @@
         <button class="btn btn-outline" id="btn-agent-presence" onclick="toggleAgentPresence()"
                 data-i18n="agentRemove">Remove the agent</button>
       </div>
-      <!-- Speaking to the agent alone: the server stops anybody else subscribing to this
-           microphone, and the agent stops transcribing these turns to the room. What is said
-           this way is direction for the agent — say this to them, in their language — rather
-           than a remark the room overhears. -->
-      <button class="btn btn-outline" id="btn-private" onclick="togglePrivateToAgent()"
-              aria-pressed="false" data-i18n="privateOff">Mic is on - turn it off</button>
-      <div class="say-hint" id="private-hint"></div>
       <div id="room-status" class="status"></div>
       <div class="field-hint" id="agent-hint" data-i18n="agentHintPresent">
         Pausing keeps everything it has heard. Removing it starts a new agent that remembers
@@ -853,11 +846,6 @@
         dictateOn: 'Listening — stop',
         dictateUnsupported: 'This browser cannot dictate. Chrome, Edge and Safari can.',
         dictateFailed: 'Dictation stopped. Your microphone may be in use elsewhere.',
-        privateOff: 'Mic is on - turn it off',
-        privateOn: 'Speaking only to Vocaliz — go back to the room',
-        privateHintOff: 'Everyone hears you.',
-        privateHintOn: 'Only Vocaliz hears you. Tell it what to say and it will say it, in each person’s language.',
-        privateFailed: 'Could not change who hears you. Nothing was altered.',
         resumeTitle: 'A Salon of yours is still open',
         resumeOpen: 'It is running now, on {source}. Anyone you invited is still in it.',
         resumeNoSource: 'no source',
@@ -996,11 +984,6 @@
         dictateOn: 'À l’écoute — arrêter',
         dictateUnsupported: 'Ce navigateur ne sait pas dicter. Chrome, Edge et Safari le peuvent.',
         dictateFailed: 'Dictée interrompue. Votre micro est peut-être utilisé ailleurs.',
-        privateOff: 'Le micro est allumé — l’éteindre',
-        privateOn: 'Vous ne parlez qu’à Vocaliz — revenir au Salon',
-        privateHintOff: 'Tout le monde vous entend.',
-        privateHintOn: 'Seul Vocaliz vous entend. Dites-lui quoi dire et il le dira, dans la langue de chacun.',
-        privateFailed: 'Impossible de changer qui vous entend. Rien n’a été modifié.',
         resumeTitle: 'Un de vos Salons est encore ouvert',
         resumeOpen: 'Il tourne en ce moment, sur {source}. Les gens que vous avez invités y sont toujours.',
         resumeNoSource: 'aucune source',
@@ -1287,7 +1270,6 @@
       renderRoomSub();
       renderSound();
       renderAgent();
-      renderPrivate();
       renderDictation();
       // The "As spoken" option and the empty-log line are interface text, so they follow
       // the interface language rather than the caption language.
@@ -1778,58 +1760,10 @@
     // Attributes are how the agent learns what to translate into. Sent on connect and on
     // every change; failing to send one costs captions in that language, nothing else.
 
-    // ── Speaking only to Vocaliz ──────────────────────────────────────────────
-    // Not a promise, a permission. setTrackSubscriptionPermissions tells the server that this
-    // microphone may be subscribed by the agent alone, so the other participants — including
-    // somebody on a telephone line — are not merely asked politely not to listen: they cannot.
-    //
-    // The agent also stops transcribing these turns to the room, because a caption would hand
-    // back in writing exactly what this withholds.
-    var privateToAgent = false;
-
-    async function togglePrivateToAgent() {
-      if (!room || !room.localParticipant) return;
-      var next = !privateToAgent;
-      var button = document.getElementById('btn-private');
-      button.disabled = true;
-      try {
-        await room.localParticipant.setTrackSubscriptionPermissions(
-          // allParticipantsAllowed: false means nobody, except those named below.
-          !next,
-          next ? [{ participantIdentity: 'agent', allowAll: true }] : []
-        );
-        privateToAgent = next;
-        // Published after the permission, never before. The attribute is what tells the agent
-        // to stop captioning; setting it first would leave a window where the room could still
-        // hear the audio but the transcript had already gone quiet — the wrong half.
-        room.localParticipant.setAttributes(myAttributes());
-        renderPrivate();
-      } catch (e) {
-        setStatus('room-status', 'privateFailed', false);
-      } finally {
-        button.disabled = false;
-      }
-    }
-
-    function renderPrivate() {
-      var button = document.getElementById('btn-private');
-      if (!button) return;
-      button.textContent = T(privateToAgent ? 'privateOn' : 'privateOff');
-      button.className = privateToAgent ? 'btn btn-primary' : 'btn btn-outline';
-      button.setAttribute('aria-pressed', privateToAgent ? 'true' : 'false');
-      var hint = document.getElementById('private-hint');
-      if (hint) hint.textContent = T(privateToAgent ? 'privateHintOn' : 'privateHintOff');
-    }
-
     // Every attribute this participant publishes, always sent together.
-    //
-    // setAttributes takes the map it is given; sending one key at a time is how the caption
-    // language would get dropped the first time the private toggle is flipped, and the reader
-    // would silently stop receiving translations with nothing on screen to explain it.
     function myAttributes() {
       return {
-        caption_lang: captionLang,
-        private_to_agent: privateToAgent ? '1' : '0'
+        caption_lang: captionLang
       };
     }
 

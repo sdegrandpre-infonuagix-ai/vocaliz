@@ -77,7 +77,12 @@ async def deliver(line: Line, voice: Voice) -> None:
         await voice.render(line)
 
 
-async def deliver_script(link: OrchestratorLink, voice: Voice) -> tuple[int, bool]:
+async def deliver_script(
+    link: OrchestratorLink,
+    voice: Voice,
+    *,
+    on_delivered: Callable[[Line], None] | None = None,
+) -> tuple[int, bool]:
     """Ask once, say everything that comes back. Returns (lines said, whether one failed).
 
     A line that cannot be spoken stops this delivery and no other. The reading position has
@@ -88,6 +93,11 @@ async def deliver_script(link: OrchestratorLink, voice: Voice) -> tuple[int, boo
     The second value is what lets `follow` tell a session that is merely having a bad line
     from one that cannot speak at all — a single batch failing here says nothing on its own,
     but several in a row is the pattern `GIVE_UP_AFTER_CONSECUTIVE_FAILURES` watches for.
+
+    `on_delivered`, called once a line has actually been said, is how a caller shows this
+    line as text — sourced from the line itself, which already carries who said it and in
+    what language, rather than from watching what the model's voice produced. The interpreter
+    lends its voice to a line; it does not become the thing that line is transcribed from.
     """
     said = 0
     for line in await link.script():
@@ -98,6 +108,8 @@ async def deliver_script(link: OrchestratorLink, voice: Voice) -> tuple[int, boo
                            line.kind, exc_info=True)
             return said, True
         said += 1
+        if on_delivered is not None:
+            on_delivered(line)
     return said, False
 
 
@@ -141,6 +153,7 @@ async def follow(
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     wake: asyncio.Event | None = None,
     on_unrecoverable: Callable[[], None] | None = None,
+    on_delivered: Callable[[Line], None] | None = None,
 ) -> None:
     """Keep saying what this human is owed until told to stop.
 
@@ -161,6 +174,9 @@ async def follow(
     whole behaviour before a webhook existed on the other end able to do anything about a
     session in that state. This function returns either way once it has called it: there is
     nothing left for it to poll for on a session its caller is about to leave.
+
+    `on_delivered` is passed straight through to `deliver_script` — see there for what it is
+    for.
     """
     if not link.configured:
         # Nothing to follow. An agent given no orchestrator runs the conversation it can,
@@ -171,7 +187,7 @@ async def follow(
     consecutive_failures = 0
     while not stop.is_set():
         try:
-            _, failed = await deliver_script(link, voice)
+            _, failed = await deliver_script(link, voice, on_delivered=on_delivered)
         except Exception:  # noqa: BLE001
             # The link swallows its own failures, so reaching here means something else did.
             # Logged and slowed rather than raised: this task holds a live room.
