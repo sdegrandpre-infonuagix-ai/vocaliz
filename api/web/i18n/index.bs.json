@@ -1,5 +1,8 @@
 {
   "contactLabel": "Za više informacija kontaktirajte",
+  "cookieAccept": "Prihvati sve kolačiće",
+  "cookieDecline": "Bez kolačića",
+  "cookieMsg": "Ova stranica zadržava nekoliko postavki (vaš jezik, veličinu čitanja) u skladištu vašeg preglednika, a ne na serveru. Ovdje se ništa ne prodaje ili dijeli.",
   "ctaButton": "Ugostite svoj prvi salon besplatno",
   "footerLabel": "Pokreće ga",
   "phoneNoteAfter": "; inače, ugostite salon i pozovite me sa mojom e-poštom! ;)",

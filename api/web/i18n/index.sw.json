@@ -1,5 +1,8 @@
 {
   "contactLabel": "Kwa habari zaidi wasiliana",
+  "cookieAccept": "Kubali vidakuzi vyote",
+  "cookieDecline": "Hakuna vidakuzi",
+  "cookieMsg": "Tovuti hii inaweka mapendekezo machache (lugha yako, ukubwa wako wa kusoma) katika uhifadhi wa kivinjari chako badala ya seva. Hakuna kitu hapa kinachouzwa au kushirikiwa.",
   "ctaButton": "Mwenyeji saluni yako ya kwanza bila malipo",
   "footerLabel": "Inaendeshwa na",
   "phoneNoteAfter": "; vinginevyo, mwenyeji saluni na kunialike kwa barua pepe yangu! ;)",

@@ -1,5 +1,8 @@
 {
   "contactLabel": "Le haghaidh tuilleadh eolais déan",
+  "cookieAccept": "Glac le gach fianán",
+  "cookieDecline": "Gan aon fhianáin",
+  "cookieMsg": "Coinníonn an suíomh seo cúpla rogha (do theanga, do mhéid léitheoireachta) i stóráil do bhrabhsálaí seachas ar fhreastalaí. Ní dhíoltar nó roinntear aon rud anseo.",
   "ctaButton": "Óstach do chéad salon saor in aisce",
   "footerLabel": "Cumhachtaithe ag",
   "phoneNoteAfter": "; seachas sin, óstáil salon agus tabhair cuireadh dom le mo r-phost! ;)",

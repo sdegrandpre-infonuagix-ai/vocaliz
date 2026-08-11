@@ -1,5 +1,8 @@
 {
   "contactLabel": "További információért vegye fel a kapcsolatot",
+  "cookieAccept": "Elfogadja az összes cookie-t",
+  "cookieDecline": "Nincsenek cookie-k",
+  "cookieMsg": "Ez a webhely néhány beállítást (nyelvét, olvasási méretét) tárolja a böngésző tárolójában, nem pedig a szerveren. Itt semmit sem adnak el vagy osztanak meg.",
   "ctaButton": "Az első szalonját ingyenesen rendezheti",
   "footerLabel": "Támogatja",
   "phoneNoteAfter": "; egyébként szervezzen egy szalonot, és hívjon meg az e-mailemmel! ;)",

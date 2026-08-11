@@ -1,5 +1,8 @@
 {
   "contactLabel": "Əlavə məlumat üçün əlaqə saxlayın",
+  "cookieAccept": "Bütün kukiləri qəbul edin",
+  "cookieDecline": "Peçenye yoxdur",
+  "cookieMsg": "Bu sayt bir neçə seçimi (diliniz, oxu ölçüsünüz) serverdə deyil, brauzerinizin yaddaşında saxlayır. Burada heç bir şey satılmır və paylaşılmır.",
   "ctaButton": "İlk salonunuzu pulsuz ev sahibliyi edin",
   "footerLabel": "Gücləndirilir",
   "phoneNoteAfter": "; əks halda, bir salona ev sahibliyi edin və məni e-poçtumla dəvət edin! ;)",

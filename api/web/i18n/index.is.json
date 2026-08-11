@@ -1,5 +1,8 @@
 {
   "contactLabel": "Fyrir frekari upplýsingar hafðu samband",
+  "cookieAccept": "Samþykkja allar smákökur",
+  "cookieDecline": "Engar smákökur",
+  "cookieMsg": "Þessi síða heldur nokkrum óskum (tungumálinu þínu, lestrarstærð þinni) í geymslu vafrans þíns frekar en á netþjóni. Hér er ekkert selt eða deilt.",
   "ctaButton": "Gestaðu fyrstu stofuna þína ókeypis",
   "footerLabel": "Keyrt af",
   "phoneNoteAfter": "; annars skaltu hýsa stofu og bjóða mér með tölvupóstinum mínum! ;)",

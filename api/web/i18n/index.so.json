@@ -1,5 +1,8 @@
 {
   "contactLabel": "Xog dheeraad ah la xiriir",
+  "cookieAccept": "Aqbalo dhamaan cookies",
+  "cookieDecline": "Ma kukiis",
+  "cookieMsg": "Goobtaani waxa uu joogto dhowr doon ah (luuqaaga, cabirka akhristkaaga) xidaalka browserkaaga halkii ay ku saaraan server. Wax halkan laga iibinayo ama la wadaago.",
   "ctaButton": "Martigelinta salonkaaga koowaad oo bilaash ah",
   "footerLabel": "Awoodda",
   "phoneNoteAfter": "; haddii kale, marti ku ah salon oo ii casuumay email-eyga! ;)",

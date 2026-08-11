@@ -1,5 +1,8 @@
 {
   "contactLabel": "Lisätietoja saat ottamalla yhteyttä",
+  "cookieAccept": "Hyväksy kaikki evästeet",
+  "cookieDecline": "Ei evästeitä",
+  "cookieMsg": "Tämä sivusto säilyttää muutamia asetuksia (kieli, lukukoko) selaimesi tallennustilassa palvelimella eikä palvelimella. Mitään täällä ei myydä tai jaeta.",
   "ctaButton": "Isännöi ensimmäistä salonkiasi maksutta",
   "footerLabel": "Voimanlähteenä",
   "phoneNoteAfter": "; muuten isännöi salonkia ja kutsu minut sähköpostillani! ;)",

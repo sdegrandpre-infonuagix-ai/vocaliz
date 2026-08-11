@@ -1,5 +1,8 @@
 {
   "contactLabel": "För mer info kontakta",
+  "cookieAccept": "Acceptera alla cookies",
+  "cookieDecline": "Inga kakor",
+  "cookieMsg": "Denna webbplats behåller några inställningar (ditt språk, din lässtorlek) i din webbläsares lagring snarare än på en server. Ingenting här säljs eller delas.",
   "ctaButton": "Värd din första salong gratis",
   "footerLabel": "Drivs av",
   "phoneNoteAfter": "; annars, värd för en salong och bjud in mig med min e-post! ;)",

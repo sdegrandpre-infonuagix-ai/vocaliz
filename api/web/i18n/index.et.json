@@ -1,5 +1,8 @@
 {
   "contactLabel": "Lisateabe saamiseks võtke ühendust",
+  "cookieAccept": "Nõustuge kõigi küpsistega",
+  "cookieDecline": "Küpsiseid pole",
+  "cookieMsg": "See sait hoiab mõned eelistused (teie keel, lugemissuurus) teie brauseri salvestusruumis, mitte serveris. Midagi siin ei müüda ega jagata.",
   "ctaButton": "Korraldage oma esimest salongi tasuta",
   "footerLabel": "Toidab",
   "phoneNoteAfter": "; muidu, korraldage salongi ja kutsuge mind oma e-posti aadressiga! ;)",

@@ -1,5 +1,8 @@
 {
   "contactLabel": "For mere info kontakt",
+  "cookieAccept": "Accepter alle cookies",
+  "cookieDecline": "Ingen cookies",
+  "cookieMsg": "Dette websted gemmer et par præferencer (dit sprog, din læsestørrelse) i din browsers lager i stedet for på en server. Intet her sælges eller deles.",
   "ctaButton": "Vær vært for din første salon gratis",
   "footerLabel": "Drevet af",
   "phoneNoteAfter": "; Ellers skal du være vært for en salon og inviter mig med min e-mail! ;)",

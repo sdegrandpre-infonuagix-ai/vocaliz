@@ -1,5 +1,8 @@
 {
   "contactLabel": "Qo'shimcha ma'lumot olish uchun murojaat qiling",
+  "cookieAccept": "Barcha cookie-fayllarni qabul qiling",
+  "cookieDecline": "Cookie fayllari yo'q",
+  "cookieMsg": "Ushbu sayt serverda emas, balki brauzeringizning xotirasida bir nechta afzalliklarni (tilingiz, o'qish o'lchamingiz) saqlaydi. Bu erda hech narsa sotilmaydi yoki ulashilmaydi.",
   "ctaButton": "Birinchi saloningizni bepul o'tkazing",
   "footerLabel": "tomonidan quvvatlanadi",
   "phoneNoteAfter": "; aks holda, bir salonga mezbonlik qiling va meni elektron pochtam bilan taklif qiling! ;)",

@@ -1,5 +1,8 @@
 {
   "contactLabel": "Lai iegūtu vairāk informācijas, sazinieties",
+  "cookieAccept": "Pieņemt visas sīkdatnes",
+  "cookieDecline": "Nav sīkdatņu",
+  "cookieMsg": "Šī vietne saglabā dažas preferences (jūsu valoda, lasīšanas lielums) pārlūkprogrammas krātuvē, nevis serverī. Nekas šeit netiek pārdots vai dalīts.",
   "ctaButton": "Sarīkojiet savu pirmo salonu bez maksas",
   "footerLabel": "Darbina ar",
   "phoneNoteAfter": "; pretējā gadījumā rīkojiet salonu un uzaiciniet mani ar savu e-pastu! ;)",

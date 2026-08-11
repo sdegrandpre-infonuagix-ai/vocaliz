@@ -1,5 +1,8 @@
 {
   "contactLabel": "Per a més informació contacta",
+  "cookieAccept": "Acceptar totes les cookies",
+  "cookieDecline": "Sense galetes",
+  "cookieMsg": "Aquest lloc manté algunes preferències (el seu idioma, la seva mida de lectura) en l'emmagatzematge del seu navegador en lloc de en un servidor. Res aquí no es ven ni es comparteix.",
   "ctaButton": "Acull el teu primer saló de forma gratuïta",
   "footerLabel": "Impulsat per",
   "phoneNoteAfter": "; en cas contrari, allotgeu un saló i convideu-me amb el meu correu electrònic! ;)",
