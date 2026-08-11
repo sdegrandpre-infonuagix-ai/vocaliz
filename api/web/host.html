@@ -714,7 +714,11 @@
         Use your guest's own email or number — not the one you signed in with.
       </div>
       <label for="guest-email" data-i18n="guestEmailLabel">Contact's email address</label>
-      <input type="email" id="guest-email" placeholder="friend@example.com" data-i18n-ph="guestEmailPh">
+      <!-- autocomplete="off": this is never the host's own remembered address, and with no
+           name attribute to tell two identical-looking email inputs apart, a browser's
+           autofill has filled this one and its sibling below with the same value. -->
+      <input type="email" id="guest-email" placeholder="friend@example.com" data-i18n-ph="guestEmailPh"
+             autocomplete="off">
       <!-- Hidden by default and revealed by /config: text messaging waits on an AWS
            review, and a field that produces nothing is worse than no field. -->
       <div id="phone-field" class="hidden">
@@ -754,7 +758,8 @@
         Use a different email or number than yours and your first guest's.
       </div>
       <label for="guest-email-2" data-i18n="guestEmailLabel">Contact's email address</label>
-      <input type="email" id="guest-email-2" placeholder="friend@example.com" data-i18n-ph="guestEmailPh">
+      <input type="email" id="guest-email-2" placeholder="friend@example.com" data-i18n-ph="guestEmailPh"
+             autocomplete="off">
       <div id="phone-field-2" class="hidden">
         <label for="guest-phone-2" data-i18n="guestPhoneLabel">Mobile number</label>
         <input type="tel" id="guest-phone-2" placeholder="+1 514 555 0123" data-i18n-ph="guestPhonePh"
