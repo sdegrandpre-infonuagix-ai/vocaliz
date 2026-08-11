@@ -170,3 +170,12 @@ def test_base_transcribes_the_forced_language_or_falls_back_to_english():
     fallback `listener_language` already uses elsewhere for the same reason."""
     block = _base_branch()
     assert 'forced_language if forced_language != "auto" else "en"' in block
+
+
+def test_base_widens_endpointing_for_a_real_stt_round_trip():
+    """Reported live: `xAI STT does not detect my voice` — the transcript was arriving after
+    the framework's default 0.5s min_delay had already committed the turn without it. The
+    realtime tiers never read this at all, since their turn detection happens server-side."""
+    block = _base_branch()
+    assert '"endpointing"' in block
+    assert '"min_delay": 1.2' in block

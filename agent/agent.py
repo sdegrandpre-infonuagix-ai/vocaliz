@@ -1425,7 +1425,17 @@ async def entrypoint(ctx: agents.JobContext):
             # sound it as well.
             tts=xai.TTS(voice=chosen_voice, api_key=xai_key or None),
             vad=silero.VAD.load(),
-            turn_handling=turn_handling,
+            turn_handling={
+                **turn_handling,
+                # The realtime tiers do their own server-side turn detection and never read
+                # this; here there is a real network round trip between "the human stopped
+                # talking" and "xAI's STT sent back the final transcript" that the framework's
+                # own default (0.5s) is too short to cover — the symptom is the transcript
+                # arriving after the turn was already committed, logged as a warning telling
+                # you to raise exactly this. Widened rather than left at default; still
+                # bounded, so a genuinely stuck STT does not hang the turn forever.
+                "endpointing": {"min_delay": 1.2, "max_delay": 5.0},
+            },
         )
     else:
         agent_session = AgentSession(
