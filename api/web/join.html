@@ -189,6 +189,59 @@
       box-shadow: 0 2px 12px rgba(44,44,44,.06);
     }
 
+    /* Missing here until now — host.html has carried this since its own login form, and
+       every text/email/file field on this page (the account offer's name and email, its
+       code, the mid-salon source URL) has been rendering in the browser's bare default
+       styling ever since, the one thing on the page that never picked up its own colours. */
+    label {
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b6257;
+      margin: 14px 0 6px;
+      text-align: left;
+    }
+
+    input[type=text], input[type=email], input[type=file] {
+      width: 100%;
+      min-height: 44px;
+      border: 1.5px solid #e2d9cc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 1rem;
+      color: #2C2C2C;
+      background: #fff;
+    }
+
+    input[type=text]:focus, input[type=email]:focus {
+      outline: none;
+      border-color: #7B1528;
+    }
+
+    /* Also missing until now: every status line on the page (the account offer's, the
+       source-add form's) sets this exact class from renderStatus/setStatus below, but with
+       no rule to answer to it rendered as plain, colourless text — a success and a refusal
+       looked the same. host.html has carried this since its own status boxes. */
+    .status {
+      font-size: 0.85rem;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-top: 12px;
+      display: none;
+      word-break: break-word;
+    }
+    .status.ok { background: #eaf5ec; color: #245c33; display: block; }
+    .status.err { background: #fdecea; color: #8a1c13; display: block; }
+
+    /* Breathing room between the account offer's two actions (send a code / not now) and
+       the code row that appears between them — .btn carries none of its own, and the three
+       sat flush against each other. Scoped to this card rather than every .btn on the page,
+       several of which set their own margin to 0 on purpose for a row layout. */
+    #v-account > button, #v-account > #acct-code-row {
+      margin-top: 14px;
+    }
+
     .card-icon { font-size: 2.6rem; margin-bottom: 14px; }
 
     .card-title {
@@ -600,13 +653,16 @@
     </div>
     <!-- Required. A guest has been "Guest 4F2A" for the whole conversation; this is where
          they stop being that, and the name is the point of creating the account. -->
+    <label for="acct-name" data-i18n="nameLabel">Your name</label>
     <input type="text" id="acct-name" placeholder="Your name" data-i18n-ph="namePh"
            autocomplete="name" maxlength="60">
+    <label for="acct-email" data-i18n="emailLabel">Email address</label>
     <input type="email" id="acct-email" placeholder="you@example.com" data-i18n-ph="emailPh"
            autocomplete="email" inputmode="email">
     <button class="btn btn-primary" id="acct-send" onclick="requestAccountCode()"
             data-i18n="accountSend">Send me a code</button>
     <div id="acct-code-row" style="display:none">
+      <label for="acct-code" data-i18n="codeLabel">6-digit code</label>
       <input type="text" id="acct-code" inputmode="numeric" maxlength="6" placeholder="123456">
       <button class="btn btn-primary" onclick="verifyAccountCode()"
               data-i18n="accountVerify">Verify</button>
@@ -757,6 +813,10 @@
       accountBadEmail: 'That does not look like an email address.',
       accountNoName: 'Please enter your name — it is what the others hear when you speak.',
       namePh: 'Your name',
+      nameLabel: 'Your name',
+      emailLabel: 'Email address',
+      emailPh: 'you@example.com',
+      codeLabel: '6-digit code',
       accountDone: 'Account created. Your languages are saved.',
       accountFailed: 'That did not work. Please try again.',
       whatIsVocaliz: 'Vocaliz is a platform for creating Salons. A Salon is made up of up to 3 audio rooms, each room with a human and an AI voice agent. Communication between the rooms is through live captions that each human can ask their voice agent to share in the Salon.',
@@ -854,6 +914,10 @@
       accountBadEmail: "Cela ne ressemble pas à une adresse courriel.",
       accountNoName: "Entrez votre nom — c'est ce que les autres entendent quand vous parlez.",
       namePh: "Votre nom",
+      nameLabel: 'Votre nom',
+      emailLabel: 'Adresse courriel',
+      emailPh: 'vous@exemple.com',
+      codeLabel: 'Code à 6 chiffres',
       accountDone: 'Compte créé. Vos langues sont enregistrées.',
       accountFailed: "Cela n'a pas fonctionné. Réessayez.",
       whatIsVocaliz: "Vocaliz est une plateforme permettant de créer des Salons. Un Salon est composé de jusqu'à 3 salles audio, chacune avec un humain et un agent vocal IA. La communication entre les salles se fait par sous-titres en direct, que chaque humain peut demander à son agent vocal de partager dans le Salon.",
