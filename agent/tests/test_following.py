@@ -194,13 +194,14 @@ async def test_a_stop_asked_for_during_the_wait_is_honoured_at_the_next_turn():
 
 
 @pytest.mark.asyncio
-async def test_the_loop_gives_up_after_consecutive_failures_and_calls_the_hook():
-    """Two batches in a row that each lose a line to the same voice is the pattern a session
-    that cannot speak at all produces — see session_voice.py's own two-attempt retry, which
-    this is the layer above. The loop must stop polling a session its caller is about to
-    leave, not keep asking it forever."""
+async def test_the_loop_gives_up_on_the_first_failed_batch():
+    """The fluke-tolerance this guards against is already spent inside `_speak` — see
+    session_voice.py's own two-attempt retry, which is the layer below. A batch that reaches
+    here has already failed to speak the same line twice running, so a second batch would
+    buy nothing a redispatch does not already fix in about a second — see the constant's own
+    comment for the ~34-second cost this used to have in production."""
     voice = FakeVoice(fail_with=RuntimeError("generate_reply timed out"))
-    link = FakeLink(scripts=[[_tour()], [_tour()], [_tour()]])
+    link = FakeLink(scripts=[[_tour()], [_tour()]])
     stop = asyncio.Event()
     gave_up = []
 
@@ -212,41 +213,8 @@ async def test_the_loop_gives_up_after_consecutive_failures_and_calls_the_hook()
     )
 
     assert gave_up == [True]
-    # Two failed batches is the threshold; a third ask would mean the loop kept going past it.
-    assert link.asks == 2
-
-
-@pytest.mark.asyncio
-async def test_a_single_failed_batch_does_not_give_up():
-    """One bad batch is not yet distinguishable from a fluke — only consecutive ones are."""
-    voice = FakeVoice()
-    # Fails once, then the voice is swapped for one that succeeds — see below.
-    failing_line = _tour()
-    link = FakeLink(scripts=[[failing_line], [], [_tour()]])
-    stop = asyncio.Event()
-    gave_up = []
-
-    calls = {"n": 0}
-
-    class FlakyOnce:
-        async def say(self, text):
-            pass
-
-        async def render(self, line):
-            calls["n"] += 1
-            if calls["n"] == 1:
-                raise RuntimeError("one bad line")
-
-    async def sleep(_seconds):
-        if link.asks >= 3:
-            stop.set()
-
-    await follow(
-        link, FlakyOnce(), stop=stop, sleep=sleep, on_unrecoverable=lambda: gave_up.append(True)
-    )
-
-    assert gave_up == []
-    assert link.asks == 3
+    # One failed batch is the threshold; a second ask would mean the loop kept going past it.
+    assert link.asks == 1
 
 
 @pytest.mark.asyncio

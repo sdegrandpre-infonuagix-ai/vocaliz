@@ -42,12 +42,16 @@ DEFAULT_INTERVAL_SECONDS = 0.25
 BACKOFF_SECONDS = 2.0
 
 # Consecutive delivery batches that each lost a line to the same kind of failure before this
-# loop gives up on its own realtime session rather than keep asking it. Each batch already
-# cost two attempts inside `_speak` — see session_voice.py — so by the time this fires, the
-# session has failed to speak at all on four separate tries. Two rather than one: a batch
-# that fails once is not yet distinguishable from a fluke, and one that fails twice running
-# is the same bar `_speak`'s own retry already uses for the same reason.
-GIVE_UP_AFTER_CONSECUTIVE_FAILURES = 2
+# loop gives up on its own realtime session rather than keep asking it. One rather than two:
+# the fluke-tolerance this guards against is already spent inside `_speak` — see
+# session_voice.py's own two-attempt retry — so a batch that reaches here has already failed
+# to speak the same line twice running, which is the bar a fluke does not clear. Waiting for
+# a second such batch before giving up used to cost the room roughly 34 seconds of silence
+# for every session that dies this way — live logs from 2026-08-11 showed one taking that
+# long to recover — against a redispatch already confirmed to produce a working session in
+# about a second. There is nothing this extra wait buys that the first batch's own two
+# attempts did not already spend.
+GIVE_UP_AFTER_CONSECUTIVE_FAILURES = 1
 
 
 class Voice(Protocol):
