@@ -1566,6 +1566,11 @@ async def connect_agent(
         salon.livekit_room_name,
         salon_id=str(salon.id),
         host_token=jwt_service.issue_token(str(current_user.id)),
+        participant_id=str(current_user.id),
+        relay_token=relay_token_service.issue(
+            salon_id=str(salon.id), participant_id=str(current_user.id)
+        ),
+        follow_journal=bool(salon.orchestrator_url),
     )
     salon.agent_muted = False
     db.commit()

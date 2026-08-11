@@ -196,15 +196,23 @@ def test_removing_clears_the_pause(client, salon, host, db):
 
 
 def test_bringing_one_back_dispatches_a_fresh_agent(client, salon, host):
-    _, token = host
-    with patch(
-        "src.services.livekit_service.dispatch_agent", new_callable=AsyncMock
-    ) as dispatch:
-        resp = client.post(f"/salons/{salon.id}/agent/connect", headers=_auth(token))
+    """No local patch: conftest's `_no_livekit_side_calls` now autospecs dispatch_agent for
+    every test, which is the point being exercised here. It gained three required
+    keyword-only arguments (participant_id, relay_token, follow_journal) for the
+    per-participant topology, and this call site was never updated to pass them — a bare
+    mock accepts anything, so this test kept passing while every real call 500'd with a
+    TypeError. Only caught live, when a host removed the agent and then asked for it back."""
+    from src.services import livekit_service
+
+    host_user, token = host
+    resp = client.post(f"/salons/{salon.id}/agent/connect", headers=_auth(token))
     assert resp.status_code == 200
     assert resp.json() == {"present": True, "muted": False}
-    dispatch.assert_awaited_once()
-    assert dispatch.await_args.args[0] == salon.livekit_room_name
+    livekit_service.dispatch_agent.assert_awaited_once()
+    call = livekit_service.dispatch_agent.await_args
+    assert call.args[0] == salon.livekit_room_name
+    assert call.kwargs["participant_id"] == str(host_user.id)
+    assert call.kwargs["follow_journal"] is False
 
 
 def test_a_closed_salon_takes_no_new_agent(client, salon, host, db):

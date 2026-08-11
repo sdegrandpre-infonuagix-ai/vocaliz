@@ -72,6 +72,12 @@ def _no_livekit_side_calls(request):
 
     Tests that exercise those functions themselves opt out with
     @pytest.mark.real_livekit_service, otherwise they would assert against this mock.
+
+    `dispatch_agent` is autospecced rather than a bare AsyncMock: it gained three required
+    keyword-only arguments for the per-participant topology, one call site was never updated
+    to pass them, and a bare mock accepts any call — so every test through this fixture kept
+    passing while the real endpoint 500'd. Only caught live. Autospeccing turns a missing or
+    misnamed argument back into the TypeError it always should have been.
     """
     from unittest.mock import AsyncMock, patch
 
@@ -81,7 +87,7 @@ def _no_livekit_side_calls(request):
 
     with (
         patch("src.services.livekit_service.create_room", new_callable=AsyncMock),
-        patch("src.services.livekit_service.dispatch_agent", new_callable=AsyncMock),
+        patch("src.services.livekit_service.dispatch_agent", autospec=True),
         patch("src.services.livekit_service.notify_room", new_callable=AsyncMock),
         patch("src.services.livekit_service.delete_room", new_callable=AsyncMock),
     ):
