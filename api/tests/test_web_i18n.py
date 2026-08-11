@@ -373,6 +373,26 @@ def test_a_browser_without_a_recogniser_says_so():
     assert "dictateUnsupported" in _source("host.html")
 
 
+def test_dictate_is_offered_in_base_mode_only():
+    """Modes A/B/C give the host a live speech-to-speech interpreter to talk into instead —
+    Dictate exists for the one mode without a natural voice on the line."""
+    source = _source("host.html")
+    assert "function renderDictateVisibility()" in source
+    block = source[source.index("function renderDictateVisibility()"):]
+    block = block[: block.index("\n    }")]
+    assert "currentTier === 'Base'" in block
+
+
+def test_the_tier_is_read_once_per_join_not_assumed():
+    """A host can resume into a salon this tab never created, so the tier this page starts
+    with — the default it renders before anything is known — must not be trusted as fact."""
+    source = _source("host.html")
+    join = source[source.index("async function joinRoom()"):]
+    join = join[: join.index("\n    }\n")]
+    assert "currentTier = detail.hostTier" in join
+    assert "renderDictateVisibility()" in join
+
+
 # ─── A Salon that outlives the page ──────────────────────────────────────────
 #
 # Reported from a live salon: "he added a URL and it ended my salon as a guest". The host

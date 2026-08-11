@@ -375,6 +375,33 @@
       max-width: 48ch;
       margin: 8px auto 0;
     }
+    .copyright { margin-top: 4px; }
+
+    .cookie-banner {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 100;
+      background: #2C2C2C;
+      color: #F8F3E8;
+      padding: 14px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+    .cookie-banner p { max-width: 56ch; font-size: .85rem; line-height: 1.4; margin: 0; }
+    .cookie-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .cookie-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .cookie-accept { background: #C9A84C; color: #2C2C2C; border: none; }
+    .cookie-decline { background: transparent; color: #F8F3E8; border: 1.5px solid #F8F3E8; }
 
 
     /* ── Billboard: what the shared corpus is about ──────────────────────────── */
@@ -576,6 +603,17 @@
     </select>
   </div>
 </header>
+
+<div id="cookie-banner" class="cookie-banner" style="display:none">
+  <p data-i18n="cookieMsg">This site keeps a few preferences (your language, your reading
+    size) in your browser's storage rather than on a server. Nothing here is sold or shared.</p>
+  <div class="cookie-actions">
+    <button class="cookie-btn cookie-accept" onclick="acceptCookies()"
+            data-i18n="cookieAccept">Accept all cookies</button>
+    <button class="cookie-btn cookie-decline" onclick="declineCookies()"
+            data-i18n="cookieDecline">No cookies</button>
+  </div>
+</div>
 
 <main>
 
@@ -785,8 +823,9 @@
 </main>
 
 <footer class="powered">
-  Powered by <a href="https://infonuagix.ai" target="_blank" rel="noopener noreferrer">Infonuagix.ai</a>
   <p class="voice-langs"><span data-i18n="starMeaning">* Live voice conversation is also available in </span><span id="voice-langs-list"></span></p>
+  <div>Powered by <a href="https://infonuagix.ai" target="_blank" rel="noopener noreferrer">Infonuagix.ai</a></div>
+  <div class="copyright">© 2026 Infonuagix. All rights reserved.</div>
 </footer>
 
 
@@ -897,7 +936,10 @@
       sourceAdded: 'Source added ({type}, {chars} characters). The agent has been told.',
       sourceFailed: 'Could not add that source. Please try again.',
       errHttp: 'Error {code}',
-      starMeaning: '* Live voice conversation is also available in '
+      starMeaning: '* Live voice conversation is also available in ',
+      cookieMsg: "This site keeps a few preferences (your language, your reading size) in your browser's storage rather than on a server. Nothing here is sold or shared.",
+      cookieAccept: 'Accept all cookies',
+      cookieDecline: 'No cookies'
     },
     fr: {
       pageTitle: 'Vocaliz — Rejoindre la conversation',
@@ -1000,7 +1042,10 @@
       sourceAdded: "Source ajoutée ({type}, {chars} caractères). L'agent en a été prévenu.",
       sourceFailed: "Impossible d'ajouter cette source. Réessayez.",
       errHttp: 'Erreur {code}',
-      starMeaning: '* La conversation vocale en direct est aussi offerte en '
+      starMeaning: '* La conversation vocale en direct est aussi offerte en ',
+      cookieMsg: "Ce site conserve quelques préférences (votre langue, la taille de lecture) dans le stockage de votre navigateur plutôt que sur un serveur. Rien ici n'est vendu ni partagé.",
+      cookieAccept: 'Accepter tous les témoins',
+      cookieDecline: 'Aucun témoin'
     }
   };
 
@@ -1037,6 +1082,42 @@
     }
   }
 
+  // ── Cookie consent ────────────────────────────────────────────────────────────
+  // Nothing here sets an actual HTTP cookie — every preference on this page lives in
+  // localStorage — but the choice on offer is the same one a cookie banner asks for, so it
+  // gates the same way. Declining stops the page reading or writing anything through
+  // prefGet/prefSet/prefRemove but the choice itself, which has to survive the decision or
+  // the banner would ask again on every single visit.
+  var COOKIE_CONSENT_KEY = 'vocaliz.cookieConsent';
+
+  function cookieConsent() {
+    try { return localStorage.getItem(COOKIE_CONSENT_KEY); } catch (e) { return null; }
+  }
+
+  function prefGet(key) {
+    if (cookieConsent() !== 'accepted') return null;
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  function prefSet(key, value) {
+    if (cookieConsent() !== 'accepted') return;
+    try { localStorage.setItem(key, value); } catch (e) { }
+  }
+
+  function prefRemove(key) {
+    if (cookieConsent() !== 'accepted') return;
+    try { localStorage.removeItem(key); } catch (e) { }
+  }
+
+  function setCookieConsent(choice) {
+    try { localStorage.setItem(COOKIE_CONSENT_KEY, choice); } catch (e) { }
+    var banner = document.getElementById('cookie-banner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  function acceptCookies() { setCookieConsent('accepted'); }
+  function declineCookies() { setCookieConsent('declined'); }
+
   var LANG_KEY = 'vocaliz.lang';
   // Written under the old project's name until the rename. Carried across on first read
   // rather than dropped: it is an explicit choice the visitor made, and losing it would
@@ -1047,12 +1128,12 @@
   function storedLang() {
     // localStorage throws outright under some privacy settings, not just return null.
     try {
-      var v = localStorage.getItem(LANG_KEY);
+      var v = prefGet(LANG_KEY);
       if (v === null) {
-        v = localStorage.getItem(LEGACY_LANG_KEY);
+        v = prefGet(LEGACY_LANG_KEY);
         if (v !== null) {
-          localStorage.setItem(LANG_KEY, v);
-          localStorage.removeItem(LEGACY_LANG_KEY);
+          prefSet(LANG_KEY, v);
+          prefRemove(LEGACY_LANG_KEY);
         }
       }
       // Checked against every supported language, not against what is loaded: a stored
@@ -1105,7 +1186,7 @@
       return;
     }
     lang = next;
-    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode: this browsing session only */ }
+    prefSet(LANG_KEY, next);
     applyLang();
   }
 
@@ -1140,8 +1221,7 @@
       ['ur', "اردو"], ['uz', "o‘zbek"]
     ];
     var CAP_KEY = 'vocaliz.captionLang';
-    var captionLang = '';
-    try { captionLang = localStorage.getItem(CAP_KEY) || ''; } catch (e) { }
+    var captionLang = prefGet(CAP_KEY) || '';
 
     // Held in memory with their translations so a change of language re-renders what has
     // already been said. Turns that arrived before the change carry no translation into
@@ -1166,7 +1246,7 @@
 
     function setCaptionLang(next) {
       captionLang = next || '';
-      try { localStorage.setItem(CAP_KEY, captionLang); } catch (e) { }
+      prefSet(CAP_KEY, captionLang);
       publishCaptionLang();
       // Drawn immediately with what is in memory, then again once the retranslated history lands.
       renderCaptions();
@@ -1705,11 +1785,9 @@
   //
   // A stored choice wins over both: somebody who turned it off meant it.
   var soundOn = (function () {
-    try {
-      var stored = localStorage.getItem(SOUND_KEY);
-      if (stored === '1') return true;
-      if (stored === '0') return false;
-    } catch (e) { }
+    var stored = prefGet(SOUND_KEY);
+    if (stored === '1') return true;
+    if (stored === '0') return false;
     // deviceType() is the same classification the report is built from, so "phone" here and
     // "phone" there mean one thing.
     var kind = deviceType();
@@ -1728,7 +1806,7 @@
 
   async function toggleSound() {
     soundOn = !soundOn;
-    try { localStorage.setItem(SOUND_KEY, soundOn ? '1' : '0'); } catch (e) { }
+    prefSet(SOUND_KEY, soundOn ? '1' : '0');
     for (var i = 0; i < audioElements.length; i++) {
       audioElements[i].muted = !soundOn;
     }
@@ -2039,7 +2117,7 @@
 
   function deviceToken() {
     try {
-      var existing = localStorage.getItem(DEVICE_TOKEN_KEY);
+      var existing = prefGet(DEVICE_TOKEN_KEY);
       if (existing && existing.length === 36) return existing;
       var minted = (crypto && crypto.randomUUID)
         ? crypto.randomUUID()
@@ -2049,7 +2127,7 @@
             return (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4))))
               .toString(16);
           });
-      localStorage.setItem(DEVICE_TOKEN_KEY, minted);
+      prefSet(DEVICE_TOKEN_KEY, minted);
       return minted;
     } catch (e) {
       return '';
@@ -2245,10 +2323,8 @@
   var CAP_SIZE_KEY = 'vocaliz.capScale';
   var CAP_STEPS = [85, 100, 120, 145, 175];
   var capScale = 100;
-  try {
-    var stored = parseInt(localStorage.getItem(CAP_SIZE_KEY), 10);
-    if (CAP_STEPS.indexOf(stored) !== -1) capScale = stored;
-  } catch (e) { }
+  var storedCapScale = parseInt(prefGet(CAP_SIZE_KEY), 10);
+  if (CAP_STEPS.indexOf(storedCapScale) !== -1) capScale = storedCapScale;
 
   function applyCaptionSize() {
     var log = document.getElementById('cap-log');
@@ -2270,7 +2346,7 @@
     capScale = CAP_STEPS[at];
     // Written locally as well as to the account: local answers instantly and works before
     // sign-in, where there is no account to write to.
-    try { localStorage.setItem(CAP_SIZE_KEY, String(capScale)); } catch (e) { }
+    prefSet(CAP_SIZE_KEY, String(capScale));
     applyCaptionSize();
     rememberCaptionScale(capScale);
   }
@@ -2284,7 +2360,7 @@
   function adoptCaptionScale(percent) {
     if (CAP_STEPS.indexOf(percent) === -1) return;
     capScale = percent;
-    try { localStorage.setItem(CAP_SIZE_KEY, String(percent)); } catch (e) { }
+    prefSet(CAP_SIZE_KEY, String(percent));
     applyCaptionSize();
   }
 
@@ -2321,6 +2397,12 @@
     showError('errIncompleteTitle', 'errIncompleteDetail');
   } else {
     fetchCredentials();
+  }
+
+  // Shown once, on the first visit that never chose either way.
+  if (!cookieConsent()) {
+    var cookieBanner = document.getElementById('cookie-banner');
+    if (cookieBanner) cookieBanner.style.display = 'flex';
   }
 
   // ── The voice languages, in the footer ──────────────────────────────────────

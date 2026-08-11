@@ -115,6 +115,37 @@
     font-size: .72rem;
     color: #8b8175;
   }
+  .copyright {
+    margin-top: 4px;
+    font-size: .72rem;
+    color: #8b8175;
+  }
+
+  .cookie-banner {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 100;
+    background: #2C2C2C;
+    color: #F8F3E8;
+    padding: 14px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+  .cookie-banner p { max-width: 56ch; font-size: .85rem; line-height: 1.4; margin: 0; }
+  .cookie-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cookie-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: .85rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .cookie-accept { background: #C9A84C; color: #2C2C2C; border: none; }
+  .cookie-decline { background: transparent; color: #F8F3E8; border: 1.5px solid #F8F3E8; }
 </style>
 
 <div class="lang-bar">
@@ -193,6 +224,17 @@
   </select>
 </div>
 
+<div id="cookie-banner" class="cookie-banner" style="display:none">
+  <p data-i18n="cookieMsg">This site keeps a few preferences (your language, your reading
+    size) in your browser's storage rather than on a server. Nothing here is sold or shared.</p>
+  <div class="cookie-actions">
+    <button class="cookie-btn cookie-accept" onclick="acceptCookies()"
+            data-i18n="cookieAccept">Accept all cookies</button>
+    <button class="cookie-btn cookie-decline" onclick="declineCookies()"
+            data-i18n="cookieDecline">No cookies</button>
+  </div>
+</div>
+
 <main>
   <div class="logo-circle">
     <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
@@ -224,8 +266,9 @@
   <p class="phone-note"><span data-i18n="phoneNoteBefore">If you speak English or French, you can call me at </span><a href="tel:+15149420259">1-514-942-0259</a><span data-i18n="phoneNoteAfter">; otherwise, host a salon and invite me with my email! ;)</span></p>
 </main>
 <footer>
-  <div><span data-i18n="footerLabel">Powered by</span> <a href="https://infonuagix.ai" target="_blank" rel="noopener">Infonuagix.ai</a></div>
   <p class="voice-langs"><span data-i18n="starMeaning">* Live voice conversation is also available in </span><span id="voice-langs-list"></span></p>
+  <div><span data-i18n="footerLabel">Powered by</span> <a href="https://infonuagix.ai" target="_blank" rel="noopener">Infonuagix.ai</a></div>
+  <div class="copyright">© 2026 Infonuagix. All rights reserved.</div>
 </footer>
 
 <script>
@@ -246,7 +289,10 @@
       phoneNoteBefore: "If you speak English or French, you can call me at ",
       phoneNoteAfter: "; otherwise, host a salon and invite me with my email! ;)",
       footerLabel: "Powered by",
-      starMeaning: "* Live voice conversation is also available in "
+      starMeaning: "* Live voice conversation is also available in ",
+      cookieMsg: "This site keeps a few preferences (your language, your reading size) in your browser's storage rather than on a server. Nothing here is sold or shared.",
+      cookieAccept: "Accept all cookies",
+      cookieDecline: "No cookies"
     },
     fr: {
       sofaAria: "Canapé",
@@ -259,7 +305,10 @@
       phoneNoteBefore: "Si vous parlez anglais ou français, vous pouvez m'appeler au ",
       phoneNoteAfter: " ; sinon, hébergez un salon et invitez-moi avec mon courriel ! ;)",
       footerLabel: "Propulsé par",
-      starMeaning: "* La conversation vocale en direct est aussi offerte en "
+      starMeaning: "* La conversation vocale en direct est aussi offerte en ",
+      cookieMsg: "Ce site conserve quelques préférences (votre langue, la taille de lecture) dans le stockage de votre navigateur plutôt que sur un serveur. Rien ici n'est vendu ni partagé.",
+      cookieAccept: "Accepter tous les témoins",
+      cookieDecline: "Aucun témoin"
     }
   };
 
@@ -278,11 +327,42 @@
 
   function isSupported(code) { return SUPPORTED_LANGS.indexOf(code) !== -1; }
 
+  // ── Cookie consent ──────────────────────────────────────────────────────────
+  // Nothing here sets an actual HTTP cookie — every preference on this site lives in
+  // localStorage — but the choice on offer is the same one a cookie banner asks for, so it
+  // gates the same way. Declining stops the site reading or writing anything through
+  // prefGet/prefSet but the choice itself, which has to survive the decision or the banner
+  // would ask again on every single visit.
+  var COOKIE_CONSENT_KEY = 'vocaliz.cookieConsent';
+
+  function cookieConsent() {
+    try { return localStorage.getItem(COOKIE_CONSENT_KEY); } catch (e) { return null; }
+  }
+
+  function prefGet(key) {
+    if (cookieConsent() !== 'accepted') return null;
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  function prefSet(key, value) {
+    if (cookieConsent() !== 'accepted') return;
+    try { localStorage.setItem(key, value); } catch (e) { }
+  }
+
+  function setCookieConsent(choice) {
+    try { localStorage.setItem(COOKIE_CONSENT_KEY, choice); } catch (e) { }
+    var banner = document.getElementById('cookie-banner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  function acceptCookies() { setCookieConsent('accepted'); }
+  function declineCookies() { setCookieConsent('declined'); }
+
   var LANG_KEY = 'vocaliz.landing.lang';
 
   function storedLang() {
     try {
-      var v = localStorage.getItem(LANG_KEY);
+      var v = prefGet(LANG_KEY);
       return isSupported(v) ? v : null;
     } catch (e) { return null; }
   }
@@ -328,7 +408,7 @@
       return;
     }
     lang = next;
-    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* private mode */ }
+    prefSet(LANG_KEY, next);
     applyLang();
   }
 
@@ -349,6 +429,14 @@
   }
 
   applyLang();
+
+  // Shown once, on the first visit that never chose either way. Deliberately after
+  // applyLang(): the banner's own text is translated by the same pass, so it has to exist
+  // in the language the reader is about to see it in, not English for one render.
+  if (!cookieConsent()) {
+    var cookieBanner = document.getElementById('cookie-banner');
+    if (cookieBanner) cookieBanner.style.display = 'flex';
+  }
 
   // ── The voice languages, in the footer ────────────────────────────────────
   // Fetched rather than written here, same reason as ever: a copy kept by hand would
